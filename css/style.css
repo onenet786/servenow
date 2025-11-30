@@ -1024,6 +1024,24 @@ footer p {
     background: #c53030;
 }
 
+.btn-success {
+    background: #38a169;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #2f855a;
+}
+
+.btn-info {
+    background: #3182ce;
+    color: white;
+}
+
+.btn-info:hover {
+    background: #2c5282;
+}
+
 /* Enhanced Responsive Design */
 @media (max-width: 768px) {
     nav {

@@ -132,7 +132,8 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
         }
 
         const [orders] = await req.db.execute(`
-            SELECT o.*, u.first_name, u.last_name, u.email, s.name as store_name
+            SELECT o.*, u.first_name, u.last_name, u.email, s.name as store_name,
+                   (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as items_count
             FROM orders o
             JOIN users u ON o.user_id = u.id
             JOIN stores s ON o.store_id = s.id
@@ -255,10 +256,13 @@ router.put('/:id/assign-rider', authenticateToken, requireAdmin, [
             });
         }
 
+        // Set estimated delivery time (current time + 30 minutes)
+        const estimatedDelivery = new Date(Date.now() + 30 * 60 * 1000);
+
         // Assign rider and update status
         await req.db.execute(
-            'UPDATE orders SET rider_id = ?, status = ? WHERE id = ?',
-            [rider_id, 'out_for_delivery', id]
+            'UPDATE orders SET rider_id = ?, status = ?, estimated_delivery_time = ? WHERE id = ?',
+            [rider_id, 'out_for_delivery', estimatedDelivery, id]
         );
 
         res.json({
@@ -271,6 +275,114 @@ router.put('/:id/assign-rider', authenticateToken, requireAdmin, [
         res.status(500).json({
             success: false,
             message: 'Failed to assign rider',
+            error: error.message
+        });
+    }
+});
+
+// Update rider location (Rider or Admin)
+router.put('/:id/rider-location', authenticateToken, [
+    body('location').notEmpty().withMessage('Location is required')
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                errors: errors.array()
+            });
+        }
+
+        const { id } = req.params;
+        const { location } = req.body;
+
+        // Check if order exists and user has permission (rider or admin)
+        const [orders] = await req.db.execute(
+            'SELECT rider_id FROM orders WHERE id = ?',
+            [id]
+        );
+
+        if (orders.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        const order = orders[0];
+
+        // Check ownership permission
+        if (req.user.user_type !== 'admin' && order.rider_id !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'You do not have permission to update this order'
+            });
+        }
+
+        await req.db.execute(
+            'UPDATE orders SET rider_location = ? WHERE id = ?',
+            [location, id]
+        );
+
+        res.json({
+            success: true,
+            message: 'Rider location updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Error updating rider location:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update rider location',
+            error: error.message
+        });
+    }
+});
+
+// Mark order as delivered (Rider or Admin)
+router.put('/:id/deliver', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Check if order exists and user has permission (rider or admin)
+        const [orders] = await req.db.execute(
+            'SELECT rider_id FROM orders WHERE id = ?',
+            [id]
+        );
+
+        if (orders.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        const order = orders[0];
+
+        // Check ownership permission
+        if (req.user.user_type !== 'admin' && order.rider_id !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'You do not have permission to update this order'
+            });
+        }
+
+        await req.db.execute(
+            'UPDATE orders SET status = ?, rider_location = ? WHERE id = ?',
+            ['delivered', 'Delivered to customer', id]
+        );
+
+        res.json({
+            success: true,
+            message: 'Order marked as delivered successfully'
+        });
+
+    } catch (error) {
+        console.error('Error marking order as delivered:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark order as delivered',
             error: error.message
         });
     }
@@ -293,6 +405,143 @@ router.get('/available-riders', authenticateToken, requireAdmin, async (req, res
         res.status(500).json({
             success: false,
             message: 'Failed to fetch available riders',
+            error: error.message
+        });
+    }
+});
+
+// Update payment status (Admin or Rider)
+router.put('/:id/payment-status', authenticateToken, async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Validation failed',
+                errors: errors.array()
+            });
+        }
+
+        const { id } = req.params;
+        const { payment_status } = req.body;
+
+        // Check if order exists and user has permission (rider or admin)
+        const [orders] = await req.db.execute(
+            'SELECT rider_id FROM orders WHERE id = ?',
+            [id]
+        );
+
+        if (orders.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        const order = orders[0];
+
+        // Check ownership permission
+        if (req.user.user_type !== 'admin' && order.rider_id !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'You do not have permission to update this order'
+            });
+        }
+
+        await req.db.execute(
+            'UPDATE orders SET payment_status = ? WHERE id = ?',
+            [payment_status, id]
+        );
+
+        res.json({
+            success: true,
+            message: 'Payment status updated successfully'
+        });
+
+    } catch (error) {
+        console.error('Error updating payment status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update payment status',
+            error: error.message
+        });
+    }
+});
+
+// Get rider's deliveries
+router.get('/rider/deliveries', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.user_type !== 'rider') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Rider only.'
+            });
+        }
+
+        const { status } = req.query;
+        let whereClause = 'o.rider_id = ?';
+        if (status === 'assigned') {
+            whereClause += " AND o.status IN ('out_for_delivery', 'confirmed', 'preparing', 'ready')";
+        } else if (status === 'completed') {
+            whereClause += " AND o.status = 'delivered'";
+        }
+
+        const [deliveries] = await req.db.execute(`
+            SELECT o.*, u.first_name, u.last_name, u.phone, s.name as store_name
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
+            JOIN stores s ON o.store_id = s.id
+            WHERE ${whereClause}
+            ORDER BY o.created_at DESC
+        `, [req.user.id]);
+
+        res.json({
+            success: true,
+            deliveries
+        });
+
+    } catch (error) {
+        console.error('Error fetching rider deliveries:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch deliveries',
+            error: error.message
+        });
+    }
+});
+
+// Get rider profile
+router.get('/rider/profile', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.user_type !== 'rider') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Rider only.'
+            });
+        }
+
+        const [riders] = await req.db.execute(
+            'SELECT id, first_name, last_name, email, phone, vehicle_type FROM riders WHERE id = ?',
+            [req.user.id]
+        );
+
+        if (riders.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Rider not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            rider: riders[0]
+        });
+
+    } catch (error) {
+        console.error('Error fetching rider profile:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch rider profile',
             error: error.message
         });
     }

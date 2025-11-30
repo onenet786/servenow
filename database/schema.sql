@@ -91,6 +91,8 @@ CREATE TABLE orders (
     total_amount DECIMAL(10, 2) NOT NULL,
     delivery_fee DECIMAL(5, 2) DEFAULT 2.99,
     status ENUM('pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled') DEFAULT 'pending',
+    rider_location TEXT,
+    estimated_delivery_time TIMESTAMP,
     payment_method ENUM('card', 'cash', 'wallet') NOT NULL,
     payment_status ENUM('pending', 'paid', 'failed') DEFAULT 'pending',
     delivery_address TEXT NOT NULL,
@@ -149,9 +151,9 @@ INSERT INTO products (name, price, category_id, store_id, stock_quantity) VALUES
 
 -- Insert sample riders
 INSERT INTO riders (first_name, last_name, email, phone, password, vehicle_type, license_number) VALUES
-('Ahmed', 'Khan', 'ahmed.rider@servenow.com', '+1234567894', '$2a$10$hash1', 'Motorcycle', 'LIC123456'),
-('Fatima', 'Ali', 'fatima.rider@servenow.com', '+1234567895', '$2a$10$hash2', 'Bicycle', 'LIC123457'),
-('Omar', 'Hassan', 'omar.rider@servenow.com', '+1234567896', '$2a$10$hash3', 'Scooter', 'LIC123458');
+('Ahmed', 'Khan', 'ahmed.rider@servenow.com', '+1234567894', 'rider123', 'Motorcycle', 'LIC123456'),
+('Fatima', 'Ali', 'fatima.rider@servenow.com', '+1234567895', 'rider456', 'Bicycle', 'LIC123457'),
+('Omar', 'Hassan', 'omar.rider@servenow.com', '+1234567896', 'rider789', 'Scooter', 'LIC123458');
 
 -- Create indexes for better performance
 CREATE INDEX idx_products_store_id ON products(store_id);

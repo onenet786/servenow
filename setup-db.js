@@ -19,8 +19,9 @@ async function setupDatabase() {
 
         console.log('Connected to MySQL server');
 
-        // Create database
-        await connection.query('CREATE DATABASE IF NOT EXISTS servenow');
+        // Drop and create database
+        await connection.query('DROP DATABASE IF EXISTS servenow');
+        await connection.query('CREATE DATABASE servenow');
         console.log('Database created');
 
         // Switch to the database

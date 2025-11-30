@@ -206,6 +206,8 @@ async function handleLogin(e) {
             // Redirect based on user type
             if (data.user.user_type === 'admin') {
                 window.location.href = 'admin.html';
+            } else if (data.user.user_type === 'rider') {
+                window.location.href = 'rider.html';
             } else {
                 window.location.href = 'index.html';
             }
