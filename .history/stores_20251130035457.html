@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stores - ServeNow</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>ServeNow</h1>
+            </div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="stores.html">Stores</a></li>
+                <li><a href="cart.html">Cart <span id="cartCount">0</span></a></li>
+                <li><a href="login.html">Login</a></li>
+                <li><a href="register.html">Register</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Find Stores Near You</h2>
+
+        <section class="location-filter">
+            <form id="locationForm">
+                <div class="form-group">
+                    <label for="location">Enter your location or use current location:</label>
+                    <input type="text" id="location" name="location" placeholder="Enter city, zip code, or address">
+                </div>
+                <button type="button" id="getLocation" class="btn btn-primary">Use My Location</button>
+                <button type="submit" class="btn btn-secondary">Search</button>
+            </form>
+        </section>
+
+        <section class="stores-list">
+            <h3>All Stores</h3>
+            <div class="store-grid" id="allStores">
+                <!-- Stores will be loaded dynamically -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2023 ServeNow. All rights reserved.</p>
+    </footer>
+
+    <script src="js/app.js"></script>
+    <script src="js/stores.js"></script>
+</body>
+</html>

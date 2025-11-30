@@ -1,0 +1,220 @@
+// API Base URL
+const API_BASE = window.location.origin;
+
+// Authentication state
+let currentUser = null;
+let authToken = localStorage.getItem('serveNowToken');
+
+// Cart functionality
+let cart = JSON.parse(localStorage.getItem('serveNowCart')) || [];
+
+function updateCartCount() {
+    const cartCount = document.getElementById('cartCount');
+    if (cartCount) {
+        cartCount.textContent = cart.length;
+    }
+}
+
+function addToCart(productId, productName, price) {
+    const existingItem = cart.find(item => item.id === productId);
+    if (existingItem) {
+        existingItem.quantity += 1;
+    } else {
+        cart.push({
+            id: productId,
+            name: productName,
+            price: price,
+            quantity: 1
+        });
+    }
+    localStorage.setItem('serveNowCart', JSON.stringify(cart));
+    updateCartCount();
+    alert('Item added to cart!');
+}
+
+function removeFromCart(productId) {
+    cart = cart.filter(item => item.id !== productId);
+    localStorage.setItem('serveNowCart', JSON.stringify(cart));
+    updateCartCount();
+    displayCart();
+}
+
+function displayCart() {
+    const cartContainer = document.getElementById('cartItems');
+    const cartTotal = document.getElementById('cartTotal');
+
+    if (!cartContainer) return;
+
+    cartContainer.innerHTML = '';
+    let total = 0;
+
+    cart.forEach(item => {
+        const itemTotal = item.price * item.quantity;
+        total += itemTotal;
+
+        const itemElement = document.createElement('div');
+        itemElement.className = 'cart-item';
+        itemElement.innerHTML = `
+            <div class="cart-item-info">
+                <h4>${item.name}</h4>
+                <p>Quantity: ${item.quantity}</p>
+            </div>
+            <span class="cart-item-price">$${itemTotal.toFixed(2)}</span>
+            <button class="cart-item-remove" onclick="removeFromCart(${item.id})">Remove</button>
+        `;
+        cartContainer.appendChild(itemElement);
+    });
+
+    if (cartTotal) {
+        cartTotal.textContent = `Total: $${total.toFixed(2)}`;
+    }
+}
+
+// Location-based functionality
+function getUserLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition, showError);
+    } else {
+        alert("Geolocation is not supported by this browser.");
+    }
+}
+
+function showPosition(position) {
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+
+    // In a real app, you would send this to your backend to find nearby stores
+    console.log(`User location: ${latitude}, ${longitude}`);
+
+    // For demo purposes, we'll just show all stores
+    displayNearbyStores();
+}
+
+function showError(error) {
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            alert("User denied the request for Geolocation.");
+            break;
+        case error.POSITION_UNAVAILABLE:
+            alert("Location information is unavailable.");
+            break;
+        case error.TIMEOUT:
+            alert("The request to get user location timed out.");
+            break;
+        case error.UNKNOWN_ERROR:
+            alert("An unknown error occurred.");
+            break;
+    }
+}
+
+async function displayNearbyStores() {
+    const storeGrid = document.getElementById('featuredStores');
+    if (!storeGrid) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/stores`);
+        const data = await response.json();
+
+        if (data.success) {
+            storeGrid.innerHTML = '';
+
+            data.stores.slice(0, 3).forEach(store => {
+                const storeCard = document.createElement('div');
+                storeCard.className = 'store-card';
+                storeCard.innerHTML = `
+                    <h4>${store.name}</h4>
+                    <p>Location: ${store.location}</p>
+                    <p>Rating: ${store.rating} ⭐</p>
+                    <p>Delivery: ${store.delivery_time}</p>
+                    <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
+                `;
+                storeGrid.appendChild(storeCard);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading stores:', error);
+        storeGrid.innerHTML = '<p>Unable to load stores at this time.</p>';
+    }
+}
+
+// Load products by category
+function loadProducts(category) {
+    const productGrid = document.getElementById('productGrid');
+    if (!productGrid) return;
+
+    const categoryProducts = products[category] || [];
+    productGrid.innerHTML = '';
+
+    categoryProducts.forEach(product => {
+        const productCard = document.createElement('div');
+        productCard.className = 'product-card';
+        productCard.innerHTML = `
+            <img src="${product.image}" alt="${product.name}">
+            <div class="product-card-content">
+                <h4>${product.name}</h4>
+                <p class="price">$${product.price.toFixed(2)}</p>
+                <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price})">Add to Cart</button>
+            </div>
+        `;
+        productGrid.appendChild(productCard);
+    });
+}
+
+// Form validation
+function validateForm(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return false;
+
+    const inputs = form.querySelectorAll('input[required], select[required], textarea[required]');
+    let isValid = true;
+
+    inputs.forEach(input => {
+        if (!input.value.trim()) {
+            input.style.borderColor = 'red';
+            isValid = false;
+        } else {
+            input.style.borderColor = '#ddd';
+        }
+    });
+
+    return isValid;
+}
+
+// Initialize the app
+document.addEventListener('DOMContentLoaded', function() {
+    updateCartCount();
+
+    // Get location button
+    const getLocationBtn = document.getElementById('getLocation');
+    if (getLocationBtn) {
+        getLocationBtn.addEventListener('click', getUserLocation);
+    }
+
+    // Load products if on products page
+    const urlParams = new URLSearchParams(window.location.search);
+    const category = urlParams.get('category');
+    if (category) {
+        loadProducts(category);
+    }
+
+    // Display cart if on cart page
+    if (document.getElementById('cartItems')) {
+        displayCart();
+    }
+
+    // Display featured stores on homepage
+    if (document.getElementById('featuredStores')) {
+        displayNearbyStores();
+    }
+
+    // Form submission
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            if (!validateForm(form.id)) {
+                e.preventDefault();
+                alert('Please fill in all required fields.');
+            }
+        });
+    });
+});
