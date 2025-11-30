@@ -32,7 +32,7 @@ async function displayOrders(status = 'pending') {
                         <p><strong>Store:</strong> ${order.store_name}</p>
                         <p><strong>Total:</strong> PKR ${order.total_amount}</p>
                         <p><strong>Delivery Address:</strong> ${order.delivery_address}</p>
-                        <p><strong>Items:</strong> ${order.items_count || 0} items</p>
+                        <p><strong>Items:</strong> ${order.items ? order.items.length : 0} items</p>
                         ${order.rider_location ? `<p><strong>Rider Location:</strong> ${order.rider_location}</p>` : ''}
                         ${order.estimated_delivery_time ? `<p><strong>Estimated Delivery:</strong> ${new Date(order.estimated_delivery_time).toLocaleString()}</p>` : ''}
                     </div>
@@ -176,59 +176,6 @@ async function assignRider(orderId) {
             alert('Failed to assign rider.');
         }
     });
-}
-
-// Update rider location
-async function updateRiderLocation(orderId) {
-    const location = prompt('Enter current rider location:');
-    if (!location) return;
-
-    try {
-        const response = await fetch(`/api/orders/${orderId}/rider-location`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-            },
-            body: JSON.stringify({ location })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            alert('Rider location updated successfully!');
-            displayOrders('pending');
-        } else {
-            alert('Failed to update rider location: ' + data.message);
-        }
-    } catch (error) {
-        console.error('Error updating rider location:', error);
-        alert('Failed to update rider location.');
-    }
-}
-
-// Mark order as delivered
-async function markAsDelivered(orderId) {
-    if (!confirm('Are you sure the order has been delivered to the customer?')) return;
-
-    try {
-        const response = await fetch(`/api/orders/${orderId}/deliver`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-            }
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            alert('Order marked as delivered successfully! Customer has been notified.');
-            displayOrders('pending');
-        } else {
-            alert('Failed to mark order as delivered: ' + data.message);
-        }
-    } catch (error) {
-        console.error('Error marking order as delivered:', error);
-        alert('Failed to mark order as delivered.');
-    }
 }
 
 // View order details

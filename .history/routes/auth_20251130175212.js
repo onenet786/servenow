@@ -109,43 +109,6 @@ router.post('/login', [
         );
 
         if (users.length === 0) {
-            // Check if it's a rider login
-            const [riders] = await req.db.execute(
-                'SELECT * FROM riders WHERE email = ? AND is_active = true',
-                [email]
-            );
-
-            if (riders.length > 0) {
-                const rider = riders[0];
-                // For demo, check plain password
-                if (rider.password === password) {
-                    const token = jwt.sign(
-                        {
-                            id: rider.id,
-                            email: rider.email,
-                            user_type: 'rider',
-                            first_name: rider.first_name,
-                            last_name: rider.last_name
-                        },
-                        process.env.JWT_SECRET,
-                        { expiresIn: process.env.JWT_EXPIRE }
-                    );
-
-                    return res.json({
-                        success: true,
-                        message: 'Rider login successful',
-                        token,
-                        user: {
-                            id: rider.id,
-                            first_name: rider.first_name,
-                            last_name: rider.last_name,
-                            email: rider.email,
-                            user_type: 'rider'
-                        }
-                    });
-                }
-            }
-
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
@@ -163,43 +126,6 @@ router.post('/login', [
         }
 
         if (!isPasswordValid) {
-            // Check if it's a rider login
-            const [riders] = await req.db.execute(
-                'SELECT * FROM riders WHERE email = ? AND is_active = true',
-                [email]
-            );
-
-            if (riders.length > 0) {
-                const rider = riders[0];
-                // For demo, check plain password (should be hashed in production)
-                if (rider.password === password || (rider.email === 'ahmed.rider@servenow.com' && password === 'rider123')) {
-                    const token = jwt.sign(
-                        {
-                            id: rider.id,
-                            email: rider.email,
-                            user_type: 'rider',
-                            first_name: rider.first_name,
-                            last_name: rider.last_name
-                        },
-                        process.env.JWT_SECRET,
-                        { expiresIn: process.env.JWT_EXPIRE }
-                    );
-
-                    return res.json({
-                        success: true,
-                        message: 'Rider login successful',
-                        token,
-                        user: {
-                            id: rider.id,
-                            first_name: rider.first_name,
-                            last_name: rider.last_name,
-                            email: rider.email,
-                            user_type: 'rider'
-                        }
-                    });
-                }
-            }
-
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'

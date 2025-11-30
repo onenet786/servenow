@@ -341,32 +341,9 @@ router.put('/:id/rider-location', authenticateToken, [
 });
 
 // Mark order as delivered (Rider or Admin)
-router.put('/:id/deliver', authenticateToken, async (req, res) => {
+router.put('/:id/deliver', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Check if order exists and user has permission (rider or admin)
-        const [orders] = await req.db.execute(
-            'SELECT rider_id FROM orders WHERE id = ?',
-            [id]
-        );
-
-        if (orders.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Order not found'
-            });
-        }
-
-        const order = orders[0];
-
-        // Check ownership permission
-        if (req.user.user_type !== 'admin' && order.rider_id !== req.user.id) {
-            return res.status(403).json({
-                success: false,
-                message: 'You do not have permission to update this order'
-            });
-        }
 
         await req.db.execute(
             'UPDATE orders SET status = ?, rider_location = ? WHERE id = ?',

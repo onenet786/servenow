@@ -32,7 +32,7 @@ async function displayOrders(status = 'pending') {
                         <p><strong>Store:</strong> ${order.store_name}</p>
                         <p><strong>Total:</strong> PKR ${order.total_amount}</p>
                         <p><strong>Delivery Address:</strong> ${order.delivery_address}</p>
-                        <p><strong>Items:</strong> ${order.items_count || 0} items</p>
+                        <p><strong>Items:</strong> ${order.items ? order.items.length : 0} items</p>
                         ${order.rider_location ? `<p><strong>Rider Location:</strong> ${order.rider_location}</p>` : ''}
                         ${order.estimated_delivery_time ? `<p><strong>Estimated Delivery:</strong> ${new Date(order.estimated_delivery_time).toLocaleString()}</p>` : ''}
                     </div>
