@@ -244,8 +244,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
         return;
       }
 
-      if (!mounted) return;
-
       // Show dialog to select rider
       final selectedRider = await showDialog<int>(
         context: context,

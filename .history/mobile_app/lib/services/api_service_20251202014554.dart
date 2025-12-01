@@ -124,64 +124,6 @@ class ApiService {
     return data['orders'];
   }
 
-  static Future<void> updateOrderStatus(String token, int orderId, String status) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/api/orders/$orderId/status'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'status': status}),
-    );
-
-    _handleResponse(response);
-  }
-
-  static Future<void> assignRider(String token, int orderId, int riderId) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/api/orders/$orderId/assign-rider'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'rider_id': riderId}),
-    );
-
-    _handleResponse(response);
-  }
-
-  static Future<void> updateRiderLocation(String token, int orderId, String location) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/api/orders/$orderId/rider-location'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({'location': location}),
-    );
-
-    _handleResponse(response);
-  }
-
-  static Future<void> markAsDelivered(String token, int orderId) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/api/orders/$orderId/deliver'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    _handleResponse(response);
-  }
-
-  static Future<List<dynamic>> getAvailableRiders(String token) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/orders/available-riders'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    final data = _handleResponse(response);
-    return data['riders'];
-  }
-
   // Categories endpoints
   static Future<List<dynamic>> getCategories() async {
     final response = await http.get(Uri.parse('$baseUrl/api/categories'));
