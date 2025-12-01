@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - ServeNow</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>ServeNow Admin</h1>
+            </div>
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul id="navMenu">
+                <li><a href="index.html">Back to Site</a></li>
+                <li><a href="orders.html">Orders</a></li>
+                <li><a href="#" id="logoutBtn">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="admin-container">
+            <aside class="admin-sidebar">
+                <h3>Admin Panel</h3>
+                <ul>
+                    <li><a href="#" class="tab-link active" data-tab="dashboard">Dashboard</a></li>
+                    <li><a href="#" class="tab-link" data-tab="users">Users</a></li>
+                    <li><a href="#" class="tab-link" data-tab="stores">Stores</a></li>
+                    <li><a href="#" class="tab-link" data-tab="products">Products</a></li>
+                    <li><a href="#" class="tab-link" data-tab="orders">Orders</a></li>
+                    <li><a href="#" class="tab-link" data-tab="categories">Categories</a></li>
+                </ul>
+            </aside>
+
+            <section class="admin-content">
+                <!-- Dashboard Tab -->
+                <div id="dashboard" class="tab-content active">
+                    <h2>Dashboard Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3 id="totalUsers">-</h3>
+                            <p>Total Users</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="totalStores">-</h3>
+                            <p>Total Stores</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="totalProducts">-</h3>
+                            <p>Total Products</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="totalOrders">-</h3>
+                            <p>Total Orders</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Users Tab -->
+                <div id="users" class="tab-content">
+                    <h2>Users Management</h2>
+                    <button class="btn btn-primary" id="addUserBtn">Add New User</button>
+                    <div class="table-container">
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- Users will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Stores Tab -->
+                <div id="stores" class="tab-content">
+                    <h2>Stores Management</h2>
+                    <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
+                    <div class="table-container">
+                        <table id="storesTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Location</th>
+                                    <th>Owner</th>
+                                    <th>Rating</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="storesTableBody">
+                                <!-- Stores will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Products Tab -->
+                <div id="products" class="tab-content">
+                    <h2>Products Management</h2>
+                    <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
+                    <div class="table-container">
+                        <table id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Price</th>
+                                    <th>Category</th>
+                                    <th>Store</th>
+                                    <th>Stock</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                <!-- Products will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Orders Tab -->
+                <div id="orders" class="tab-content">
+                    <h2>Orders Management</h2>
+                    <div class="table-container">
+                        <table id="ordersTable">
+                            <thead>
+                                <tr>
+                                    <th>Order #</th>
+                                    <th>Customer</th>
+                                    <th>Store</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTableBody">
+                                <!-- Orders will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Categories Tab -->
+                <div id="categories" class="tab-content">
+                    <h2>Categories Management</h2>
+                    <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
+                    <div class="table-container">
+                        <table id="categoriesTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="categoriesTableBody">
+                                <!-- Categories will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New User</h3>
+                <span class="close" data-modal="addUserModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userFirstName">First Name:</label>
+                            <input type="text" id="userFirstName" name="firstName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="userLastName">Last Name:</label>
+                            <input type="text" id="userLastName" name="lastName" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userEmail">Email:</label>
+                            <input type="email" id="userEmail" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="userPhone">Phone:</label>
+                            <input type="tel" id="userPhone" name="phone">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userPassword">Password:</label>
+                            <input type="password" id="userPassword" name="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="userType">User Type:</label>
+                            <select id="userType" name="userType" required>
+                                <option value="customer">Customer</option>
+                                <option value="store_owner">Store Owner</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="userAddress">Address:</label>
+                            <textarea id="userAddress" name="address"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-modal="addUserModal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveUserBtn">Save User</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Store Modal -->
+    <div id="addStoreModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Store</h3>
+                <span class="close" data-modal="addStoreModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addStoreForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storeName">Store Name:</label>
+                            <input type="text" id="storeName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeLocation">Location:</label>
+                            <input type="text" id="storeLocation" name="location" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storePhone">Phone:</label>
+                            <input type="tel" id="storePhone" name="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="storeEmail">Email:</label>
+                            <input type="email" id="storeEmail" name="email">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storeRating">Rating:</label>
+                            <input type="number" id="storeRating" name="rating" step="0.1" min="0" max="5" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="storeDeliveryTime">Delivery Time:</label>
+                            <input type="text" id="storeDeliveryTime" name="delivery_time" placeholder="e.g., 30-45 mins">
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="storeDescription">Description:</label>
+                            <textarea id="storeDescription" name="description"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="storeAddress">Address:</label>
+                            <textarea id="storeAddress" name="address"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-modal="addStoreModal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveStoreBtn">Save Store</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="addProductModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Product</h3>
+                <span class="close" data-modal="addProductModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addProductForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productName">Product Name:</label>
+                            <input type="text" id="productName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="productPrice">Price ($):</label>
+                            <input type="number" id="productPrice" name="price" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productStore">Store:</label>
+                            <select id="productStore" name="store_id" required>
+                                <!-- Stores will be loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="productCategory">Category:</label>
+                            <select id="productCategory" name="category_id">
+                                <!-- Categories will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productStock">Stock Quantity:</label>
+                            <input type="number" id="productStock" name="stock_quantity" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="productImage">Image URL:</label>
+                            <input type="url" id="productImage" name="image_url">
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="productDescription">Description:</label>
+                            <textarea id="productDescription" name="description"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-modal="addProductModal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveProductBtn">Save Product</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div id="addCategoryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Category</h3>
+                <span class="close" data-modal="addCategoryModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addCategoryForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="categoryName">Category Name:</label>
+                            <input type="text" id="categoryName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="categoryImage">Image URL:</label>
+                            <input type="url" id="categoryImage" name="image_url">
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="categoryDescription">Description:</label>
+                            <textarea id="categoryDescription" name="description"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-modal="addCategoryModal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveCategoryBtn">Save Category</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/admin.js?v=3"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders Management - ServeNow</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>ServeNow</h1>
+            </div>
+            <ul>
+                <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="admin.html"><i class="fas fa-cog"></i> Admin</a></li>
+                <li><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Orders Management</h2>
+
+        <section class="orders-section">
+            <div class="orders-tabs">
+                <button id="pendingTab" class="tab active">Pending Orders</button>
+                <button id="allTab" class="tab">All Orders</button>
+            </div>
+
+            <div id="ordersContainer">
+                <!-- Orders will be loaded dynamically -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2023 ServeNow. All rights reserved.</p>
+    </footer>
+
+    <script src="js/app.js?v=6"></script>
+    <script src="js/orders.js"></script>
+</body>
+</html>

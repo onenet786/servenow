@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ServeNow - Grocery Delivery</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>ServeNow</h1>
+            </div>
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul id="navMenu">
+                <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="stores.html"><i class="fas fa-store"></i> Stores</a></li>
+                <li><a href="cart.html"><i class="fas fa-shopping-cart"></i> Cart <span id="cartCount">0</span></a></li>
+                <li><a href="login.html"><i class="fas fa-sign-in-alt"></i> Login</a></li>
+                <li><a href="register.html"><i class="fas fa-user-plus"></i> Register</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h2>Welcome to ServeNow</h2>
+            <p>Get fresh groceries, cooked food, and household items delivered to your doorstep from registered stores near you.</p>
+            <button id="getLocation">Find Stores Near Me</button>
+        </section>
+
+        <section class="categories">
+            <h3>Shop by Category</h3>
+            <div class="category-grid">
+                <div class="category-card">
+                    <img src="https://via.placeholder.com/200x150/4CAF50/FFFFFF?text=Vegetables" alt="Vegetables">
+                    <div class="category-card-content">
+                        <h4>Vegetables</h4>
+                        <a href="products.html?category=vegetables">Shop Now</a>
+                    </div>
+                </div>
+                <div class="category-card">
+                    <img src="https://via.placeholder.com/200x150/FF9800/FFFFFF?text=Cooked+Food" alt="Cooked Food">
+                    <div class="category-card-content">
+                        <h4>Cooked Food</h4>
+                        <a href="products.html?category=cooked-food">Shop Now</a>
+                    </div>
+                </div>
+                <div class="category-card">
+                    <img src="https://via.placeholder.com/200x150/2196F3/FFFFFF?text=Household" alt="Household Items">
+                    <div class="category-card-content">
+                        <h4>Household Items</h4>
+                        <a href="products.html?category=household">Shop Now</a>
+                    </div>
+                </div>
+                <div class="category-card">
+                    <img src="https://via.placeholder.com/200x150/9C27B0/FFFFFF?text=Groceries" alt="Groceries">
+                    <div class="category-card-content">
+                        <h4>Groceries</h4>
+                        <a href="products.html?category=groceries">Shop Now</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="featured-stores">
+            <h3>Featured Stores</h3>
+            <div class="store-grid" id="featuredStores">
+                <!-- Stores will be loaded dynamically -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2023 ServeNow. All rights reserved.</p>
+    </footer>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-to-top" id="scrollToTop" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+        ↑
+    </button>
+
+    <script src="js/app.js?v=7"></script>
+    <script>
+        // Scroll to Top functionality
+        const scrollToTopBtn = document.getElementById('scrollToTop');
+
+        window.addEventListener('scroll', function() {
+            if (window.pageYOffset > 300) {
+                scrollToTopBtn.classList.add('visible');
+            } else {
+                scrollToTopBtn.classList.remove('visible');
+            }
+        });
+    </script>
+</body>
+</html>

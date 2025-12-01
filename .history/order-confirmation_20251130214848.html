@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation - ServeNow</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>ServeNow</h1>
+            </div>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="stores.html">Stores</a></li>
+                <li><a href="cart.html">Cart <span id="cartCount">0</span></a></li>
+                <li><a href="login.html">Login</a></li>
+                <li><a href="register.html">Register</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="confirmation-section">
+            <div class="confirmation-container">
+                <div class="confirmation-icon">
+                    ✅
+                </div>
+                <h2>Order Confirmed!</h2>
+                <p class="order-number">Order #<span id="orderNumber">12345</span></p>
+                <p>Thank you for your order. Your food will be delivered to your doorstep soon.</p>
+
+                <div class="order-details">
+                    <h3>Order Details</h3>
+                    <div id="orderItems">
+                        <!-- Order items will be displayed here -->
+                    </div>
+                    <div class="order-total" id="orderTotal">
+                        Total: $0.00
+                    </div>
+                </div>
+
+                <div class="delivery-info">
+                    <h3>Delivery Information</h3>
+                    <p><strong>Estimated Delivery:</strong> <span id="deliveryTime">30-45 minutes</span></p>
+                    <p><strong>Delivery Address:</strong> <span id="deliveryAddress">Your address will be shown here</span></p>
+                </div>
+
+                <div class="confirmation-actions">
+                    <a href="index.html" class="btn btn-primary">Continue Shopping</a>
+                    <a href="#" class="btn btn-secondary" onclick="window.print()">Print Receipt</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2023 ServeNow. All rights reserved.</p>
+    </footer>
+
+    <script src="js/app.js?v=3"></script>
+    <script src="js/confirmation.js"></script>
+</body>
+</html>
