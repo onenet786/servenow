@@ -96,7 +96,6 @@ class ApiService {
         'items': items,
         'payment_method': paymentMethod,
         'delivery_address': deliveryAddress,
-        'delivery_time': deliveryTime,
         'special_instructions': specialInstructions,
       }),
     );

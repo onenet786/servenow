@@ -274,34 +274,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildStoresTab() {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _stores.isEmpty
-              ? const Center(child: Text('No stores available'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _stores.length,
-                  itemBuilder: (context, index) {
-                    final store = _stores[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      child: ListTile(
-                        leading: const Icon(Icons.store, color: Colors.green),
-                        title: Text(store['name'] ?? 'Unknown Store'),
-                        subtitle: Text(store['location'] ?? 'Location not available'),
-                        trailing: const Icon(Icons.arrow_forward_ios),
-                        onTap: () {
-                          // Navigate to store products
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Store: ${store['name']}')),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
+    return const Center(
+      child: Text('Stores coming soon...'),
     );
   }
 }

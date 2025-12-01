@@ -55,7 +55,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         items: cartProvider.getItemsForOrder(),
         paymentMethod: _paymentMethod,
         deliveryAddress: _addressController.text.trim(),
-        deliveryTime: _deliveryTime,
         specialInstructions: _instructionsController.text.trim().isEmpty
             ? null
             : _instructionsController.text.trim(),
