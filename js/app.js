@@ -1,5 +1,5 @@
 // API Base URL
-const API_BASE = window.location.origin;
+const API_BASE = '';
 
 // Authentication state
 let currentUser = null;
@@ -160,7 +160,7 @@ async function loadProducts(category) {
                 const productCard = document.createElement('div');
                 productCard.className = 'product-card';
                 productCard.innerHTML = `
-                    <img src="${product.image_url || 'images/placeholder.jpg'}" alt="${product.name}">
+                    <img src="${product.image_url || 'https://via.placeholder.com/200x150/E0E0E0/666666?text=No+Image'}" alt="${product.name}">
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>

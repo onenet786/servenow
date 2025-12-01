@@ -87,7 +87,7 @@ The admin dashboard provides comprehensive management capabilities:
 
 ## 🌐 Access Points
 
-- **Website:** http://localhost:3000
+- **Website:** http://localhost:3001
 - **Admin Dashboard:** Login as admin → admin.html
 
 ## 📄 Database Schema

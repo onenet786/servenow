@@ -86,7 +86,7 @@ async function handleCheckoutSubmit(e) {
     };
 
     try {
-        const response = await fetch('/api/orders', {
+        const response = await fetch(`${API_BASE}/api/orders`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -148,7 +148,7 @@ async function prefillUserInfo() {
     }
 
     try {
-        const response = await fetch(`${window.location.origin}/api/auth/me`, {
+        const response = await fetch(`${API_BASE}/api/auth/me`, {
             headers: {
                 'Authorization': `Bearer ${authToken}`
             }

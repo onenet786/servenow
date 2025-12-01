@@ -10,7 +10,7 @@ async function displayAllStores(filteredStores = null) {
     if (!storesToDisplay) {
         if (allStores.length === 0) {
             try {
-                const response = await fetch('/api/stores');
+                const response = await fetch(`${API_BASE}/api/stores`);
                 const data = await response.json();
                 if (data.success) {
                     allStores = data.stores;

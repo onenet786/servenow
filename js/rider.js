@@ -6,7 +6,7 @@ async function displayRiderDeliveries(status = 'assigned') {
     if (!deliveriesContainer) return;
 
     try {
-        const response = await fetch(`/api/orders/rider/deliveries?status=${status}`, {
+        const response = await fetch(`${API_BASE}/api/orders/rider/deliveries?status=${status}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             }
@@ -66,7 +66,7 @@ async function updateMyLocation(orderId) {
     if (!location) return;
 
     try {
-        const response = await fetch(`/api/orders/${orderId}/rider-location`, {
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}/rider-location`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ async function markDelivered(orderId) {
     if (!confirm('Are you sure the delivery is completed?')) return;
 
     try {
-        const response = await fetch(`/api/orders/${orderId}/deliver`, {
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}/deliver`, {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
@@ -118,7 +118,7 @@ async function updatePaymentStatus(orderId, status) {
     if (!confirm('Confirm that payment has been received?')) return;
 
     try {
-        const response = await fetch(`/api/orders/${orderId}/payment-status`, {
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}/payment-status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ function viewDeliveryDetails(orderId) {
 // Load rider info
 async function loadRiderInfo() {
     try {
-        const response = await fetch('/api/orders/rider/profile', {
+        const response = await fetch(`${API_BASE}/api/orders/rider/profile`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             }

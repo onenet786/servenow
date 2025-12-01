@@ -1,4 +1,5 @@
 // Admin Dashboard JavaScript
+const API_BASE = '';
 let currentUser = null;
 let authToken = null;
 
@@ -12,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Verify user is admin
-    fetch('/api/auth/profile', {
+    fetch(`${API_BASE}/api/auth/profile`, {
         headers: {
             'Authorization': `Bearer ${authToken}`
         }
@@ -97,10 +98,10 @@ function switchTab(tabName) {
 function loadDashboardStats() {
     // Load stats for dashboard
     Promise.all([
-        fetch('/api/users', { headers: { 'Authorization': `Bearer ${authToken}` } }),
-        fetch('/api/stores'),
-        fetch('/api/products'),
-        fetch('/api/orders', { headers: { 'Authorization': `Bearer ${authToken}` } })
+        fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch(`${API_BASE}/api/stores`),
+        fetch(`${API_BASE}/api/products`),
+        fetch(`${API_BASE}/api/orders`, { headers: { 'Authorization': `Bearer ${authToken}` } })
     ])
     .then(responses => Promise.all(responses.map(r => r.json())))
     .then(([users, stores, products, orders]) => {
@@ -114,7 +115,7 @@ function loadDashboardStats() {
 
 // Users Management
 function loadUsers() {
-    fetch('/api/users', {
+    fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
@@ -145,7 +146,7 @@ function loadUsers() {
 
 function editUser(userId) {
     // Get current user data first
-    fetch('/api/users', {
+    fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
@@ -162,7 +163,7 @@ function editUser(userId) {
             return;
         }
 
-        fetch(`/api/users/${userId}`, {
+        fetch(`${API_BASE}/api/users/${userId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -191,7 +192,7 @@ function editUser(userId) {
 }
 
 function toggleUserStatus(userId, currentStatus) {
-    fetch(`/api/users/${userId}`, {
+    fetch(`${API_BASE}/api/users/${userId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -212,7 +213,7 @@ function toggleUserStatus(userId, currentStatus) {
 
 // Stores Management
 function loadStores() {
-    fetch('/api/stores')
+    fetch(`${API_BASE}/api/stores`)
     .then(response => response.json())
     .then(data => {
         const tbody = document.getElementById('storesTableBody');
@@ -245,7 +246,7 @@ function editStore(storeId) {
 }
 
 function toggleStoreStatus(storeId, currentStatus) {
-    fetch(`/api/stores/${storeId}`, {
+    fetch(`${API_BASE}/api/stores/${storeId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -266,7 +267,7 @@ function toggleStoreStatus(storeId, currentStatus) {
 
 // Products Management
 function loadProducts() {
-    fetch('/api/products')
+    fetch(`${API_BASE}/api/products`)
     .then(response => response.json())
     .then(data => {
         const tbody = document.getElementById('productsTableBody');
@@ -300,7 +301,7 @@ function editProduct(productId) {
 }
 
 function toggleProductStatus(productId, currentStatus) {
-    fetch(`/api/products/${productId}`, {
+    fetch(`${API_BASE}/api/products/${productId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -321,7 +322,7 @@ function toggleProductStatus(productId, currentStatus) {
 
 // Orders Management
 function loadOrders() {
-    fetch('/api/orders', {
+    fetch(`${API_BASE}/api/orders`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
@@ -352,7 +353,7 @@ function updateOrderStatus(orderId, currentStatus) {
     const newStatus = prompt('Enter new status (pending, confirmed, preparing, ready, delivered, cancelled):', currentStatus);
     if (!newStatus) return;
 
-    fetch(`/api/orders/${orderId}/status`, {
+    fetch(`${API_BASE}/api/orders/${orderId}/status`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -373,7 +374,7 @@ function updateOrderStatus(orderId, currentStatus) {
 
 // Categories Management
 function loadCategories() {
-    fetch('/api/categories')
+    fetch(`${API_BASE}/api/categories`)
     .then(response => response.json())
     .then(data => {
         const tbody = document.getElementById('categoriesTableBody');
@@ -404,7 +405,7 @@ function editCategory(categoryId) {
 }
 
 function toggleCategoryStatus(categoryId, currentStatus) {
-    fetch(`/api/categories/${categoryId}`, {
+    fetch(`${API_BASE}/api/categories/${categoryId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -476,7 +477,7 @@ async function saveUser() {
     };
 
     try {
-        const response = await fetch('/api/auth/register', {
+        const response = await fetch(`${API_BASE}/api/auth/register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -502,7 +503,7 @@ async function saveUser() {
 
 function editUser(userId) {
     // Get current user data first
-    fetch('/api/users', {
+    fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
@@ -516,7 +517,7 @@ function editUser(userId) {
         const newType = prompt('Enter new user type (customer, store_owner, admin):', user.user_type);
         if (!newType || !['customer', 'store_owner', 'admin'].includes(newType)) return;
 
-        fetch(`/api/users/${userId}`, {
+        fetch(`${API_BASE}/api/users/${userId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -563,7 +564,7 @@ async function saveStore() {
     };
 
     try {
-        const response = await fetch('/api/stores', {
+        const response = await fetch(`${API_BASE}/api/stores`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -592,7 +593,7 @@ function editStore(storeId) {
     const newName = prompt('Enter new store name:');
     if (!newName) return;
 
-    fetch(`/api/stores/${storeId}`, {
+    fetch(`${API_BASE}/api/stores/${storeId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -620,8 +621,8 @@ async function showAddProductModal() {
     // Load stores and categories for dropdowns
     try {
         const [storesResponse, categoriesResponse] = await Promise.all([
-            fetch('/api/stores'),
-            fetch('/api/categories')
+            fetch(`${API_BASE}/api/stores`),
+            fetch(`${API_BASE}/api/categories`)
         ]);
 
         const storesData = await storesResponse.json();
@@ -665,7 +666,7 @@ async function saveProduct() {
     };
 
     try {
-        const response = await fetch('/api/products', {
+        const response = await fetch(`${API_BASE}/api/products`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -694,7 +695,7 @@ function editProduct(productId) {
     const newPrice = prompt('Enter new price:');
     if (!newPrice || isNaN(newPrice)) return;
 
-    fetch(`/api/products/${productId}`, {
+    fetch(`${API_BASE}/api/products/${productId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -731,7 +732,7 @@ async function saveCategory() {
     };
 
     try {
-        const response = await fetch('/api/categories', {
+        const response = await fetch(`${API_BASE}/api/categories`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -759,7 +760,7 @@ function editCategory(categoryId) {
     const newName = prompt('Enter new category name:');
     if (!newName) return;
 
-    fetch(`/api/categories/${categoryId}`, {
+    fetch(`${API_BASE}/api/categories/${categoryId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',

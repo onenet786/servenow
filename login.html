@@ -13,7 +13,12 @@
             <div class="logo">
                 <h1>ServeNow</h1>
             </div>
-            <ul>
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul id="navMenu">
                 <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
                 <li><a href="stores.html"><i class="fas fa-store"></i> Stores</a></li>
                 <li><a href="cart.html"><i class="fas fa-shopping-cart"></i> Cart <span id="cartCount">0</span></a></li>
@@ -41,8 +46,8 @@
             </form>
 
             <p>Don't have an account? <a href="register.html">Register here</a></p>
-            <p><small><strong>Rider Login:</strong> ahmed.rider@servenow.com / rider123</small></p>
-            <p><small><strong>Admin Login:</strong> admin@servenow.com / admin123</small></p>
+            <!-- <p><small><strong>Rider Login:</strong> ahmed.rider@servenow.com / rider123</small></p>
+            <p><small><strong>Admin Login:</strong> admin@servenow.com / admin123</small></p> -->
         </section>
     </main>
 
@@ -50,6 +55,35 @@
         <p>&copy; 2023 ServeNow. All rights reserved.</p>
     </footer>
 
-    <script src="js/app.js"></script>
+    <script src="js/app.js?v=7"></script>
+    <script>
+        // Mobile menu toggle functionality
+        const menuToggle = document.getElementById('menuToggle');
+        const navMenu = document.getElementById('navMenu');
+
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', function() {
+                navMenu.classList.toggle('active');
+                menuToggle.classList.toggle('active');
+            });
+
+            // Close mobile menu when clicking on a link
+            const navLinks = navMenu.querySelectorAll('a');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    navMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
+                });
+            });
+
+            // Close mobile menu when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
+                    navMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
+                }
+            });
+        }
+    </script>
 </body>
 </html>

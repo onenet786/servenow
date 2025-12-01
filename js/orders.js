@@ -4,7 +4,7 @@ async function displayOrders(status = 'pending') {
     if (!ordersContainer) return;
 
     try {
-        const response = await fetch(`/api/orders?status=${status}`, {
+        const response = await fetch(`${API_BASE}/api/orders?status=${status}`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             }
@@ -63,7 +63,7 @@ async function displayOrders(status = 'pending') {
 // Update order status
 async function updateOrderStatus(orderId, status) {
     try {
-        const response = await fetch(`/api/orders/${orderId}/status`, {
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ async function assignRider(orderId) {
 
     // Load available riders
     try {
-        const response = await fetch('/api/orders/available-riders', {
+        const response = await fetch(`${API_BASE}/api/orders/available-riders`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             }
@@ -154,7 +154,7 @@ async function assignRider(orderId) {
         }
 
         try {
-            const response = await fetch(`/api/orders/${orderId}/assign-rider`, {
+            const response = await fetch(`${API_BASE}/api/orders/${orderId}/assign-rider`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -184,7 +184,7 @@ async function updateRiderLocation(orderId) {
     if (!location) return;
 
     try {
-        const response = await fetch(`/api/orders/${orderId}/rider-location`, {
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}/rider-location`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -211,7 +211,7 @@ async function markAsDelivered(orderId) {
     if (!confirm('Are you sure the order has been delivered to the customer?')) return;
 
     try {
-        const response = await fetch(`/api/orders/${orderId}/deliver`, {
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}/deliver`, {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
