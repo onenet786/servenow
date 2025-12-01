@@ -182,6 +182,16 @@ class ApiService {
     return data['riders'];
   }
 
+  static Future<List<dynamic>> getRiderDeliveries(String token, {String status = 'assigned'}) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/orders/rider/deliveries?status=$status'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    final data = _handleResponse(response);
+    return data['deliveries'];
+  }
+
   // Categories endpoints
   static Future<List<dynamic>> getCategories() async {
     final response = await http.get(Uri.parse('$baseUrl/api/categories'));

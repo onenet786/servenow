@@ -13,6 +13,7 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   List<dynamic> _orders = [];
   bool _isLoading = true;
+  String _currentTab = 'assigned'; // For riders: 'assigned' or 'completed'
 
   @override
   void initState() {
@@ -31,6 +32,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
       List<dynamic> orders;
       if (authProvider.user!.userType == 'admin') {
         orders = await ApiService.getAllOrders(authProvider.token!);
+      } else if (authProvider.user!.userType == 'rider') {
+        orders = await ApiService.getRiderDeliveries(authProvider.token!, status: _currentTab);
       } else {
         orders = await ApiService.getOrders(authProvider.token!);
       }
@@ -73,35 +76,81 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Orders'),
+        title: Text(authProvider.user!.userType == 'rider' ? 'My Deliveries' : 'My Orders'),
         backgroundColor: Colors.green,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _orders.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt_long_outlined,
-                        size: 80,
-                        color: Colors.grey,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'No orders yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey,
+          : Column(
+              children: [
+                if (authProvider.user!.userType == 'rider') ...[
+                  Container(
+                    color: Colors.green.shade50,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () {
+                              setState(() => _currentTab = 'assigned');
+                              _loadOrders();
+                            },
+                            style: TextButton.styleFrom(
+                              backgroundColor: _currentTab == 'assigned'
+                                  ? Colors.green
+                                  : Colors.transparent,
+                              foregroundColor: _currentTab == 'assigned'
+                                  ? Colors.white
+                                  : Colors.green,
+                            ),
+                            child: const Text('My Deliveries'),
+                          ),
                         ),
-                      ),
-                    ],
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () {
+                              setState(() => _currentTab = 'completed');
+                              _loadOrders();
+                            },
+                            style: TextButton.styleFrom(
+                              backgroundColor: _currentTab == 'completed'
+                                  ? Colors.green
+                                  : Colors.transparent,
+                              foregroundColor: _currentTab == 'completed'
+                                  ? Colors.white
+                                  : Colors.green,
+                            ),
+                            child: const Text('Completed'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadOrders,
-                  child: ListView.builder(
+                ],
+                Expanded(
+                  child: _orders.isEmpty
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.receipt_long_outlined,
+                                size: 80,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'No deliveries yet',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadOrders,
+                          child: ListView.builder(
                     itemCount: _orders.length,
                     itemBuilder: (context, index) {
                       final order = _orders[index];
@@ -149,27 +198,70 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                'Ordered on: ${order['created_at']?.toString() ?? 'Unknown'}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
+                              if (authProvider.user!.userType == 'rider') ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Customer: ${order['first_name'] ?? 'N/A'} ${order['last_name'] ?? ''}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
                                 ),
-                              ),
-                              if (authProvider.user!.userType == 'admin') ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Store: ${order['store_name'] ?? 'N/A'}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Delivery Address: ${order['delivery_address'] ?? 'N/A'}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Phone: ${order['phone'] ?? 'N/A'}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
                                 const SizedBox(height: 12),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: _buildActionButtons(order, authProvider),
+                                  children: _buildRiderActionButtons(order, authProvider),
                                 ),
+                              ] else ...[
+                                Text(
+                                  'Ordered on: ${order['created_at']?.toString() ?? 'Unknown'}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                if (authProvider.user!.userType == 'admin') ...[
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    children: _buildActionButtons(order, authProvider),
+                                  ),
+                                ],
                               ],
                             ],
                           ),
                         ),
                       );
                     },
-                  ),
+                          ),
+                        ),
                 ),
+              ],
+            ),
     );
   }
 
@@ -194,6 +286,39 @@ class _OrdersScreenState extends State<OrdersScreen> {
             onPressed: () => _updateOrderStatus(orderId, 'cancelled', authProvider),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Cancel'),
+          ),
+        ];
+      case 'out_for_delivery':
+        return [
+          ElevatedButton(
+            onPressed: () => _updateRiderLocation(orderId, authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('Update Location'),
+          ),
+          ElevatedButton(
+            onPressed: () => _markAsDelivered(orderId, authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Mark Delivered'),
+          ),
+        ];
+      default:
+        return [];
+    }
+  }
+
+  List<Widget> _buildRiderActionButtons(dynamic order, AuthProvider authProvider) {
+    final status = order['status']?.toString().toLowerCase() ?? 'unknown';
+    final orderId = order['id'] as int;
+
+    switch (status) {
+      case 'confirmed':
+      case 'preparing':
+      case 'ready':
+        return [
+          ElevatedButton(
+            onPressed: () => _updateOrderStatus(orderId, 'out_for_delivery', authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('Start Delivery'),
           ),
         ];
       case 'out_for_delivery':

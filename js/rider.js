@@ -1,5 +1,102 @@
 // Rider dashboard functionality
 
+let currentLocation = null;
+let locationWatchId = null;
+
+// Get current location using GPS
+function getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('Geolocation is not supported by this browser'));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const location = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
+                resolve(location);
+            },
+            (error) => {
+                reject(error);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 300000 // 5 minutes
+            }
+        );
+    });
+}
+
+// Start location tracking
+function startLocationTracking() {
+    if (locationWatchId) {
+        navigator.geolocation.clearWatch(locationWatchId);
+    }
+
+    locationWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+            currentLocation = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
+            updateLocationDisplay();
+        },
+        (error) => {
+            console.error('Location tracking error:', error);
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000 // 5 minutes
+        }
+    );
+}
+
+// Stop location tracking
+function stopLocationTracking() {
+    if (locationWatchId) {
+        navigator.geolocation.clearWatch(locationWatchId);
+        locationWatchId = null;
+    }
+}
+
+// Update location display on dashboard
+function updateLocationDisplay() {
+    const locationElement = document.getElementById('currentLocation');
+    if (locationElement && currentLocation) {
+        locationElement.textContent = currentLocation;
+    }
+}
+
+// Auto-update location for active deliveries
+async function autoUpdateLocation() {
+    if (!currentLocation) return;
+
+    try {
+        // Get active deliveries
+        const response = await fetch(`${API_BASE}/api/orders/rider/deliveries?status=assigned`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+            }
+        });
+
+        const data = await response.json();
+        if (data.success && data.deliveries.length > 0) {
+            // Update location for all active deliveries
+            for (const delivery of data.deliveries) {
+                await fetch(`${API_BASE}/api/orders/${delivery.id}/rider-location`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+                    },
+                    body: JSON.stringify({ location: currentLocation })
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error auto-updating location:', error);
+    }
+}
+
 // Display rider's deliveries
 async function displayRiderDeliveries(status = 'assigned') {
     const deliveriesContainer = document.getElementById('deliveriesContainer');
@@ -60,19 +157,21 @@ async function displayRiderDeliveries(status = 'assigned') {
     }
 }
 
-// Update rider location
+// Update rider location manually (fallback)
 async function updateMyLocation(orderId) {
-    const location = prompt('Enter your current location:');
-    if (!location) return;
-
     try {
+        if (!currentLocation) {
+            alert('Location not available. Please enable GPS and try again.');
+            return;
+        }
+
         const response = await fetch(`${API_BASE}/api/orders/${orderId}/rider-location`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             },
-            body: JSON.stringify({ location })
+            body: JSON.stringify({ location: currentLocation })
         });
 
         const data = await response.json();
@@ -185,6 +284,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadRiderInfo();
     displayRiderDeliveries('assigned');
 
+    // Start location tracking
+    startLocationTracking();
+
+    // Auto-update location every 2 minutes
+    setInterval(autoUpdateLocation, 120000); // 2 minutes
+
     // Tab switching
     document.getElementById('assignedTab').addEventListener('click', function() {
         document.getElementById('assignedTab').classList.add('active');
@@ -197,4 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('assignedTab').classList.remove('active');
         displayRiderDeliveries('completed');
     });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', stopLocationTracking);
 });

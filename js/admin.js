@@ -331,6 +331,9 @@ function loadOrders() {
         tbody.innerHTML = '';
 
         data.orders.forEach(order => {
+            const riderName = order.rider_first_name && order.rider_last_name
+                ? `${order.rider_first_name} ${order.rider_last_name}`
+                : 'Not Assigned';
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${order.order_number}</td>
@@ -338,6 +341,8 @@ function loadOrders() {
                 <td>${order.store_name}</td>
                 <td>$${order.total_amount}</td>
                 <td><span class="status-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span></td>
+                <td>${riderName}</td>
+                <td>${order.rider_location || 'N/A'}</td>
                 <td>${new Date(order.created_at).toLocaleDateString()}</td>
                 <td>
                     <button class="btn btn-small" onclick="updateOrderStatus(${order.id}, '${order.status}')">Update Status</button>
