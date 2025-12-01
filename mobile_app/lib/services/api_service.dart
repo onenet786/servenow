@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/user.dart';
 import '../models/product.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:3002'; // Android emulator localhost
+  static const String baseUrl = 'http://23.137.84.249:3002'; // Production API server
   // For iOS simulator: 'http://localhost:3002'
   // For physical device: use your computer's IP address
 
@@ -105,7 +104,7 @@ class ApiService {
 
   static Future<List<dynamic>> getOrders(String token) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/api/orders'),
+      Uri.parse('$baseUrl/api/orders/my-orders'),
       headers: {'Authorization': 'Bearer $token'},
     );
 

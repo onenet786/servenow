@@ -28,7 +28,7 @@ class CategoryCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
+              color: Colors.grey.withValues(alpha: 0.2),
               spreadRadius: 1,
               blurRadius: 4,
               offset: const Offset(0, 2),
@@ -38,9 +38,10 @@ class CategoryCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              _getCategoryIcon(category['name']),
-              size: 32,
+            Image.asset(
+              'assets/images/${_getCategoryImage(category['name'])}',
+              width: 32,
+              height: 32,
               color: isSelected ? Colors.white : Colors.green,
             ),
             const SizedBox(height: 8),
@@ -60,18 +61,24 @@ class CategoryCard extends StatelessWidget {
     );
   }
 
-  IconData _getCategoryIcon(String categoryName) {
+  String _getCategoryImage(String categoryName) {
     switch (categoryName.toLowerCase()) {
       case 'vegetables':
-        return Icons.grass;
+        return 'vegetables.jpg';
       case 'cooked food':
-        return Icons.restaurant;
+        return 'cooked-food.jpg';
       case 'household':
-        return Icons.home;
+        return 'household.jpg'; // assuming we have this
       case 'groceries':
-        return Icons.shopping_basket;
+        return 'groceries.jpg'; // assuming
+      case 'burgers':
+        return 'burgers.jpg';
+      case 'pizza':
+        return 'pizza.jpg';
+      case 'desserts':
+        return 'desserts.jpg';
       default:
-        return Icons.category;
+        return 'vegetables.jpg'; // default
     }
   }
 }

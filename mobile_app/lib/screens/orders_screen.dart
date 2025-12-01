@@ -31,9 +31,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
       final orders = await ApiService.getOrders(authProvider.token!);
       setState(() => _orders = orders);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load orders: $e')),
-      );
+      String errorMessage = 'Failed to load orders: $e';
+      if (e.toString().contains('403') || e.toString().contains('Forbidden')) {
+        errorMessage = 'Session expired. Please login again.';
+        await authProvider.logout();
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/login');
+        }
+        return;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -100,7 +111,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'Order #${order['order_number']}',
+                                    'Order #${order['order_number']?.toString() ?? 'N/A'}',
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -109,11 +120,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: _getStatusColor(order['status']),
+                                      color: _getStatusColor(order['status']?.toString() ?? 'unknown'),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      order['status'].toString().toUpperCase(),
+                                      (order['status']?.toString() ?? 'UNKNOWN').toUpperCase(),
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
@@ -125,7 +136,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Total: \$${order['total_amount']}',
+                                'Total: \$${order['total_amount']?.toString() ?? '0.00'}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: Colors.green,
@@ -134,10 +145,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Ordered on: ${order['created_at']}',
-                                style: TextStyle(
+                                'Ordered on: ${order['created_at']?.toString() ?? 'Unknown'}',
+                                style: const TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey[600],
+                                  color: Colors.grey,
                                 ),
                               ),
                             ],

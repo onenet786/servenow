@@ -53,7 +53,7 @@ class AuthProvider with ChangeNotifier {
         throw Exception(response['message'] ?? 'Login failed');
       }
     } catch (e) {
-      throw e;
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -93,7 +93,7 @@ class AuthProvider with ChangeNotifier {
         throw Exception(response['message'] ?? 'Registration failed');
       }
     } catch (e) {
-      throw e;
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();

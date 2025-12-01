@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
-import '../services/api_service.dart';
 import '../models/cart_item.dart';
 import 'checkout_screen.dart';
 
@@ -14,7 +13,7 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  bool _isPlacingOrder = false;
+  final bool _isPlacingOrder = false;
 
   @override
   Widget build(BuildContext context) {
@@ -229,7 +228,7 @@ class _CartSummary extends StatelessWidget {
         border: Border(top: BorderSide(color: Colors.grey[300]!)),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 4,
             offset: const Offset(0, -2),

@@ -51,9 +51,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _products = products;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load data: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load data: $e')),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -69,9 +71,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _selectedCategory = category;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load products: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load products: $e')),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -108,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onPressed: () async {
               final authProvider = Provider.of<AuthProvider>(context, listen: false);
               await authProvider.logout();
-              if (mounted) {
+              if (context.mounted) {
                 Navigator.of(context).pushReplacementNamed('/login');
               }
             },

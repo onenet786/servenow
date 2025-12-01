@@ -19,9 +19,9 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuthStatus() async {
-    await Future.delayed(const Duration(seconds: 2)); // Show splash for 2 seconds
-
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    await Future.delayed(const Duration(seconds: 2)); // Show splash for 2 seconds
 
     if (authProvider.isAuthenticated) {
       // Try to load profile, if fails, go to login
@@ -75,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen> {
               'Fresh groceries delivered',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
               ),
             ),
             const SizedBox(height: 40),

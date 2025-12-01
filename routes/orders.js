@@ -53,10 +53,31 @@ router.post('/', authenticateToken, async (req, res) => {
             special_instructions
         } = req.body;
 
+        if (!store_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Store ID is required'
+            });
+        }
+
         if (!items || items.length === 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Order must contain at least one item'
+            });
+        }
+
+        if (!delivery_address || delivery_address.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Delivery address is required'
+            });
+        }
+
+        if (!payment_method) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment method is required'
             });
         }
 
@@ -87,7 +108,7 @@ router.post('/', authenticateToken, async (req, res) => {
         const [orderResult] = await req.db.execute(
             `INSERT INTO orders (order_number, user_id, store_id, total_amount, delivery_fee, payment_method, delivery_address, delivery_time, special_instructions)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [orderNumber, req.user.id, store_id, total, delivery_fee, payment_method, delivery_address, delivery_time, special_instructions]
+            [orderNumber, req.user.id, store_id, total, delivery_fee, payment_method, delivery_address, delivery_time || null, special_instructions || null]
         );
 
         // Add order items

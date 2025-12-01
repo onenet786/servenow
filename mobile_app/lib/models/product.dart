@@ -37,8 +37,8 @@ class Product {
       categoryName: json['category_name'],
       storeName: json['store_name'],
       storeLocation: json['store_location'],
-      stockQuantity: json['stock_quantity'] ?? 0,
-      isAvailable: json['is_available'] ?? true,
+      stockQuantity: json['stock_quantity'] is int ? json['stock_quantity'] : int.tryParse(json['stock_quantity'].toString()) ?? 0,
+      isAvailable: json['is_available'] is bool ? json['is_available'] : (json['is_available'] == 1 || json['is_available'] == 'true'),
       storeId: json['store_id'],
       categoryId: json['category_id'],
     );

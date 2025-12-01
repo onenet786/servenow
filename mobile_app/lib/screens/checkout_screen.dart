@@ -71,12 +71,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to place order: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to place order: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isPlacingOrder = false);
@@ -87,7 +89,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final cartProvider = Provider.of<CartProvider>(context);
-    final deliveryFee = 2.99;
+    const deliveryFee = 2.99;
     final subtotal = cartProvider.totalAmount;
     final total = subtotal + deliveryFee;
 
@@ -97,7 +99,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         backgroundColor: Colors.green,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16).copyWith(bottom: 32),
         child: Form(
           key: _formKey,
           child: Column(
@@ -126,7 +128,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               ),
                             ),
                             Text(
-                              '\$${item.totalPrice.toStringAsFixed(2)}',
+                              'PKR ${item.totalPrice.toStringAsFixed(2).replaceAll('.00', '')}',
                               style: const TextStyle(fontWeight: FontWeight.w500),
                             ),
                           ],
@@ -182,27 +184,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              Column(
-                children: [
-                  RadioListTile<String>(
-                    title: const Text('Cash on Delivery'),
-                    value: 'cash',
-                    groupValue: _paymentMethod,
-                    onChanged: (value) => setState(() => _paymentMethod = value!),
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Card'),
-                    value: 'card',
-                    groupValue: _paymentMethod,
-                    onChanged: (value) => setState(() => _paymentMethod = value!),
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Wallet'),
-                    value: 'wallet',
-                    groupValue: _paymentMethod,
-                    onChanged: (value) => setState(() => _paymentMethod = value!),
-                  ),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'cash', label: Text('Cash')),
+                  ButtonSegment(value: 'card', label: Text('Card')),
+                  ButtonSegment(value: 'wallet', label: Text('Wallet')),
                 ],
+                selected: {_paymentMethod},
+                onSelectionChanged: (Set<String> value) {
+                  setState(() => _paymentMethod = value.first);
+                },
               ),
 
               const SizedBox(height: 24),
@@ -217,7 +208,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Subtotal:'),
-                          Text('\$${subtotal.toStringAsFixed(2)}'),
+                        Text('PKR ${subtotal.toStringAsFixed(2).replaceAll('.00', '')}'),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -225,7 +216,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Delivery Fee:'),
-                          Text('\$${deliveryFee.toStringAsFixed(2)}'),
+                          Text('PKR ${deliveryFee.toStringAsFixed(2).replaceAll('.00', '')}'),
                         ],
                       ),
                       const Divider(height: 16),
@@ -237,7 +228,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           Text(
-                            '\$${total.toStringAsFixed(2)}',
+                            'PKR ${total.toStringAsFixed(2).replaceAll('.00', '')}',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
@@ -280,6 +271,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                 ),
               ),
+              const SizedBox(height: 20), // Extra space to prevent overflow
             ],
           ),
         ),
