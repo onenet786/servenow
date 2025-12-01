@@ -81,15 +81,15 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || '0.0.0.0'; // Bind to all interfaces for internet access
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '192.168.5.254'; // Bind to LAN IP only
 
 async function startServer() {
     await connectDB();
     app.listen(PORT, HOST, () => {
         console.log(`Server running on ${HOST}:${PORT}`);
         console.log(`Environment: ${process.env.NODE_ENV}`);
-        console.log(`Accessible from LAN and internet`);
+        console.log(`Accessible on LAN only, not from internet`);
     });
 }
 

@@ -1130,29 +1130,6 @@ footer p {
 }
 
 /* Enhanced Responsive Design */
-@media (max-width: 1024px) {
-    .hero {
-        grid-template-columns: 1fr;
-        gap: 2rem;
-        text-align: center;
-        min-height: auto;
-        padding: 4rem 2rem;
-    }
-
-    .hero-content {
-        order: 2;
-    }
-
-    .hero-image {
-        order: 1;
-        justify-content: center;
-    }
-
-    .hero-stats {
-        justify-content: center;
-    }
-}
-
 @media (max-width: 768px) {
     nav {
         flex-direction: column;
@@ -1183,16 +1160,6 @@ footer p {
     .hero p {
         font-size: 1.1rem;
         margin-bottom: 2rem;
-    }
-
-    .hero-stats {
-        flex-wrap: wrap;
-        gap: 1.5rem;
-    }
-
-    .stat {
-        flex: 1;
-        min-width: 80px;
     }
 
     .categories h3 {
@@ -1271,17 +1238,5 @@ footer p {
     .btn-primary {
         padding: 0.875rem 1.75rem;
         font-size: 0.95rem;
-    }
-
-    .hero-stats {
-        gap: 1rem;
-    }
-
-    .stat-number {
-        font-size: 2rem;
-    }
-
-    .stat-label {
-        font-size: 0.8rem;
     }
 }
