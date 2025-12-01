@@ -82,105 +82,6 @@ async function autoUpdateLocation() {
         if (data.success && data.deliveries.length > 0) {
             // Update location for all active deliveries
             for (const delivery of data.deliveries) {
-                await fetch(`${API_BASE}/api/orders/${delivery.id}/rider-location`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-                    },
-                    body: JSON.stringify({ location: currentLocation })
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Error auto-updating location:', error);
-    }
-}
-
-// Display rider's deliveries
-async function displayRiderDeliveries(status = 'assigned') {
-    const deliveriesContainer = document.getElementById('deliveriesContainer');
-    if (!deliveriesContainer) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/api/orders/rider/deliveries?status=${status}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-            }
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            deliveriesContainer.innerHTML = '';
-
-            if (data.deliveries.length === 0) {
-                deliveriesContainer.innerHTML = '<p>No deliveries found.</p>';
-                return;
-            }
-
-            data.deliveries.forEach(delivery => {
-                const deliveryCard = document.createElement('div');
-                deliveryCard.className = 'order-card';
-                deliveryCard.innerHTML = `
-                    <div class="order-header">
-                        <h3>Order #${delivery.order_number}</h3>
-                        <span class="order-status status-${delivery.status}">${delivery.status}</span>
-                    </div>
-                    <div class="order-details">
-                        <p><strong>Customer:</strong> ${delivery.first_name} ${delivery.last_name}</p>
-                        <p><strong>Store:</strong> ${delivery.store_name}</p>
-                        <p><strong>Total:</strong> PKR ${delivery.total_amount}</p>
-                        <p><strong>Delivery Address:</strong> ${delivery.delivery_address}</p>
-                        <p><strong>Phone:</strong> ${delivery.phone || 'N/A'}</p>
-                        <p><strong>Payment Status:</strong> <span class="payment-status">${delivery.payment_status}</span></p>
-                        ${delivery.rider_location ? `<p><strong>My Location:</strong> ${delivery.rider_location}</p>` : ''}
-                        ${delivery.estimated_delivery_time ? `<p><strong>Estimated Delivery:</strong> ${new Date(delivery.estimated_delivery_time).toLocaleString()}</p>` : ''}
-                    </div>
-                    <div class="order-actions">
-                        ${delivery.status === 'out_for_delivery' ? `
-                            <button onclick="updateMyLocation(${delivery.id})" class="btn btn-info">Update My Location</button>
-                            <button onclick="markDelivered(${delivery.id})" class="btn btn-success">Mark as Delivered</button>
-                            <button onclick="updatePaymentStatus(${delivery.id}, 'paid')" class="btn btn-primary">Mark Payment Received</button>
-                        ` : `
-                            <button onclick="viewDeliveryDetails(${delivery.id})" class="btn btn-primary">View Details</button>
-                        `}
-                    </div>
-                `;
-                deliveriesContainer.appendChild(deliveryCard);
-            });
-        } else {
-            deliveriesContainer.innerHTML = '<p>Failed to load deliveries.</p>';
-        }
-    } catch (error) {
-        console.error('Error loading deliveries:', error);
-        deliveriesContainer.innerHTML = '<p>Error loading deliveries.</p>';
-    }
-}
-
-// Update rider location manually (fallback)
-async function updateMyLocation(orderId) {
-    try {
-        if (!currentLocation) {
-            alert('Location not available. Please enable GPS and try again.');
-            return;
-        }
-
-        const response = await fetch(`${API_BASE}/api/orders/${orderId}/rider-location`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-            },
-            body: JSON.stringify({ location: currentLocation })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-            alert('Location updated successfully!');
-            displayRiderDeliveries('assigned');
-        } else {
-            alert('Failed to update location: ' + data.message);
-        }
     } catch (error) {
         console.error('Error updating location:', error);
         alert('Failed to update location.');
@@ -284,12 +185,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadRiderInfo();
     displayRiderDeliveries('assigned');
 
-    // Start location tracking
-    startLocationTracking();
-
-    // Auto-update location every 2 minutes
-    setInterval(autoUpdateLocation, 120000); // 2 minutes
-
     // Tab switching
     document.getElementById('assignedTab').addEventListener('click', function() {
         document.getElementById('assignedTab').classList.add('active');
@@ -302,7 +197,4 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('assignedTab').classList.remove('active');
         displayRiderDeliveries('completed');
     });
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', stopLocationTracking);
 });

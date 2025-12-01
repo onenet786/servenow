@@ -306,39 +306,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  List<Widget> _buildRiderActionButtons(dynamic order, AuthProvider authProvider) {
-    final status = order['status']?.toString().toLowerCase() ?? 'unknown';
-    final orderId = order['id'] as int;
-
-    switch (status) {
-      case 'confirmed':
-      case 'preparing':
-      case 'ready':
-        return [
-          ElevatedButton(
-            onPressed: () => _updateOrderStatus(orderId, 'out_for_delivery', authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-            child: const Text('Start Delivery'),
-          ),
-        ];
-      case 'out_for_delivery':
-        return [
-          ElevatedButton(
-            onPressed: () => _updateRiderLocation(orderId, authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-            child: const Text('Update Location'),
-          ),
-          ElevatedButton(
-            onPressed: () => _markAsDelivered(orderId, authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Mark Delivered'),
-          ),
-        ];
-      default:
-        return [];
-    }
-  }
-
   Future<void> _updateOrderStatus(int orderId, String status, AuthProvider authProvider) async {
     try {
       await ApiService.updateOrderStatus(authProvider.token!, orderId, status);

@@ -157,21 +157,19 @@ async function displayRiderDeliveries(status = 'assigned') {
     }
 }
 
-// Update rider location manually (fallback)
+// Update rider location
 async function updateMyLocation(orderId) {
-    try {
-        if (!currentLocation) {
-            alert('Location not available. Please enable GPS and try again.');
-            return;
-        }
+    const location = prompt('Enter your current location:');
+    if (!location) return;
 
+    try {
         const response = await fetch(`${API_BASE}/api/orders/${orderId}/rider-location`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             },
-            body: JSON.stringify({ location: currentLocation })
+            body: JSON.stringify({ location })
         });
 
         const data = await response.json();
@@ -284,12 +282,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadRiderInfo();
     displayRiderDeliveries('assigned');
 
-    // Start location tracking
-    startLocationTracking();
-
-    // Auto-update location every 2 minutes
-    setInterval(autoUpdateLocation, 120000); // 2 minutes
-
     // Tab switching
     document.getElementById('assignedTab').addEventListener('click', function() {
         document.getElementById('assignedTab').classList.add('active');
@@ -302,7 +294,4 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('assignedTab').classList.remove('active');
         displayRiderDeliveries('completed');
     });
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', stopLocationTracking);
 });

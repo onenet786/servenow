@@ -284,12 +284,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadRiderInfo();
     displayRiderDeliveries('assigned');
 
-    // Start location tracking
-    startLocationTracking();
-
-    // Auto-update location every 2 minutes
-    setInterval(autoUpdateLocation, 120000); // 2 minutes
-
     // Tab switching
     document.getElementById('assignedTab').addEventListener('click', function() {
         document.getElementById('assignedTab').classList.add('active');
@@ -302,7 +296,4 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('assignedTab').classList.remove('active');
         displayRiderDeliveries('completed');
     });
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', stopLocationTracking);
 });

@@ -198,70 +198,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              if (authProvider.user!.userType == 'rider') ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Customer: ${order['first_name'] ?? 'N/A'} ${order['last_name'] ?? ''}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                  ),
+                              Text(
+                                'Ordered on: ${order['created_at']?.toString() ?? 'Unknown'}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Store: ${order['store_name'] ?? 'N/A'}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Delivery Address: ${order['delivery_address'] ?? 'N/A'}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Phone: ${order['phone'] ?? 'N/A'}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                  ),
-                                ),
+                              ),
+                              if (authProvider.user!.userType == 'admin') ...[
                                 const SizedBox(height: 12),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: _buildRiderActionButtons(order, authProvider),
+                                  children: _buildActionButtons(order, authProvider),
                                 ),
-                              ] else ...[
-                                Text(
-                                  'Ordered on: ${order['created_at']?.toString() ?? 'Unknown'}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                if (authProvider.user!.userType == 'admin') ...[
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                    children: _buildActionButtons(order, authProvider),
-                                  ),
-                                ],
                               ],
                             ],
                           ),
                         ),
                       );
                     },
-                          ),
-                        ),
+                  ),
                 ),
-              ],
-            ),
     );
   }
 
@@ -286,39 +243,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
             onPressed: () => _updateOrderStatus(orderId, 'cancelled', authProvider),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Cancel'),
-          ),
-        ];
-      case 'out_for_delivery':
-        return [
-          ElevatedButton(
-            onPressed: () => _updateRiderLocation(orderId, authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-            child: const Text('Update Location'),
-          ),
-          ElevatedButton(
-            onPressed: () => _markAsDelivered(orderId, authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Mark Delivered'),
-          ),
-        ];
-      default:
-        return [];
-    }
-  }
-
-  List<Widget> _buildRiderActionButtons(dynamic order, AuthProvider authProvider) {
-    final status = order['status']?.toString().toLowerCase() ?? 'unknown';
-    final orderId = order['id'] as int;
-
-    switch (status) {
-      case 'confirmed':
-      case 'preparing':
-      case 'ready':
-        return [
-          ElevatedButton(
-            onPressed: () => _updateOrderStatus(orderId, 'out_for_delivery', authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-            child: const Text('Start Delivery'),
           ),
         ];
       case 'out_for_delivery':
