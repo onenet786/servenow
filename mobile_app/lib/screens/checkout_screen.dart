@@ -174,7 +174,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _deliveryTime,
+                initialValue: _deliveryTime,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                 ),

@@ -28,7 +28,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final orders = await ApiService.getOrders(authProvider.token!);
+      List<dynamic> orders;
+      if (authProvider.user!.userType == 'admin') {
+        orders = await ApiService.getAllOrders(authProvider.token!);
+      } else {
+        orders = await ApiService.getOrders(authProvider.token!);
+      }
       setState(() => _orders = orders);
     } catch (e) {
       String errorMessage = 'Failed to load orders: $e';
@@ -151,6 +156,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
                                   color: Colors.grey,
                                 ),
                               ),
+                              if (authProvider.user!.userType == 'admin') ...[
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: _buildActionButtons(order, authProvider),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -159,6 +171,186 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   ),
                 ),
     );
+  }
+
+  List<Widget> _buildActionButtons(dynamic order, AuthProvider authProvider) {
+    final status = order['status']?.toString().toLowerCase() ?? 'unknown';
+    final orderId = order['id'] as int;
+
+    switch (status) {
+      case 'pending':
+        return [
+          ElevatedButton(
+            onPressed: () => _updateOrderStatus(orderId, 'confirmed', authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('Confirm'),
+          ),
+          ElevatedButton(
+            onPressed: () => _assignRider(orderId, authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Assign Rider'),
+          ),
+          ElevatedButton(
+            onPressed: () => _updateOrderStatus(orderId, 'cancelled', authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Cancel'),
+          ),
+        ];
+      case 'out_for_delivery':
+        return [
+          ElevatedButton(
+            onPressed: () => _updateRiderLocation(orderId, authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('Update Location'),
+          ),
+          ElevatedButton(
+            onPressed: () => _markAsDelivered(orderId, authProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Mark Delivered'),
+          ),
+        ];
+      default:
+        return [];
+    }
+  }
+
+  Future<void> _updateOrderStatus(int orderId, String status, AuthProvider authProvider) async {
+    try {
+      await ApiService.updateOrderStatus(authProvider.token!, orderId, status);
+      _loadOrders();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Order status updated to $status')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update order: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _assignRider(int orderId, AuthProvider authProvider) async {
+    try {
+      final riders = await ApiService.getAvailableRiders(authProvider.token!);
+      if (riders.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No available riders')),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      // Show dialog to select rider
+      final selectedRider = await showDialog<int>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Select Rider'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: riders.length,
+              itemBuilder: (context, index) {
+                final rider = riders[index];
+                return ListTile(
+                  title: Text('${rider['first_name']} ${rider['last_name']}'),
+                  subtitle: Text(rider['vehicle_type'] ?? 'Unknown'),
+                  onTap: () => Navigator.of(context).pop(rider['id'] as int),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+
+      if (selectedRider != null) {
+        await ApiService.assignRider(authProvider.token!, orderId, selectedRider);
+        _loadOrders();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rider assigned successfully')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to assign rider: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateRiderLocation(int orderId, AuthProvider authProvider) async {
+    final locationController = TextEditingController();
+    final location = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Rider Location'),
+        content: TextField(
+          controller: locationController,
+          decoration: const InputDecoration(hintText: 'Enter current location'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(locationController.text),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+
+    if (location != null && location.isNotEmpty) {
+      try {
+        await ApiService.updateRiderLocation(authProvider.token!, orderId, location);
+        _loadOrders();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rider location updated')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update location: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _markAsDelivered(int orderId, AuthProvider authProvider) async {
+    try {
+      await ApiService.markAsDelivered(authProvider.token!, orderId);
+      _loadOrders();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Order marked as delivered')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to mark as delivered: $e')),
+        );
+      }
+    }
   }
 
   Color _getStatusColor(String status) {
