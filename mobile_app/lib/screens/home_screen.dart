@@ -22,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late TabController _tabController;
   List<Product> _products = [];
   List<dynamic> _categories = [];
+  List<dynamic> _stores = [];
   bool _isLoading = true;
   String _selectedCategory = '';
   int _cartItemCount = 0;
@@ -45,10 +46,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final categories = await ApiService.getCategories();
       final products = await ApiService.getProducts();
+      final stores = await ApiService.getStores();
 
       setState(() {
         _categories = categories;
         _products = products;
+        _stores = stores;
       });
     } catch (e) {
       if (mounted) {
@@ -150,6 +153,50 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Hero section
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Welcome to ServeNow',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Get fresh groceries, cooked food, and household items delivered to your doorstep from registered stores near you.',
+                          style: TextStyle(fontSize: 16),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            // Find stores near me functionality
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Finding stores near you...')),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          ),
+                          child: const Text('Find Stores Near Me'),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
                   // Categories
                   const Text(
                     'Shop by Category',
@@ -227,8 +274,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildStoresTab() {
-    return const Center(
-      child: Text('Stores coming soon...'),
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _stores.isEmpty
+              ? const Center(child: Text('No stores available'))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _stores.length,
+                  itemBuilder: (context, index) {
+                    final store = _stores[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: ListTile(
+                        leading: const Icon(Icons.store, color: Colors.green),
+                        title: Text(store['name'] ?? 'Unknown Store'),
+                        subtitle: Text(store['location'] ?? 'Location not available'),
+                        trailing: const Icon(Icons.arrow_forward_ios),
+                        onTap: () {
+                          // Navigate to store products
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Store: ${store['name']}')),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }

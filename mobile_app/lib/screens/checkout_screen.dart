@@ -17,6 +17,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _instructionsController = TextEditingController();
 
   String _paymentMethod = 'cash';
+  String _deliveryTime = 'asap';
   bool _isPlacingOrder = false;
 
   @override
@@ -54,6 +55,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         items: cartProvider.getItemsForOrder(),
         paymentMethod: _paymentMethod,
         deliveryAddress: _addressController.text.trim(),
+        deliveryTime: _deliveryTime,
         specialInstructions: _instructionsController.text.trim().isEmpty
             ? null
             : _instructionsController.text.trim(),
@@ -158,6 +160,36 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 validator: (value) {
                   if (value?.isEmpty ?? true) {
                     return 'Delivery address is required';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Preferred Delivery Time
+              const Text(
+                'Preferred Delivery Time',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _deliveryTime,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'asap', child: Text('ASAP (30-45 mins)')),
+                  DropdownMenuItem(value: '1hour', child: Text('Within 1 hour')),
+                  DropdownMenuItem(value: '2hours', child: Text('Within 2 hours')),
+                  DropdownMenuItem(value: 'tomorrow', child: Text('Tomorrow')),
+                ],
+                onChanged: (value) {
+                  setState(() => _deliveryTime = value!);
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please select a delivery time';
                   }
                   return null;
                 },

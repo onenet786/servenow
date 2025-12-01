@@ -82,6 +82,7 @@ class ApiService {
     required List<Map<String, dynamic>> items,
     required String paymentMethod,
     required String deliveryAddress,
+    String? deliveryTime,
     String? specialInstructions,
   }) async {
     final response = await http.post(
@@ -95,6 +96,7 @@ class ApiService {
         'items': items,
         'payment_method': paymentMethod,
         'delivery_address': deliveryAddress,
+        'delivery_time': deliveryTime,
         'special_instructions': specialInstructions,
       }),
     );
