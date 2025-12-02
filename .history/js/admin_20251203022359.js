@@ -24,9 +24,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.success && data.user.user_type === 'admin') {
             currentUser = data.user;
             initializeAdmin();
-        } else if (data.success && data.user.user_type === 'rider') {
-            // Rider trying to access admin panel, redirect to rider dashboard
-            window.location.href = 'rider.html';
         } else {
             localStorage.removeItem('serveNowToken');
             window.location.href = 'login.html';

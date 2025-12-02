@@ -310,26 +310,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Hide Home/Stores/Cart navigation on login page
-    if (isLoginPage) {
-        const navUl = document.querySelector('nav ul');
-        if (navUl) {
-            // Keep only non-navigation items (like login/register links if they exist)
-            const listItems = navUl.querySelectorAll('li');
-            listItems.forEach(item => {
-                const link = item.querySelector('a');
-                if (link) {
-                    const href = link.getAttribute('href');
-                    // Hide Home, Stores, Cart links
-                    if (href && (href.includes('index.html') || href.includes('stores.html') || href.includes('cart.html'))) {
-                        item.style.display = 'none';
-                    }
-                }
-            });
-        }
-    }
     // Update nav if logged in - only for customers
-    else if (token) {
+    if (token) {
         const userData = localStorage.getItem('serveNowUser');
         if (userData) {
             try {
