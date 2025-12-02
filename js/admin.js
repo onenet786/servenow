@@ -2,6 +2,7 @@
 const API_BASE = '';
 let currentUser = null;
 let authToken = null;
+let currentOrders = [];
 
 // Initialize admin dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -327,10 +328,13 @@ function loadOrders() {
     })
     .then(response => response.json())
     .then(data => {
+        // Store orders data globally for edit functionality
+        currentOrders = data.orders || [];
+
         const tbody = document.getElementById('ordersTableBody');
         tbody.innerHTML = '';
 
-        data.orders.forEach(order => {
+        currentOrders.forEach(order => {
             const riderName = order.rider_first_name && order.rider_last_name
                 ? `${order.rider_first_name} ${order.rider_last_name}`
                 : 'Not Assigned';
@@ -345,7 +349,7 @@ function loadOrders() {
                 <td>${order.rider_location || 'N/A'}</td>
                 <td>${new Date(order.created_at).toLocaleDateString()}</td>
                 <td>
-                    <button class="btn btn-small" onclick="updateOrderStatus(${order.id}, '${order.status}')">Update Status</button>
+                    <button class="btn btn-small" onclick="editOrder(${order.id})">Edit Order</button>
                 </td>
             `;
             tbody.appendChild(row);
@@ -375,6 +379,128 @@ function updateOrderStatus(orderId, currentStatus) {
         }
     })
     .catch(error => console.error('Error updating order:', error));
+}
+
+async function editOrder(orderId) {
+    try {
+        // Find order from current orders data
+        const order = currentOrders.find(o => o.id === orderId);
+        if (!order) {
+            alert('Order not found');
+            return;
+        }
+
+        // Fetch available riders
+        const ridersResponse = await fetch(`${API_BASE}/api/orders/available-riders`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const ridersData = await ridersResponse.json();
+
+        // Populate rider dropdown
+        const riderSelect = document.getElementById('orderRider');
+        riderSelect.innerHTML = '<option value="">Select Rider</option>';
+        if (ridersData.success) {
+            ridersData.riders.forEach(rider => {
+                const selected = order.rider_id == rider.id ? 'selected' : '';
+                riderSelect.innerHTML += `<option value="${rider.id}" ${selected}>${rider.first_name} ${rider.last_name}</option>`;
+            });
+        }
+
+        // Populate form with current values
+        document.getElementById('orderStatus').value = order.status;
+        document.getElementById('riderLocation').value = order.rider_location || '';
+
+        // Store order ID for saving
+        document.getElementById('editOrderForm').dataset.orderId = orderId;
+
+        showModal('editOrderModal');
+    } catch (error) {
+        console.error('Error loading order details:', error);
+        alert('Error loading order details');
+    }
+}
+
+async function saveOrder() {
+    const form = document.getElementById('editOrderForm');
+    const orderId = form.dataset.orderId;
+    const formData = new FormData(form);
+
+    const status = formData.get('status');
+    const riderId = formData.get('rider_id') || null;
+    const riderLocation = formData.get('rider_location') || null;
+
+    try {
+        // Update status if changed
+        if (status) {
+            await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({ status })
+            });
+        }
+
+        // Assign rider if selected
+        if (riderId) {
+            await fetch(`${API_BASE}/api/orders/${orderId}/assign-rider`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({ rider_id: parseInt(riderId) })
+            });
+        }
+
+        // Update rider location if provided
+        if (riderLocation) {
+            await fetch(`${API_BASE}/api/orders/${orderId}/rider-location`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({ location: riderLocation })
+            });
+        }
+
+        alert('Order updated successfully!');
+        hideModal('editOrderModal');
+        loadOrders();
+
+    } catch (error) {
+        console.error('Error updating order:', error);
+        alert('Error updating order');
+    }
+}
+
+function assignRider(orderId) {
+    const riderId = prompt('Enter rider ID to assign:');
+    if (!riderId || isNaN(riderId)) return;
+
+    fetch(`${API_BASE}/api/orders/${orderId}/assign-rider`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ rider_id: parseInt(riderId) })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadOrders();
+            alert('Rider assigned successfully!');
+        } else {
+            alert(data.message || 'Error assigning rider');
+        }
+    })
+    .catch(error => {
+        console.error('Error assigning rider:', error);
+        alert('Error assigning rider');
+    });
 }
 
 // Categories Management
@@ -443,9 +569,9 @@ function hideModal(modalId) {
 
 // Modal event listeners
 document.addEventListener('DOMContentLoaded', function() {
-    // Close modal when clicking X or outside
+    // Close modal when clicking X, outside, or cancel button
     document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('close') || e.target.classList.contains('modal')) {
+        if (e.target.classList.contains('close') || e.target.classList.contains('modal') || e.target.hasAttribute('data-modal')) {
             const modalId = e.target.dataset.modal || e.target.id;
             hideModal(modalId);
         }
@@ -462,6 +588,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
     document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
+    document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
 });
 
 // User Management Functions
@@ -550,22 +677,43 @@ function editUser(userId) {
     });
 }
 
-// Store Management Functions
 async function showAddStoreModal() {
-    showModal('addStoreModal');
+    // Load categories for dropdown
+    try {
+        const categoriesResponse = await fetch(`${API_BASE}/api/categories`);
+        const categoriesData = await categoriesResponse.json();
+
+        // Populate category dropdown
+        const categorySelect = document.getElementById('storeCategory');
+        categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
+        if (categoriesData.success) {
+            categoriesData.categories.forEach(category => {
+                categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+            });
+        }
+
+        showModal('addStoreModal');
+    } catch (error) {
+        console.error('Error loading categories:', error);
+        showModal('addStoreModal');
+    }
 }
 
 async function saveStore() {
     const formData = new FormData(document.getElementById('addStoreForm'));
     const storeData = {
         name: formData.get('name'),
+        owner: formData.get('owner'),
         description: formData.get('description'),
         location: formData.get('location'),
         phone: formData.get('phone'),
         email: formData.get('email'),
+        image_url: formData.get('image_url'),
         rating: parseFloat(formData.get('rating')) || 0,
         delivery_time: formData.get('delivery_time'),
-        address: formData.get('address')
+        address: formData.get('address'),
+        status: formData.get('status') || 'active',
+        category_id: formData.get('category_id') || null
     };
 
     try {

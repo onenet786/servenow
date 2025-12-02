@@ -20,7 +20,6 @@
             </button>
             <ul id="navMenu">
                 <li><a href="index.html">Back to Site</a></li>
-                <li><a href="orders.html">Orders</a></li>
                 <li><a href="#" id="logoutBtn">Logout</a></li>
             </ul>
         </nav>
@@ -259,8 +258,18 @@
                             <input type="text" id="storeName" name="name" required>
                         </div>
                         <div class="form-group">
+                            <label for="storeOwner">Owner:</label>
+                            <input type="text" id="storeOwner" name="owner" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
                             <label for="storeLocation">Location:</label>
                             <input type="text" id="storeLocation" name="location" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeImage">Image URL:</label>
+                            <input type="url" id="storeImage" name="image_url">
                         </div>
                     </div>
                     <div class="form-row">
@@ -283,16 +292,31 @@
                             <input type="text" id="storeDeliveryTime" name="delivery_time" placeholder="e.g., 30-45 mins">
                         </div>
                     </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storeStatus">Status:</label>
+                            <select id="storeStatus" name="status">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeCategory">Category:</label>
+                            <select id="storeCategory" name="category_id">
+                                <!-- Categories will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
                     <div class="form-row-full">
                         <div class="form-group">
                             <label for="storeDescription">Description:</label>
-                            <textarea id="storeDescription" name="description"></textarea>
+                            <textarea id="storeDescription" name="description" rows="3"></textarea>
                         </div>
                     </div>
                     <div class="form-row-full">
                         <div class="form-group">
                             <label for="storeAddress">Address:</label>
-                            <textarea id="storeAddress" name="address"></textarea>
+                            <textarea id="storeAddress" name="address" rows="3"></textarea>
                         </div>
                     </div>
                 </form>
@@ -392,6 +416,50 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-modal="addCategoryModal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="saveCategoryBtn">Save Category</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Order Modal -->
+    <div id="editOrderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Order</h3>
+                <span class="close" data-modal="editOrderModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editOrderForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="orderStatus">Order Status:</label>
+                            <select id="orderStatus" name="status">
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="preparing">Preparing</option>
+                                <option value="ready">Ready</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="orderRider">Assign Rider:</label>
+                            <select id="orderRider" name="rider_id">
+                                <option value="">Select Rider</option>
+                                <!-- Riders will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="riderLocation">Rider Current Location:</label>
+                            <input type="text" id="riderLocation" name="rider_location" placeholder="Enter current location">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-modal="editOrderModal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveOrderBtn">Save Changes</button>
             </div>
         </div>
     </div>

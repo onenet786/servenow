@@ -191,6 +191,8 @@ table tbody tr:hover {
 
 .modal-body {
     margin-bottom: 1.5rem;
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 .form-row {
