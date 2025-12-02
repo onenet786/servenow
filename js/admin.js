@@ -61,6 +61,7 @@ function initializeAdmin() {
     document.getElementById('addStoreBtn').addEventListener('click', () => showAddStoreModal());
     document.getElementById('addProductBtn').addEventListener('click', () => showAddProductModal());
     document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
+    document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
 }
 
 function switchTab(tabName) {
@@ -92,6 +93,9 @@ function switchTab(tabName) {
             break;
         case 'categories':
             loadCategories();
+            break;
+        case 'riders':
+            loadRiders();
             break;
     }
 }
@@ -582,12 +586,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('addStoreBtn').addEventListener('click', () => showAddStoreModal());
     document.getElementById('addProductBtn').addEventListener('click', () => showAddProductModal());
     document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
+    document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
 
     // Save button event listeners
     document.getElementById('saveUserBtn').addEventListener('click', saveUser);
     document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
     document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
+    document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
 });
 
@@ -934,4 +940,147 @@ function editCategory(categoryId) {
         console.error('Error updating category:', error);
         alert('Error updating category');
     });
+}
+
+// Riders Management Functions
+function loadRiders() {
+    fetch(`${API_BASE}/api/riders`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.getElementById('ridersTableBody');
+        tbody.innerHTML = '';
+
+        data.riders.forEach(rider => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${rider.id}</td>
+                <td>${rider.first_name} ${rider.last_name}</td>
+                <td>${rider.email}</td>
+                <td>${rider.phone}</td>
+                <td>${rider.vehicle_type}</td>
+                <td>${rider.license_number}</td>
+                <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
+                <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-small" onclick="editRider(${rider.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
+                        ${rider.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    })
+    .catch(error => console.error('Error loading riders:', error));
+}
+
+async function showAddRiderModal() {
+    // Load vehicle types for dropdown
+    try {
+        const vehicleTypesResponse = await fetch(`${API_BASE}/api/riders/types/vehicle`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const vehicleTypesData = await vehicleTypesResponse.json();
+
+        // Populate vehicle type dropdown
+        const vehicleTypeSelect = document.getElementById('riderVehicleType');
+        vehicleTypeSelect.innerHTML = '<option value="">Select Vehicle Type</option>';
+        if (vehicleTypesData.success) {
+            vehicleTypesData.vehicleTypes.forEach(type => {
+                vehicleTypeSelect.innerHTML += `<option value="${type}">${type}</option>`;
+            });
+        }
+
+        showModal('addRiderModal');
+    } catch (error) {
+        console.error('Error loading vehicle types:', error);
+        showModal('addRiderModal');
+    }
+}
+
+async function saveRider() {
+    const formData = new FormData(document.getElementById('addRiderForm'));
+    const riderData = {
+        firstName: formData.get('firstName'),
+        lastName: formData.get('lastName'),
+        email: formData.get('email'),
+        phone: formData.get('phone'),
+        password: formData.get('password'),
+        vehicleType: formData.get('vehicleType'),
+        licenseNumber: formData.get('licenseNumber')
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/api/riders`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(riderData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Rider created successfully!');
+            hideModal('addRiderModal');
+            loadRiders();
+        } else {
+            alert(data.message || 'Failed to create rider');
+        }
+    } catch (error) {
+        console.error('Error creating rider:', error);
+        alert('Error creating rider');
+    }
+}
+
+function editRider(riderId) {
+    // Simple edit functionality - could be expanded with a full modal
+    const newVehicleType = prompt('Enter new vehicle type:');
+    if (!newVehicleType) return;
+
+    fetch(`${API_BASE}/api/riders/${riderId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ vehicleType: newVehicleType })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadRiders();
+            alert('Rider updated successfully!');
+        } else {
+            alert('Failed to update rider');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating rider:', error);
+        alert('Error updating rider');
+    });
+}
+
+function toggleRiderStatus(riderId, currentStatus) {
+    fetch(`${API_BASE}/api/riders/${riderId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ isActive: !currentStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadRiders();
+        } else {
+            alert('Error updating rider status');
+        }
+    })
+    .catch(error => console.error('Error updating rider:', error));
 }

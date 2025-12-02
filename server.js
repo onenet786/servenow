@@ -15,6 +15,7 @@ const storeRoutes = require('./routes/stores');
 const productRoutes = require('./routes/products');
 const orderRoutes = require('./routes/orders');
 const categoryRoutes = require('./routes/categories');
+const riderRoutes = require('./routes/riders');
 
 const app = express();
 console.log('Express application created.');
@@ -84,6 +85,8 @@ app.use('/api/orders', orderRoutes);
 console.log('Order routes mounted at /api/orders');
 app.use('/api/categories', categoryRoutes);
 console.log('Category routes mounted at /api/categories');
+app.use('/api/riders', riderRoutes);
+console.log('Rider routes mounted at /api/riders');
 console.log('All API routes configured.');
 
 // Serve static files from the root directory for the frontend
