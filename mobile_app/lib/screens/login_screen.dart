@@ -315,36 +315,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
 
                 const SizedBox(height: 16),
-
-                // Demo credentials
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Demo Credentials:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[800],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Email: admin@servenow.com\nPassword: admin123',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
