@@ -85,8 +85,6 @@ app.use('/api/orders', orderRoutes);
 console.log('Order routes mounted at /api/orders');
 app.use('/api/categories', categoryRoutes);
 console.log('Category routes mounted at /api/categories');
-app.use('/api/riders', riderRoutes);
-console.log('Rider routes mounted at /api/riders');
 console.log('All API routes configured.');
 
 // Serve static files from the root directory for the frontend
