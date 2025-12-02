@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.success && data.user.user_type === 'admin') {
             currentUser = data.user;
             initializeAdmin();
+        } else if (data.success && data.user.user_type === 'rider') {
+            // Rider trying to access admin panel, redirect to rider dashboard
+            window.location.href = 'rider.html';
         } else {
             localStorage.removeItem('serveNowToken');
             window.location.href = 'login.html';
@@ -37,6 +40,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeAdmin() {
+    // Logout functionality
+    document.getElementById('logoutBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        localStorage.removeItem('serveNowToken');
+        window.location.href = 'login.html';
+    });
+
     // Tab switching
     const tabLinks = document.querySelectorAll('.tab-link');
     tabLinks.forEach(link => {
@@ -44,13 +54,6 @@ function initializeAdmin() {
             e.preventDefault();
             switchTab(this.dataset.tab);
         });
-    });
-
-    // Logout functionality
-    document.getElementById('logoutBtn').addEventListener('click', function(e) {
-        e.preventDefault();
-        localStorage.removeItem('serveNowToken');
-        window.location.href = 'login.html';
     });
 
     // Load initial dashboard data

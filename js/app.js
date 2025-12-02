@@ -310,21 +310,42 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Update nav if logged in
-    if (token) {
+    // Hide Home/Stores/Cart navigation on login page
+    if (isLoginPage) {
+        const navUl = document.querySelector('nav ul');
+        if (navUl) {
+            // Keep only non-navigation items (like login/register links if they exist)
+            const listItems = navUl.querySelectorAll('li');
+            listItems.forEach(item => {
+                const link = item.querySelector('a');
+                if (link) {
+                    const href = link.getAttribute('href');
+                    // Hide Home, Stores, Cart links
+                    if (href && (href.includes('index.html') || href.includes('stores.html') || href.includes('cart.html'))) {
+                        item.style.display = 'none';
+                    }
+                }
+            });
+        }
+    }
+    // Update nav if logged in - only for customers
+    else if (token) {
         const userData = localStorage.getItem('serveNowUser');
         if (userData) {
             try {
                 const user = JSON.parse(userData);
-                const navUl = document.querySelector('nav ul');
-                if (navUl) {
-                    navUl.innerHTML = `
-                        <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
-                        <li><a href="stores.html"><i class="fas fa-store"></i> Stores</a></li>
-                        <li><a href="cart.html"><i class="fas fa-shopping-cart"></i> Cart <span id="cartCount">0</span></a></li>
-                        <li>Welcome ${user.first_name}</li>
-                        <li><a href="#" onclick="logout()">Logout</a></li>
-                    `;
+                // Only update navigation for customers, not for riders or admins
+                if (user.user_type === 'customer') {
+                    const navUl = document.querySelector('nav ul');
+                    if (navUl) {
+                        navUl.innerHTML = `
+                            <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+                            <li><a href="stores.html"><i class="fas fa-store"></i> Stores</a></li>
+                            <li><a href="cart.html"><i class="fas fa-shopping-cart"></i> Cart <span id="cartCount">0</span></a></li>
+                            <li>Welcome ${user.first_name}</li>
+                            <li><a href="#" onclick="logout()">Logout</a></li>
+                        `;
+                    }
                 }
             } catch (error) {
                 console.error('Error parsing user data:', error);
