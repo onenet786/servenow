@@ -1,4 +1,4 @@
-name: servenow_mobile
+name: servenow
 description: A mobile app for ServeNow grocery delivery platform
 version: 1.0.0+1
 
@@ -20,6 +20,12 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
 
 flutter:
   uses-material-design: true
