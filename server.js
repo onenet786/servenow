@@ -89,6 +89,11 @@ app.use('/api/riders', riderRoutes);
 console.log('Rider routes mounted at /api/riders');
 console.log('All API routes configured.');
 
+// Serve login.html for the root path
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+
 // Serve static files from the root directory for the frontend
 console.log('Setting up frontend static file serving...');
 app.use(express.static(path.join(__dirname)));

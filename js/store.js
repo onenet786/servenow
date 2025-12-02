@@ -47,11 +47,11 @@ function displayStoreProducts(storeId) {
     storeProducts.forEach(product => {
         const productCard = document.createElement('div');
         productCard.className = 'product-card';
-        productCard.innerHTML = `
+                productCard.innerHTML = `
             <img src="${product.image}" alt="${product.name}">
             <div class="product-card-content">
                 <h4>${product.name}</h4>
-                <p class="price">$${product.price.toFixed(2)}</p>
+                <p class="price">PKR ${product.price.toFixed(2)}</p>
                 <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price})">Add to Cart</button>
             </div>
         `;

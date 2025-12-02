@@ -26,7 +26,7 @@ function displayOrderDetails() {
                 itemElement.className = 'order-item';
                 itemElement.innerHTML = `
                     <span>${item.name} x ${item.quantity}</span>
-                    <span>$${item.price * item.quantity}</span>
+                    <span>PKR ${item.price * item.quantity}</span>
                 `;
                 orderItems.appendChild(itemElement);
             });
@@ -37,7 +37,7 @@ function displayOrderDetails() {
     }
 
     if (orderTotal) {
-        orderTotal.textContent = lastOrder.total ? `Total: $${lastOrder.total}` : 'Total: $0.00';
+        orderTotal.textContent = lastOrder.total ? `Total: PKR ${lastOrder.total}` : 'Total: PKR 0.00';
     }
 
     if (deliveryTime) {
