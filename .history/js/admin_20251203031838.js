@@ -350,7 +350,7 @@ function loadOrders() {
                 <td>${order.order_number}</td>
                 <td>${order.first_name} ${order.last_name}</td>
                 <td>${order.store_name}</td>
-                <td>PKR ${order.total_amount}</td>
+                <td>$${order.total_amount}</td>
                 <td><span class="status-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span></td>
                 <td>${riderName}</td>
                 <td>${order.rider_location || 'N/A'}</td>

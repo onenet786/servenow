@@ -37,7 +37,7 @@ function displayOrderDetails() {
     }
 
     if (orderTotal) {
-        orderTotal.textContent = lastOrder.total ? `Total: PKR ${lastOrder.total}` : 'Total: PKR 0.00';
+        orderTotal.textContent = lastOrder.total ? `Total: $${lastOrder.total}` : 'Total: $0.00';
     }
 
     if (deliveryTime) {
