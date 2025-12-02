@@ -383,15 +383,21 @@ function updateOrderStatus(orderId, currentStatus) {
 
 async function editOrder(orderId) {
     try {
-        // Find order from current orders data
-        const order = currentOrders.find(o => o.id === orderId);
-        if (!order) {
+        // Fetch order details
+        const orderResponse = await fetch(`${API_BASE}/api/orders/${orderId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const orderData = await orderResponse.json();
+
+        if (!orderData.success) {
             alert('Order not found');
             return;
         }
 
-        // Fetch available riders
-        const ridersResponse = await fetch(`${API_BASE}/api/orders/available-riders`, {
+        const order = orderData.order;
+
+        // Fetch riders for dropdown
+        const ridersResponse = await fetch(`${API_BASE}/api/users?type=rider`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         const ridersData = await ridersResponse.json();
@@ -400,7 +406,7 @@ async function editOrder(orderId) {
         const riderSelect = document.getElementById('orderRider');
         riderSelect.innerHTML = '<option value="">Select Rider</option>';
         if (ridersData.success) {
-            ridersData.riders.forEach(rider => {
+            ridersData.users.forEach(rider => {
                 const selected = order.rider_id == rider.id ? 'selected' : '';
                 riderSelect.innerHTML += `<option value="${rider.id}" ${selected}>${rider.first_name} ${rider.last_name}</option>`;
             });
@@ -425,51 +431,31 @@ async function saveOrder() {
     const orderId = form.dataset.orderId;
     const formData = new FormData(form);
 
-    const status = formData.get('status');
-    const riderId = formData.get('rider_id') || null;
-    const riderLocation = formData.get('rider_location') || null;
+    const orderData = {
+        status: formData.get('status'),
+        rider_id: formData.get('rider_id') || null,
+        rider_location: formData.get('rider_location') || null
+    };
 
     try {
-        // Update status if changed
-        if (status) {
-            await fetch(`${API_BASE}/api/orders/${orderId}/status`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify({ status })
-            });
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(orderData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Order updated successfully!');
+            hideModal('editOrderModal');
+            loadOrders();
+        } else {
+            alert(data.message || 'Failed to update order');
         }
-
-        // Assign rider if selected
-        if (riderId) {
-            await fetch(`${API_BASE}/api/orders/${orderId}/assign-rider`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify({ rider_id: parseInt(riderId) })
-            });
-        }
-
-        // Update rider location if provided
-        if (riderLocation) {
-            await fetch(`${API_BASE}/api/orders/${orderId}/rider-location`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify({ location: riderLocation })
-            });
-        }
-
-        alert('Order updated successfully!');
-        hideModal('editOrderModal');
-        loadOrders();
-
     } catch (error) {
         console.error('Error updating order:', error);
         alert('Error updating order');
