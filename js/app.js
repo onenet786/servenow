@@ -1,5 +1,5 @@
-// API Base URL
-const API_BASE = '';
+// API Base URL - dynamically determine based on current location
+const API_BASE = window.location.protocol + '//' + window.location.host;
 
 // Authentication state
 let currentUser = null;
@@ -72,39 +72,74 @@ function displayCart() {
 
 // Location-based functionality
 function getUserLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(showPosition, showError);
-    } else {
+    if (!navigator.geolocation) {
         alert("Geolocation is not supported by this browser.");
+        return;
     }
+
+    // Show loading state
+    const locationBtn = document.getElementById('getLocation');
+    if (locationBtn) {
+        locationBtn.textContent = 'Getting location...';
+        locationBtn.disabled = true;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        showPosition,
+        showError,
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000 // 5 minutes
+        }
+    );
 }
 
 function showPosition(position) {
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
 
-    // In a real app, you would send this to your backend to find nearby stores
     console.log(`User location: ${latitude}, ${longitude}`);
 
-    // For demo purposes, we'll just show all stores
+    // Reset button state
+    const locationBtn = document.getElementById('getLocation');
+    if (locationBtn) {
+        locationBtn.textContent = 'Stores Found!';
+        locationBtn.disabled = false;
+        setTimeout(() => {
+            locationBtn.textContent = 'Find Stores Near Me';
+        }, 2000);
+    }
+
+    // In a real app, you would send this to your backend to find nearby stores
+    // For now, we'll just show all stores with a success message
     displayNearbyStores();
 }
 
 function showError(error) {
+    // Reset button state
+    const locationBtn = document.getElementById('getLocation');
+    if (locationBtn) {
+        locationBtn.textContent = 'Find Stores Near Me';
+        locationBtn.disabled = false;
+    }
+
+    let errorMessage = "Location access failed: ";
     switch(error.code) {
         case error.PERMISSION_DENIED:
-            alert("User denied the request for Geolocation.");
+            errorMessage += "Please enable location permissions in your browser settings.";
             break;
         case error.POSITION_UNAVAILABLE:
-            alert("Location information is unavailable.");
+            errorMessage += "Location information is unavailable.";
             break;
         case error.TIMEOUT:
-            alert("The request to get user location timed out.");
+            errorMessage += "Location request timed out. Please try again.";
             break;
         case error.UNKNOWN_ERROR:
-            alert("An unknown error occurred.");
+            errorMessage += "An unknown error occurred.";
             break;
     }
+    alert(errorMessage);
 }
 
 async function displayNearbyStores() {

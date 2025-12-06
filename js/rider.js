@@ -11,17 +11,42 @@ function getCurrentLocation() {
             return;
         }
 
+        // Check if we have permission
+        if (navigator.permissions) {
+            navigator.permissions.query({name:'geolocation'}).then(function(result) {
+                if (result.state === 'denied') {
+                    reject(new Error('Location permission denied. Please enable location access in your browser settings.'));
+                    return;
+                }
+            });
+        }
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const location = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
                 resolve(location);
             },
             (error) => {
-                reject(error);
+                let errorMessage = 'Failed to get location: ';
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage += 'Location permission denied. Please enable location access.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage += 'Location information is unavailable.';
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage += 'Location request timed out.';
+                        break;
+                    default:
+                        errorMessage += 'Unknown error occurred.';
+                        break;
+                }
+                reject(new Error(errorMessage));
             },
             {
                 enableHighAccuracy: true,
-                timeout: 10000,
+                timeout: 15000, // Increased timeout
                 maximumAge: 300000 // 5 minutes
             }
         );
@@ -63,7 +88,33 @@ function updateLocationDisplay() {
     const locationElement = document.getElementById('currentLocation');
     if (locationElement && currentLocation) {
         locationElement.textContent = currentLocation;
+        locationElement.style.color = ''; // Reset color
     }
+}
+
+// Refresh location manually
+function refreshLocation() {
+    const locationElement = document.getElementById('currentLocation');
+    if (locationElement) {
+        locationElement.textContent = 'Getting location...';
+        locationElement.style.color = '';
+    }
+
+    getCurrentLocation()
+        .then((location) => {
+            currentLocation = location;
+            updateLocationDisplay();
+            console.log('Location refreshed:', location);
+            alert('Location updated successfully!');
+        })
+        .catch((error) => {
+            console.error('Failed to refresh location:', error);
+            if (locationElement) {
+                locationElement.textContent = 'Location unavailable - ' + error.message;
+                locationElement.style.color = '#e53e3e';
+            }
+            alert('Failed to get location: ' + error.message);
+        });
 }
 
 // Auto-update location for active deliveries
@@ -284,7 +335,24 @@ document.addEventListener('DOMContentLoaded', function() {
     loadRiderInfo();
     displayRiderDeliveries('assigned');
 
-    // Start location tracking
+    // Try to get initial location
+    getCurrentLocation()
+        .then((location) => {
+            currentLocation = location;
+            updateLocationDisplay();
+            console.log('Initial location obtained:', location);
+        })
+        .catch((error) => {
+            console.error('Failed to get initial location:', error);
+            const locationElement = document.getElementById('currentLocation');
+            if (locationElement) {
+                locationElement.textContent = 'Location unavailable - ' + error.message;
+                locationElement.style.color = '#e53e3e';
+            }
+            alert('Location access failed: ' + error.message + '\n\nPlease enable location permissions and refresh the page.');
+        });
+
+    // Start location tracking (will handle errors internally)
     startLocationTracking();
 
     // Auto-update location every 2 minutes
