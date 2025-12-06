@@ -721,26 +721,18 @@ table tbody tr:last-child td {
         display: flex;
     }
     
-    .hamburger-menu span {
-        width: 30px;
-        height: 4px;
-        margin: 4px 0;
-    }
-    
     .nav-menu {
         display: none;
         position: absolute;
         top: 100%;
-        left: 0;
-        width: 100vw;
-        margin-left: calc(-50vw + 50%);
+        right: 0;
+        width: 100%;
         background: var(--dark-gradient);
         flex-direction: column;
         gap: 0;
-        padding: 1.5rem 0;
+        padding: 1rem 0;
         box-shadow: var(--card-shadow);
         z-index: 1000;
-        border-top: 2px solid rgba(255, 255, 255, 0.2);
     }
     
     .nav-menu.active {
@@ -752,31 +744,23 @@ table tbody tr:last-child td {
     }
     
     .nav-menu li a {
-        padding: 1.25rem 3rem;
-        font-size: 1.1rem;
+        padding: 1rem 2rem;
+        font-size: 0.9rem;
         display: flex;
         flex-direction: row;
         align-items: center;
         justify-content: flex-start;
         text-align: left;
-        min-height: 60px;
+        min-height: auto;
         border-radius: 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-        transition: var(--transition);
-    }
-    
-    .nav-menu li a:hover {
-        background: rgba(255, 255, 255, 0.1);
-        transform: translateX(5px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
     .nav-menu li a i {
-        margin-right: 1.5rem;
+        margin-right: 1rem;
         margin-bottom: 0;
-        font-size: 1.2rem;
+        font-size: 1rem;
         flex-shrink: 0;
-        width: 20px;
-        text-align: center;
     }
     
     .nav-menu li:last-child a {
@@ -785,69 +769,11 @@ table tbody tr:last-child td {
     
     #logoutBtn {
         background: var(--danger-gradient);
-        margin: 0 3rem;
-        padding: 1rem 3rem;
-        font-size: 1rem;
+        margin: 0 2rem;
+        padding: 0.75rem 2rem;
+        font-size: 0.9rem;
         border-radius: var(--border-radius-sm);
         text-align: center;
-        font-weight: 600;
-    }
-    
-    #logoutBtn:hover {
-        transform: translateX(5px);
-        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.6);
-    }
-}
-
-/* Extra small screens */
-@media (max-width: 480px) {
-    .hamburger-menu span {
-        width: 28px;
-        height: 3px;
-        margin: 3px 0;
-    }
-    
-    .nav-menu {
-        padding: 1rem 0;
-    }
-    
-    .nav-menu li a {
-        padding: 1rem 2rem;
-        font-size: 1rem;
-        min-height: 50px;
-    }
-    
-    .nav-menu li a i {
-        margin-right: 1rem;
-        font-size: 1.1rem;
-        width: 18px;
-    }
-    
-    #logoutBtn {
-        margin: 0 2rem;
-        padding: 0.875rem 2rem;
-        font-size: 0.95rem;
-    }
-}
-
-/* Large mobile screens */
-@media (min-width: 481px) and (max-width: 768px) {
-    .nav-menu li a {
-        padding: 1.5rem 4rem;
-        font-size: 1.2rem;
-        min-height: 70px;
-    }
-    
-    .nav-menu li a i {
-        margin-right: 2rem;
-        font-size: 1.3rem;
-        width: 22px;
-    }
-    
-    #logoutBtn {
-        margin: 0 4rem;
-        padding: 1.125rem 4rem;
-        font-size: 1.1rem;
     }
 }
 
@@ -863,34 +789,6 @@ table tbody tr:last-child td {
     .logo h1 {
         font-size: 1.1rem;
         margin-bottom: 0;
-    }
-    
-    /* Larger hamburger menu for portrait mode */
-    .hamburger-menu span {
-        width: 35px;
-        height: 5px;
-        margin: 5px 0;
-    }
-    
-    /* Larger menu items in portrait mode */
-    .nav-menu li a {
-        padding: 2rem 4rem;
-        font-size: 1.4rem;
-        min-height: 80px;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-    }
-    
-    .nav-menu li a i {
-        margin-right: 2rem;
-        font-size: 1.5rem;
-        width: 25px;
-    }
-    
-    #logoutBtn {
-        margin: 0 4rem;
-        padding: 1.5rem 4rem;
-        font-size: 1.3rem;
-        min-height: 60px;
     }
     
     .admin-content {

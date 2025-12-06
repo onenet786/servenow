@@ -865,34 +865,6 @@ table tbody tr:last-child td {
         margin-bottom: 0;
     }
     
-    /* Larger hamburger menu for portrait mode */
-    .hamburger-menu span {
-        width: 35px;
-        height: 5px;
-        margin: 5px 0;
-    }
-    
-    /* Larger menu items in portrait mode */
-    .nav-menu li a {
-        padding: 2rem 4rem;
-        font-size: 1.4rem;
-        min-height: 80px;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-    }
-    
-    .nav-menu li a i {
-        margin-right: 2rem;
-        font-size: 1.5rem;
-        width: 25px;
-    }
-    
-    #logoutBtn {
-        margin: 0 4rem;
-        padding: 1.5rem 4rem;
-        font-size: 1.3rem;
-        min-height: 60px;
-    }
-    
     .admin-content {
         padding: 1rem;
     }

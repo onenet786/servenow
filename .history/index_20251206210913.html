@@ -6,28 +6,6 @@
     <title>ServeNow - Grocery Delivery</title>
     <link rel="stylesheet" href="style/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body {
-            background: linear-gradient(to right, #74ebd5, #acb6e5);
-            background-size: cover;
-            background-position: center;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-
-        .main-container {
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
-            width: 90%;
-            max-width: 1200px;
-            margin: 20px auto;
-            flex-grow: 1;
-        }
-    </style>
 </head>
 <body>
     <header>
@@ -50,56 +28,54 @@
         </nav>
     </header>
 
-    <div class="main-container">
-        <main>
-            <section class="hero">
-                <h2>Welcome to ServeNow</h2>
-                <p>Get fresh groceries, cooked food, and household items delivered to your doorstep from registered stores near you.</p>
-                <button id="getLocation">Find Stores Near Me</button>
-            </section>
+    <main>
+        <section class="hero">
+            <h2>Welcome to ServeNow</h2>
+            <p>Get fresh groceries, cooked food, and household items delivered to your doorstep from registered stores near you.</p>
+            <button id="getLocation">Find Stores Near Me</button>
+        </section>
 
-            <section class="categories">
-                <h3>Shop by Category</h3>
-                <div class="category-grid">
-                    <div class="category-card">
-                        <img src="images/vegetables.jpg" alt="Vegetables">
-                        <div class="category-card-content">
-                            <h4>Vegetables</h4>
-                            <a href="products.html?category=vegetables">Shop Now</a>
-                        </div>
-                    </div>
-                    <div class="category-card">
-                        <img src="images/cooked-food.jpg" alt="Cooked Food">
-                        <div class="category-card-content">
-                            <h4>Cooked Food</h4>
-                            <a href="products.html?category=cooked-food">Shop Now</a>
-                        </div>
-                    </div>
-                    <div class="category-card">
-                        <img src="images/pizza.jpg" alt="Household Items">
-                        <div class="category-card-content">
-                            <h4>Household Items</h4>
-                            <a href="products.html?category=household">Shop Now</a>
-                        </div>
-                    </div>
-                    <div class="category-card">
-                        <img src="images/burgers.jpg" alt="Groceries">
-                        <div class="category-card-content">
-                            <h4>Groceries</h4>
-                            <a href="products.html?category=groceries">Shop Now</a>
-                        </div>
+        <section class="categories">
+            <h3>Shop by Category</h3>
+            <div class="category-grid">
+                <div class="category-card">
+                    <img src="images/vegetables.jpg" alt="Vegetables">
+                    <div class="category-card-content">
+                        <h4>Vegetables</h4>
+                        <a href="products.html?category=vegetables">Shop Now</a>
                     </div>
                 </div>
-            </section>
-
-            <section class="featured-stores">
-                <h3>Featured Stores</h3>
-                <div class="store-grid" id="featuredStores">
-                    <!-- Stores will be loaded dynamically -->
+                <div class="category-card">
+                    <img src="images/cooked-food.jpg" alt="Cooked Food">
+                    <div class="category-card-content">
+                        <h4>Cooked Food</h4>
+                        <a href="products.html?category=cooked-food">Shop Now</a>
+                    </div>
                 </div>
-            </section>
-        </main>
-    </div>
+                <div class="category-card">
+                    <img src="images/pizza.jpg" alt="Household Items">
+                    <div class="category-card-content">
+                        <h4>Household Items</h4>
+                        <a href="products.html?category=household">Shop Now</a>
+                    </div>
+                </div>
+                <div class="category-card">
+                    <img src="images/burgers.jpg" alt="Groceries">
+                    <div class="category-card-content">
+                        <h4>Groceries</h4>
+                        <a href="products.html?category=groceries">Shop Now</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="featured-stores">
+            <h3>Featured Stores</h3>
+            <div class="store-grid" id="featuredStores">
+                <!-- Stores will be loaded dynamically -->
+            </div>
+        </section>
+    </main>
 
     <footer>
         <p>&copy; 2023 ServeNow. All rights reserved.</p>

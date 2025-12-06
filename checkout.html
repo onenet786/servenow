@@ -4,8 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkout - ServeNow</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="style/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(to right, #74ebd5, #acb6e5);
+            background-size: cover;
+            background-position: center;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .main-container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+            flex-grow: 1;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -23,80 +45,82 @@
         </nav>
     </header>
 
-    <main>
-        <h2>Checkout</h2>
+    <div class="main-container">
+        <main>
+            <h2>Checkout</h2>
 
-        <section class="checkout-section">
-            <div class="checkout-container">
-                <div class="checkout-form">
-                    <h3>Delivery Information</h3>
-                    <form id="checkoutForm" action="#" method="post">
-                        <div class="form-group">
-                            <label for="fullName">Full Name:</label>
-                            <input type="text" id="fullName" name="fullName" required>
+            <section class="checkout-section">
+                <div class="checkout-container">
+                    <div class="checkout-form">
+                        <h3>Delivery Information</h3>
+                        <form id="checkoutForm" action="#" method="post">
+                            <div class="form-group">
+                                <label for="fullName">Full Name:</label>
+                                <input type="text" id="fullName" name="fullName" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="phone">Phone Number:</label>
+                                <input type="tel" id="phone" name="phone" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="deliveryAddress">Delivery Address:</label>
+                                <textarea id="deliveryAddress" name="deliveryAddress" required></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="deliveryTime">Preferred Delivery Time:</label>
+                                <select id="deliveryTime" name="deliveryTime" required>
+                                    <option value="">Select time</option>
+                                    <option value="asap">ASAP (30-45 mins)</option>
+                                    <option value="1hour">Within 1 hour</option>
+                                    <option value="2hours">Within 2 hours</option>
+                                    <option value="tomorrow">Tomorrow</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="paymentMethod">Payment Method:</label>
+                                <select id="paymentMethod" name="paymentMethod" required>
+                                    <option value="">Select payment method</option>
+                                    <option value="card">Credit/Debit Card</option>
+                                    <option value="cash">Cash on Delivery</option>
+                                    <option value="wallet">Digital Wallet</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" id="cardDetails" style="display: none;">
+                                <label for="cardNumber">Card Number:</label>
+                                <input type="text" id="cardNumber" name="cardNumber" placeholder="1234 5678 9012 3456">
+
+                                <label for="expiryDate">Expiry Date:</label>
+                                <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY">
+
+                                <label for="cvv">CVV:</label>
+                                <input type="text" id="cvv" name="cvv" placeholder="123">
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">Place Order</button>
+                        </form>
+                    </div>
+
+                    <div class="order-summary">
+                        <h3>Order Summary</h3>
+                        <div id="checkoutItems">
+                            <!-- Order items will be loaded dynamically -->
                         </div>
-
-                        <div class="form-group">
-                            <label for="phone">Phone Number:</label>
-                            <input type="tel" id="phone" name="phone" required>
+                        <div class="checkout-total" id="checkoutTotal">
+                            Total: PKR 0.00
                         </div>
-
-                        <div class="form-group">
-                            <label for="deliveryAddress">Delivery Address:</label>
-                            <textarea id="deliveryAddress" name="deliveryAddress" required></textarea>
+                        <div class="delivery-fee">
+                            Delivery Fee: PKR 2.99
                         </div>
-
-                        <div class="form-group">
-                            <label for="deliveryTime">Preferred Delivery Time:</label>
-                            <select id="deliveryTime" name="deliveryTime" required>
-                                <option value="">Select time</option>
-                                <option value="asap">ASAP (30-45 mins)</option>
-                                <option value="1hour">Within 1 hour</option>
-                                <option value="2hours">Within 2 hours</option>
-                                <option value="tomorrow">Tomorrow</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="paymentMethod">Payment Method:</label>
-                            <select id="paymentMethod" name="paymentMethod" required>
-                                <option value="">Select payment method</option>
-                                <option value="card">Credit/Debit Card</option>
-                                <option value="cash">Cash on Delivery</option>
-                                <option value="wallet">Digital Wallet</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group" id="cardDetails" style="display: none;">
-                            <label for="cardNumber">Card Number:</label>
-                            <input type="text" id="cardNumber" name="cardNumber" placeholder="1234 5678 9012 3456">
-
-                            <label for="expiryDate">Expiry Date:</label>
-                            <input type="text" id="expiryDate" name="expiryDate" placeholder="MM/YY">
-
-                            <label for="cvv">CVV:</label>
-                            <input type="text" id="cvv" name="cvv" placeholder="123">
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">Place Order</button>
-                    </form>
+                    </div>
                 </div>
-
-                <div class="order-summary">
-                    <h3>Order Summary</h3>
-                    <div id="checkoutItems">
-                        <!-- Order items will be loaded dynamically -->
-                    </div>
-                    <div class="checkout-total" id="checkoutTotal">
-                        Total: PKR 0.00
-                    </div>
-                    <div class="delivery-fee">
-                        Delivery Fee: PKR 2.99
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
+            </section>
+        </main>
+    </div>
 
     <footer>
         <p>&copy; 2023 ServeNow. All rights reserved.</p>

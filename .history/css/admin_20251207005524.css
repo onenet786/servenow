@@ -121,38 +121,6 @@ body {
     box-shadow: 0 8px 25px rgba(239, 68, 68, 0.6);
 }
 
-/* Hamburger Menu Button */
-.hamburger-menu {
-    display: none;
-    flex-direction: column;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0.5rem;
-    z-index: 1001;
-}
-
-.hamburger-menu span {
-    width: 25px;
-    height: 3px;
-    background: white;
-    margin: 3px 0;
-    transition: 0.3s;
-    border-radius: 2px;
-}
-
-.hamburger-menu.active span:nth-child(1) {
-    transform: rotate(-45deg) translate(-5px, 6px);
-}
-
-.hamburger-menu.active span:nth-child(2) {
-    opacity: 0;
-}
-
-.hamburger-menu.active span:nth-child(3) {
-    transform: rotate(45deg) translate(-5px, -6px);
-}
-
 .admin-content {
     flex: 1;
     padding: 2.5rem;
@@ -716,148 +684,12 @@ table tbody tr:last-child td {
 }
 
 /* Mobile Responsive Styles */
-@media (max-width: 768px) {
-    .hamburger-menu {
-        display: flex;
-    }
-    
-    .hamburger-menu span {
-        width: 30px;
-        height: 4px;
-        margin: 4px 0;
-    }
-    
-    .nav-menu {
-        display: none;
-        position: absolute;
-        top: 100%;
-        left: 0;
-        width: 100vw;
-        margin-left: calc(-50vw + 50%);
-        background: var(--dark-gradient);
-        flex-direction: column;
-        gap: 0;
-        padding: 1.5rem 0;
-        box-shadow: var(--card-shadow);
-        z-index: 1000;
-        border-top: 2px solid rgba(255, 255, 255, 0.2);
-    }
-    
-    .nav-menu.active {
-        display: flex;
-    }
-    
-    .nav-menu li {
-        width: 100%;
-    }
-    
-    .nav-menu li a {
-        padding: 1.25rem 3rem;
-        font-size: 1.1rem;
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: flex-start;
-        text-align: left;
-        min-height: 60px;
-        border-radius: 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-        transition: var(--transition);
-    }
-    
-    .nav-menu li a:hover {
-        background: rgba(255, 255, 255, 0.1);
-        transform: translateX(5px);
-    }
-    
-    .nav-menu li a i {
-        margin-right: 1.5rem;
-        margin-bottom: 0;
-        font-size: 1.2rem;
-        flex-shrink: 0;
-        width: 20px;
-        text-align: center;
-    }
-    
-    .nav-menu li:last-child a {
-        border-bottom: none;
-    }
-    
-    #logoutBtn {
-        background: var(--danger-gradient);
-        margin: 0 3rem;
-        padding: 1rem 3rem;
-        font-size: 1rem;
-        border-radius: var(--border-radius-sm);
-        text-align: center;
-        font-weight: 600;
-    }
-    
-    #logoutBtn:hover {
-        transform: translateX(5px);
-        box-shadow: 0 8px 25px rgba(239, 68, 68, 0.6);
-    }
-}
-
-/* Extra small screens */
-@media (max-width: 480px) {
-    .hamburger-menu span {
-        width: 28px;
-        height: 3px;
-        margin: 3px 0;
-    }
-    
-    .nav-menu {
-        padding: 1rem 0;
-    }
-    
-    .nav-menu li a {
-        padding: 1rem 2rem;
-        font-size: 1rem;
-        min-height: 50px;
-    }
-    
-    .nav-menu li a i {
-        margin-right: 1rem;
-        font-size: 1.1rem;
-        width: 18px;
-    }
-    
-    #logoutBtn {
-        margin: 0 2rem;
-        padding: 0.875rem 2rem;
-        font-size: 0.95rem;
-    }
-}
-
-/* Large mobile screens */
-@media (min-width: 481px) and (max-width: 768px) {
-    .nav-menu li a {
-        padding: 1.5rem 4rem;
-        font-size: 1.2rem;
-        min-height: 70px;
-    }
-    
-    .nav-menu li a i {
-        margin-right: 2rem;
-        font-size: 1.3rem;
-        width: 22px;
-    }
-    
-    #logoutBtn {
-        margin: 0 4rem;
-        padding: 1.125rem 4rem;
-        font-size: 1.1rem;
-    }
-}
-
 @media (max-width: 768px) and (orientation: portrait) {
     .admin-nav {
         padding: 0.75rem 1rem;
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
-        position: relative;
     }
     
     .logo h1 {
@@ -865,32 +697,44 @@ table tbody tr:last-child td {
         margin-bottom: 0;
     }
     
-    /* Larger hamburger menu for portrait mode */
-    .hamburger-menu span {
-        width: 35px;
-        height: 5px;
-        margin: 5px 0;
+    .nav-menu {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        max-width: 75%;
     }
     
-    /* Larger menu items in portrait mode */
+    .nav-menu li {
+        flex: 0 1 auto;
+    }
+    
     .nav-menu li a {
-        padding: 2rem 4rem;
-        font-size: 1.4rem;
-        min-height: 80px;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+        padding: 0.5rem 0.75rem;
+        text-align: center;
+        font-size: 0.65rem;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        min-height: auto;
+        line-height: 1.1;
+        word-wrap: break-word;
+        hyphens: auto;
     }
     
     .nav-menu li a i {
-        margin-right: 2rem;
-        font-size: 1.5rem;
-        width: 25px;
+        margin-right: 0.5rem;
+        margin-bottom: 0;
+        font-size: 0.8rem;
+        flex-shrink: 0;
     }
     
     #logoutBtn {
-        margin: 0 4rem;
-        padding: 1.5rem 4rem;
-        font-size: 1.3rem;
-        min-height: 60px;
+        grid-column: unset;
+        margin-top: 0;
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
     }
     
     .admin-content {

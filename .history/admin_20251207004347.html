@@ -15,13 +15,6 @@
                 <h1>ServeNow Admin</h1>
             </div>
             
-            <!-- Hamburger Menu Button -->
-            <button class="hamburger-menu" id="hamburgerMenu" aria-label="Toggle navigation menu">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
-            
             <!-- Navigation Menu -->
             <ul class="nav-menu" id="navMenu">
                 <li><a href="#" class="tab-link active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
@@ -898,13 +891,13 @@
     <script src="js/admin.js?v=3"></script>
     <script>
         // Mobile menu toggle functionality
-        const hamburgerMenu = document.getElementById('hamburgerMenu');
+        const menuToggle = document.getElementById('menuToggle');
         const navMenu = document.getElementById('navMenu');
 
-        if (hamburgerMenu && navMenu) {
-            hamburgerMenu.addEventListener('click', function() {
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', function() {
                 navMenu.classList.toggle('active');
-                hamburgerMenu.classList.toggle('active');
+                menuToggle.classList.toggle('active');
             });
 
             // Close mobile menu when clicking on a link
@@ -912,15 +905,15 @@
             navLinks.forEach(link => {
                 link.addEventListener('click', function() {
                     navMenu.classList.remove('active');
-                    hamburgerMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
                 });
             });
 
             // Close mobile menu when clicking outside
             document.addEventListener('click', function(event) {
-                if (!navMenu.contains(event.target) && !hamburgerMenu.contains(event.target)) {
+                if (!navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
                     navMenu.classList.remove('active');
-                    hamburgerMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
                 }
             });
         }

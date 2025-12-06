@@ -898,13 +898,13 @@
     <script src="js/admin.js?v=3"></script>
     <script>
         // Mobile menu toggle functionality
-        const hamburgerMenu = document.getElementById('hamburgerMenu');
+        const menuToggle = document.getElementById('menuToggle');
         const navMenu = document.getElementById('navMenu');
 
-        if (hamburgerMenu && navMenu) {
-            hamburgerMenu.addEventListener('click', function() {
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', function() {
                 navMenu.classList.toggle('active');
-                hamburgerMenu.classList.toggle('active');
+                menuToggle.classList.toggle('active');
             });
 
             // Close mobile menu when clicking on a link
@@ -912,15 +912,15 @@
             navLinks.forEach(link => {
                 link.addEventListener('click', function() {
                     navMenu.classList.remove('active');
-                    hamburgerMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
                 });
             });
 
             // Close mobile menu when clicking outside
             document.addEventListener('click', function(event) {
-                if (!navMenu.contains(event.target) && !hamburgerMenu.contains(event.target)) {
+                if (!navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
                     navMenu.classList.remove('active');
-                    hamburgerMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
                 }
             });
         }
