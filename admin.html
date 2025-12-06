@@ -4,214 +4,562 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - ServeNow</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="style/main.css">
     <link rel="stylesheet" href="css/admin.css">
+
 </head>
 <body>
     <header>
-        <nav>
+        <nav class="admin-nav">
             <div class="logo">
                 <h1>ServeNow Admin</h1>
             </div>
-            <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu">
+            
+            <!-- Hamburger Menu Button -->
+            <button class="hamburger-menu" id="hamburgerMenu" aria-label="Toggle navigation menu">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
-            <ul id="navMenu">
+            
+            <!-- Navigation Menu -->
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="#" class="tab-link active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="#" class="tab-link" data-tab="users"><i class="fas fa-users"></i> Users</a></li>
+                <li><a href="#" class="tab-link" data-tab="stores"><i class="fas fa-store"></i> Stores</a></li>
+                <li><a href="#" class="tab-link" data-tab="products"><i class="fas fa-box"></i> Products</a></li>
+                <li><a href="#" class="tab-link" data-tab="orders"><i class="fas fa-shopping-cart"></i> Orders</a></li>
+                <li><a href="#" class="tab-link" data-tab="categories"><i class="fas fa-tags"></i> Categories</a></li>
+                <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
                 <li><a href="#" id="logoutBtn">Logout</a></li>
             </ul>
         </nav>
     </header>
 
-    <main>
-        <div class="admin-container">
-            <aside class="admin-sidebar">
-                <h3>Admin Panel</h3>
-                <ul>
-                    <li><a href="#" class="tab-link active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                    <li><a href="#" class="tab-link" data-tab="users"><i class="fas fa-users"></i> Users</a></li>
-                    <li><a href="#" class="tab-link" data-tab="stores"><i class="fas fa-store"></i> Stores</a></li>
-                    <li><a href="#" class="tab-link" data-tab="products"><i class="fas fa-box"></i> Products</a></li>
-                    <li><a href="#" class="tab-link" data-tab="orders"><i class="fas fa-shopping-cart"></i> Orders</a></li>
-                    <li><a href="#" class="tab-link" data-tab="categories"><i class="fas fa-tags"></i> Categories</a></li>
-                    <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
-                </ul>
-            </aside>
 
-            <section class="admin-content">
-                <!-- Dashboard Tab -->
-                <div id="dashboard" class="tab-content active">
-                    <h2>Dashboard Overview</h2>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h3 id="totalUsers">-</h3>
-                            <p>Total Users</p>
+            <main>
+
+
+                <div class="admin-container">
+
+
+                    <section class="admin-content">
+
+
+                        <!-- Dashboard Tab -->
+
+
+                        <div id="dashboard" class="tab-content active">
+
+
+                            <h2>Dashboard Overview</h2>
+
+
+                            <div class="stats-grid">
+
+
+                                <div class="stat-card">
+
+
+                                    <h3 id="totalUsers">-</h3>
+
+
+                                    <p>Total Users</p>
+
+
+                                </div>
+
+
+                                <div class="stat-card">
+
+
+                                    <h3 id="totalStores">-</h3>
+
+
+                                    <p>Total Stores</p>
+
+
+                                </div>
+
+
+                                <div class="stat-card">
+
+
+                                    <h3 id="totalProducts">-</h3>
+
+
+                                    <p>Total Products</p>
+
+
+                                </div>
+
+
+                                <div class="stat-card">
+
+
+                                    <h3 id="totalOrders">-</h3>
+
+
+                                    <p>Total Orders</p>
+
+
+                                </div>
+
+
+                            </div>
+
+
                         </div>
-                        <div class="stat-card">
-                            <h3 id="totalStores">-</h3>
-                            <p>Total Stores</p>
+
+
+        
+
+
+                        <!-- Users Tab -->
+
+
+                        <div id="users" class="tab-content">
+
+
+                            <h2>Users Management</h2>
+
+
+                            <button class="btn btn-primary" id="addUserBtn">Add New User</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="usersTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Email</th>
+
+
+                                            <th>Type</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="usersTableBody">
+
+
+                                        <!-- Users will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
                         </div>
-                        <div class="stat-card">
-                            <h3 id="totalProducts">-</h3>
-                            <p>Total Products</p>
+
+
+        
+
+
+                        <!-- Stores Tab -->
+
+
+                        <div id="stores" class="tab-content">
+
+
+                            <h2>Stores Management</h2>
+
+
+                            <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="storesTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Location</th>
+
+
+                                            <th>Owner</th>
+
+
+                                            <th>Rating</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="storesTableBody">
+
+
+                                        <!-- Stores will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
                         </div>
-                        <div class="stat-card">
-                            <h3 id="totalOrders">-</h3>
-                            <p>Total Orders</p>
+
+
+        
+
+
+                        <!-- Products Tab -->
+
+
+                        <div id="products" class="tab-content">
+
+
+                            <h2>Products Management</h2>
+
+
+                            <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="productsTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Price</th>
+
+
+                                            <th>Category</th>
+
+
+                                            <th>Store</th>
+
+
+                                            <th>Stock</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="productsTableBody">
+
+
+                                        <!-- Products will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
                         </div>
-                    </div>
+
+
+        
+
+
+                        <!-- Orders Tab -->
+
+
+                        <div id="orders" class="tab-content">
+
+
+                            <h2>Orders Management</h2>
+
+
+                            <div class="table-container">
+
+
+                                <table id="ordersTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>Order #</th>
+
+
+                                            <th>Customer</th>
+
+
+                                            <th>Store</th>
+
+
+                                            <th>Total</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Assigned Rider</th>
+
+
+                                            <th>Rider Location</th>
+
+
+                                            <th>Date</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="ordersTableBody">
+
+
+                                        <!-- Orders will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+
+        
+
+
+                        <!-- Categories Tab -->
+
+
+                        <div id="categories" class="tab-content">
+
+
+                            <h2>Categories Management</h2>
+
+
+                            <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="categoriesTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Description</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="categoriesTableBody">
+
+
+                                        <!-- Categories will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+
+        
+
+
+                        <!-- Riders Tab -->
+
+
+                        <div id="riders" class="tab-content">
+
+
+                            <h2>Riders Management</h2>
+
+
+                            <button class="btn btn-primary" id="addRiderBtn">Add New Rider</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="ridersTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Email</th>
+
+
+                                            <th>Phone</th>
+
+
+                                            <th>Vehicle Type</th>
+
+
+                                            <th>License</th>
+
+
+                                            <th>Available</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="ridersTableBody">
+
+
+                                        <!-- Riders will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+
+                    </section>
+
+
                 </div>
 
-                <!-- Users Tab -->
-                <div id="users" class="tab-content">
-                    <h2>Users Management</h2>
-                    <button class="btn btn-primary" id="addUserBtn">Add New User</button>
-                    <div class="table-container">
-                        <table id="usersTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersTableBody">
-                                <!-- Users will be loaded here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
 
-                <!-- Stores Tab -->
-                <div id="stores" class="tab-content">
-                    <h2>Stores Management</h2>
-                    <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
-                    <div class="table-container">
-                        <table id="storesTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Location</th>
-                                    <th>Owner</th>
-                                    <th>Rating</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="storesTableBody">
-                                <!-- Stores will be loaded here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            </main>
 
-                <!-- Products Tab -->
-                <div id="products" class="tab-content">
-                    <h2>Products Management</h2>
-                    <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
-                    <div class="table-container">
-                        <table id="productsTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Price</th>
-                                    <th>Category</th>
-                                    <th>Store</th>
-                                    <th>Stock</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="productsTableBody">
-                                <!-- Products will be loaded here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
 
-                <!-- Orders Tab -->
-                <div id="orders" class="tab-content">
-                    <h2>Orders Management</h2>
-                    <div class="table-container">
-                        <table id="ordersTable">
-                            <thead>
-                                <tr>
-                                    <th>Order #</th>
-                                    <th>Customer</th>
-                                    <th>Store</th>
-                                    <th>Total</th>
-                                    <th>Status</th>
-                                    <th>Assigned Rider</th>
-                                    <th>Rider Location</th>
-                                    <th>Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ordersTableBody">
-                                <!-- Orders will be loaded here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        
 
-                <!-- Categories Tab -->
-                <div id="categories" class="tab-content">
-                    <h2>Categories Management</h2>
-                    <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
-                    <div class="table-container">
-                        <table id="categoriesTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Description</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="categoriesTableBody">
-                                <!-- Categories will be loaded here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
 
-                <!-- Riders Tab -->
-                <div id="riders" class="tab-content">
-                    <h2>Riders Management</h2>
-                    <button class="btn btn-primary" id="addRiderBtn">Add New Rider</button>
-                    <div class="table-container">
-                        <table id="ridersTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Phone</th>
-                                    <th>Vehicle Type</th>
-                                    <th>License</th>
-                                    <th>Available</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ridersTableBody">
-                                <!-- Riders will be loaded here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-        </div>
-    </main>
-
-    <!-- Add User Modal -->
+            <!-- Add User Modal -->
     <div id="addUserModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -550,13 +898,13 @@
     <script src="js/admin.js?v=3"></script>
     <script>
         // Mobile menu toggle functionality
-        const menuToggle = document.getElementById('menuToggle');
+        const hamburgerMenu = document.getElementById('hamburgerMenu');
         const navMenu = document.getElementById('navMenu');
 
-        if (menuToggle && navMenu) {
-            menuToggle.addEventListener('click', function() {
+        if (hamburgerMenu && navMenu) {
+            hamburgerMenu.addEventListener('click', function() {
                 navMenu.classList.toggle('active');
-                menuToggle.classList.toggle('active');
+                hamburgerMenu.classList.toggle('active');
             });
 
             // Close mobile menu when clicking on a link
@@ -564,15 +912,15 @@
             navLinks.forEach(link => {
                 link.addEventListener('click', function() {
                     navMenu.classList.remove('active');
-                    menuToggle.classList.remove('active');
+                    hamburgerMenu.classList.remove('active');
                 });
             });
 
             // Close mobile menu when clicking outside
             document.addEventListener('click', function(event) {
-                if (!navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
+                if (!navMenu.contains(event.target) && !hamburgerMenu.contains(event.target)) {
                     navMenu.classList.remove('active');
-                    menuToggle.classList.remove('active');
+                    hamburgerMenu.classList.remove('active');
                 }
             });
         }
