@@ -860,24 +860,16 @@ table tbody tr:last-child td {
     body {
         background: var(--light-bg) !important;
         background-image: none !important;
-        margin: 0;
-        padding: 0;
     }
 
     html {
         background: var(--light-bg) !important;
         background-image: none !important;
-        margin: 0;
-        padding: 0;
     }
 
     .admin-container {
         background: var(--light-bg) !important;
-        padding: 0;
-        margin: 0;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
+        padding: 0 0.5rem;
     }
 
     .admin-content::before {
@@ -885,38 +877,11 @@ table tbody tr:last-child td {
     }
 
     .admin-nav {
-        padding: 0;
-        margin: 0;
-        width: 100vw;
-        display: flex;
-        gap: 0;
-        align-items: center;
+        padding: 0.3rem;
     }
 
     .nav-menu {
-        padding: 0.2rem;
-        margin: 0;
-        display: flex;
-        gap: 0.1rem;
-        flex-wrap: wrap;
-        width: 100%;
-    }
-
-    .nav-menu .nav-item {
         padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-        margin: 0;
-    }
-
-    .nav-menu a {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-    }
-
-    .logout-btn {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-        margin: 0;
     }
 
     .nav-menu li a {

@@ -179,7 +179,7 @@ function loadUsers() {
                 <td>${user.user_type}</td>
                 <td><span class="status-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editUser(${user.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editUser(${user.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
                         ${user.is_active ? 'Deactivate' : 'Activate'}
                     </button>
@@ -276,7 +276,7 @@ function loadStores() {
                 <td>${store.rating} ⭐</td>
                 <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editStore(${store.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editStore(${store.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
                         ${store.is_active ? 'Deactivate' : 'Activate'}
                     </button>
@@ -331,7 +331,7 @@ function loadProducts() {
                 <td>${product.stock_quantity}</td>
                 <td><span class="status-${product.is_available ? 'active' : 'inactive'}">${product.is_available ? 'Available' : 'Unavailable'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editProduct(${product.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editProduct(${product.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleProductStatus(${product.id}, ${product.is_available})">
                         ${product.is_available ? 'Deactivate' : 'Activate'}
                     </button>
@@ -395,7 +395,7 @@ function loadOrders() {
                 <td>${order.rider_location || 'N/A'}</td>
                 <td>${new Date(order.created_at).toLocaleDateString()}</td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editOrder(${order.id})">Edit Order</button>
+                    <button class="btn btn-small" onclick="editOrder(${order.id})">Edit Order</button>
                 </td>
             `;
             tbody.appendChild(row);
@@ -565,7 +565,7 @@ function loadCategories() {
                 <td>${category.description || ''}</td>
                 <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editCategory(${category.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
                         ${category.is_active ? 'Deactivate' : 'Activate'}
                     </button>
@@ -612,6 +612,32 @@ function hideModal(modalId) {
     const form = document.querySelector(`#${modalId} form`);
     if (form) form.reset();
 }
+
+// Modal event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Close modal when clicking X, outside, or cancel button
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('close') || e.target.classList.contains('modal') || e.target.hasAttribute('data-modal')) {
+            const modalId = e.target.dataset.modal || e.target.id;
+            hideModal(modalId);
+        }
+    });
+
+    // Add button event listeners
+    document.getElementById('addUserBtn').addEventListener('click', () => showModal('addUserModal'));
+    document.getElementById('addStoreBtn').addEventListener('click', () => showAddStoreModal());
+    document.getElementById('addProductBtn').addEventListener('click', () => showAddProductModal());
+    document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
+    document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
+
+    // Save button event listeners
+    document.getElementById('saveUserBtn').addEventListener('click', saveUser);
+    document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
+    document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
+    document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
+    document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
+    document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
+});
 
 // User Management Functions
 function showAddUserModal() {
@@ -980,7 +1006,7 @@ function loadRiders() {
                 <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
                 <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editRider(${rider.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
                         ${rider.is_active ? 'Deactivate' : 'Activate'}
                     </button>

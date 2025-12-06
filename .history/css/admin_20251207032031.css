@@ -633,29 +633,6 @@ table tbody tr:last-child td {
 
 /* Responsive Design for Mobile */
 @media (max-width: 768px) {
-    /* Hide background gradient and widget on mobile/tablet to save space */
-    body {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        background-attachment: unset !important;
-    }
-
-    html {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-    }
-
-    .admin-container {
-        background: var(--light-bg) !important;
-    }
-
-    .admin-content::before {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-        content: '' !important;
-    }
-
     /* Show hamburger menu on mobile */
     .hamburger-menu {
         display: flex !important;
@@ -664,19 +641,17 @@ table tbody tr:last-child td {
     /* Hide full nav menu by default on mobile */
     .nav-menu {
         display: none;
-        position: fixed;
-        top: 60px;
+        position: absolute;
+        top: 100%;
         left: 0;
         right: 0;
         flex-direction: column;
         background: var(--dark-gradient);
-        padding: 0.3rem 0.5rem;
-        gap: 0.2rem;
+        padding: 1rem;
+        gap: 0.5rem;
         width: 100%;
-        max-height: calc(100vh - 60px);
-        overflow-y: auto;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        z-index: 998;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        z-index: 999;
     }
 
     /* Show nav menu when active */
@@ -690,39 +665,28 @@ table tbody tr:last-child td {
 
     .nav-menu li a {
         width: 100%;
-        padding: 0.5rem 0.75rem;
-        border-radius: 4px;
-        font-size: 0.85rem;
+        padding: 1rem;
+        border-radius: 8px;
     }
 
     /* Admin nav flex direction for mobile */
     .admin-nav {
         flex-wrap: wrap;
-        padding: 0.5rem;
-        position: relative;
-        z-index: 1000;
-        width: 100%;
-        max-width: 100%;
-        margin: 0;
-        box-sizing: border-box;
-        gap: 0.3rem;
+        padding: 1rem;
     }
 
     /* Logo styling for mobile */
     .logo h1 {
-        font-size: 1rem;
-        margin: 0;
+        font-size: 1.2rem;
     }
 
     /* Admin container padding on mobile */
     .admin-container {
-        padding: 0.5rem;
-        width: 100%;
+        padding: 1rem;
     }
 
     .admin-content {
-        padding: 1rem;
-        overflow: visible;
+        padding: 1.5rem;
     }
 
     /* Modal responsive */
@@ -763,57 +727,26 @@ table tbody tr:last-child td {
 }
 
 @media (max-width: 480px) {
-    /* Hide background gradient and widget on small mobile devices */
-    body {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        background-attachment: unset !important;
-    }
-
-    html {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-    }
-
-    .admin-container {
-        background: var(--light-bg) !important;
-    }
-
-    .admin-content::before {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-        content: '' !important;
-    }
-
     .hamburger-menu {
         display: flex !important;
         padding: 0.3rem;
     }
 
     .hamburger-menu span {
-        width: 18px;
+        width: 20px;
         height: 2px;
-        margin: 2px 0;
     }
 
     .logo h1 {
-        font-size: 0.9rem;
-        margin: 0;
+        font-size: 1rem;
     }
 
     .admin-nav {
-        padding: 0.4rem;
-        position: relative;
-        z-index: 1000;
-        width: 100%;
-        max-width: 100%;
-        gap: 0.2rem;
+        padding: 0.75rem;
     }
 
     .admin-content {
-        padding: 0.75rem;
-        overflow: visible;
+        padding: 1rem;
     }
 
     .modal-content {
@@ -823,20 +756,17 @@ table tbody tr:last-child td {
     }
 
     .nav-menu {
-        padding: 0.2rem 0.3rem;
-        gap: 0.1rem;
-        max-height: calc(100vh - 50px);
-        overflow-y: auto;
+        padding: 0.5rem;
+        gap: 0.25rem;
     }
 
     .nav-menu li a {
-        padding: 0.4rem 0.5rem;
-        font-size: 0.75rem;
+        padding: 0.75rem;
+        font-size: 0.9rem;
     }
 
     table {
         font-size: 0.75rem;
-        min-width: 450px;
     }
 
     table th,
@@ -844,92 +774,8 @@ table tbody tr:last-child td {
         padding: 0.5rem 0.3rem;
     }
 
-    .table-container {
-        margin-top: 1rem;
-        border-radius: 8px;
-    }
-
     .btn {
         padding: 0.5rem 0.75rem;
         font-size: 0.75rem;
-    }
-}
-
-/* Landscape mode on mobile */
-@media (max-height: 500px) and (orientation: landscape) {
-    body {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        margin: 0;
-        padding: 0;
-    }
-
-    html {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        margin: 0;
-        padding: 0;
-    }
-
-    .admin-container {
-        background: var(--light-bg) !important;
-        padding: 0;
-        margin: 0;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-    }
-
-    .admin-content::before {
-        display: none !important;
-    }
-
-    .admin-nav {
-        padding: 0;
-        margin: 0;
-        width: 100vw;
-        display: flex;
-        gap: 0;
-        align-items: center;
-    }
-
-    .nav-menu {
-        padding: 0.2rem;
-        margin: 0;
-        display: flex;
-        gap: 0.1rem;
-        flex-wrap: wrap;
-        width: 100%;
-    }
-
-    .nav-menu .nav-item {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-        margin: 0;
-    }
-
-    .nav-menu a {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-    }
-
-    .logout-btn {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-        margin: 0;
-    }
-
-    .nav-menu li a {
-        padding: 0.3rem 0.5rem;
-        font-size: 0.7rem;
-    }
-
-    table {
-        font-size: 0.7rem;
-    }
-
-    table th,
-    table td {
-        padding: 0.3rem 0.2rem;
     }
 }

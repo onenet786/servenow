@@ -980,7 +980,7 @@ function loadRiders() {
                 <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
                 <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editRider(${rider.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
                         ${rider.is_active ? 'Deactivate' : 'Activate'}
                     </button>

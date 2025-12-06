@@ -633,27 +633,9 @@ table tbody tr:last-child td {
 
 /* Responsive Design for Mobile */
 @media (max-width: 768px) {
-    /* Hide background gradient and widget on mobile/tablet to save space */
-    body {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        background-attachment: unset !important;
-    }
-
-    html {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-    }
-
-    .admin-container {
-        background: var(--light-bg) !important;
-    }
-
+    /* Hide gradient widget on mobile/tablet to save space */
     .admin-content::before {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-        content: '' !important;
+        display: none;
     }
 
     /* Show hamburger menu on mobile */
@@ -763,27 +745,9 @@ table tbody tr:last-child td {
 }
 
 @media (max-width: 480px) {
-    /* Hide background gradient and widget on small mobile devices */
-    body {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        background-attachment: unset !important;
-    }
-
-    html {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-    }
-
-    .admin-container {
-        background: var(--light-bg) !important;
-    }
-
+    /* Hide gradient widget on small mobile devices */
     .admin-content::before {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-        content: '' !important;
+        display: none;
     }
 
     .hamburger-menu {
@@ -803,12 +767,11 @@ table tbody tr:last-child td {
     }
 
     .admin-nav {
-        padding: 0.4rem;
+        padding: 0.75rem;
         position: relative;
         z-index: 1000;
         width: 100%;
         max-width: 100%;
-        gap: 0.2rem;
     }
 
     .admin-content {
@@ -852,84 +815,5 @@ table tbody tr:last-child td {
     .btn {
         padding: 0.5rem 0.75rem;
         font-size: 0.75rem;
-    }
-}
-
-/* Landscape mode on mobile */
-@media (max-height: 500px) and (orientation: landscape) {
-    body {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        margin: 0;
-        padding: 0;
-    }
-
-    html {
-        background: var(--light-bg) !important;
-        background-image: none !important;
-        margin: 0;
-        padding: 0;
-    }
-
-    .admin-container {
-        background: var(--light-bg) !important;
-        padding: 0;
-        margin: 0;
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-    }
-
-    .admin-content::before {
-        display: none !important;
-    }
-
-    .admin-nav {
-        padding: 0;
-        margin: 0;
-        width: 100vw;
-        display: flex;
-        gap: 0;
-        align-items: center;
-    }
-
-    .nav-menu {
-        padding: 0.2rem;
-        margin: 0;
-        display: flex;
-        gap: 0.1rem;
-        flex-wrap: wrap;
-        width: 100%;
-    }
-
-    .nav-menu .nav-item {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-        margin: 0;
-    }
-
-    .nav-menu a {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-    }
-
-    .logout-btn {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-        margin: 0;
-    }
-
-    .nav-menu li a {
-        padding: 0.3rem 0.5rem;
-        font-size: 0.7rem;
-    }
-
-    table {
-        font-size: 0.7rem;
-    }
-
-    table th,
-    table td {
-        padding: 0.3rem 0.2rem;
     }
 }

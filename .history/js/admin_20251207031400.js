@@ -276,7 +276,7 @@ function loadStores() {
                 <td>${store.rating} ⭐</td>
                 <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editStore(${store.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editStore(${store.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
                         ${store.is_active ? 'Deactivate' : 'Activate'}
                     </button>
@@ -331,7 +331,7 @@ function loadProducts() {
                 <td>${product.stock_quantity}</td>
                 <td><span class="status-${product.is_available ? 'active' : 'inactive'}">${product.is_available ? 'Available' : 'Unavailable'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editProduct(${product.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editProduct(${product.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleProductStatus(${product.id}, ${product.is_available})">
                         ${product.is_available ? 'Deactivate' : 'Activate'}
                     </button>
@@ -395,7 +395,7 @@ function loadOrders() {
                 <td>${order.rider_location || 'N/A'}</td>
                 <td>${new Date(order.created_at).toLocaleDateString()}</td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editOrder(${order.id})">Edit Order</button>
+                    <button class="btn btn-small" onclick="editOrder(${order.id})">Edit Order</button>
                 </td>
             `;
             tbody.appendChild(row);
@@ -565,7 +565,7 @@ function loadCategories() {
                 <td>${category.description || ''}</td>
                 <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editCategory(${category.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
                         ${category.is_active ? 'Deactivate' : 'Activate'}
                     </button>
@@ -980,7 +980,7 @@ function loadRiders() {
                 <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
                 <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
+                    <button class="btn btn-small" onclick="editRider(${rider.id})">Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
                         ${rider.is_active ? 'Deactivate' : 'Activate'}
                     </button>
