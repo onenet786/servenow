@@ -884,6 +884,34 @@ table tbody tr:last-child td {
         display: none !important;
     }
 
+    .logo {
+        display: none;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+
+    .stat-card {
+        padding: 0.5rem 0.3rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border-left: 2px solid #f59e0b;
+    }
+
+    .stat-card h3 {
+        font-size: 1.2rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .stat-card p {
+        font-size: 0.65rem;
+        margin: 0;
+    }
+
     .admin-nav {
         padding: 0;
         margin: 0;
@@ -891,37 +919,60 @@ table tbody tr:last-child td {
         display: flex;
         gap: 0;
         align-items: center;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        height: auto;
+        background: var(--primary-color);
     }
 
     .nav-menu {
-        padding: 0.2rem;
+        padding: 0.1rem;
         margin: 0;
         display: flex;
-        gap: 0.1rem;
-        flex-wrap: wrap;
+        gap: 0;
+        flex-wrap: nowrap;
         width: 100%;
+        overflow-x: auto;
+        align-items: center;
+        list-style: none;
     }
 
-    .nav-menu .nav-item {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-        margin: 0;
-    }
-
-    .nav-menu a {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
-    }
-
-    .logout-btn {
-        padding: 0.2rem 0.3rem;
-        font-size: 0.65rem;
+    .nav-menu li {
+        flex-shrink: 0;
+        white-space: nowrap;
+        padding: 0;
         margin: 0;
     }
 
     .nav-menu li a {
-        padding: 0.3rem 0.5rem;
-        font-size: 0.7rem;
+        padding: 0.25rem 0.4rem;
+        font-size: 0.6rem;
+        white-space: nowrap;
+        display: block;
+        flex-shrink: 0;
+    }
+
+    .nav-menu .nav-item {
+        padding: 0.1rem 0.2rem;
+        font-size: 0.6rem;
+        margin: 0;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .nav-menu a {
+        padding: 0.25rem 0.4rem;
+        font-size: 0.6rem;
+        white-space: nowrap;
+        display: block;
+    }
+
+    .logout-btn {
+        padding: 0.25rem 0.4rem;
+        font-size: 0.6rem;
+        margin: 0;
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 
     table {
