@@ -1,0 +1,1455 @@
+/* Computer Hardware Inventory Management System - Main Styles */
+
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    --light-color: #f8f9fa;
+    --dark-color: #343a40;
+    --border-radius: 0.375rem;
+    --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-success: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    --gradient-warning: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+/* Global Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    color: #495057;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    overflow-x: hidden;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Prevent overflow on all elements */
+.container-fluid {
+    overflow-x: hidden;
+    max-width: 100%;
+}
+
+.card {
+    overflow: hidden;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Word wrapping to prevent overflow */
+.table td,
+.table th {
+    word-wrap: break-word;
+    white-space: normal;
+}
+
+.card-title,
+.card-text {
+    word-wrap: break-word;
+}
+
+.navbar-brand {
+    word-wrap: break-word;
+}
+
+/* Professional Report Styles */
+.report-container {
+    background: white;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.report-header {
+    background: var(--gradient-primary);
+    color: white;
+    padding: 30px;
+    text-align: center;
+    border-radius: 10px 10px 0 0;
+    margin-bottom: 0;
+}
+
+.report-header h1 {
+    font-size: 2.5rem;
+    font-weight: 300;
+    margin-bottom: 10px;
+}
+
+.report-meta {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 0 0 10px 10px;
+    margin-bottom: 30px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.summary-cards {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.summary-card {
+    flex: 1;
+    min-width: 400px;
+    background: white;
+    padding: 0.75rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    text-align: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-top: 3px solid var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+}
+
+.summary-card h3 {
+    color: #666;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.summary-card .value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+@supports (-webkit-background-clip: text) {
+.summary-card .value {
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        color: transparent;
+    }
+}
+
+.chart-section {
+    display: none; /* Hide chart sections - item details only */
+}
+
+.chart-section h4 {
+    display: none; /* Hide chart headings */
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #eee;
+}
+
+.data-table {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: none;
+}
+
+.data-table .table {
+    margin-bottom: 0;
+    border-collapse: separate;
+}
+
+.data-table .table thead th {
+    background: var(--gradient-primary);
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.85rem;
+}
+
+.data-table .table tbody td {
+    padding: 15px;
+    border-top: 1px solid #eee;
+    vertical-align: middle;
+}
+
+.data-table .table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+.report-actions {
+    text-align: center;
+    margin: 30px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 15px;
+}
+
+.report-actions .btn {
+    margin: 5px 10px;
+    padding: 12px 30px;
+    font-weight: 600;
+    border-radius: 25px;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.report-actions .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.barcode-wrapper {
+    background-color: #ffffff;
+    min-height: 160px;
+}
+
+.barcode-wrapper canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+.barcode-wrapper small {
+    font-size: 0.85rem;
+}
+
+.barcode-wrapper + .barcode-wrapper {
+    margin-top: 1rem;
+}
+
+.barcode-wrapper canvas#viewItemQrCanvas {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+}
+
+/* Progress bars in reports */
+.progress {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+/* Badge enhancements */
+.badge {
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+/* Print styles for professional reports */
+@media print {
+    .no-print { 
+        display: none !important; 
+    }
+    
+    .print-break { 
+        page-break-before: always; 
+    }
+    
+    .report-container { 
+        max-width: none !important; 
+        margin: 0 !important; 
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+    
+    .report-header {
+        background: #333 !important;
+        color: white !important;
+        border-bottom: 3px solid #333;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+    }
+
+    .summary-card .value {
+        background: none !important;
+        -webkit-text-fill-color: #000 !important;
+        color: #000 !important;
+    }
+    
+    .chart-section { 
+        display: none !important; /* Hide charts in print - only item details needed */
+    }
+    
+    .data-table, .summary-card { 
+        display: block !important; 
+        page-break-inside: avoid;
+        border: 1px solid #ddd !important;
+        margin-bottom: 20px !important;
+    }
+    
+    .summary-cards {
+        display: flex !important;
+        gap: 15px !important;
+    }
+    
+    .summary-card {
+        border: 2px solid #ddd !important;
+        page-break-inside: avoid;
+    }
+    
+    .table { 
+        font-size: 11px !important; 
+        border-collapse: collapse !important;
+    }
+    
+    .table th, .table td {
+        border: 1px solid #333 !important;
+        padding: 8px !important;
+    }
+    
+    .table thead th {
+        background: #f0f0f0 !important;
+        color: #333 !important;
+    }
+    
+    .modal-dialog { 
+        max-width: none !important; 
+        margin: 0 !important; 
+    }
+    
+
+    .modal-content { 
+        border: none !important; 
+        box-shadow: none !important; 
+    }
+
+    .modal-header, .modal-footer { 
+        display: none !important; 
+    }
+
+    /* Ensure add/edit user modals show full form horizontally on large screens
+       and become fullscreen on small devices. Keep only vertical scrolling. */
+    #addUserModal .modal-body,
+    #editUserModal .modal-body {
+        max-height: 80vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    /* Force a comfortable max-width for user modals so form fields expand
+       properly on desktop even if global modal rules exist. */
+    #addUserModal .modal-dialog,
+    #editUserModal .modal-dialog {
+        max-width: 1100px !important;
+        width: 100% !important;
+    }
+    
+    /* Ensure charts print properly */
+    canvas {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+}
+
+/* Reports section enhancements */
+#reports-section .card {
+    transition: all 0.3s ease;
+    border: none;
+    overflow: hidden;
+}
+
+#reports-section .card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+#reports-section .card-header {
+    border: none;
+    padding: 20px;
+}
+
+#reports-section .card-body {
+    padding: 25px;
+}
+
+#reports-section .btn {
+    border-radius: 25px;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+#reports-section .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+/* Navigation Styles */
+.navbar {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    padding: 0.5rem 0;
+    border-bottom: 3px solid rgba(255,255,255,0.1);
+    min-height: 50px;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: #ffffff !important;
+    transition: all 0.3s ease;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.navbar-brand:hover {
+    color: #ffd700 !important;
+    transform: translateY(-2px);
+}
+
+.navbar-brand .fas {
+    color: #ffd700;
+    transition: color 0.3s ease;
+}
+
+.navbar-brand:hover .fas {
+    color: #ffffff;
+    transform: rotate(10deg);
+}
+
+/* Button-style navigation items */
+.navbar-nav .btn {
+    font-weight: 600;
+    font-size: 0.75rem;
+    transition: all 0.3s ease;
+    position: relative;
+    padding: 0.3rem 0.6rem;
+    margin: 0 0.1rem;
+    border: 1px solid rgba(255,255,255,0.4) !important;
+    border-radius: 18px !important;
+    color: rgba(255,255,255,0.9) !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    background: transparent !important;
+    min-height: 28px;
+}
+
+.navbar-nav .btn:hover {
+    color: #ffffff !important;
+    background: linear-gradient(135deg, rgba(52,152,219,0.8), rgba(155,89,182,0.6)) !important;
+    border-color: rgba(255,255,255,0.8) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+.navbar-nav .btn.active {
+    background: linear-gradient(135deg, rgba(52,152,219,0.9), rgba(155,89,182,0.8)) !important;
+    border-color: rgba(52,152,219,0.8) !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* Professional Logout Button */
+.professional-logout-btn {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%) !important;
+    border: 1px solid rgba(255,255,255,0.4) !important;
+    border-radius: 18px !important;
+    padding: 0.3rem 0.6rem !important;
+    font-weight: 600 !important;
+    font-size: 0.75rem !important;
+    color: #ffffff !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5) !important;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 0 4px 10px rgba(231,76,60,0.2) !important;
+    position: relative !important;
+    overflow: hidden !important;
+    white-space: nowrap;
+    min-height: 28px;
+}
+
+.professional-logout-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.professional-logout-btn:hover::before {
+    left: 100%;
+}
+
+.professional-logout-btn:hover {
+    background: linear-gradient(135deg, #c0392b 0%, #a93226 100%) !important;
+    border-color: rgba(255,255,255,0.5) !important;
+    transform: translateY(-3px) scale(1.05) !important;
+    box-shadow: 0 12px 30px rgba(231,76,60,0.5) !important;
+    color: #ffffff !important;
+}
+
+.professional-logout-btn:active {
+    transform: translateY(-1px) scale(1.02) !important;
+}
+
+.professional-logout-btn i {
+    transition: all 0.3s ease;
+    margin-right: 0.25rem;
+}
+
+.professional-logout-btn:hover i:first-child {
+    transform: rotate(180deg) scale(1.2);
+}
+
+.professional-logout-btn:hover i:last-child {
+    transform: translateX(3px);
+}
+
+/* Welcome Text Styling */
+.navbar-text {
+    color: rgba(255,255,255,0.95) !important;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+    border-radius: 25px;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.navbar-text i {
+    color: #ffd700;
+    opacity: 0.9;
+}
+
+.navbar-text .badge {
+    background: linear-gradient(135deg, rgba(255,215,0,0.9), rgba(255,193,37,0.8)) !important;
+    color: #2c3e50 !important;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+/* Welcome Banner Styling */
+.welcome-banner {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-bottom: 2px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 0;
+    position: sticky;
+    top: 56px; /* Height of navbar */
+    z-index: 1000;
+}
+
+/* Dashboard Welcome Message Styling */
+.dashboard-welcome-message {
+    text-align: center !important;
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    color: #495057 !important;
+    margin: 0 !important;
+    padding: 1.125rem 1.5rem 0.875rem 1.5rem !important;
+    background: linear-gradient(135deg, rgba(0,123,255,0.1), rgba(40,167,69,0.1)) !important;
+    border-radius: 0 !important;
+    border-top: 3px solid rgba(0,123,255,0.2) !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 3px solid rgba(40,167,69,0.2) !important;
+    width: 100% !important;
+    display: block !important;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 991.98px) {
+    .navbar {
+        padding: 0.75rem 0;
+    }
+
+    .navbar-brand {
+        font-size: 1.4rem;
+    }
+
+    .professional-logout-btn {
+        padding: 0.5rem 1.2rem !important;
+        font-size: 0.8rem !important;
+    }
+
+    .professional-logout-btn i {
+        font-size: 0.8rem;
+    }
+
+    .navbar-text {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    .navbar-toggler {
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .navbar-toggler:focus {
+        box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.25);
+    }
+}
+
+/* Special styling for small screens */
+@media (max-width: 576px) {
+    .professional-logout-btn span {
+        display: none;
+    }
+
+    .professional-logout-btn {
+        padding: 0.5rem 0.8rem !important;
+    }
+
+    .navbar-text {
+        display: none;
+    }
+}
+
+/* Admin dropdown styling with professional look */
+#adminMenu .dropdown-menu {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    margin-top: 0.5rem;
+    border: 2px solid rgba(255,255,255,0.1);
+}
+
+#adminMenu .dropdown-item {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    margin: 0.1rem 0.2rem;
+    font-weight: 500;
+}
+
+#adminMenu .dropdown-item:hover {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Content Sections */
+.content-section {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card Styles */
+.card {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+}
+
+/* Statistics Cards */
+.card.bg-primary,
+.card.bg-success,
+.card.bg-warning,
+.card.bg-danger,
+.card.bg-info {
+    border: none;
+    transition: transform 0.2s ease;
+}
+
+.card.bg-primary:hover,
+.card.bg-success:hover,
+.card.bg-warning:hover,
+.card.bg-danger:hover,
+.card.bg-info:hover {
+    transform: scale(1.05);
+}
+
+/* Table Styles */
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.75rem;
+}
+
+.table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* Button Styles */
+.btn {
+    font-weight: 500;
+    border-radius: var(--border-radius);
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.775rem;
+}
+
+/* Form Styles */
+.form-control,
+.form-select {
+    border-radius: var(--border-radius);
+    border: 1px solid #ced4da;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Modal Styles */
+.modal-content {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    background-color: var(--primary-color);
+    color: white;
+    border-bottom: none;
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.modal-header .btn-close {
+    filter: brightness(0) invert(1);
+}
+
+.modal-footer {
+    border-top: 1px solid #dee2e6;
+}
+
+/* Status Badges */
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-available {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-in-use {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-maintenance {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-retired {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+/* Loading States */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Responsive Adjustments - Comprehensive Screen Support */
+
+/* Extra Large Screens (1440px+) */
+@media (min-width: 1440px) {
+    .container-fluid {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .summary-cards .summary-card {
+        min-width: 250px;
+    }
+
+    .data-table .table th,
+    .data-table .table td {
+        padding: 20px;
+        font-size: 1rem;
+    }
+}
+
+/* Large Screens (1200px - 1439px) */
+@media (min-width: 1200px) and (max-width: 1439px) {
+    .summary-cards .summary-card {
+        min-width: 220px;
+    }
+
+    .data-table .table thead th {
+        font-size: 0.9rem;
+    }
+
+    .reports-section .col-md-3 {
+        flex: 0 0 auto;
+        width: 24%;
+    }
+}
+
+/* Medium Screens (768px - 1199px) */
+@media (min-width: 768px) and (max-width: 1199px) {
+    /* KPI Cards */
+    .summary-cards {
+        gap: 15px;
+    }
+
+    .summary-card {
+        min-width: 200px !important;
+        flex: 1 1 45%;
+    }
+
+    /* Dashboard Cards */
+    #statsCards .col-md-6 {
+        flex: 0 0 auto;
+        width: 48%;
+    }
+
+    /* Reports Cards */
+    #reportsContainer .col-md-3 {
+        flex: 0 0 auto;
+        width: 48%;
+        margin-bottom: 1rem;
+    }
+
+    /* Navigation - allow wrapping for smaller tablets */
+    .navbar-nav {
+        flex-wrap: wrap !important;
+        gap: 0.25rem !important;
+    }
+
+    .navbar-nav .btn {
+        margin: 0.15rem;
+        min-width: auto;
+    }
+
+    .navbar-brand {
+        font-size: 1.3rem;
+    }
+
+    /* Table adjustments */
+    .data-table .table thead th,
+    .data-table .table tbody td {
+        padding: 12px;
+        font-size: 0.85rem;
+    }
+
+    /* Modal adjustments */
+    .modal-dialog {
+        max-width: 700px;
+        margin: 1rem auto;
+    }
+}
+
+/* Small Screens (576px - 767px) */
+@media (max-width: 767.98px) {
+    /* General container */
+    .container-fluid {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    /* Navigation - compact and wrap */
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+
+    .navbar-nav {
+        flex-wrap: wrap !important;
+        gap: 0.25rem !important;
+        min-height: auto;
+    }
+
+    .navbar-nav .btn {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.75rem;
+        margin: 0.1rem 0.1rem;
+        min-width: 40px;
+        white-space: nowrap;
+    }
+
+    /* Icon-only mode for very small screens - hide text */
+    .navbar-nav .btn[data-section="dashboard"] span:not(.visually-hidden),
+    .navbar-nav .btn[data-perm-module="items"] span:not(.visually-hidden),
+    .navbar-nav .btn[data-perm-module="movements"] span:not(.visually-hidden),
+    .navbar-nav .btn[data-perm-module="departments"] span:not(.visually-hidden),
+    .navbar-nav .btn[data-perm-module="users"] span:not(.visually-hidden),
+    .navbar-nav .btn[data-perm-module="vendors"] span:not(.visually-hidden),
+    .navbar-nav .btn[data-perm-module="reports"] span:not(.visually-hidden) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .navbar-text {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.5rem;
+        width: 100%;
+        text-align: center;
+        margin-top: 0.5rem;
+    }
+
+    .navbar-nav.ms-auto {
+        width: 100%;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+
+    /* Dashboard header */
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    .dashboard-header .d-flex {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+
+    .dashboard-header .btn-group {
+        margin-top: 1rem;
+    }
+
+    /* KPI Cards - Stack in 2 columns */
+    .summary-cards {
+        flex-direction: column;
+    }
+
+    .summary-card {
+        flex: 1 1 48% !important;
+        margin-bottom: 1rem;
+    }
+
+    /* Dashboard grid cards */
+    #statsCards .col-md-6,
+    #statsCards .col-lg-3 {
+        flex: 0 0 auto;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+
+    /* Financial overview */
+    .row.mb-4 .col-md-6 {
+        margin-bottom: 1.5rem;
+    }
+
+    /* Reports section */
+    #reports-section h2 {
+        font-size: 1.25rem;
+    }
+
+    #reportsContainer .col-md-3 {
+        flex: 0 0 auto;
+        width: 100%;
+        margin-bottom: 1.5rem;
+    }
+
+    .card-body h5 {
+        font-size: 1rem;
+    }
+
+    .card-body p {
+        font-size: 0.875rem;
+    }
+
+    /* Tables */
+    .table-responsive {
+        font-size: 0.75rem;
+        border-radius: 0.375rem;
+    }
+
+    .data-table .table thead th,
+    .data-table .table tbody td {
+        padding: 8px 6px;
+        font-size: 0.75rem;
+    }
+
+    /* Table headers text wrapping */
+    .table th {
+        white-space: normal;
+        word-wrap: break-word;
+        padding: 0.5rem 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    /* Action buttons */
+    .action-buttons {
+        flex-direction: row;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .action-buttons .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.7rem;
+    }
+
+    /* Form controls */
+    .form-control,
+    .form-select {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* Filter sections */
+    .filter-section .row .col-md-3 {
+        margin-bottom: 1rem;
+    }
+
+    .filter-section .col-md-3 {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+
+    /* Section headers */
+    .row.mb-4 .col-md-6 h2 {
+        font-size: 1.25rem;
+    }
+
+    /* List items in cards */
+    #reportsContainer .list-unstyled li {
+        font-size: 0.875rem;
+    }
+
+    /* Modal adjustments */
+    .modal-dialog {
+        margin: 0.5rem;
+        width: calc(100vw - 1rem);
+        max-width: none;
+    }
+
+    .modal-body {
+        padding: 1rem;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .modal-header .modal-title {
+        font-size: 1.1rem;
+    }
+
+    /* Professional logout button */
+    .professional-logout-btn {
+        padding: 0.4rem 1rem !important;
+        font-size: 0.75rem !important;
+    }
+
+    .professional-logout-btn i {
+        font-size: 0.75rem;
+    }
+
+    /* Welcome text */
+    .navbar-text {
+        display: none; /* Hide on very small screens */
+    }
+
+    /* Progress bars */
+    .progress {
+        height: 6px;
+    }
+
+    /* Badge adjustments */
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.375rem 0.5rem;
+    }
+
+    /* Alert adjustments */
+    .alert {
+        padding: 0.75rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* Extra Small Screens (320px - 575px) */
+@media (max-width: 575.98px) {
+    /* Ultra compact layout */
+    body {
+        font-size: 0.875rem;
+    }
+
+    /* Navigation - minimal */
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+
+    .navbar-toggler {
+        padding: 0.25rem 0.5rem;
+    }
+
+    /* Dashboard cards - single column */
+    .summary-card {
+        flex: 1 1 100% !important;
+    }
+
+    /* Hide some elements on very small screens */
+    .card .text-muted {
+        font-size: 0.75rem;
+    }
+
+    /* Table extreme minimization */
+    .data-table .table {
+        font-size: 0.7rem;
+    }
+
+    .data-table .table thead th,
+    .data-table .table tbody td {
+        padding: 6px 4px;
+    }
+
+    /* Button adjustments */
+    .btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .btn-sm {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.75rem;
+    }
+
+    /* Modal ultra compact */
+    .modal-dialog {
+        margin: 0.25rem;
+        width: calc(100vw - 0.5rem);
+    }
+
+    .modal-body {
+        padding: 0.75rem;
+    }
+
+    /* Form elements */
+    .form-control,
+    .form-select {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.6rem;
+    }
+
+    /* Card padding */
+    .card-body {
+        padding: 0.75rem;
+    }
+
+    /* Grid adjustments */
+    .row {
+        --bs-gutter-x: 0.5rem;
+    }
+
+    .col-12 {
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+
+    /* Specific dashboard elements */
+    #statsCards .card-body {
+        padding: 1rem 0.75rem;
+    }
+
+    #statsCards .card-body .d-flex {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    #statsCards .card-body .d-flex .me-3 {
+        margin-right: 0 !important;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Report cards */
+    #reportsContainer .card-body {
+        padding: 1rem 0.75rem;
+    }
+
+    #reportsContainer .card-body p {
+        font-size: 0.8rem;
+    }
+
+    /* Professional logout button - icon only on very small screens */
+    .professional-logout-btn span {
+        display: none;
+    }
+
+    .professional-logout-btn {
+        padding: 0.4rem !important;
+        width: 2.5rem;
+    }
+
+/* Welcome text completely hidden */
+.navbar-text {
+    display: none !important;
+}
+
+/* Viewport height fixes for mobile browsers */
+@media (max-width: 767.98px) {
+    body {
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+    }
+
+    .content-section {
+        min-height: calc(100vh - 76px); /* Account for fixed navbar */
+        padding-bottom: 2rem;
+    }
+}
+
+/* Touch interactions for mobile */
+@media (max-width: 991.98px) {
+    .btn,
+    .navbar-nav .btn,
+    .card {
+        min-height: 44px; /* iOS touch target minimum */
+        min-width: 44px;
+    }
+
+    .dropdown-item {
+        min-height: 44px;
+        padding: 0.75rem 1.5rem;
+    }
+
+    /* Improve tap targets */
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .action-buttons .btn {
+        min-width: 44px;
+    }
+}
+
+/* Landscape orientation adjustments for mobile */
+@media (max-width: 991.98px) and (orientation: landscape) {
+    .navbar-brand {
+        font-size: 1.1rem !important;
+    }
+
+    .navbar-nav .btn {
+        padding: 0.4rem 0.6rem !important;
+        font-size: 0.75rem !important;
+    }
+
+    .summary-card .value {
+        font-size: 2rem !important;
+    }
+
+    .data-table .table thead th,
+    .data-table .table tbody td {
+        padding: 6px 4px !important;
+        font-size: 0.65rem !important;
+    }
+}
+
+/* High-DPI displays optimization */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+    .navbar {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    }
+
+    .card {
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.075);
+    }
+}
+}
+
+/* Filter Section */
+.filter-section {
+    background-color: #fff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* Chart Container - Hidden for item details only */
+.chart-container {
+    display: none; /* Hide chart containers */
+}
+
+/* Alert Styles */
+.alert {
+    border: none;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+}
+
+.alert-dismissible .btn-close {
+    padding: 0.75rem 1rem;
+}
+
+/* Pagination */
+.pagination {
+    margin-bottom: 0;
+}
+
+.page-link {
+    border: 1px solid #dee2e6;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.page-link:hover {
+    background-color: #e9ecef;
+    border-color: #dee2e6;
+    color: var(--primary-color);
+}
+
+.page-item.active .page-link {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+/* Search and Filter Controls */
+.search-controls {
+    background-color: #fff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.search-controls .form-control,
+.search-controls .form-select {
+    margin-bottom: 0.5rem;
+}
+
+@media (min-width: 768px) {
+    .search-controls .form-control,
+    .search-controls .form-select {
+        margin-bottom: 0;
+    }
+}
+
+/* Icon Styles */
+.fa-laptop { color: #007bff; }
+.fa-check-circle { color: #28a745; }
+.fa-user-cog { color: #ffc107; }
+.fa-tools { color: #dc3545; }
+.fa-exchange-alt { color: #17a2b8; }
+.fa-building { color: #6f42c1; }
+.fa-users { color: #20c997; }
+.fa-store { color: #fd7e14; }
+.fa-chart-bar { color: #e83e8c; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Print Styles */
+@media print {
+    .navbar,
+    .btn,
+    .action-buttons {
+        display: none !important;
+    }
+    
+    .content-section {
+        display: block !important;
+    }
+    
+    .card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+    
+    .table {
+        font-size: 12px;
+    }
+}

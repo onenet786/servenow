@@ -573,29 +573,9 @@ main {
     font-size: 1.2rem;
     font-weight: bold;
     margin-top: 2rem;
-    padding: 1.5rem;
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    border-radius: var(--border-radius);
-    box-shadow: var(--card-shadow);
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    position: relative;
-    overflow: hidden;
-}
-
-.cart-total::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-    z-index: 1;
-}
-
-.cart-total * {
-    position: relative;
-    z-index: 2;
+    padding: 1rem;
+    background-color: #ecf0f1;
+    border-radius: 4px;
 }
 
 /* Product grid */
@@ -852,30 +832,9 @@ footer {
 .delivery-info {
     text-align: left;
     margin-top: 2rem;
-    padding: 1.5rem;
-    background: linear-gradient(135deg, #f9f9f9 0%, #f0f4f8 100%);
-    border-radius: var(--border-radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    position: relative;
-    overflow: hidden;
-}
-
-.order-details::before,
-.delivery-info::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.03) 0%, rgba(118, 75, 162, 0.03) 100%);
-    z-index: 1;
-}
-
-.order-details *,
-.delivery-info * {
-    position: relative;
-    z-index: 2;
+    padding: 1rem;
+    background-color: #f9f9f9;
+    border-radius: 4px;
 }
 
 .confirmation-actions {
@@ -2167,12 +2126,4 @@ footer p {
         background: currentColor;
         color: white;
     }
-}
-
-/* Center form headings */
-.checkout-form h3,
-.order-summary h3,
-.order-details h3,
-.delivery-info h3 {
-    text-align: center;
 }

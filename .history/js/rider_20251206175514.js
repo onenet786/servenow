@@ -88,33 +88,7 @@ function updateLocationDisplay() {
     const locationElement = document.getElementById('currentLocation');
     if (locationElement && currentLocation) {
         locationElement.textContent = currentLocation;
-        locationElement.style.color = ''; // Reset color
     }
-}
-
-// Refresh location manually
-function refreshLocation() {
-    const locationElement = document.getElementById('currentLocation');
-    if (locationElement) {
-        locationElement.textContent = 'Getting location...';
-        locationElement.style.color = '';
-    }
-
-    getCurrentLocation()
-        .then((location) => {
-            currentLocation = location;
-            updateLocationDisplay();
-            console.log('Location refreshed:', location);
-            alert('Location updated successfully!');
-        })
-        .catch((error) => {
-            console.error('Failed to refresh location:', error);
-            if (locationElement) {
-                locationElement.textContent = 'Location unavailable - ' + error.message;
-                locationElement.style.color = '#e53e3e';
-            }
-            alert('Failed to get location: ' + error.message);
-        });
 }
 
 // Auto-update location for active deliveries
@@ -335,24 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadRiderInfo();
     displayRiderDeliveries('assigned');
 
-    // Try to get initial location
-    getCurrentLocation()
-        .then((location) => {
-            currentLocation = location;
-            updateLocationDisplay();
-            console.log('Initial location obtained:', location);
-        })
-        .catch((error) => {
-            console.error('Failed to get initial location:', error);
-            const locationElement = document.getElementById('currentLocation');
-            if (locationElement) {
-                locationElement.textContent = 'Location unavailable - ' + error.message;
-                locationElement.style.color = '#e53e3e';
-            }
-            alert('Location access failed: ' + error.message + '\n\nPlease enable location permissions and refresh the page.');
-        });
-
-    // Start location tracking (will handle errors internally)
+    // Start location tracking
     startLocationTracking();
 
     // Auto-update location every 2 minutes

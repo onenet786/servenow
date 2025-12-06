@@ -576,8 +576,6 @@ table tbody tr:last-child td {
 
 .modal-header h3 {
     margin: 0;
-    text-align: center;
-    flex: 1;
 }
 
 .close {

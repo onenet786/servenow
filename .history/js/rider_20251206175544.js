@@ -88,33 +88,7 @@ function updateLocationDisplay() {
     const locationElement = document.getElementById('currentLocation');
     if (locationElement && currentLocation) {
         locationElement.textContent = currentLocation;
-        locationElement.style.color = ''; // Reset color
     }
-}
-
-// Refresh location manually
-function refreshLocation() {
-    const locationElement = document.getElementById('currentLocation');
-    if (locationElement) {
-        locationElement.textContent = 'Getting location...';
-        locationElement.style.color = '';
-    }
-
-    getCurrentLocation()
-        .then((location) => {
-            currentLocation = location;
-            updateLocationDisplay();
-            console.log('Location refreshed:', location);
-            alert('Location updated successfully!');
-        })
-        .catch((error) => {
-            console.error('Failed to refresh location:', error);
-            if (locationElement) {
-                locationElement.textContent = 'Location unavailable - ' + error.message;
-                locationElement.style.color = '#e53e3e';
-            }
-            alert('Failed to get location: ' + error.message);
-        });
 }
 
 // Auto-update location for active deliveries

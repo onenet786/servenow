@@ -72,74 +72,39 @@ function displayCart() {
 
 // Location-based functionality
 function getUserLocation() {
-    if (!navigator.geolocation) {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition, showError);
+    } else {
         alert("Geolocation is not supported by this browser.");
-        return;
     }
-
-    // Show loading state
-    const locationBtn = document.getElementById('getLocation');
-    if (locationBtn) {
-        locationBtn.textContent = 'Getting location...';
-        locationBtn.disabled = true;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        showPosition,
-        showError,
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 300000 // 5 minutes
-        }
-    );
 }
 
 function showPosition(position) {
     const latitude = position.coords.latitude;
     const longitude = position.coords.longitude;
 
+    // In a real app, you would send this to your backend to find nearby stores
     console.log(`User location: ${latitude}, ${longitude}`);
 
-    // Reset button state
-    const locationBtn = document.getElementById('getLocation');
-    if (locationBtn) {
-        locationBtn.textContent = 'Stores Found!';
-        locationBtn.disabled = false;
-        setTimeout(() => {
-            locationBtn.textContent = 'Find Stores Near Me';
-        }, 2000);
-    }
-
-    // In a real app, you would send this to your backend to find nearby stores
-    // For now, we'll just show all stores with a success message
+    // For demo purposes, we'll just show all stores
     displayNearbyStores();
 }
 
 function showError(error) {
-    // Reset button state
-    const locationBtn = document.getElementById('getLocation');
-    if (locationBtn) {
-        locationBtn.textContent = 'Find Stores Near Me';
-        locationBtn.disabled = false;
-    }
-
-    let errorMessage = "Location access failed: ";
     switch(error.code) {
         case error.PERMISSION_DENIED:
-            errorMessage += "Please enable location permissions in your browser settings.";
+            alert("User denied the request for Geolocation.");
             break;
         case error.POSITION_UNAVAILABLE:
-            errorMessage += "Location information is unavailable.";
+            alert("Location information is unavailable.");
             break;
         case error.TIMEOUT:
-            errorMessage += "Location request timed out. Please try again.";
+            alert("The request to get user location timed out.");
             break;
         case error.UNKNOWN_ERROR:
-            errorMessage += "An unknown error occurred.";
+            alert("An unknown error occurred.");
             break;
     }
-    alert(errorMessage);
 }
 
 async function displayNearbyStores() {
