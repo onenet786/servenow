@@ -1,14 +1,13 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { authenticateToken, requireAdmin, requireStoreOwner, optionalAuth } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStoreOwner } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Get all products with optional category filter
-router.get('/', optionalAuth, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const { category, store, admin } = req.query;
-        const isAdminUser = req.user && req.user.user_type === 'admin';
 
         let query = `
             SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location
@@ -17,27 +16,20 @@ router.get('/', optionalAuth, async (req, res) => {
             LEFT JOIN stores s ON p.store_id = s.id
         `;
         const queryParams = [];
-        const whereClauses = [];
 
         // Only apply availability filters if not admin request
-        if (!admin && !isAdminUser) {
-            // whereClauses.push('p.is_available = true');
-            whereClauses.push('s.is_active = true');
+        if (!admin) {
+            query += ' WHERE p.is_available = true AND s.is_active = true';
         }
 
         if (category) {
-            // normalize incoming category (dashes allowed) in SQL parameter
-            whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
+            query += ' AND LOWER(c.name) = LOWER(REPLACE(?, "-", " "))';
             queryParams.push(category);
         }
 
         if (store) {
-            whereClauses.push('p.store_id = ?');
+            query += ' AND p.store_id = ?';
             queryParams.push(store);
-        }
-
-        if (whereClauses.length > 0) {
-            query += ' WHERE ' + whereClauses.join(' AND ');
         }
 
         query += ' ORDER BY p.name ASC';
@@ -73,29 +65,17 @@ router.get('/', optionalAuth, async (req, res) => {
 });
 
 // Get product by ID
-router.get('/:id', optionalAuth, async (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { admin } = req.query;
-        const isAdminUser = req.user && req.user.user_type === 'admin';
 
-        let detailQuery = `
+        const [products] = await req.db.execute(`
             SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stores s ON p.store_id = s.id
-        `;
-        const detailParams = [id];
-        const detailWhere = ['p.id = ?'];
-
-        if (!admin && !isAdminUser) {
-            // detailWhere.push('p.is_available = true');
-            // detailWhere.push('s.is_active = true');
-        }
-
-        detailQuery += ' WHERE ' + detailWhere.join(' AND ');
-
-        const [products] = await req.db.execute(detailQuery, detailParams);
+            WHERE p.id = ? AND p.is_available = true AND s.is_active = true
+        `, [id]);
 
         if (products.length === 0) {
             return res.status(404).json({

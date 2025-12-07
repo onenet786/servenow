@@ -89,7 +89,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
         const detailWhere = ['p.id = ?'];
 
         if (!admin && !isAdminUser) {
-            // detailWhere.push('p.is_available = true');
+            detailWhere.push('p.is_available = true');
             // detailWhere.push('s.is_active = true');
         }
 

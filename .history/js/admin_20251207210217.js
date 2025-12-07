@@ -434,7 +434,7 @@ function loadDashboardStats() {
     Promise.all([
         fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
         fetch(`${API_BASE}/api/stores`),
-        fetch(`${API_BASE}/api/products?admin=true`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch(`${API_BASE}/api/products`),
         fetch(`${API_BASE}/api/orders`, { headers: { 'Authorization': `Bearer ${authToken}` } })
     ])
     .then(responses => Promise.all(responses.map(r => r.json())))
@@ -564,9 +564,7 @@ function toggleStoreStatus(storeId, currentStatus) {
 
 // Products Management
 function loadProducts() {
-    fetch(`${API_BASE}/api/products?admin=true`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
+    fetch(`${API_BASE}/api/products?admin=true`)
     .then(response => response.json())
     .then(data => {
         console.log('Products API response:', data);

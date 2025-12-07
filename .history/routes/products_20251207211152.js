@@ -21,7 +21,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
         // Only apply availability filters if not admin request
         if (!admin && !isAdminUser) {
-            // whereClauses.push('p.is_available = true');
+            whereClauses.push('p.is_available = true');
             whereClauses.push('s.is_active = true');
         }
 
@@ -73,11 +73,11 @@ router.get('/', optionalAuth, async (req, res) => {
 });
 
 // Get product by ID
-router.get('/:id', optionalAuth, async (req, res) => {
+router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
+
         const { admin } = req.query;
-        const isAdminUser = req.user && req.user.user_type === 'admin';
 
         let detailQuery = `
             SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location
@@ -88,9 +88,9 @@ router.get('/:id', optionalAuth, async (req, res) => {
         const detailParams = [id];
         const detailWhere = ['p.id = ?'];
 
-        if (!admin && !isAdminUser) {
-            // detailWhere.push('p.is_available = true');
-            // detailWhere.push('s.is_active = true');
+        if (!admin) {
+            detailWhere.push('p.is_available = true');
+            detailWhere.push('s.is_active = true');
         }
 
         detailQuery += ' WHERE ' + detailWhere.join(' AND ');

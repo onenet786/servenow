@@ -665,37 +665,31 @@
             </div>
             <div class="modal-body">
                 <form id="addUserForm">
-                    <div class="form-row-full">
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="userFirstName">First Name:</label>
                             <input type="text" id="userFirstName" name="firstName" required>
                         </div>
-                    </div>
-                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userLastName">Last Name:</label>
                             <input type="text" id="userLastName" name="lastName" required>
                         </div>
                     </div>
-                    <div class="form-row-full">
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="userEmail">Email:</label>
                             <input type="email" id="userEmail" name="email" required>
                         </div>
-                    </div>
-                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userPhone">Phone:</label>
                             <input type="tel" id="userPhone" name="phone">
                         </div>
                     </div>
-                    <div class="form-row-full">
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="userPassword">Password:</label>
                             <input type="password" id="userPassword" name="password" required>
                         </div>
-                    </div>
-                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userType">User Type:</label>
                             <select id="userType" name="userType" required>
@@ -824,24 +818,27 @@
             </div>
             <div class="modal-body">
                 <form id="addProductForm">
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="productName">Product Name:</label>
                             <input type="text" id="productName" name="name" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="productPrice">Price (PKR):</label>
                             <input type="number" id="productPrice" name="price" step="0.01" min="0" required>
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="productStore">Store:</label>
                             <select id="productStore" name="store_id" required>
                                 <!-- Stores will be loaded dynamically -->
                             </select>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="productCategory">Category:</label>
                             <select id="productCategory" name="category_id">
@@ -849,25 +846,19 @@
                             </select>
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="productStock">Stock Quantity:</label>
                             <input type="number" id="productStock" name="stock_quantity" min="0" value="0">
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
-                            <label for="productImage">Image URL / Upload:</label>
-                            <div style="display:flex; gap:0.5rem; align-items:center;">
-                                <input type="url" id="productImage" name="image_url" placeholder="Enter image URL" style="flex:1;">
-                                <button type="button" class="btn btn-secondary" id="pasteImageUrlBtn">Paste URL</button>
-                            </div>
-                            <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
-                                <input type="file" id="productImageFile" name="image_file" accept="image/*">
-                                <img id="productImagePreview" src="" alt="Preview" style="max-height:48px; border-radius:6px; display:none;" />
-                            </div>
+                            <label for="productImage">Image:</label>
+                            <input type="url" id="productImage" name="image_url" placeholder="Enter image URL">
+                            <input type="file" id="productImageFile" name="image_file" accept="image/*" style="margin-top: 0.5rem;">
                         </div>
                     </div>
-
                     <div class="form-row-full">
                         <div class="form-group">
                             <label for="productDescription">Description:</label>
@@ -892,11 +883,13 @@
             </div>
             <div class="modal-body">
                 <form id="addCategoryForm">
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="categoryName">Category Name:</label>
                             <input type="text" id="categoryName" name="name" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="categoryImage">Image URL:</label>
                             <input type="url" id="categoryImage" name="image_url">
@@ -926,31 +919,37 @@
             </div>
             <div class="modal-body">
                 <form id="addRiderForm">
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="riderFirstName">First Name:</label>
                             <input type="text" id="riderFirstName" name="firstName" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="riderLastName">Last Name:</label>
                             <input type="text" id="riderLastName" name="lastName" required>
                         </div>
                     </div>
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="riderEmail">Email:</label>
                             <input type="email" id="riderEmail" name="email" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="riderPhone">Phone:</label>
                             <input type="tel" id="riderPhone" name="phone" required>
                         </div>
                     </div>
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="riderPassword">Password:</label>
                             <input type="password" id="riderPassword" name="password" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="riderVehicleType">Vehicle Type:</label>
                             <select id="riderVehicleType" name="vehicleType" required>
@@ -983,7 +982,7 @@
             </div>
             <div class="modal-body">
                 <form id="editOrderForm">
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="orderStatus">Order Status:</label>
                             <select id="orderStatus" name="status">
@@ -995,6 +994,8 @@
                                 <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="orderRider">Assign Rider:</label>
                             <select id="orderRider" name="rider_id">

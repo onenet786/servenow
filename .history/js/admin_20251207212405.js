@@ -564,9 +564,7 @@ function toggleStoreStatus(storeId, currentStatus) {
 
 // Products Management
 function loadProducts() {
-    fetch(`${API_BASE}/api/products?admin=true`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
+    fetch(`${API_BASE}/api/products?admin=true`)
     .then(response => response.json())
     .then(data => {
         console.log('Products API response:', data);

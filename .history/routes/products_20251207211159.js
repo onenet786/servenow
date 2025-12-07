@@ -21,7 +21,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
         // Only apply availability filters if not admin request
         if (!admin && !isAdminUser) {
-            // whereClauses.push('p.is_available = true');
+            whereClauses.push('p.is_available = true');
             whereClauses.push('s.is_active = true');
         }
 
@@ -89,8 +89,8 @@ router.get('/:id', optionalAuth, async (req, res) => {
         const detailWhere = ['p.id = ?'];
 
         if (!admin && !isAdminUser) {
-            // detailWhere.push('p.is_available = true');
-            // detailWhere.push('s.is_active = true');
+            detailWhere.push('p.is_available = true');
+            detailWhere.push('s.is_active = true');
         }
 
         detailQuery += ' WHERE ' + detailWhere.join(' AND ');

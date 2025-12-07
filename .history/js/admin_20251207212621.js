@@ -458,7 +458,7 @@ function loadUsers() {
         initializeTableSorting('users');
     })
     .catch(error => console.error('Error loading users:', error));
-}
+}is
 
 function editUser(userId) {
     // Get current user data first

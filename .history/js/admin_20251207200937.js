@@ -434,7 +434,7 @@ function loadDashboardStats() {
     Promise.all([
         fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
         fetch(`${API_BASE}/api/stores`),
-        fetch(`${API_BASE}/api/products?admin=true`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch(`${API_BASE}/api/products`),
         fetch(`${API_BASE}/api/orders`, { headers: { 'Authorization': `Bearer ${authToken}` } })
     ])
     .then(responses => Promise.all(responses.map(r => r.json())))
@@ -447,15 +447,33 @@ function loadDashboardStats() {
     .catch(error => console.error('Error loading dashboard stats:', error));
 }
 
+// Users Management
 function loadUsers() {
     fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
     .then(data => {
-        currentUsers = data.users || [];
-        displayUsers(currentUsers);
-        initializeTableSorting('users');
+        const tbody = document.getElementById('usersTableBody');
+        tbody.innerHTML = '';
+
+        data.users.forEach(user => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${user.id}</td>
+                <td>${user.first_name} ${user.last_name}</td>
+                <td>${user.email}</td>
+                <td>${user.user_type}</td>
+                <td><span class="status-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-small btn-edit" onclick="editUser(${user.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
+                        ${user.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
     })
     .catch(error => console.error('Error loading users:', error));
 }
@@ -527,13 +545,32 @@ function toggleUserStatus(userId, currentStatus) {
     .catch(error => console.error('Error updating user:', error));
 }
 
+// Stores Management
 function loadStores() {
     fetch(`${API_BASE}/api/stores`)
     .then(response => response.json())
     .then(data => {
-        currentStores = data.stores || [];
-        displayStores(currentStores);
-        initializeTableSorting('stores');
+        const tbody = document.getElementById('storesTableBody');
+        tbody.innerHTML = '';
+
+        data.stores.forEach(store => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${store.id}</td>
+                <td>${store.name}</td>
+                <td>${store.location}</td>
+                <td>${store.owner_name || 'Admin'}</td>
+                <td>${store.rating} ⭐</td>
+                <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-small btn-edit" onclick="editStore(${store.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
+                        ${store.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
     })
     .catch(error => console.error('Error loading stores:', error));
 }
@@ -564,14 +601,10 @@ function toggleStoreStatus(storeId, currentStatus) {
 
 // Products Management
 function loadProducts() {
-    fetch(`${API_BASE}/api/products?admin=true`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
+    fetch(`${API_BASE}/api/products`)
     .then(response => response.json())
     .then(data => {
-        console.log('Products API response:', data);
         currentProducts = data.products || [];
-        console.log('Current products array:', currentProducts);
         displayProducts(currentProducts);
         initializeTableSorting('products');
     })
@@ -583,32 +616,20 @@ function displayProducts(products) {
     tbody.innerHTML = '';
 
     products.forEach(product => {
-        const productId = product.id || '';
-        const productName = product.name || '';
-        const productPrice = product.price || 0;
-        const categoryName = product.category_name || 'N/A';
-        const storeName = product.store_name || '';
-        const stockQuantity = product.stock_quantity || 0;
-        const isAvailable = product.is_available;
-
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${productId}</td>
-            <td>${productName}</td>
-            <td>PKR ${productPrice}</td>
-            <td>${categoryName}</td>
-            <td>${storeName}</td>
-            <td>${stockQuantity}</td>
-            <td><span class="status-${isAvailable ? 'active' : 'inactive'}">${isAvailable ? 'Available' : 'Unavailable'}</span></td>
+            <td>${product.id}</td>
+            <td>${product.name}</td>
+            <td>PKR ${product.price}</td>
+            <td>${product.category_name || 'N/A'}</td>
+            <td>${product.store_name}</td>
+            <td>${product.stock_quantity}</td>
+            <td><span class="status-${product.is_available ? 'active' : 'inactive'}">${product.is_available ? 'Available' : 'Unavailable'}</span></td>
             <td>
-                <div class="action-buttons">
-                    <button class="btn-small btn-edit" onclick="editProduct(${productId})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-small btn-secondary" onclick="toggleProductStatus(${productId}, ${isAvailable})">
-                        <i class="fas fa-${isAvailable ? 'ban' : 'check'}"></i> ${isAvailable ? 'Deactivate' : 'Activate'}
-                    </button>
-                </div>
+                <button class="btn btn-small btn-edit" onclick="editProduct(${product.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleProductStatus(${product.id}, ${product.is_available})">
+                    ${product.is_available ? 'Deactivate' : 'Activate'}
+                </button>
             </td>
         `;
         tbody.appendChild(row);
@@ -1159,45 +1180,6 @@ async function showAddProductModal() {
         }
 
         showModal('addProductModal');
-        // Setup image URL/file preview and paste helper (replace handlers to avoid duplicates)
-        const pasteBtn = document.getElementById('pasteImageUrlBtn');
-        const urlInput = document.getElementById('productImage');
-        const fileInput = document.getElementById('productImageFile');
-        const preview = document.getElementById('productImagePreview');
-
-        if (pasteBtn) {
-            pasteBtn.onclick = () => {
-                const url = prompt('Paste image URL (http(s)://)');
-                if (url) {
-                    if (urlInput) urlInput.value = url;
-                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
-                }
-            };
-        }
-
-        if (urlInput) {
-            urlInput.oninput = () => {
-                if (urlInput.value) {
-                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
-                } else if (preview) {
-                    preview.style.display = 'none';
-                }
-            };
-        }
-
-        if (fileInput) {
-            fileInput.onchange = (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (file && preview) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        preview.src = ev.target.result;
-                        preview.style.display = 'inline-block';
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-        }
     } catch (error) {
         console.error('Error loading dropdown data:', error);
         showError('Error', 'Failed to load form data');
@@ -1776,33 +1758,24 @@ function initializeTableSorting(tableType) {
 
     const headers = table.querySelectorAll('th');
     headers.forEach((header, index) => {
-        const column = getColumnName(tableType, index);
-        if (column !== null) {
-            // Only make sortable columns clickable
-            header.style.cursor = 'pointer';
-            header.addEventListener('click', () => sortTable(tableType, column));
-        } else {
-            // Actions column - not sortable
-            header.style.cursor = 'default';
-        }
-        updateSortIndicator(header, column, tableType);
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', () => sortTable(tableType, getColumnName(tableType, index)));
+        updateSortIndicator(header, getColumnName(tableType, index), tableType);
     });
 }
 
 // Get column name based on table type and column index
 function getColumnName(tableType, columnIndex) {
     const columnMappings = {
-        products: ['id', 'name', 'price', 'category_name', 'store_name', 'stock_quantity', 'is_available', 'actions'],
-        users: ['id', 'first_name', 'email', 'user_type', 'is_active', 'actions'],
-        stores: ['id', 'name', 'location', 'owner_name', 'rating', 'is_active', 'actions'],
-        categories: ['id', 'name', 'description', 'is_active', 'actions'],
-        riders: ['id', 'first_name', 'email', 'phone', 'vehicle_type', 'license_number', 'is_available', 'is_active', 'actions'],
-        orders: ['order_number', 'first_name', 'store_name', 'total_amount', 'status', 'rider_first_name', 'rider_location', 'created_at', 'actions']
+        products: ['id', 'name', 'price', 'category_name', 'store_name', 'stock_quantity', 'is_available'],
+        users: ['id', 'first_name', 'email', 'user_type', 'is_active'],
+        stores: ['id', 'name', 'location', 'owner_name', 'rating', 'is_active'],
+        categories: ['id', 'name', 'description', 'is_active'],
+        riders: ['id', 'first_name', 'email', 'phone', 'vehicle_type', 'license_number', 'is_available', 'is_active'],
+        orders: ['order_number', 'first_name', 'store_name', 'total_amount', 'status', 'rider_first_name', 'rider_location', 'created_at']
     };
 
-    const column = columnMappings[tableType]?.[columnIndex];
-    // Return null for actions column since it can't be sorted
-    return column === 'actions' ? null : column || 'id';
+    return columnMappings[tableType]?.[columnIndex] || 'id';
 }
 
 // Sort table by column

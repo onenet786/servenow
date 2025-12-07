@@ -434,7 +434,7 @@ function loadDashboardStats() {
     Promise.all([
         fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
         fetch(`${API_BASE}/api/stores`),
-        fetch(`${API_BASE}/api/products?admin=true`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+        fetch(`${API_BASE}/api/products`),
         fetch(`${API_BASE}/api/orders`, { headers: { 'Authorization': `Bearer ${authToken}` } })
     ])
     .then(responses => Promise.all(responses.map(r => r.json())))
@@ -564,9 +564,7 @@ function toggleStoreStatus(storeId, currentStatus) {
 
 // Products Management
 function loadProducts() {
-    fetch(`${API_BASE}/api/products?admin=true`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
+    fetch(`${API_BASE}/api/products?admin=true`)
     .then(response => response.json())
     .then(data => {
         console.log('Products API response:', data);
@@ -1159,45 +1157,6 @@ async function showAddProductModal() {
         }
 
         showModal('addProductModal');
-        // Setup image URL/file preview and paste helper (replace handlers to avoid duplicates)
-        const pasteBtn = document.getElementById('pasteImageUrlBtn');
-        const urlInput = document.getElementById('productImage');
-        const fileInput = document.getElementById('productImageFile');
-        const preview = document.getElementById('productImagePreview');
-
-        if (pasteBtn) {
-            pasteBtn.onclick = () => {
-                const url = prompt('Paste image URL (http(s)://)');
-                if (url) {
-                    if (urlInput) urlInput.value = url;
-                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
-                }
-            };
-        }
-
-        if (urlInput) {
-            urlInput.oninput = () => {
-                if (urlInput.value) {
-                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
-                } else if (preview) {
-                    preview.style.display = 'none';
-                }
-            };
-        }
-
-        if (fileInput) {
-            fileInput.onchange = (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (file && preview) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        preview.src = ev.target.result;
-                        preview.style.display = 'inline-block';
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-        }
     } catch (error) {
         console.error('Error loading dropdown data:', error);
         showError('Error', 'Failed to load form data');
