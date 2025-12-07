@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:logging/logging.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
@@ -13,12 +12,11 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  static final _logger = Logger('_OrdersScreenState');
-
   List<dynamic> _orders = [];
   bool _isLoading = true;
   String _currentTab = 'assigned'; // For riders: 'assigned' or 'completed'
   String? _currentLocation;
+  bool _isLocationTracking = false;
 
   @override
   void initState() {
@@ -63,6 +61,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       });
 
       // Start location tracking
+      setState(() => _isLocationTracking = true);
       _startLocationTracking(authProvider);
     } catch (e) {
       if (mounted) {
@@ -100,7 +99,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       }
     } catch (e) {
       // Silent fail for auto-update
-      _logger.warning('Auto-update location failed: $e');
+      print('Auto-update location failed: $e');
     }
   }
 
@@ -463,11 +462,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
             onPressed: () => _updateRiderLocation(orderId, authProvider),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             child: const Text('Update Location'),
-          ),
-          ElevatedButton(
-            onPressed: () => _markPaymentReceived(orderId, authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Mark Payment Received'),
           ),
           ElevatedButton(
             onPressed: () => _markAsDelivered(orderId, authProvider),

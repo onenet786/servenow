@@ -100,7 +100,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       }
     } catch (e) {
       // Silent fail for auto-update
-      _logger.warning('Auto-update location failed: $e');
+      print('Auto-update location failed: $e');
     }
   }
 

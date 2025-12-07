@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:logging/logging.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
@@ -13,12 +12,11 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  static final _logger = Logger('_OrdersScreenState');
-
   List<dynamic> _orders = [];
   bool _isLoading = true;
   String _currentTab = 'assigned'; // For riders: 'assigned' or 'completed'
   String? _currentLocation;
+  bool _isLocationTracking = false;
 
   @override
   void initState() {
@@ -59,10 +57,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
       setState(() {
-        _currentLocation = '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+        _currentLocation = '${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}';
       });
 
       // Start location tracking
+      setState(() => _isLocationTracking = true);
       _startLocationTracking(authProvider);
     } catch (e) {
       if (mounted) {
@@ -80,7 +79,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         distanceFilter: 10, // Update every 10 meters
       ),
     ).listen((Position position) {
-      final location = '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+      final location = '${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}';
       setState(() => _currentLocation = location);
 
       // Auto-update location for active deliveries
@@ -100,32 +99,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       }
     } catch (e) {
       // Silent fail for auto-update
-      _logger.warning('Auto-update location failed: $e');
-    }
-  }
-
-  Future<void> _refreshLocation() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.user?.userType != 'rider') return;
-
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      final location = '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
-      setState(() => _currentLocation = location);
-      _autoUpdateLocation(authProvider, location);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location refreshed')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to refresh location: $e')),
-        );
-      }
+      print('Auto-update location failed: $e');
     }
   }
 
@@ -192,29 +166,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
           : Column(
               children: [
                 if (authProvider.user!.userType == 'rider') ...[
-                  Container(
-                    color: Colors.blue.shade50,
-                    padding: const EdgeInsets.all(8),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.location_on, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _currentLocation != null
-                                ? 'Current Location: $_currentLocation'
-                                : 'Getting location...',
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh),
-                          onPressed: _refreshLocation,
-                          tooltip: 'Refresh Location',
-                        ),
-                      ],
-                    ),
-                  ),
                   Container(
                     color: Colors.green.shade50,
                     child: Row(
@@ -427,11 +378,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
             child: const Text('Update Location'),
           ),
           ElevatedButton(
-            onPressed: () => _markPaymentReceived(orderId, authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Mark Payment Received'),
-          ),
-          ElevatedButton(
             onPressed: () => _markAsDelivered(orderId, authProvider),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             child: const Text('Mark Delivered'),
@@ -463,11 +409,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
             onPressed: () => _updateRiderLocation(orderId, authProvider),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             child: const Text('Update Location'),
-          ),
-          ElevatedButton(
-            onPressed: () => _markPaymentReceived(orderId, authProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Mark Payment Received'),
           ),
           ElevatedButton(
             onPressed: () => _markAsDelivered(orderId, authProvider),
@@ -560,41 +501,43 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _updateRiderLocation(int orderId, AuthProvider authProvider) async {
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      final location = '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
-      await ApiService.updateRiderLocation(authProvider.token!, orderId, location);
-      _loadOrders();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rider location updated')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update location: $e')),
-        );
-      }
-    }
-  }
+    final locationController = TextEditingController();
+    final location = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Rider Location'),
+        content: TextField(
+          controller: locationController,
+          decoration: const InputDecoration(hintText: 'Enter current location'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(locationController.text),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
 
-  Future<void> _markPaymentReceived(int orderId, AuthProvider authProvider) async {
-    try {
-      await ApiService.updatePaymentStatus(authProvider.token!, orderId, 'paid');
-      _loadOrders();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment status updated')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update payment status: $e')),
-        );
+    if (location != null && location.isNotEmpty) {
+      try {
+        await ApiService.updateRiderLocation(authProvider.token!, orderId, location);
+        _loadOrders();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Rider location updated')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update location: $e')),
+          );
+        }
       }
     }
   }

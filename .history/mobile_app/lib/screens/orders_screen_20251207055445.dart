@@ -13,8 +13,6 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  static final _logger = Logger('_OrdersScreenState');
-
   List<dynamic> _orders = [];
   bool _isLoading = true;
   String _currentTab = 'assigned'; // For riders: 'assigned' or 'completed'
@@ -100,7 +98,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       }
     } catch (e) {
       // Silent fail for auto-update
-      _logger.warning('Auto-update location failed: $e');
+      print('Auto-update location failed: $e');
     }
   }
 
