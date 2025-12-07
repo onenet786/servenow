@@ -1,5 +1,58 @@
 // Cart functionality (cart is global from app.js)
 
+// Toast Notification System (copied from app.js)
+function showToast(title, message, type = 'info', duration = 3000) {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `toast ${type} slideIn`;
+    toast.innerHTML = `
+        <div class="toast-icon">
+            ${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '!' : 'ℹ'}
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="document.getElementById('${toastId}').remove()">×</button>
+        <div class="toast-progress" style="animation: progressBar ${duration}ms linear forwards;"></div>
+    `;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        const elem = document.getElementById(toastId);
+        if (elem) {
+            elem.classList.remove('slideIn');
+            elem.classList.add('slideOut');
+            setTimeout(() => elem.remove(), 300);
+        }
+    }, duration);
+}
+
+function showSuccess(title, message, duration = 3000) {
+    showToast(title, message, 'success', duration);
+}
+
+function showError(title, message, duration = 3000) {
+    showToast(title, message, 'error', duration);
+}
+
+function showWarning(title, message, duration = 3000) {
+    showToast(title, message, 'warning', duration);
+}
+
+function showInfo(title, message, duration = 3000) {
+    showToast(title, message, 'info', duration);
+}
+
 function updateCartCount() {
     const cartCount = document.getElementById('cartCount');
     if (cartCount) {
@@ -13,9 +66,8 @@ function displayCheckoutItems() {
     const checkoutTotal = document.getElementById('checkoutTotal');
 
     console.log('Displaying checkout items, cart:', cart);
-    alert('Displaying ' + cart.length + ' items');
     if (!checkoutItems) {
-        alert('checkoutItems not found');
+        showError('Error', 'Checkout items container not found');
         return;
     }
 
@@ -68,7 +120,7 @@ async function handleCheckoutSubmit(e) {
     e.preventDefault();
 
     if (cart.length === 0) {
-        alert('Your cart is empty. Please add items before checkout.');
+        showWarning('Empty Cart', 'Your cart is empty. Please add items before checkout.');
         return;
     }
 
@@ -97,7 +149,7 @@ async function handleCheckoutSubmit(e) {
 
         const data = await response.json();
         if (data.success) {
-            alert('Order placed successfully! Order number: ' + data.order.order_number);
+            showSuccess('Order Placed', 'Order placed successfully! Order number: ' + data.order.order_number);
 
             // Clear cart and redirect
             localStorage.removeItem('serveNowCart');
@@ -107,11 +159,11 @@ async function handleCheckoutSubmit(e) {
             // Redirect to order confirmation page
             window.location.href = 'order-confirmation.html';
         } else {
-            alert('Failed to place order: ' + data.message);
+            showError('Order Failed', 'Failed to place order: ' + data.message);
         }
     } catch (error) {
         console.error('Order placement error:', error);
-        alert('Failed to place order. Please try again.');
+        showError('Error', 'Failed to place order. Please try again.');
     }
 }
 

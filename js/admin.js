@@ -4,6 +4,61 @@ let currentUser = null;
 let authToken = null;
 let currentOrders = [];
 
+// ===== MODERN TOAST NOTIFICATION SYSTEM =====
+function showToast(title, message, type = 'info', duration = 3000) {
+    const toastContainer = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ'
+    };
+    
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type] || '•'}</div>
+        <div class="toast-content">
+            <h4 class="toast-title">${title}</h4>
+            <p class="toast-message">${message}</p>
+        </div>
+        <button class="toast-close" onclick="this.closest('.toast').remove()">✕</button>
+        <div class="toast-progress"></div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.classList.add('removing');
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 300);
+        }
+    }, duration);
+}
+
+// Convenience functions for different toast types
+function showSuccess(title, message, duration = 3000) {
+    showToast(title, message, 'success', duration);
+}
+
+function showError(title, message, duration = 3000) {
+    showToast(title, message, 'error', duration);
+}
+
+function showWarning(title, message, duration = 3000) {
+    showToast(title, message, 'warning', duration);
+}
+
+function showInfo(title, message, duration = 3000) {
+    showToast(title, message, 'info', duration);
+}
+
 // Initialize admin dashboard
 document.addEventListener('DOMContentLoaded', function() {
     // Check if user is logged in and is admin
@@ -98,12 +153,193 @@ function initializeAdmin() {
     document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
 
+    // Add filter event listeners
+    const filterDate = document.getElementById('filterDate');
+    const filterRider = document.getElementById('filterRider');
+    const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+    if (filterDate) {
+        filterDate.addEventListener('change', filterOrders);
+    }
+    if (filterRider) {
+        filterRider.addEventListener('change', filterOrders);
+    }
+    if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', clearFilters);
+    }
+
+    // Add report event listeners
+    const generateReportBtn = document.getElementById('generateReportBtn');
+    if (generateReportBtn) {
+        generateReportBtn.addEventListener('click', generateOrderReport);
+    }
+
+    const printReportBtn = document.getElementById('printReportBtn');
+    if (printReportBtn) {
+        printReportBtn.addEventListener('click', printOrderReport);
+    }
+
     // Close modal when clicking outside of it
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('modal')) {
             hideModal(e.target.id);
         }
     });
+}
+
+// Print Order Report Function
+function printOrderReport() {
+    // Get current report data
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    const totalRevenue = document.getElementById('totalRevenue').textContent;
+    const totalOrders = document.getElementById('totalOrdersCount').textContent;
+    const avgOrderValue = document.getElementById('avgOrderValue').textContent;
+    const completedOrders = document.getElementById('completedOrders').textContent;
+
+    // Get table data
+    const tableRows = document.querySelectorAll('#reportsTableBody tr');
+
+    // Create print-friendly HTML
+    const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Order Reports - ServeNow</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                .header {
+                    text-align: center;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 20px;
+                    margin-bottom: 30px;
+                }
+                .header h1 {
+                    color: #333;
+                    margin-bottom: 10px;
+                }
+                .header p {
+                    color: #666;
+                    font-size: 14px;
+                }
+                .summary {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+                .summary-card {
+                    border: 1px solid #ddd;
+                    padding: 20px;
+                    border-radius: 8px;
+                    text-align: center;
+                    background: #f9f9f9;
+                }
+                .summary-card h3 {
+                    margin: 0;
+                    font-size: 24px;
+                    color: #333;
+                }
+                .summary-card p {
+                    margin: 5px 0 0 0;
+                    color: #666;
+                    font-size: 14px;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 12px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f5f5f5;
+                    font-weight: bold;
+                }
+                tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
+                .footer {
+                    margin-top: 40px;
+                    text-align: center;
+                    font-size: 12px;
+                    color: #666;
+                }
+                @media print {
+                    body { margin: 0; }
+                    .summary-card { break-inside: avoid; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>ServeNow - Order Reports</h1>
+                <p>Report Period: ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}</p>
+                <p>Generated on: ${new Date().toLocaleString()}</p>
+            </div>
+
+            <div class="summary">
+                <div class="summary-card">
+                    <h3>${totalRevenue}</h3>
+                    <p>Total Revenue</p>
+                </div>
+                <div class="summary-card">
+                    <h3>${totalOrders}</h3>
+                    <p>Total Orders</p>
+                </div>
+                <div class="summary-card">
+                    <h3>${avgOrderValue}</h3>
+                    <p>Average Order Value</p>
+                </div>
+                <div class="summary-card">
+                    <h3>${completedOrders}</h3>
+                    <p>Completed Orders</p>
+                </div>
+            </div>
+
+            <h2 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">Daily Report Summary</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Total Orders</th>
+                        <th>Total Revenue</th>
+                        <th>Average Order Value</th>
+                        <th>Most Popular Store</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${Array.from(tableRows).map(row => row.outerHTML).join('')}
+                </tbody>
+            </table>
+
+            <div class="footer">
+                <p>This report was generated by ServeNow Admin Panel</p>
+            </div>
+        </body>
+        </html>
+    `;
+
+    // Open print dialog
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
+
+    // Wait for content to load then print
+    printWindow.onload = function() {
+        printWindow.print();
+        printWindow.close();
+    };
 }
 
 function switchTab(tabName) {
@@ -138,6 +374,9 @@ function switchTab(tabName) {
             break;
         case 'riders':
             loadRiders();
+            break;
+        case 'order-reports':
+            // Reports tab doesn't need initial loading, user will generate reports manually
             break;
     }
 }
@@ -200,13 +439,13 @@ function editUser(userId) {
     .then(data => {
         const user = data.users.find(u => u.id === userId);
         if (!user) {
-            alert('User not found');
+            showError('User Not Found', 'The user could not be found in the system.');
             return;
         }
 
         const newType = prompt('Enter new user type (customer, store_owner, admin):', user.user_type);
         if (!newType || !['customer', 'store_owner', 'admin'].includes(newType)) {
-            alert('Invalid user type. Please enter: customer, store_owner, or admin');
+            showWarning('Invalid User Type', 'Please select: customer, store_owner, or admin');
             return;
         }
 
@@ -222,19 +461,19 @@ function editUser(userId) {
         .then(data => {
             if (data.success) {
                 loadUsers();
-                alert('User updated successfully!');
+                showSuccess('User Updated', 'User information updated successfully!');
             } else {
-                alert(data.message || 'Failed to update user');
+                showError('Update Failed', data.message || 'Failed to update user');
             }
         })
         .catch(error => {
             console.error('Error updating user:', error);
-            alert('Error updating user');
+            showError('Error', 'Failed to update user. Please try again.');
         });
     })
     .catch(error => {
         console.error('Error fetching user:', error);
-        alert('Error fetching user data');
+        showError('Error', 'Failed to fetch user data. Please try again.');
     });
 }
 
@@ -252,7 +491,7 @@ function toggleUserStatus(userId, currentStatus) {
         if (data.success) {
             loadUsers();
         } else {
-            alert('Error updating user status');
+            showError('Error', 'Failed to update user status. Please try again.');
         }
     })
     .catch(error => console.error('Error updating user:', error));
@@ -289,7 +528,7 @@ function loadStores() {
 }
 
 function editStore(storeId) {
-    alert('Edit store functionality to be implemented');
+    showInfo('Coming Soon', 'Edit store functionality is being implemented.');
 }
 
 function toggleStoreStatus(storeId, currentStatus) {
@@ -306,7 +545,7 @@ function toggleStoreStatus(storeId, currentStatus) {
         if (data.success) {
             loadStores();
         } else {
-            alert('Error updating store status');
+            showError('Error', 'Failed to update store status. Please try again.');
         }
     })
     .catch(error => console.error('Error updating store:', error));
@@ -344,7 +583,7 @@ function loadProducts() {
 }
 
 function editProduct(productId) {
-    alert('Edit product functionality to be implemented');
+    showInfo('Coming Soon', 'Edit product functionality is being implemented.');
 }
 
 function toggleProductStatus(productId, currentStatus) {
@@ -361,7 +600,7 @@ function toggleProductStatus(productId, currentStatus) {
         if (data.success) {
             loadProducts();
         } else {
-            alert('Error updating product status');
+            showError('Error', 'Failed to update product status. Please try again.');
         }
     })
     .catch(error => console.error('Error updating product:', error));
@@ -376,32 +615,97 @@ function loadOrders() {
     .then(data => {
         // Store orders data globally for edit functionality
         currentOrders = data.orders || [];
-
-        const tbody = document.getElementById('ordersTableBody');
-        tbody.innerHTML = '';
-
-        currentOrders.forEach(order => {
-            const riderName = order.rider_first_name && order.rider_last_name
-                ? `${order.rider_first_name} ${order.rider_last_name}`
-                : 'Not Assigned';
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${order.order_number}</td>
-                <td>${order.first_name} ${order.last_name}</td>
-                <td>${order.store_name}</td>
-                <td>PKR ${order.total_amount}</td>
-                <td><span class="status-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span></td>
-                <td>${riderName}</td>
-                <td>${order.rider_location || 'N/A'}</td>
-                <td>${new Date(order.created_at).toLocaleDateString()}</td>
-                <td>
-                    <button class="btn btn-small btn-edit" onclick="editOrder(${order.id})">Edit Order</button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
+        
+        // Populate rider filter
+        populateRiderFilter();
+        
+        // Display orders
+        displayOrders(currentOrders);
     })
     .catch(error => console.error('Error loading orders:', error));
+}
+
+function populateRiderFilter() {
+    const filterRider = document.getElementById('filterRider');
+    const riders = new Set();
+    
+    currentOrders.forEach(order => {
+        if (order.rider_first_name && order.rider_last_name) {
+            riders.add(`${order.rider_first_name} ${order.rider_last_name}`);
+        }
+    });
+    
+    // Keep "All Riders" option and add unique riders
+    const currentValue = filterRider.value;
+    filterRider.innerHTML = '<option value="">All Riders</option>';
+    
+    Array.from(riders).sort().forEach(rider => {
+        const option = document.createElement('option');
+        option.value = rider;
+        option.textContent = rider;
+        filterRider.appendChild(option);
+    });
+    
+    filterRider.value = currentValue;
+}
+
+function displayOrders(orders) {
+    const tbody = document.getElementById('ordersTableBody');
+    tbody.innerHTML = '';
+
+    orders.forEach(order => {
+        const riderName = order.rider_first_name && order.rider_last_name
+            ? `${order.rider_first_name} ${order.rider_last_name}`
+            : 'Not Assigned';
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${order.order_number}</td>
+            <td>${order.first_name} ${order.last_name}</td>
+            <td>${order.store_name}</td>
+            <td>PKR ${order.total_amount}</td>
+            <td><span class="status-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span></td>
+            <td>${riderName}</td>
+            <td>${order.rider_location || 'N/A'}</td>
+            <td>${new Date(order.created_at).toLocaleDateString()}</td>
+            <td>
+                <button class="btn btn-small btn-edit" onclick="editOrder(${order.id})">Edit Order</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function filterOrders() {
+    const dateFilter = document.getElementById('filterDate').value;
+    const riderFilter = document.getElementById('filterRider').value;
+    
+    let filtered = currentOrders;
+    
+    // Filter by date
+    if (dateFilter) {
+        filtered = filtered.filter(order => {
+            const orderDate = new Date(order.created_at).toLocaleDateString('en-CA');
+            return orderDate === dateFilter;
+        });
+    }
+    
+    // Filter by rider
+    if (riderFilter) {
+        filtered = filtered.filter(order => {
+            const riderName = order.rider_first_name && order.rider_last_name
+                ? `${order.rider_first_name} ${order.rider_last_name}`
+                : '';
+            return riderName === riderFilter;
+        });
+    }
+    
+    displayOrders(filtered);
+}
+
+function clearFilters() {
+    document.getElementById('filterDate').value = '';
+    document.getElementById('filterRider').value = '';
+    displayOrders(currentOrders);
 }
 
 function updateOrderStatus(orderId, currentStatus) {
@@ -421,7 +725,7 @@ function updateOrderStatus(orderId, currentStatus) {
         if (data.success) {
             loadOrders();
         } else {
-            alert('Error updating order status');
+            showError('Error', 'Failed to update order status');
         }
     })
     .catch(error => console.error('Error updating order:', error));
@@ -432,7 +736,7 @@ async function editOrder(orderId) {
         // Find order from current orders data
         const order = currentOrders.find(o => o.id === orderId);
         if (!order) {
-            alert('Order not found');
+            showError('Order Not Found', 'The order could not be found in the system.');
             return;
         }
 
@@ -462,7 +766,7 @@ async function editOrder(orderId) {
         showModal('editOrderModal');
     } catch (error) {
         console.error('Error loading order details:', error);
-        alert('Error loading order details');
+        showError('Error', 'Failed to load order details. Please try again.');
     }
 }
 
@@ -512,13 +816,13 @@ async function saveOrder() {
             });
         }
 
-        alert('Order updated successfully!');
+        showSuccess('Order Updated', 'Order updated successfully!');
         hideModal('editOrderModal');
         loadOrders();
 
     } catch (error) {
         console.error('Error updating order:', error);
-        alert('Error updating order');
+        showError('Error', 'Failed to update order');
     }
 }
 
@@ -538,14 +842,14 @@ function assignRider(orderId) {
     .then(data => {
         if (data.success) {
             loadOrders();
-            alert('Rider assigned successfully!');
+            showSuccess('Rider Assigned', 'Rider assigned to order successfully!');
         } else {
-            alert(data.message || 'Error assigning rider');
+            showError('Error', data.message || 'Failed to assign rider');
         }
     })
     .catch(error => {
         console.error('Error assigning rider:', error);
-        alert('Error assigning rider');
+        showError('Error', 'Failed to assign rider');
     });
 }
 
@@ -578,7 +882,7 @@ function loadCategories() {
 }
 
 function editCategory(categoryId) {
-    alert('Edit category functionality to be implemented');
+    showInfo('Coming Soon', 'Edit category functionality will be implemented soon');
 }
 
 function toggleCategoryStatus(categoryId, currentStatus) {
@@ -595,7 +899,7 @@ function toggleCategoryStatus(categoryId, currentStatus) {
         if (data.success) {
             loadCategories();
         } else {
-            alert('Error updating category status');
+            showError('Error', 'Failed to update category status');
         }
     })
     .catch(error => console.error('Error updating category:', error));
@@ -643,15 +947,15 @@ async function saveUser() {
         const data = await response.json();
 
         if (data.success) {
-            alert('User created successfully!');
+            showSuccess('User Created', 'User created successfully!');
             hideModal('addUserModal');
             loadUsers();
         } else {
-            alert(data.message || 'Failed to create user');
+            showError('Error', data.message || 'Failed to create user');
         }
     } catch (error) {
         console.error('Error creating user:', error);
-        alert('Error creating user');
+        showError('Error', 'Failed to create user');
     }
 }
 
@@ -664,7 +968,7 @@ function editUser(userId) {
     .then(data => {
         const user = data.users.find(u => u.id === userId);
         if (!user) {
-            alert('User not found');
+            showError('User Not Found', 'The selected user could not be found');
             return;
         }
 
@@ -683,19 +987,19 @@ function editUser(userId) {
         .then(data => {
             if (data.success) {
                 loadUsers();
-                alert('User updated successfully!');
+                showSuccess('User Updated', 'User updated successfully!');
             } else {
-                alert('Failed to update user');
+                showError('Error', 'Failed to update user');
             }
         })
         .catch(error => {
             console.error('Error updating user:', error);
-            alert('Error updating user');
+            showError('Error', 'Failed to update user');
         });
     })
     .catch(error => {
         console.error('Error fetching user:', error);
-        alert('Error fetching user data');
+        showError('Error', 'Failed to fetch user data');
     });
 }
 
@@ -751,15 +1055,15 @@ async function saveStore() {
         const data = await response.json();
 
         if (data.success) {
-            alert('Store created successfully!');
+            showSuccess('Store Created', 'Store created successfully!');
             hideModal('addStoreModal');
             loadStores();
         } else {
-            alert(data.message || 'Failed to create store');
+            showError('Error', data.message || 'Failed to create store');
         }
     } catch (error) {
         console.error('Error creating store:', error);
-        alert('Error creating store');
+        showError('Error', 'Failed to create store');
     }
 }
 
@@ -780,14 +1084,14 @@ function editStore(storeId) {
     .then(data => {
         if (data.success) {
             loadStores();
-            alert('Store updated successfully!');
+            showSuccess('Store Updated', 'Store updated successfully!');
         } else {
-            alert('Failed to update store');
+            showError('Error', 'Failed to update store');
         }
     })
     .catch(error => {
         console.error('Error updating store:', error);
-        alert('Error updating store');
+        showError('Error', 'Failed to update store');
     });
 }
 
@@ -824,7 +1128,7 @@ async function showAddProductModal() {
         showModal('addProductModal');
     } catch (error) {
         console.error('Error loading dropdown data:', error);
-        alert('Error loading form data');
+        showError('Error', 'Failed to load form data');
     }
 }
 
@@ -853,15 +1157,15 @@ async function saveProduct() {
         const data = await response.json();
 
         if (data.success) {
-            alert('Product created successfully!');
+            showSuccess('Product Created', 'Product created successfully!');
             hideModal('addProductModal');
             loadProducts();
         } else {
-            alert(data.message || 'Failed to create product');
+            showError('Error', data.message || 'Failed to create product');
         }
     } catch (error) {
         console.error('Error creating product:', error);
-        alert('Error creating product');
+        showError('Error', 'Failed to create product');
     }
 }
 
@@ -882,14 +1186,14 @@ function editProduct(productId) {
     .then(data => {
         if (data.success) {
             loadProducts();
-            alert('Product updated successfully!');
+            showSuccess('Product Updated', 'Product updated successfully!');
         } else {
-            alert('Failed to update product');
+            showError('Error', 'Failed to update product');
         }
     })
     .catch(error => {
         console.error('Error updating product:', error);
-        alert('Error updating product');
+        showError('Error', 'Failed to update product');
     });
 }
 
@@ -919,15 +1223,15 @@ async function saveCategory() {
         const data = await response.json();
 
         if (data.success) {
-            alert('Category created successfully!');
+            showSuccess('Category Created', 'Category created successfully!');
             hideModal('addCategoryModal');
             loadCategories();
         } else {
-            alert(data.message || 'Failed to create category');
+            showError('Error', data.message || 'Failed to create category');
         }
     } catch (error) {
         console.error('Error creating category:', error);
-        alert('Error creating category');
+        showError('Error', 'Failed to create category');
     }
 }
 
@@ -947,14 +1251,14 @@ function editCategory(categoryId) {
     .then(data => {
         if (data.success) {
             loadCategories();
-            alert('Category updated successfully!');
+            showSuccess('Category Updated', 'Category updated successfully!');
         } else {
-            alert('Failed to update category');
+            showError('Error', 'Failed to update category');
         }
     })
     .catch(error => {
         console.error('Error updating category:', error);
-        alert('Error updating category');
+        showError('Error', 'Failed to update category');
     });
 }
 
@@ -1041,15 +1345,15 @@ async function saveRider() {
         const data = await response.json();
 
         if (data.success) {
-            alert('Rider created successfully!');
+            showSuccess('Rider Created', 'Rider created successfully!');
             hideModal('addRiderModal');
             loadRiders();
         } else {
-            alert(data.message || 'Failed to create rider');
+            showError('Error', data.message || 'Failed to create rider');
         }
     } catch (error) {
         console.error('Error creating rider:', error);
-        alert('Error creating rider');
+        showError('Error', 'Failed to create rider');
     }
 }
 
@@ -1070,14 +1374,14 @@ function editRider(riderId) {
     .then(data => {
         if (data.success) {
             loadRiders();
-            alert('Rider updated successfully!');
+            showSuccess('Rider Updated', 'Rider updated successfully!');
         } else {
-            alert('Failed to update rider');
+            showError('Error', 'Failed to update rider');
         }
     })
     .catch(error => {
         console.error('Error updating rider:', error);
-        alert('Error updating rider');
+        showError('Error', 'Failed to update rider');
     });
 }
 
@@ -1095,8 +1399,294 @@ function toggleRiderStatus(riderId, currentStatus) {
         if (data.success) {
             loadRiders();
         } else {
-            alert('Error updating rider status');
+            showError('Error', 'Failed to update rider status');
         }
     })
     .catch(error => console.error('Error updating rider:', error));
+}
+
+// Order Reports Functions
+function generateOrderReport() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+
+    if (!startDate || !endDate) {
+        showWarning('Date Required', 'Please select both start and end dates for the report.');
+        return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+        showError('Invalid Date Range', 'Start date cannot be after end date.');
+        return;
+    }
+
+    loadOrderReports(startDate, endDate);
+}
+
+function loadOrderReports(startDate, endDate) {
+    console.log('Generating report for date range:', startDate, 'to', endDate);
+
+    // For now, we'll use the existing orders endpoint and filter client-side
+    // In a production app, you'd want a dedicated reports endpoint
+    fetch(`${API_BASE}/api/orders`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('API Response:', data);
+
+        if (data.success && Array.isArray(data.orders)) {
+            console.log(`Found ${data.orders.length} total orders in database`);
+
+            // Filter orders by date range
+            const filteredOrders = data.orders.filter(order => {
+                try {
+                    // Handle different date formats that might come from database
+                    let orderDate;
+
+                    if (order.created_at) {
+                        // If it's already a valid date string or timestamp
+                        orderDate = new Date(order.created_at);
+
+                        // Check if the date is valid
+                        if (isNaN(orderDate.getTime())) {
+                            console.warn('Invalid date for order:', order.id, order.created_at);
+                            return false;
+                        }
+
+                        const dateStr = orderDate.toISOString().split('T')[0];
+                        const inRange = dateStr >= startDate && dateStr <= endDate;
+
+                        console.log(`Order ${order.id}: ${dateStr} in range [${startDate}, ${endDate}] = ${inRange}`);
+                        return inRange;
+                    } else {
+                        console.warn('Order missing created_at:', order.id);
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('Error processing order date:', order.id, error);
+                    return false;
+                }
+            });
+
+            console.log(`Filtered to ${filteredOrders.length} orders in date range`);
+
+            if (filteredOrders.length === 0) {
+                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). Try expanding your date range or check if orders exist in the database.`);
+                return;
+            }
+
+            // Calculate report statistics
+            const reportData = calculateReportStats(filteredOrders);
+
+            // Update UI with report data
+            displayOrderReport(reportData, filteredOrders);
+
+            // Create charts
+            try {
+                createStatusChart(reportData.statusCounts);
+                createRevenueChart(filteredOrders);
+            } catch (chartError) {
+                console.error('Chart creation error:', chartError);
+                showWarning('Charts Unavailable', 'Report data generated successfully, but charts could not be displayed.');
+            }
+
+            showSuccess('Report Generated', `Successfully generated report with ${filteredOrders.length} orders.`);
+        } else {
+            console.error('Invalid API response:', data);
+            showError('Data Error', 'Received invalid data from server. Please check the console for details.');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading order reports:', error);
+        showError('Network Error', `Failed to load report data: ${error.message}`);
+    });
+}
+
+function calculateReportStats(orders) {
+    const stats = {
+        totalRevenue: 0,
+        totalOrders: orders.length,
+        completedOrders: 0,
+        statusCounts: {}
+    };
+
+    orders.forEach(order => {
+        stats.totalRevenue += parseFloat(order.total_amount) || 0;
+
+        if (order.status === 'delivered') {
+            stats.completedOrders++;
+        }
+
+        // Count orders by status
+        stats.statusCounts[order.status] = (stats.statusCounts[order.status] || 0) + 1;
+    });
+
+    stats.avgOrderValue = stats.totalOrders > 0 ? stats.totalRevenue / stats.totalOrders : 0;
+
+    return stats;
+}
+
+function displayOrderReport(stats, orders) {
+    // Update summary cards
+    document.getElementById('totalRevenue').textContent = `PKR ${stats.totalRevenue.toLocaleString()}`;
+    document.getElementById('totalOrdersCount').textContent = stats.totalOrders;
+    document.getElementById('avgOrderValue').textContent = `PKR ${stats.avgOrderValue.toFixed(2)}`;
+    document.getElementById('completedOrders').textContent = stats.completedOrders;
+
+    // Show print button after report is generated
+    document.getElementById('printReportBtn').style.display = 'inline-block';
+
+    // Group orders by date for detailed table
+    const ordersByDate = {};
+    orders.forEach(order => {
+        const date = new Date(order.created_at).toLocaleDateString();
+        if (!ordersByDate[date]) {
+            ordersByDate[date] = [];
+        }
+        ordersByDate[date].push(order);
+    });
+
+    // Create detailed report table
+    const tbody = document.getElementById('reportsTableBody');
+    tbody.innerHTML = '';
+
+    Object.keys(ordersByDate).sort().forEach(date => {
+        const dayOrders = ordersByDate[date];
+        const dayRevenue = dayOrders.reduce((sum, order) => sum + parseFloat(order.total_amount), 0);
+        const avgOrderValue = dayRevenue / dayOrders.length;
+
+        // Find most popular store for the day
+        const storeCounts = {};
+        dayOrders.forEach(order => {
+            storeCounts[order.store_name] = (storeCounts[order.store_name] || 0) + 1;
+        });
+        const mostPopularStore = Object.keys(storeCounts).reduce((a, b) =>
+            storeCounts[a] > storeCounts[b] ? a : b, 'N/A');
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${date}</td>
+            <td>${dayOrders.length}</td>
+            <td>PKR ${dayRevenue.toLocaleString()}</td>
+            <td>PKR ${avgOrderValue.toFixed(2)}</td>
+            <td>${mostPopularStore}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function createStatusChart(statusCounts) {
+    const ctx = document.getElementById('statusChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (window.statusChart) {
+        window.statusChart.destroy();
+    }
+
+    window.statusChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(statusCounts),
+            datasets: [{
+                data: Object.values(statusCounts),
+                backgroundColor: [
+                    '#FF6384', // pending
+                    '#36A2EB', // confirmed
+                    '#FFCE56', // preparing
+                    '#4BC0C0', // ready
+                    '#9966FF', // delivered
+                    '#FF9F40'  // cancelled
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                title: {
+                    display: true,
+                    text: 'Order Status Distribution'
+                }
+            }
+        }
+    });
+}
+
+function createRevenueChart(orders) {
+    const ctx = document.getElementById('revenueChart').getContext('2d');
+
+    // Destroy existing chart if it exists
+    if (window.revenueChart) {
+        window.revenueChart.destroy();
+    }
+
+    // Group revenue by date for the last 30 days
+    const revenueByDate = {};
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    orders.forEach(order => {
+        const orderDate = new Date(order.created_at);
+        if (orderDate >= thirtyDaysAgo) {
+            const dateKey = orderDate.toISOString().split('T')[0];
+            revenueByDate[dateKey] = (revenueByDate[dateKey] || 0) + parseFloat(order.total_amount);
+        }
+    });
+
+    // Create labels and data for the last 30 days
+    const labels = [];
+    const data = [];
+    for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateKey = date.toISOString().split('T')[0];
+        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        data.push(revenueByDate[dateKey] || 0);
+    }
+
+    window.revenueChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Revenue (PKR)',
+                data: data,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: 'Revenue Trend (Last 30 Days)'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'PKR ' + value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
 }

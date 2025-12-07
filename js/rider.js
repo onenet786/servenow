@@ -1,5 +1,58 @@
 // Rider dashboard functionality
 
+// Toast Notification System (copied from app.js)
+function showToast(title, message, type = 'info', duration = 3000) {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `toast ${type} slideIn`;
+    toast.innerHTML = `
+        <div class="toast-icon">
+            ${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '!' : 'ℹ'}
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="document.getElementById('${toastId}').remove()">×</button>
+        <div class="toast-progress" style="animation: progressBar ${duration}ms linear forwards;"></div>
+    `;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        const elem = document.getElementById(toastId);
+        if (elem) {
+            elem.classList.remove('slideIn');
+            elem.classList.add('slideOut');
+            setTimeout(() => elem.remove(), 300);
+        }
+    }, duration);
+}
+
+function showSuccess(title, message, duration = 3000) {
+    showToast(title, message, 'success', duration);
+}
+
+function showError(title, message, duration = 3000) {
+    showToast(title, message, 'error', duration);
+}
+
+function showWarning(title, message, duration = 3000) {
+    showToast(title, message, 'warning', duration);
+}
+
+function showInfo(title, message, duration = 3000) {
+    showToast(title, message, 'info', duration);
+}
+
 let currentLocation = null;
 let locationWatchId = null;
 
@@ -105,7 +158,7 @@ function refreshLocation() {
             currentLocation = location;
             updateLocationDisplay();
             console.log('Location refreshed:', location);
-            alert('Location updated successfully!');
+            showSuccess('Location Updated', 'Location updated successfully!');
         })
         .catch((error) => {
             console.error('Failed to refresh location:', error);
@@ -113,7 +166,7 @@ function refreshLocation() {
                 locationElement.textContent = 'Location unavailable - ' + error.message;
                 locationElement.style.color = '#e53e3e';
             }
-            alert('Failed to get location: ' + error.message);
+            showError('Error', 'Failed to get location: ' + error.message);
         });
 }
 
@@ -212,7 +265,7 @@ async function displayRiderDeliveries(status = 'assigned') {
 async function updateMyLocation(orderId) {
     try {
         if (!currentLocation) {
-            alert('Location not available. Please enable GPS and try again.');
+            showWarning('Location Unavailable', 'Location not available. Please enable GPS and try again.');
             return;
         }
 
@@ -227,14 +280,14 @@ async function updateMyLocation(orderId) {
 
         const data = await response.json();
         if (data.success) {
-            alert('Location updated successfully!');
+            showSuccess('Location Updated', 'Location updated successfully!');
             displayRiderDeliveries('assigned');
         } else {
-            alert('Failed to update location: ' + data.message);
+            showError('Error', 'Failed to update location: ' + data.message);
         }
     } catch (error) {
         console.error('Error updating location:', error);
-        alert('Failed to update location.');
+        showError('Error', 'Failed to update location.');
     }
 }
 
@@ -252,10 +305,10 @@ async function markDelivered(orderId) {
 
         const data = await response.json();
         if (data.success) {
-            alert('Delivery marked as completed!');
+            showSuccess('Delivery Completed', 'Delivery marked as completed!');
             displayRiderDeliveries('assigned');
         } else {
-            alert('Failed to mark delivery as completed: ' + data.message);
+            showError('Error', 'Failed to mark delivery as completed: ' + data.message);
         }
     } catch (error) {
         console.error('Error marking delivery as completed:', error);
@@ -279,21 +332,21 @@ async function updatePaymentStatus(orderId, status) {
 
         const data = await response.json();
         if (data.success) {
-            alert('Payment status updated!');
+            showSuccess('Payment Updated', 'Payment status updated!');
             displayRiderDeliveries('assigned');
         } else {
-            alert('Failed to update payment status: ' + data.message);
+            showError('Error', 'Failed to update payment status: ' + data.message);
         }
     } catch (error) {
         console.error('Error updating payment status:', error);
-        alert('Failed to update payment status.');
+        showError('Error', 'Failed to update payment status.');
     }
 }
 
 // View delivery details
 function viewDeliveryDetails(orderId) {
-    // For now, just alert
-    alert('Delivery details for Order ID: ' + orderId);
+    // For now, just show toast
+    showInfo('Delivery Info', 'Delivery details for Order ID: ' + orderId);
 }
 
 // Load rider info
@@ -322,12 +375,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userData) {
         const user = JSON.parse(userData);
         if (user.user_type !== 'rider') {
-            alert('Access denied. Rider access required.');
+            showError('Access Denied', 'Rider access required.');
             window.location.href = 'index.html';
             return;
         }
     } else {
-        alert('Please login as rider first.');
+        showWarning('Login Required', 'Please login as rider first.');
         window.location.href = 'login.html';
         return;
     }

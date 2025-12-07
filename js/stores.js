@@ -1,6 +1,59 @@
 // Global stores variable
 let allStores = [];
 
+// Toast Notification System (copied from app.js)
+function showToast(title, message, type = 'info', duration = 3000) {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `toast ${type} slideIn`;
+    toast.innerHTML = `
+        <div class="toast-icon">
+            ${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '!' : 'ℹ'}
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="document.getElementById('${toastId}').remove()">×</button>
+        <div class="toast-progress" style="animation: progressBar ${duration}ms linear forwards;"></div>
+    `;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        const elem = document.getElementById(toastId);
+        if (elem) {
+            elem.classList.remove('slideIn');
+            elem.classList.add('slideOut');
+            setTimeout(() => elem.remove(), 300);
+        }
+    }, duration);
+}
+
+function showSuccess(title, message, duration = 3000) {
+    showToast(title, message, 'success', duration);
+}
+
+function showError(title, message, duration = 3000) {
+    showToast(title, message, 'error', duration);
+}
+
+function showWarning(title, message, duration = 3000) {
+    showToast(title, message, 'warning', duration);
+}
+
+function showInfo(title, message, duration = 3000) {
+    showToast(title, message, 'info', duration);
+}
+
 // Load and display all stores
 async function displayAllStores(filteredStores = null) {
     const storeGrid = document.getElementById('allStores');
@@ -85,26 +138,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     const longitude = position.coords.longitude;
                     console.log(`User location: ${latitude}, ${longitude}`);
                     // In a real app, you'd use reverse geocoding to get location name
-                    alert("Location found! Showing nearby stores.");
+                    showSuccess('Location Found', 'Showing nearby stores.');
                     displayAllStores();
                 }, function(error) {
                     switch(error.code) {
                         case error.PERMISSION_DENIED:
-                            alert("User denied the request for Geolocation.");
+                            showWarning('Permission Denied', 'You denied the request for Geolocation.');
                             break;
                         case error.POSITION_UNAVAILABLE:
-                            alert("Location information is unavailable.");
+                            showError('Location Unavailable', 'Location information is unavailable.');
                             break;
                         case error.TIMEOUT:
-                            alert("The request to get user location timed out.");
+                            showError('Request Timeout', 'The request to get user location timed out.');
                             break;
                         case error.UNKNOWN_ERROR:
-                            alert("An unknown error occurred.");
+                            showError('Error', 'An unknown error occurred.');
                             break;
                     }
                 });
             } else {
-                alert("Geolocation is not supported by this browser.");
+                showInfo('Geolocation Unavailable', 'Geolocation is not supported by this browser.');
             }
         });
     }

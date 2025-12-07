@@ -1,6 +1,59 @@
 // API Base URL - dynamically determine based on current location
 const API_BASE = window.location.protocol + '//' + window.location.host;
 
+// Toast Notification System
+function showToast(title, message, type = 'info', duration = 3000) {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `toast ${type} slideIn`;
+    toast.innerHTML = `
+        <div class="toast-icon">
+            ${type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warning' ? '!' : 'ℹ'}
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="document.getElementById('${toastId}').remove()">×</button>
+        <div class="toast-progress" style="animation: progressBar ${duration}ms linear forwards;"></div>
+    `;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        const elem = document.getElementById(toastId);
+        if (elem) {
+            elem.classList.remove('slideIn');
+            elem.classList.add('slideOut');
+            setTimeout(() => elem.remove(), 300);
+        }
+    }, duration);
+}
+
+function showSuccess(title, message, duration = 3000) {
+    showToast(title, message, 'success', duration);
+}
+
+function showError(title, message, duration = 3000) {
+    showToast(title, message, 'error', duration);
+}
+
+function showWarning(title, message, duration = 3000) {
+    showToast(title, message, 'warning', duration);
+}
+
+function showInfo(title, message, duration = 3000) {
+    showToast(title, message, 'info', duration);
+}
+
 // Authentication state
 let currentUser = null;
 let authToken = localStorage.getItem('serveNowToken');
@@ -29,7 +82,7 @@ function addToCart(productId, productName, price) {
     }
     localStorage.setItem('serveNowCart', JSON.stringify(cart));
     updateCartCount();
-    alert('Item added to cart!');
+    showSuccess('Added to Cart', 'Item added to cart successfully!');
 }
 
 function removeFromCart(productId) {
@@ -73,7 +126,7 @@ function displayCart() {
 // Location-based functionality
 function getUserLocation() {
     if (!navigator.geolocation) {
-        alert("Geolocation is not supported by this browser.");
+        showInfo('Geolocation Unavailable', 'Geolocation is not supported by this browser.');
         return;
     }
 
@@ -139,7 +192,7 @@ function showError(error) {
             errorMessage += "An unknown error occurred.";
             break;
     }
-    alert(errorMessage);
+    showError('Error', errorMessage);
 }
 
 async function displayNearbyStores() {
@@ -236,7 +289,7 @@ async function handleLogin(e) {
             localStorage.setItem('serveNowToken', data.token);
             localStorage.setItem('serveNowUser', JSON.stringify(data.user));
             currentUser = data.user;
-            alert('Login successful!');
+            showSuccess('Login Successful', 'Logged in successfully!');
 
             // Redirect based on user type
             if (data.user.user_type === 'admin') {
@@ -247,11 +300,11 @@ async function handleLogin(e) {
                 window.location.href = 'index.html';
             }
         } else {
-            alert(data.message || 'Login failed');
+            showError('Login Failed', data.message || 'Login failed. Please try again.');
         }
     } catch (error) {
         console.error('Login error:', error);
-        alert('Login failed. Please try again.');
+        showError('Error', 'Login failed. Please try again.');
     }
 }
 
@@ -271,7 +324,7 @@ async function handleRegister(e) {
 
     // Validate password confirmation
     if (registerData.password !== formData.get('confirmPassword')) {
-        alert('Passwords do not match');
+        showWarning('Invalid Password', 'Passwords do not match');
         return;
     }
 
@@ -290,7 +343,7 @@ async function handleRegister(e) {
             localStorage.setItem('serveNowToken', data.token);
             localStorage.setItem('serveNowUser', JSON.stringify(data.user));
             currentUser = data.user;
-            alert('Registration successful!');
+            showSuccess('Registration Successful', 'Registration successful!');
 
             // Redirect based on user type
             if (data.user.user_type === 'admin') {
@@ -299,11 +352,11 @@ async function handleRegister(e) {
                 window.location.href = 'index.html';
             }
         } else {
-            alert(data.message || 'Registration failed');
+            showError('Registration Failed', data.message || 'Registration failed. Please try again.');
         }
     } catch (error) {
         console.error('Registration error:', error);
-        alert('Registration failed. Please try again.');
+        showError('Error', 'Registration failed. Please try again.');
     }
 }
 
@@ -431,7 +484,7 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', function(e) {
             if (!validateForm(form.id)) {
                 e.preventDefault();
-                alert('Please fill in all required fields.');
+                showWarning('Incomplete Form', 'Please fill in all required fields.');
             }
         });
     });

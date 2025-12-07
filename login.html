@@ -99,6 +99,118 @@
             text-decoration: underline;
         }
 
+        /* ===== MODERN TOAST NOTIFICATIONS ===== */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            background: white;
+            min-width: 300px;
+            max-width: 500px;
+            pointer-events: auto;
+            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .toast::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 4px;
+        }
+
+        .toast-icon {
+            font-size: 24px;
+            min-width: 24px;
+            animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .toast-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .toast-message {
+            font-size: 0.85rem;
+            margin: 0;
+            opacity: 0.8;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            opacity: 0.5;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+
+        .toast-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            animation: progressBar 3s linear forwards;
+        }
+
+        .toast.success { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 4px solid #10b981; }
+        .toast.success .toast-icon { color: #10b981; }
+        .toast.success .toast-title { color: #065f46; }
+        .toast.success .toast-message { color: #047857; }
+        .toast.success .toast-progress { background: #10b981; }
+
+        .toast.error { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-left: 4px solid #ef4444; }
+        .toast.error .toast-icon { color: #ef4444; }
+        .toast.error .toast-title { color: #7f1d1d; }
+        .toast.error .toast-message { color: #b91c1c; }
+        .toast.error .toast-progress { background: #ef4444; }
+
+        .toast.warning { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-left: 4px solid #f59e0b; }
+        .toast.warning .toast-icon { color: #f59e0b; }
+        .toast.warning .toast-title { color: #78350f; }
+        .toast.warning .toast-message { color: #b45309; }
+        .toast.warning .toast-progress { background: #f59e0b; }
+
+        .toast.info { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; }
+        .toast.info .toast-icon { color: #0ea5e9; }
+        .toast.info .toast-title { color: #0c2d5f; }
+        .toast.info .toast-message { color: #0369a1; }
+        .toast.info .toast-progress { background: #0ea5e9; }
+
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        @keyframes popIn { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        @keyframes progressBar { from { width: 100%; } to { width: 0%; } }
+
+        .toast.removing { animation: slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
         /* Mobile Landscape - Fit entire form in single screen */
         @media (max-height: 550px) and (orientation: landscape) {
             body {
@@ -234,6 +346,9 @@
     </style>
 </head>
 <body>
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    
     <div class="login-container">
         <div class="logo">
             <img src="mobile_app/assets/icon/icon.png" alt="ServeNow Logo">
@@ -287,6 +402,59 @@
                     menuToggle.classList.remove('active');
                 }
             });
+        }
+
+        // ===== MODERN TOAST NOTIFICATION SYSTEM =====
+        function showToast(title, message, type = 'info', duration = 3000) {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: '✓',
+                error: '✕',
+                warning: '⚠',
+                info: 'ℹ'
+            };
+            
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type] || '•'}</div>
+                <div class="toast-content">
+                    <h4 class="toast-title">${title}</h4>
+                    <p class="toast-message">${message}</p>
+                </div>
+                <button class="toast-close" onclick="this.closest('.toast').remove()">✕</button>
+                <div class="toast-progress"></div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.classList.add('removing');
+                    setTimeout(() => {
+                        if (toast.parentElement) {
+                            toast.remove();
+                        }
+                    }, 300);
+                }
+            }, duration);
+        }
+
+        function showSuccess(title, message, duration = 3000) {
+            showToast(title, message, 'success', duration);
+        }
+
+        function showError(title, message, duration = 3000) {
+            showToast(title, message, 'error', duration);
+        }
+
+        function showWarning(title, message, duration = 3000) {
+            showToast(title, message, 'warning', duration);
+        }
+
+        function showInfo(title, message, duration = 3000) {
+            showToast(title, message, 'info', duration);
         }
     </script>
 </body>
