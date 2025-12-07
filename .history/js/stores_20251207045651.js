@@ -138,26 +138,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     const longitude = position.coords.longitude;
                     console.log(`User location: ${latitude}, ${longitude}`);
                     // In a real app, you'd use reverse geocoding to get location name
-                    showSuccess('Location Found', 'Showing nearby stores.');
+                    alert("Location found! Showing nearby stores.");
                     displayAllStores();
                 }, function(error) {
                     switch(error.code) {
                         case error.PERMISSION_DENIED:
-                            showWarning('Permission Denied', 'You denied the request for Geolocation.');
+                            alert("User denied the request for Geolocation.");
                             break;
                         case error.POSITION_UNAVAILABLE:
-                            showError('Location Unavailable', 'Location information is unavailable.');
+                            alert("Location information is unavailable.");
                             break;
                         case error.TIMEOUT:
-                            showError('Request Timeout', 'The request to get user location timed out.');
+                            alert("The request to get user location timed out.");
                             break;
                         case error.UNKNOWN_ERROR:
-                            showError('Error', 'An unknown error occurred.');
+                            alert("An unknown error occurred.");
                             break;
                     }
                 });
             } else {
-                showInfo('Geolocation Unavailable', 'Geolocation is not supported by this browser.');
+                alert("Geolocation is not supported by this browser.");
             }
         });
     }

@@ -1424,62 +1424,19 @@ function generateOrderReport() {
 }
 
 function loadOrderReports(startDate, endDate) {
-    console.log('Generating report for date range:', startDate, 'to', endDate);
-
     // For now, we'll use the existing orders endpoint and filter client-side
     // In a production app, you'd want a dedicated reports endpoint
     fetch(`${API_BASE}/api/orders`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
-        console.log('API Response:', data);
-
-        if (data.success && Array.isArray(data.orders)) {
-            console.log(`Found ${data.orders.length} total orders in database`);
-
+        if (data.success) {
             // Filter orders by date range
             const filteredOrders = data.orders.filter(order => {
-                try {
-                    // Handle different date formats that might come from database
-                    let orderDate;
-
-                    if (order.created_at) {
-                        // If it's already a valid date string or timestamp
-                        orderDate = new Date(order.created_at);
-
-                        // Check if the date is valid
-                        if (isNaN(orderDate.getTime())) {
-                            console.warn('Invalid date for order:', order.id, order.created_at);
-                            return false;
-                        }
-
-                        const dateStr = orderDate.toISOString().split('T')[0];
-                        const inRange = dateStr >= startDate && dateStr <= endDate;
-
-                        console.log(`Order ${order.id}: ${dateStr} in range [${startDate}, ${endDate}] = ${inRange}`);
-                        return inRange;
-                    } else {
-                        console.warn('Order missing created_at:', order.id);
-                        return false;
-                    }
-                } catch (error) {
-                    console.error('Error processing order date:', order.id, error);
-                    return false;
-                }
+                const orderDate = new Date(order.created_at).toISOString().split('T')[0];
+                return orderDate >= startDate && orderDate <= endDate;
             });
-
-            console.log(`Filtered to ${filteredOrders.length} orders in date range`);
-
-            if (filteredOrders.length === 0) {
-                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). Try expanding your date range or check if orders exist in the database.`);
-                return;
-            }
 
             // Calculate report statistics
             const reportData = calculateReportStats(filteredOrders);
@@ -1488,23 +1445,17 @@ function loadOrderReports(startDate, endDate) {
             displayOrderReport(reportData, filteredOrders);
 
             // Create charts
-            try {
-                createStatusChart(reportData.statusCounts);
-                createRevenueChart(filteredOrders);
-            } catch (chartError) {
-                console.error('Chart creation error:', chartError);
-                showWarning('Charts Unavailable', 'Report data generated successfully, but charts could not be displayed.');
-            }
+            createStatusChart(reportData.statusCounts);
+            createRevenueChart(filteredOrders);
 
-            showSuccess('Report Generated', `Successfully generated report with ${filteredOrders.length} orders.`);
+            showSuccess('Report Generated', `Found ${filteredOrders.length} orders in the selected date range.`);
         } else {
-            console.error('Invalid API response:', data);
-            showError('Data Error', 'Received invalid data from server. Please check the console for details.');
+            showError('Error', 'Failed to load order data for report');
         }
     })
     .catch(error => {
         console.error('Error loading order reports:', error);
-        showError('Network Error', `Failed to load report data: ${error.message}`);
+        showError('Error', 'Failed to generate report');
     });
 }
 

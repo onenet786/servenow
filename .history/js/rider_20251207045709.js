@@ -158,7 +158,7 @@ function refreshLocation() {
             currentLocation = location;
             updateLocationDisplay();
             console.log('Location refreshed:', location);
-            showSuccess('Location Updated', 'Location updated successfully!');
+            alert('Location updated successfully!');
         })
         .catch((error) => {
             console.error('Failed to refresh location:', error);
@@ -166,7 +166,7 @@ function refreshLocation() {
                 locationElement.textContent = 'Location unavailable - ' + error.message;
                 locationElement.style.color = '#e53e3e';
             }
-            showError('Error', 'Failed to get location: ' + error.message);
+            alert('Failed to get location: ' + error.message);
         });
 }
 
@@ -265,7 +265,7 @@ async function displayRiderDeliveries(status = 'assigned') {
 async function updateMyLocation(orderId) {
     try {
         if (!currentLocation) {
-            showWarning('Location Unavailable', 'Location not available. Please enable GPS and try again.');
+            alert('Location not available. Please enable GPS and try again.');
             return;
         }
 
@@ -280,14 +280,14 @@ async function updateMyLocation(orderId) {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Location Updated', 'Location updated successfully!');
+            alert('Location updated successfully!');
             displayRiderDeliveries('assigned');
         } else {
-            showError('Error', 'Failed to update location: ' + data.message);
+            alert('Failed to update location: ' + data.message);
         }
     } catch (error) {
         console.error('Error updating location:', error);
-        showError('Error', 'Failed to update location.');
+        alert('Failed to update location.');
     }
 }
 
@@ -305,10 +305,10 @@ async function markDelivered(orderId) {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Delivery Completed', 'Delivery marked as completed!');
+            alert('Delivery marked as completed!');
             displayRiderDeliveries('assigned');
         } else {
-            showError('Error', 'Failed to mark delivery as completed: ' + data.message);
+            alert('Failed to mark delivery as completed: ' + data.message);
         }
     } catch (error) {
         console.error('Error marking delivery as completed:', error);
@@ -332,21 +332,21 @@ async function updatePaymentStatus(orderId, status) {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Payment Updated', 'Payment status updated!');
+            alert('Payment status updated!');
             displayRiderDeliveries('assigned');
         } else {
-            showError('Error', 'Failed to update payment status: ' + data.message);
+            alert('Failed to update payment status: ' + data.message);
         }
     } catch (error) {
         console.error('Error updating payment status:', error);
-        showError('Error', 'Failed to update payment status.');
+        alert('Failed to update payment status.');
     }
 }
 
 // View delivery details
 function viewDeliveryDetails(orderId) {
-    // For now, just show toast
-    showInfo('Delivery Info', 'Delivery details for Order ID: ' + orderId);
+    // For now, just alert
+    alert('Delivery details for Order ID: ' + orderId);
 }
 
 // Load rider info
@@ -375,12 +375,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userData) {
         const user = JSON.parse(userData);
         if (user.user_type !== 'rider') {
-            showError('Access Denied', 'Rider access required.');
+            alert('Access denied. Rider access required.');
             window.location.href = 'index.html';
             return;
         }
     } else {
-        showWarning('Login Required', 'Please login as rider first.');
+        alert('Please login as rider first.');
         window.location.href = 'login.html';
         return;
     }

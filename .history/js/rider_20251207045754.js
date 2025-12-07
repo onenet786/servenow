@@ -332,10 +332,10 @@ async function updatePaymentStatus(orderId, status) {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Payment Updated', 'Payment status updated!');
+            alert('Payment status updated!');
             displayRiderDeliveries('assigned');
         } else {
-            showError('Error', 'Failed to update payment status: ' + data.message);
+            alert('Failed to update payment status: ' + data.message);
         }
     } catch (error) {
         console.error('Error updating payment status:', error);
@@ -345,8 +345,8 @@ async function updatePaymentStatus(orderId, status) {
 
 // View delivery details
 function viewDeliveryDetails(orderId) {
-    // For now, just show toast
-    showInfo('Delivery Info', 'Delivery details for Order ID: ' + orderId);
+    // For now, just alert
+    alert('Delivery details for Order ID: ' + orderId);
 }
 
 // Load rider info
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userData) {
         const user = JSON.parse(userData);
         if (user.user_type !== 'rider') {
-            showError('Access Denied', 'Rider access required.');
+            alert('Access denied. Rider access required.');
             window.location.href = 'index.html';
             return;
         }

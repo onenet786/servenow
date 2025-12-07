@@ -157,7 +157,7 @@ function initializeAdmin() {
     const filterDate = document.getElementById('filterDate');
     const filterRider = document.getElementById('filterRider');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-
+    
     if (filterDate) {
         filterDate.addEventListener('change', filterOrders);
     }
@@ -168,178 +168,12 @@ function initializeAdmin() {
         clearFiltersBtn.addEventListener('click', clearFilters);
     }
 
-    // Add report event listeners
-    const generateReportBtn = document.getElementById('generateReportBtn');
-    if (generateReportBtn) {
-        generateReportBtn.addEventListener('click', generateOrderReport);
-    }
-
-    const printReportBtn = document.getElementById('printReportBtn');
-    if (printReportBtn) {
-        printReportBtn.addEventListener('click', printOrderReport);
-    }
-
     // Close modal when clicking outside of it
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('modal')) {
             hideModal(e.target.id);
         }
     });
-}
-
-// Print Order Report Function
-function printOrderReport() {
-    // Get current report data
-    const startDate = document.getElementById('reportStartDate').value;
-    const endDate = document.getElementById('reportEndDate').value;
-    const totalRevenue = document.getElementById('totalRevenue').textContent;
-    const totalOrders = document.getElementById('totalOrdersCount').textContent;
-    const avgOrderValue = document.getElementById('avgOrderValue').textContent;
-    const completedOrders = document.getElementById('completedOrders').textContent;
-
-    // Get table data
-    const tableRows = document.querySelectorAll('#reportsTableBody tr');
-
-    // Create print-friendly HTML
-    const printContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Order Reports - ServeNow</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    margin: 20px;
-                    line-height: 1.6;
-                }
-                .header {
-                    text-align: center;
-                    border-bottom: 2px solid #333;
-                    padding-bottom: 20px;
-                    margin-bottom: 30px;
-                }
-                .header h1 {
-                    color: #333;
-                    margin-bottom: 10px;
-                }
-                .header p {
-                    color: #666;
-                    font-size: 14px;
-                }
-                .summary {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 20px;
-                    margin-bottom: 30px;
-                }
-                .summary-card {
-                    border: 1px solid #ddd;
-                    padding: 20px;
-                    border-radius: 8px;
-                    text-align: center;
-                    background: #f9f9f9;
-                }
-                .summary-card h3 {
-                    margin: 0;
-                    font-size: 24px;
-                    color: #333;
-                }
-                .summary-card p {
-                    margin: 5px 0 0 0;
-                    color: #666;
-                    font-size: 14px;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 20px;
-                }
-                th, td {
-                    border: 1px solid #ddd;
-                    padding: 12px;
-                    text-align: left;
-                }
-                th {
-                    background-color: #f5f5f5;
-                    font-weight: bold;
-                }
-                tr:nth-child(even) {
-                    background-color: #f9f9f9;
-                }
-                .footer {
-                    margin-top: 40px;
-                    text-align: center;
-                    font-size: 12px;
-                    color: #666;
-                }
-                @media print {
-                    body { margin: 0; }
-                    .summary-card { break-inside: avoid; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>ServeNow - Order Reports</h1>
-                <p>Report Period: ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}</p>
-                <p>Generated on: ${new Date().toLocaleString()}</p>
-            </div>
-
-            <div class="summary">
-                <div class="summary-card">
-                    <h3>${totalRevenue}</h3>
-                    <p>Total Revenue</p>
-                </div>
-                <div class="summary-card">
-                    <h3>${totalOrders}</h3>
-                    <p>Total Orders</p>
-                </div>
-                <div class="summary-card">
-                    <h3>${avgOrderValue}</h3>
-                    <p>Average Order Value</p>
-                </div>
-                <div class="summary-card">
-                    <h3>${completedOrders}</h3>
-                    <p>Completed Orders</p>
-                </div>
-            </div>
-
-            <h2 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">Daily Report Summary</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Total Orders</th>
-                        <th>Total Revenue</th>
-                        <th>Average Order Value</th>
-                        <th>Most Popular Store</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${Array.from(tableRows).map(row => row.outerHTML).join('')}
-                </tbody>
-            </table>
-
-            <div class="footer">
-                <p>This report was generated by ServeNow Admin Panel</p>
-            </div>
-        </body>
-        </html>
-    `;
-
-    // Open print dialog
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-
-    // Wait for content to load then print
-    printWindow.onload = function() {
-        printWindow.print();
-        printWindow.close();
-    };
 }
 
 function switchTab(tabName) {
@@ -374,9 +208,6 @@ function switchTab(tabName) {
             break;
         case 'riders':
             loadRiders();
-            break;
-        case 'order-reports':
-            // Reports tab doesn't need initial loading, user will generate reports manually
             break;
     }
 }
@@ -725,7 +556,7 @@ function updateOrderStatus(orderId, currentStatus) {
         if (data.success) {
             loadOrders();
         } else {
-            showError('Error', 'Failed to update order status');
+            alert('Error updating order status');
         }
     })
     .catch(error => console.error('Error updating order:', error));
@@ -899,7 +730,7 @@ function toggleCategoryStatus(categoryId, currentStatus) {
         if (data.success) {
             loadCategories();
         } else {
-            showError('Error', 'Failed to update category status');
+            alert('Error updating category status');
         }
     })
     .catch(error => console.error('Error updating category:', error));
@@ -1055,15 +886,15 @@ async function saveStore() {
         const data = await response.json();
 
         if (data.success) {
-            showSuccess('Store Created', 'Store created successfully!');
+            alert('Store created successfully!');
             hideModal('addStoreModal');
             loadStores();
         } else {
-            showError('Error', data.message || 'Failed to create store');
+            alert(data.message || 'Failed to create store');
         }
     } catch (error) {
         console.error('Error creating store:', error);
-        showError('Error', 'Failed to create store');
+        alert('Error creating store');
     }
 }
 
@@ -1084,14 +915,14 @@ function editStore(storeId) {
     .then(data => {
         if (data.success) {
             loadStores();
-            showSuccess('Store Updated', 'Store updated successfully!');
+            alert('Store updated successfully!');
         } else {
-            showError('Error', 'Failed to update store');
+            alert('Failed to update store');
         }
     })
     .catch(error => {
         console.error('Error updating store:', error);
-        showError('Error', 'Failed to update store');
+        alert('Error updating store');
     });
 }
 
@@ -1128,7 +959,7 @@ async function showAddProductModal() {
         showModal('addProductModal');
     } catch (error) {
         console.error('Error loading dropdown data:', error);
-        showError('Error', 'Failed to load form data');
+        alert('Error loading form data');
     }
 }
 
@@ -1157,15 +988,15 @@ async function saveProduct() {
         const data = await response.json();
 
         if (data.success) {
-            showSuccess('Product Created', 'Product created successfully!');
+            alert('Product created successfully!');
             hideModal('addProductModal');
             loadProducts();
         } else {
-            showError('Error', data.message || 'Failed to create product');
+            alert(data.message || 'Failed to create product');
         }
     } catch (error) {
         console.error('Error creating product:', error);
-        showError('Error', 'Failed to create product');
+        alert('Error creating product');
     }
 }
 
@@ -1186,14 +1017,14 @@ function editProduct(productId) {
     .then(data => {
         if (data.success) {
             loadProducts();
-            showSuccess('Product Updated', 'Product updated successfully!');
+            alert('Product updated successfully!');
         } else {
-            showError('Error', 'Failed to update product');
+            alert('Failed to update product');
         }
     })
     .catch(error => {
         console.error('Error updating product:', error);
-        showError('Error', 'Failed to update product');
+        alert('Error updating product');
     });
 }
 
@@ -1223,15 +1054,15 @@ async function saveCategory() {
         const data = await response.json();
 
         if (data.success) {
-            showSuccess('Category Created', 'Category created successfully!');
+            alert('Category created successfully!');
             hideModal('addCategoryModal');
             loadCategories();
         } else {
-            showError('Error', data.message || 'Failed to create category');
+            alert(data.message || 'Failed to create category');
         }
     } catch (error) {
         console.error('Error creating category:', error);
-        showError('Error', 'Failed to create category');
+        alert('Error creating category');
     }
 }
 
@@ -1251,14 +1082,14 @@ function editCategory(categoryId) {
     .then(data => {
         if (data.success) {
             loadCategories();
-            showSuccess('Category Updated', 'Category updated successfully!');
+            alert('Category updated successfully!');
         } else {
-            showError('Error', 'Failed to update category');
+            alert('Failed to update category');
         }
     })
     .catch(error => {
         console.error('Error updating category:', error);
-        showError('Error', 'Failed to update category');
+        alert('Error updating category');
     });
 }
 
@@ -1345,15 +1176,15 @@ async function saveRider() {
         const data = await response.json();
 
         if (data.success) {
-            showSuccess('Rider Created', 'Rider created successfully!');
+            alert('Rider created successfully!');
             hideModal('addRiderModal');
             loadRiders();
         } else {
-            showError('Error', data.message || 'Failed to create rider');
+            alert(data.message || 'Failed to create rider');
         }
     } catch (error) {
         console.error('Error creating rider:', error);
-        showError('Error', 'Failed to create rider');
+        alert('Error creating rider');
     }
 }
 
@@ -1374,14 +1205,14 @@ function editRider(riderId) {
     .then(data => {
         if (data.success) {
             loadRiders();
-            showSuccess('Rider Updated', 'Rider updated successfully!');
+            alert('Rider updated successfully!');
         } else {
-            showError('Error', 'Failed to update rider');
+            alert('Failed to update rider');
         }
     })
     .catch(error => {
         console.error('Error updating rider:', error);
-        showError('Error', 'Failed to update rider');
+        alert('Error updating rider');
     });
 }
 
@@ -1399,294 +1230,8 @@ function toggleRiderStatus(riderId, currentStatus) {
         if (data.success) {
             loadRiders();
         } else {
-            showError('Error', 'Failed to update rider status');
+            alert('Error updating rider status');
         }
     })
     .catch(error => console.error('Error updating rider:', error));
-}
-
-// Order Reports Functions
-function generateOrderReport() {
-    const startDate = document.getElementById('reportStartDate').value;
-    const endDate = document.getElementById('reportEndDate').value;
-
-    if (!startDate || !endDate) {
-        showWarning('Date Required', 'Please select both start and end dates for the report.');
-        return;
-    }
-
-    if (new Date(startDate) > new Date(endDate)) {
-        showError('Invalid Date Range', 'Start date cannot be after end date.');
-        return;
-    }
-
-    loadOrderReports(startDate, endDate);
-}
-
-function loadOrderReports(startDate, endDate) {
-    console.log('Generating report for date range:', startDate, 'to', endDate);
-
-    // For now, we'll use the existing orders endpoint and filter client-side
-    // In a production app, you'd want a dedicated reports endpoint
-    fetch(`${API_BASE}/api/orders`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('API Response:', data);
-
-        if (data.success && Array.isArray(data.orders)) {
-            console.log(`Found ${data.orders.length} total orders in database`);
-
-            // Filter orders by date range
-            const filteredOrders = data.orders.filter(order => {
-                try {
-                    // Handle different date formats that might come from database
-                    let orderDate;
-
-                    if (order.created_at) {
-                        // If it's already a valid date string or timestamp
-                        orderDate = new Date(order.created_at);
-
-                        // Check if the date is valid
-                        if (isNaN(orderDate.getTime())) {
-                            console.warn('Invalid date for order:', order.id, order.created_at);
-                            return false;
-                        }
-
-                        const dateStr = orderDate.toISOString().split('T')[0];
-                        const inRange = dateStr >= startDate && dateStr <= endDate;
-
-                        console.log(`Order ${order.id}: ${dateStr} in range [${startDate}, ${endDate}] = ${inRange}`);
-                        return inRange;
-                    } else {
-                        console.warn('Order missing created_at:', order.id);
-                        return false;
-                    }
-                } catch (error) {
-                    console.error('Error processing order date:', order.id, error);
-                    return false;
-                }
-            });
-
-            console.log(`Filtered to ${filteredOrders.length} orders in date range`);
-
-            if (filteredOrders.length === 0) {
-                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). Try expanding your date range or check if orders exist in the database.`);
-                return;
-            }
-
-            // Calculate report statistics
-            const reportData = calculateReportStats(filteredOrders);
-
-            // Update UI with report data
-            displayOrderReport(reportData, filteredOrders);
-
-            // Create charts
-            try {
-                createStatusChart(reportData.statusCounts);
-                createRevenueChart(filteredOrders);
-            } catch (chartError) {
-                console.error('Chart creation error:', chartError);
-                showWarning('Charts Unavailable', 'Report data generated successfully, but charts could not be displayed.');
-            }
-
-            showSuccess('Report Generated', `Successfully generated report with ${filteredOrders.length} orders.`);
-        } else {
-            console.error('Invalid API response:', data);
-            showError('Data Error', 'Received invalid data from server. Please check the console for details.');
-        }
-    })
-    .catch(error => {
-        console.error('Error loading order reports:', error);
-        showError('Network Error', `Failed to load report data: ${error.message}`);
-    });
-}
-
-function calculateReportStats(orders) {
-    const stats = {
-        totalRevenue: 0,
-        totalOrders: orders.length,
-        completedOrders: 0,
-        statusCounts: {}
-    };
-
-    orders.forEach(order => {
-        stats.totalRevenue += parseFloat(order.total_amount) || 0;
-
-        if (order.status === 'delivered') {
-            stats.completedOrders++;
-        }
-
-        // Count orders by status
-        stats.statusCounts[order.status] = (stats.statusCounts[order.status] || 0) + 1;
-    });
-
-    stats.avgOrderValue = stats.totalOrders > 0 ? stats.totalRevenue / stats.totalOrders : 0;
-
-    return stats;
-}
-
-function displayOrderReport(stats, orders) {
-    // Update summary cards
-    document.getElementById('totalRevenue').textContent = `PKR ${stats.totalRevenue.toLocaleString()}`;
-    document.getElementById('totalOrdersCount').textContent = stats.totalOrders;
-    document.getElementById('avgOrderValue').textContent = `PKR ${stats.avgOrderValue.toFixed(2)}`;
-    document.getElementById('completedOrders').textContent = stats.completedOrders;
-
-    // Show print button after report is generated
-    document.getElementById('printReportBtn').style.display = 'inline-block';
-
-    // Group orders by date for detailed table
-    const ordersByDate = {};
-    orders.forEach(order => {
-        const date = new Date(order.created_at).toLocaleDateString();
-        if (!ordersByDate[date]) {
-            ordersByDate[date] = [];
-        }
-        ordersByDate[date].push(order);
-    });
-
-    // Create detailed report table
-    const tbody = document.getElementById('reportsTableBody');
-    tbody.innerHTML = '';
-
-    Object.keys(ordersByDate).sort().forEach(date => {
-        const dayOrders = ordersByDate[date];
-        const dayRevenue = dayOrders.reduce((sum, order) => sum + parseFloat(order.total_amount), 0);
-        const avgOrderValue = dayRevenue / dayOrders.length;
-
-        // Find most popular store for the day
-        const storeCounts = {};
-        dayOrders.forEach(order => {
-            storeCounts[order.store_name] = (storeCounts[order.store_name] || 0) + 1;
-        });
-        const mostPopularStore = Object.keys(storeCounts).reduce((a, b) =>
-            storeCounts[a] > storeCounts[b] ? a : b, 'N/A');
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${date}</td>
-            <td>${dayOrders.length}</td>
-            <td>PKR ${dayRevenue.toLocaleString()}</td>
-            <td>PKR ${avgOrderValue.toFixed(2)}</td>
-            <td>${mostPopularStore}</td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function createStatusChart(statusCounts) {
-    const ctx = document.getElementById('statusChart').getContext('2d');
-
-    // Destroy existing chart if it exists
-    if (window.statusChart) {
-        window.statusChart.destroy();
-    }
-
-    window.statusChart = new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: Object.keys(statusCounts),
-            datasets: [{
-                data: Object.values(statusCounts),
-                backgroundColor: [
-                    '#FF6384', // pending
-                    '#36A2EB', // confirmed
-                    '#FFCE56', // preparing
-                    '#4BC0C0', // ready
-                    '#9966FF', // delivered
-                    '#FF9F40'  // cancelled
-                ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                },
-                title: {
-                    display: true,
-                    text: 'Order Status Distribution'
-                }
-            }
-        }
-    });
-}
-
-function createRevenueChart(orders) {
-    const ctx = document.getElementById('revenueChart').getContext('2d');
-
-    // Destroy existing chart if it exists
-    if (window.revenueChart) {
-        window.revenueChart.destroy();
-    }
-
-    // Group revenue by date for the last 30 days
-    const revenueByDate = {};
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    orders.forEach(order => {
-        const orderDate = new Date(order.created_at);
-        if (orderDate >= thirtyDaysAgo) {
-            const dateKey = orderDate.toISOString().split('T')[0];
-            revenueByDate[dateKey] = (revenueByDate[dateKey] || 0) + parseFloat(order.total_amount);
-        }
-    });
-
-    // Create labels and data for the last 30 days
-    const labels = [];
-    const data = [];
-    for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateKey = date.toISOString().split('T')[0];
-        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-        data.push(revenueByDate[dateKey] || 0);
-    }
-
-    window.revenueChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Revenue (PKR)',
-                data: data,
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                title: {
-                    display: true,
-                    text: 'Revenue Trend (Last 30 Days)'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return 'PKR ' + value.toLocaleString();
-                        }
-                    }
-                }
-            }
-        }
-    });
 }

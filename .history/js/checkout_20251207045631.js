@@ -66,8 +66,9 @@ function displayCheckoutItems() {
     const checkoutTotal = document.getElementById('checkoutTotal');
 
     console.log('Displaying checkout items, cart:', cart);
+    alert('Displaying ' + cart.length + ' items');
     if (!checkoutItems) {
-        showError('Error', 'Checkout items container not found');
+        alert('checkoutItems not found');
         return;
     }
 
@@ -120,7 +121,7 @@ async function handleCheckoutSubmit(e) {
     e.preventDefault();
 
     if (cart.length === 0) {
-        showWarning('Empty Cart', 'Your cart is empty. Please add items before checkout.');
+        alert('Your cart is empty. Please add items before checkout.');
         return;
     }
 
@@ -149,7 +150,7 @@ async function handleCheckoutSubmit(e) {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Order Placed', 'Order placed successfully! Order number: ' + data.order.order_number);
+            alert('Order placed successfully! Order number: ' + data.order.order_number);
 
             // Clear cart and redirect
             localStorage.removeItem('serveNowCart');
@@ -159,11 +160,11 @@ async function handleCheckoutSubmit(e) {
             // Redirect to order confirmation page
             window.location.href = 'order-confirmation.html';
         } else {
-            showError('Order Failed', 'Failed to place order: ' + data.message);
+            alert('Failed to place order: ' + data.message);
         }
     } catch (error) {
         console.error('Order placement error:', error);
-        showError('Error', 'Failed to place order. Please try again.');
+        alert('Failed to place order. Please try again.');
     }
 }
 

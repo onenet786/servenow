@@ -6,13 +6,9 @@
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="style/main.css">
     <link rel="stylesheet" href="css/admin.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 </head>
 <body>
-    <!-- Toast Notification Container -->
-    <div id="toastContainer" class="toast-container"></div>
-    
     <header>
         <nav class="admin-nav">
             <div class="logo">
@@ -33,12 +29,6 @@
                 <li><a href="#" class="tab-link" data-tab="stores"><i class="fas fa-store"></i> Stores</a></li>
                 <li><a href="#" class="tab-link" data-tab="products"><i class="fas fa-box"></i> Products</a></li>
                 <li><a href="#" class="tab-link" data-tab="orders"><i class="fas fa-shopping-cart"></i> Orders</a></li>
-                <li class="dropdown">
-                    <a href="#" class="tab-link" data-tab="reports"><i class="fas fa-chart-bar"></i> Reports <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
-                    <ul class="dropdown-menu">
-                        <li><a href="#" class="tab-link" data-tab="order-reports"><i class="fas fa-chart-line"></i> Order Reports</a></li>
-                    </ul>
-                </li>
                 <li><a href="#" class="tab-link" data-tab="categories"><i class="fas fa-tags"></i> Categories</a></li>
                 <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
                 <li><a href="#" id="logoutBtn">Logout</a></li>
@@ -427,74 +417,9 @@
 
                         </div>
 
-                        <!-- Order Reports Tab -->
-                        <div id="order-reports" class="tab-content">
-                            <h2>Order Reports</h2>
 
-                            <!-- Report Filters -->
-                            <div class="filter-controls">
-                                <div class="filter-group">
-                                    <label for="reportStartDate">Start Date:</label>
-                                    <input type="date" id="reportStartDate">
-                                </div>
-                                <div class="filter-group">
-                                    <label for="reportEndDate">End Date:</label>
-                                    <input type="date" id="reportEndDate">
-                                </div>
-                                <button class="btn btn-secondary" id="generateReportBtn">Generate Report</button>
-                                <button class="btn btn-primary" id="printReportBtn" style="display: none;">Print Report</button>
-                            </div>
+        
 
-                            <!-- Report Summary Cards -->
-                            <div class="stats-grid">
-                                <div class="stat-card">
-                                    <h3 id="totalRevenue">-</h3>
-                                    <p>Total Revenue</p>
-                                </div>
-                                <div class="stat-card">
-                                    <h3 id="totalOrdersCount">-</h3>
-                                    <p>Total Orders</p>
-                                </div>
-                                <div class="stat-card">
-                                    <h3 id="avgOrderValue">-</h3>
-                                    <p>Average Order Value</p>
-                                </div>
-                                <div class="stat-card">
-                                    <h3 id="completedOrders">-</h3>
-                                    <p>Completed Orders</p>
-                                </div>
-                            </div>
-
-                            <!-- Charts Container -->
-                            <div class="reports-charts" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem;">
-                                <div class="chart-container">
-                                    <h3>Orders by Status</h3>
-                                    <canvas id="statusChart" width="400" height="300"></canvas>
-                                </div>
-                                <div class="chart-container">
-                                    <h3>Revenue Trend (Last 30 Days)</h3>
-                                    <canvas id="revenueChart" width="400" height="300"></canvas>
-                                </div>
-                            </div>
-
-                            <!-- Detailed Report Table -->
-                            <div class="table-container" style="margin-top: 2rem;">
-                                <table id="reportsTable">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Total Orders</th>
-                                            <th>Total Revenue</th>
-                                            <th>Average Order Value</th>
-                                            <th>Most Popular Store</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="reportsTableBody">
-                                        <!-- Report data will be loaded here -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
 
                         <!-- Categories Tab -->
 

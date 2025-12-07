@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userData) {
         const user = JSON.parse(userData);
         if (user.user_type !== 'rider') {
-            showError('Access Denied', 'Rider access required.');
+            alert('Access denied. Rider access required.');
             window.location.href = 'index.html';
             return;
         }

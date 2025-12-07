@@ -174,172 +174,12 @@ function initializeAdmin() {
         generateReportBtn.addEventListener('click', generateOrderReport);
     }
 
-    const printReportBtn = document.getElementById('printReportBtn');
-    if (printReportBtn) {
-        printReportBtn.addEventListener('click', printOrderReport);
-    }
-
     // Close modal when clicking outside of it
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('modal')) {
             hideModal(e.target.id);
         }
     });
-}
-
-// Print Order Report Function
-function printOrderReport() {
-    // Get current report data
-    const startDate = document.getElementById('reportStartDate').value;
-    const endDate = document.getElementById('reportEndDate').value;
-    const totalRevenue = document.getElementById('totalRevenue').textContent;
-    const totalOrders = document.getElementById('totalOrdersCount').textContent;
-    const avgOrderValue = document.getElementById('avgOrderValue').textContent;
-    const completedOrders = document.getElementById('completedOrders').textContent;
-
-    // Get table data
-    const tableRows = document.querySelectorAll('#reportsTableBody tr');
-
-    // Create print-friendly HTML
-    const printContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Order Reports - ServeNow</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    margin: 20px;
-                    line-height: 1.6;
-                }
-                .header {
-                    text-align: center;
-                    border-bottom: 2px solid #333;
-                    padding-bottom: 20px;
-                    margin-bottom: 30px;
-                }
-                .header h1 {
-                    color: #333;
-                    margin-bottom: 10px;
-                }
-                .header p {
-                    color: #666;
-                    font-size: 14px;
-                }
-                .summary {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 20px;
-                    margin-bottom: 30px;
-                }
-                .summary-card {
-                    border: 1px solid #ddd;
-                    padding: 20px;
-                    border-radius: 8px;
-                    text-align: center;
-                    background: #f9f9f9;
-                }
-                .summary-card h3 {
-                    margin: 0;
-                    font-size: 24px;
-                    color: #333;
-                }
-                .summary-card p {
-                    margin: 5px 0 0 0;
-                    color: #666;
-                    font-size: 14px;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 20px;
-                }
-                th, td {
-                    border: 1px solid #ddd;
-                    padding: 12px;
-                    text-align: left;
-                }
-                th {
-                    background-color: #f5f5f5;
-                    font-weight: bold;
-                }
-                tr:nth-child(even) {
-                    background-color: #f9f9f9;
-                }
-                .footer {
-                    margin-top: 40px;
-                    text-align: center;
-                    font-size: 12px;
-                    color: #666;
-                }
-                @media print {
-                    body { margin: 0; }
-                    .summary-card { break-inside: avoid; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>ServeNow - Order Reports</h1>
-                <p>Report Period: ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}</p>
-                <p>Generated on: ${new Date().toLocaleString()}</p>
-            </div>
-
-            <div class="summary">
-                <div class="summary-card">
-                    <h3>${totalRevenue}</h3>
-                    <p>Total Revenue</p>
-                </div>
-                <div class="summary-card">
-                    <h3>${totalOrders}</h3>
-                    <p>Total Orders</p>
-                </div>
-                <div class="summary-card">
-                    <h3>${avgOrderValue}</h3>
-                    <p>Average Order Value</p>
-                </div>
-                <div class="summary-card">
-                    <h3>${completedOrders}</h3>
-                    <p>Completed Orders</p>
-                </div>
-            </div>
-
-            <h2 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">Daily Report Summary</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Total Orders</th>
-                        <th>Total Revenue</th>
-                        <th>Average Order Value</th>
-                        <th>Most Popular Store</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${Array.from(tableRows).map(row => row.outerHTML).join('')}
-                </tbody>
-            </table>
-
-            <div class="footer">
-                <p>This report was generated by ServeNow Admin Panel</p>
-            </div>
-        </body>
-        </html>
-    `;
-
-    // Open print dialog
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-
-    // Wait for content to load then print
-    printWindow.onload = function() {
-        printWindow.print();
-        printWindow.close();
-    };
 }
 
 function switchTab(tabName) {
@@ -1424,62 +1264,19 @@ function generateOrderReport() {
 }
 
 function loadOrderReports(startDate, endDate) {
-    console.log('Generating report for date range:', startDate, 'to', endDate);
-
     // For now, we'll use the existing orders endpoint and filter client-side
     // In a production app, you'd want a dedicated reports endpoint
     fetch(`${API_BASE}/api/orders`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
-        console.log('API Response:', data);
-
-        if (data.success && Array.isArray(data.orders)) {
-            console.log(`Found ${data.orders.length} total orders in database`);
-
+        if (data.success) {
             // Filter orders by date range
             const filteredOrders = data.orders.filter(order => {
-                try {
-                    // Handle different date formats that might come from database
-                    let orderDate;
-
-                    if (order.created_at) {
-                        // If it's already a valid date string or timestamp
-                        orderDate = new Date(order.created_at);
-
-                        // Check if the date is valid
-                        if (isNaN(orderDate.getTime())) {
-                            console.warn('Invalid date for order:', order.id, order.created_at);
-                            return false;
-                        }
-
-                        const dateStr = orderDate.toISOString().split('T')[0];
-                        const inRange = dateStr >= startDate && dateStr <= endDate;
-
-                        console.log(`Order ${order.id}: ${dateStr} in range [${startDate}, ${endDate}] = ${inRange}`);
-                        return inRange;
-                    } else {
-                        console.warn('Order missing created_at:', order.id);
-                        return false;
-                    }
-                } catch (error) {
-                    console.error('Error processing order date:', order.id, error);
-                    return false;
-                }
+                const orderDate = new Date(order.created_at).toISOString().split('T')[0];
+                return orderDate >= startDate && orderDate <= endDate;
             });
-
-            console.log(`Filtered to ${filteredOrders.length} orders in date range`);
-
-            if (filteredOrders.length === 0) {
-                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). Try expanding your date range or check if orders exist in the database.`);
-                return;
-            }
 
             // Calculate report statistics
             const reportData = calculateReportStats(filteredOrders);
@@ -1488,23 +1285,17 @@ function loadOrderReports(startDate, endDate) {
             displayOrderReport(reportData, filteredOrders);
 
             // Create charts
-            try {
-                createStatusChart(reportData.statusCounts);
-                createRevenueChart(filteredOrders);
-            } catch (chartError) {
-                console.error('Chart creation error:', chartError);
-                showWarning('Charts Unavailable', 'Report data generated successfully, but charts could not be displayed.');
-            }
+            createStatusChart(reportData.statusCounts);
+            createRevenueChart(filteredOrders);
 
-            showSuccess('Report Generated', `Successfully generated report with ${filteredOrders.length} orders.`);
+            showSuccess('Report Generated', `Found ${filteredOrders.length} orders in the selected date range.`);
         } else {
-            console.error('Invalid API response:', data);
-            showError('Data Error', 'Received invalid data from server. Please check the console for details.');
+            showError('Error', 'Failed to load order data for report');
         }
     })
     .catch(error => {
         console.error('Error loading order reports:', error);
-        showError('Network Error', `Failed to load report data: ${error.message}`);
+        showError('Error', 'Failed to generate report');
     });
 }
 
@@ -1538,9 +1329,6 @@ function displayOrderReport(stats, orders) {
     document.getElementById('totalOrdersCount').textContent = stats.totalOrders;
     document.getElementById('avgOrderValue').textContent = `PKR ${stats.avgOrderValue.toFixed(2)}`;
     document.getElementById('completedOrders').textContent = stats.completedOrders;
-
-    // Show print button after report is generated
-    document.getElementById('printReportBtn').style.display = 'inline-block';
 
     // Group orders by date for detailed table
     const ordersByDate = {};

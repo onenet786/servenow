@@ -82,7 +82,7 @@ function addToCart(productId, productName, price) {
     }
     localStorage.setItem('serveNowCart', JSON.stringify(cart));
     updateCartCount();
-    showSuccess('Added to Cart', 'Item added to cart successfully!');
+    alert('Item added to cart!');
 }
 
 function removeFromCart(productId) {
@@ -126,7 +126,7 @@ function displayCart() {
 // Location-based functionality
 function getUserLocation() {
     if (!navigator.geolocation) {
-        showInfo('Geolocation Unavailable', 'Geolocation is not supported by this browser.');
+        alert("Geolocation is not supported by this browser.");
         return;
     }
 
@@ -192,7 +192,7 @@ function showError(error) {
             errorMessage += "An unknown error occurred.";
             break;
     }
-    showError('Error', errorMessage);
+    alert(errorMessage);
 }
 
 async function displayNearbyStores() {
@@ -289,7 +289,7 @@ async function handleLogin(e) {
             localStorage.setItem('serveNowToken', data.token);
             localStorage.setItem('serveNowUser', JSON.stringify(data.user));
             currentUser = data.user;
-            showSuccess('Login Successful', 'Logged in successfully!');
+            alert('Login successful!');
 
             // Redirect based on user type
             if (data.user.user_type === 'admin') {
@@ -300,11 +300,11 @@ async function handleLogin(e) {
                 window.location.href = 'index.html';
             }
         } else {
-            showError('Login Failed', data.message || 'Login failed. Please try again.');
+            alert(data.message || 'Login failed');
         }
     } catch (error) {
         console.error('Login error:', error);
-        showError('Error', 'Login failed. Please try again.');
+        alert('Login failed. Please try again.');
     }
 }
 
@@ -324,7 +324,7 @@ async function handleRegister(e) {
 
     // Validate password confirmation
     if (registerData.password !== formData.get('confirmPassword')) {
-        showWarning('Invalid Password', 'Passwords do not match');
+        alert('Passwords do not match');
         return;
     }
 
@@ -343,7 +343,7 @@ async function handleRegister(e) {
             localStorage.setItem('serveNowToken', data.token);
             localStorage.setItem('serveNowUser', JSON.stringify(data.user));
             currentUser = data.user;
-            showSuccess('Registration Successful', 'Registration successful!');
+            alert('Registration successful!');
 
             // Redirect based on user type
             if (data.user.user_type === 'admin') {
@@ -352,11 +352,11 @@ async function handleRegister(e) {
                 window.location.href = 'index.html';
             }
         } else {
-            showError('Registration Failed', data.message || 'Registration failed. Please try again.');
+            alert(data.message || 'Registration failed');
         }
     } catch (error) {
         console.error('Registration error:', error);
-        showError('Error', 'Registration failed. Please try again.');
+        alert('Registration failed. Please try again.');
     }
 }
 
@@ -484,7 +484,7 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', function(e) {
             if (!validateForm(form.id)) {
                 e.preventDefault();
-                showWarning('Incomplete Form', 'Please fill in all required fields.');
+                alert('Please fill in all required fields.');
             }
         });
     });
