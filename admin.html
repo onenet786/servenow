@@ -6,7 +6,7 @@
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="style/main.css">
     <link rel="stylesheet" href="css/admin.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
 
 </head>
 <body>
@@ -440,6 +440,13 @@
                                 <div class="filter-group">
                                     <label for="reportEndDate">End Date:</label>
                                     <input type="date" id="reportEndDate">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="reportRiderFilter">Filter by Rider:</label>
+                                    <select id="reportRiderFilter">
+                                        <option value="">All Riders</option>
+                                        <!-- Riders will be loaded dynamically -->
+                                    </select>
                                 </div>
                                 <button class="btn btn-secondary" id="generateReportBtn">Generate Report</button>
                                 <button class="btn btn-primary" id="printReportBtn" style="display: none;">Print Report</button>
