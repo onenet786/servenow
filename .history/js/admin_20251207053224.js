@@ -1533,6 +1533,15 @@ function loadOrderReports(startDate, endDate) {
             // Update UI with report data
             displayOrderReport(reportData, filteredOrders);
 
+            // Create charts
+            try {
+                createStatusChart(reportData.statusCounts);
+                createRevenueChart(filteredOrders);
+            } catch (chartError) {
+                console.error('Chart creation error:', chartError);
+                showWarning('Charts Unavailable', 'Report data generated successfully, but charts could not be displayed.');
+            }
+
             showSuccess('Report Generated', `Successfully generated report with ${filteredOrders.length} orders.`);
         } else {
             console.error('Invalid API response:', data);

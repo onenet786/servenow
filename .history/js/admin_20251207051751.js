@@ -183,34 +183,6 @@ function initializeAdmin() {
     if (document.getElementById('reportRiderFilter')) {
         loadReportRiders();
     }
-}
-
-// Load riders for report filter
-function loadReportRiders() {
-    fetch(`${API_BASE}/api/riders`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.riders) {
-            const riderFilter = document.getElementById('reportRiderFilter');
-            riderFilter.innerHTML = '<option value="">All Riders</option>';
-
-            data.riders.forEach(rider => {
-                const option = document.createElement('option');
-                option.value = rider.id;
-                option.textContent = `${rider.first_name} ${rider.last_name}`;
-                riderFilter.appendChild(option);
-            });
-            console.log('Loaded riders for filter:', data.riders.length);
-        } else {
-            console.error('Failed to load riders:', data);
-        }
-    })
-    .catch(error => {
-        console.error('Error loading riders for reports:', error);
-        showError('Error', 'Failed to load rider list for filtering');
-    });
 
     // Close modal when clicking outside of it
     document.addEventListener('click', function(e) {
@@ -1459,9 +1431,6 @@ function generateOrderReport() {
 function loadOrderReports(startDate, endDate) {
     console.log('Generating report for date range:', startDate, 'to', endDate);
 
-    // Get rider filter value from DOM
-    const riderFilter = document.getElementById('reportRiderFilter').value;
-
     // For now, we'll use the existing orders endpoint and filter client-side
     // In a production app, you'd want a dedicated reports endpoint
     fetch(`${API_BASE}/api/orders`, {
@@ -1479,7 +1448,7 @@ function loadOrderReports(startDate, endDate) {
         if (data.success && Array.isArray(data.orders)) {
             console.log(`Found ${data.orders.length} total orders in database`);
 
-            // Filter orders by date range and rider
+            // Filter orders by date range
             const filteredOrders = data.orders.filter(order => {
                 try {
                     // Handle different date formats that might come from database
@@ -1496,20 +1465,10 @@ function loadOrderReports(startDate, endDate) {
                         }
 
                         const dateStr = orderDate.toISOString().split('T')[0];
-                        const inDateRange = dateStr >= startDate && dateStr <= endDate;
+                        const inRange = dateStr >= startDate && dateStr <= endDate;
 
-                        // Filter by rider if selected
-                        let matchesRider = true;
-                        if (riderFilter) {
-                            // Compare rider IDs as strings to handle type mismatches
-                            matchesRider = String(order.rider_id) === String(riderFilter);
-                            console.log(`Order ${order.id} rider check: order.rider_id=${order.rider_id} (${typeof order.rider_id}) vs filter=${riderFilter} (${typeof riderFilter}) = ${matchesRider}`);
-                        }
-
-                        const matches = inDateRange && matchesRider;
-
-                        console.log(`Order ${order.id}: ${dateStr} in range [${startDate}, ${endDate}] = ${inDateRange}, rider match = ${matchesRider}, final = ${matches}`);
-                        return matches;
+                        console.log(`Order ${order.id}: ${dateStr} in range [${startDate}, ${endDate}] = ${inRange}`);
+                        return inRange;
                     } else {
                         console.warn('Order missing created_at:', order.id);
                         return false;
@@ -1523,7 +1482,7 @@ function loadOrderReports(startDate, endDate) {
             console.log(`Filtered to ${filteredOrders.length} orders in date range`);
 
             if (filteredOrders.length === 0) {
-                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). ${riderFilter ? 'For the selected rider. ' : ''}Try expanding your date range or selecting a broader period. You can also try selecting "All Riders" if filtering by rider.`);
+                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). Try expanding your date range or check if orders exist in the database.`);
                 return;
             }
 
@@ -1532,6 +1491,15 @@ function loadOrderReports(startDate, endDate) {
 
             // Update UI with report data
             displayOrderReport(reportData, filteredOrders);
+
+            // Create charts
+            try {
+                createStatusChart(reportData.statusCounts);
+                createRevenueChart(filteredOrders);
+            } catch (chartError) {
+                console.error('Chart creation error:', chartError);
+                showWarning('Charts Unavailable', 'Report data generated successfully, but charts could not be displayed.');
+            }
 
             showSuccess('Report Generated', `Successfully generated report with ${filteredOrders.length} orders.`);
         } else {

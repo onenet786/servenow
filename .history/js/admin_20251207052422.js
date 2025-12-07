@@ -1459,9 +1459,6 @@ function generateOrderReport() {
 function loadOrderReports(startDate, endDate) {
     console.log('Generating report for date range:', startDate, 'to', endDate);
 
-    // Get rider filter value from DOM
-    const riderFilter = document.getElementById('reportRiderFilter').value;
-
     // For now, we'll use the existing orders endpoint and filter client-side
     // In a production app, you'd want a dedicated reports endpoint
     fetch(`${API_BASE}/api/orders`, {
@@ -1523,7 +1520,7 @@ function loadOrderReports(startDate, endDate) {
             console.log(`Filtered to ${filteredOrders.length} orders in date range`);
 
             if (filteredOrders.length === 0) {
-                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). ${riderFilter ? 'For the selected rider. ' : ''}Try expanding your date range or selecting a broader period. You can also try selecting "All Riders" if filtering by rider.`);
+                showWarning('No Orders Found', `No orders found in the selected date range (${startDate} to ${endDate}). Try expanding your date range or check if orders exist in the database.`);
                 return;
             }
 
@@ -1532,6 +1529,15 @@ function loadOrderReports(startDate, endDate) {
 
             // Update UI with report data
             displayOrderReport(reportData, filteredOrders);
+
+            // Create charts
+            try {
+                createStatusChart(reportData.statusCounts);
+                createRevenueChart(filteredOrders);
+            } catch (chartError) {
+                console.error('Chart creation error:', chartError);
+                showWarning('Charts Unavailable', 'Report data generated successfully, but charts could not be displayed.');
+            }
 
             showSuccess('Report Generated', `Successfully generated report with ${filteredOrders.length} orders.`);
         } else {
