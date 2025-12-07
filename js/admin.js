@@ -3,6 +3,21 @@ const API_BASE = '';
 let currentUser = null;
 let authToken = null;
 let currentOrders = [];
+let currentProducts = [];
+let currentUsers = [];
+let currentStores = [];
+let currentCategories = [];
+let currentRiders = [];
+
+// Sorting state for each table
+let sortState = {
+    products: { column: 'id', direction: 'asc' },
+    users: { column: 'id', direction: 'asc' },
+    stores: { column: 'id', direction: 'asc' },
+    categories: { column: 'id', direction: 'asc' },
+    riders: { column: 'id', direction: 'asc' },
+    orders: { column: 'order_number', direction: 'asc' }
+};
 
 // ===== MODERN TOAST NOTIFICATION SYSTEM =====
 function showToast(title, message, type = 'info', duration = 3000) {
@@ -419,7 +434,7 @@ function loadDashboardStats() {
     Promise.all([
         fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
         fetch(`${API_BASE}/api/stores`),
-        fetch(`${API_BASE}/api/products`),
+        fetch(`${API_BASE}/api/products?admin=true`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
         fetch(`${API_BASE}/api/orders`, { headers: { 'Authorization': `Bearer ${authToken}` } })
     ])
     .then(responses => Promise.all(responses.map(r => r.json())))
@@ -432,33 +447,15 @@ function loadDashboardStats() {
     .catch(error => console.error('Error loading dashboard stats:', error));
 }
 
-// Users Management
 function loadUsers() {
     fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
     .then(data => {
-        const tbody = document.getElementById('usersTableBody');
-        tbody.innerHTML = '';
-
-        data.users.forEach(user => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${user.id}</td>
-                <td>${user.first_name} ${user.last_name}</td>
-                <td>${user.email}</td>
-                <td>${user.user_type}</td>
-                <td><span class="status-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
-                <td>
-                    <button class="btn btn-small btn-edit" onclick="editUser(${user.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
-                        ${user.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
+        currentUsers = data.users || [];
+        displayUsers(currentUsers);
+        initializeTableSorting('users');
     })
     .catch(error => console.error('Error loading users:', error));
 }
@@ -530,32 +527,13 @@ function toggleUserStatus(userId, currentStatus) {
     .catch(error => console.error('Error updating user:', error));
 }
 
-// Stores Management
 function loadStores() {
     fetch(`${API_BASE}/api/stores`)
     .then(response => response.json())
     .then(data => {
-        const tbody = document.getElementById('storesTableBody');
-        tbody.innerHTML = '';
-
-        data.stores.forEach(store => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${store.id}</td>
-                <td>${store.name}</td>
-                <td>${store.location}</td>
-                <td>${store.owner_name || 'Admin'}</td>
-                <td>${store.rating} ⭐</td>
-                <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
-                <td>
-                    <button class="btn btn-small btn-edit" onclick="editStore(${store.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
-                        ${store.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
+        currentStores = data.stores || [];
+        displayStores(currentStores);
+        initializeTableSorting('stores');
     })
     .catch(error => console.error('Error loading stores:', error));
 }
@@ -586,33 +564,55 @@ function toggleStoreStatus(storeId, currentStatus) {
 
 // Products Management
 function loadProducts() {
-    fetch(`${API_BASE}/api/products`)
+    fetch(`${API_BASE}/api/products?admin=true`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
     .then(response => response.json())
     .then(data => {
-        const tbody = document.getElementById('productsTableBody');
-        tbody.innerHTML = '';
-
-        data.products.forEach(product => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${product.id}</td>
-                <td>${product.name}</td>
-                <td>PKR ${product.price}</td>
-                <td>${product.category_name}</td>
-                <td>${product.store_name}</td>
-                <td>${product.stock_quantity}</td>
-                <td><span class="status-${product.is_available ? 'active' : 'inactive'}">${product.is_available ? 'Available' : 'Unavailable'}</span></td>
-                <td>
-                    <button class="btn btn-small btn-edit" onclick="editProduct(${product.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="toggleProductStatus(${product.id}, ${product.is_available})">
-                        ${product.is_available ? 'Deactivate' : 'Activate'}
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
+        console.log('Products API response:', data);
+        currentProducts = data.products || [];
+        console.log('Current products array:', currentProducts);
+        displayProducts(currentProducts);
+        initializeTableSorting('products');
     })
     .catch(error => console.error('Error loading products:', error));
+}
+
+function displayProducts(products) {
+    const tbody = document.getElementById('productsTableBody');
+    tbody.innerHTML = '';
+
+    products.forEach(product => {
+        const productId = product.id || '';
+        const productName = product.name || '';
+        const productPrice = product.price || 0;
+        const categoryName = product.category_name || 'N/A';
+        const storeName = product.store_name || '';
+        const stockQuantity = product.stock_quantity || 0;
+        const isAvailable = product.is_available;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${productId}</td>
+            <td>${productName}</td>
+            <td>PKR ${productPrice}</td>
+            <td>${categoryName}</td>
+            <td>${storeName}</td>
+            <td>${stockQuantity}</td>
+            <td><span class="status-${isAvailable ? 'active' : 'inactive'}">${isAvailable ? 'Available' : 'Unavailable'}</span></td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-small btn-edit" onclick="editProduct(${productId})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-small btn-secondary" onclick="toggleProductStatus(${productId}, ${isAvailable})">
+                        <i class="fas fa-${isAvailable ? 'ban' : 'check'}"></i> ${isAvailable ? 'Deactivate' : 'Activate'}
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
 }
 
 function editProduct(productId) {
@@ -1159,6 +1159,45 @@ async function showAddProductModal() {
         }
 
         showModal('addProductModal');
+        // Setup image URL/file preview and paste helper (replace handlers to avoid duplicates)
+        const pasteBtn = document.getElementById('pasteImageUrlBtn');
+        const urlInput = document.getElementById('productImage');
+        const fileInput = document.getElementById('productImageFile');
+        const preview = document.getElementById('productImagePreview');
+
+        if (pasteBtn) {
+            pasteBtn.onclick = () => {
+                const url = prompt('Paste image URL (http(s)://)');
+                if (url) {
+                    if (urlInput) urlInput.value = url;
+                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
+                }
+            };
+        }
+
+        if (urlInput) {
+            urlInput.oninput = () => {
+                if (urlInput.value) {
+                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
+                } else if (preview) {
+                    preview.style.display = 'none';
+                }
+            };
+        }
+
+        if (fileInput) {
+            fileInput.onchange = (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (file && preview) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        preview.src = ev.target.result;
+                        preview.style.display = 'inline-block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        }
     } catch (error) {
         console.error('Error loading dropdown data:', error);
         showError('Error', 'Failed to load form data');
@@ -1725,5 +1764,301 @@ function createRevenueChart(orders) {
                 }
             }
         }
+    });
+}
+
+// ===== TABLE SORTING FUNCTIONALITY =====
+
+// Initialize table sorting for a specific table
+function initializeTableSorting(tableType) {
+    const table = document.getElementById(`${tableType}Table`);
+    if (!table) return;
+
+    const headers = table.querySelectorAll('th');
+    headers.forEach((header, index) => {
+        const column = getColumnName(tableType, index);
+        if (column !== null) {
+            // Only make sortable columns clickable
+            header.style.cursor = 'pointer';
+            header.addEventListener('click', () => sortTable(tableType, column));
+        } else {
+            // Actions column - not sortable
+            header.style.cursor = 'default';
+        }
+        updateSortIndicator(header, column, tableType);
+    });
+}
+
+// Get column name based on table type and column index
+function getColumnName(tableType, columnIndex) {
+    const columnMappings = {
+        products: ['id', 'name', 'price', 'category_name', 'store_name', 'stock_quantity', 'is_available', 'actions'],
+        users: ['id', 'first_name', 'email', 'user_type', 'is_active', 'actions'],
+        stores: ['id', 'name', 'location', 'owner_name', 'rating', 'is_active', 'actions'],
+        categories: ['id', 'name', 'description', 'is_active', 'actions'],
+        riders: ['id', 'first_name', 'email', 'phone', 'vehicle_type', 'license_number', 'is_available', 'is_active', 'actions'],
+        orders: ['order_number', 'first_name', 'store_name', 'total_amount', 'status', 'rider_first_name', 'rider_location', 'created_at', 'actions']
+    };
+
+    const column = columnMappings[tableType]?.[columnIndex];
+    // Return null for actions column since it can't be sorted
+    return column === 'actions' ? null : column || 'id';
+}
+
+// Sort table by column
+function sortTable(tableType, column) {
+    // Toggle sort direction
+    if (sortState[tableType].column === column) {
+        sortState[tableType].direction = sortState[tableType].direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortState[tableType].column = column;
+        sortState[tableType].direction = 'asc';
+    }
+
+    // Get the data array for this table
+    let data = [];
+    switch(tableType) {
+        case 'products':
+            data = currentProducts;
+            break;
+        case 'users':
+            data = currentUsers;
+            break;
+        case 'stores':
+            data = currentStores;
+            break;
+        case 'categories':
+            data = currentCategories;
+            break;
+        case 'riders':
+            data = currentRiders;
+            break;
+        case 'orders':
+            data = currentOrders;
+            break;
+    }
+
+    // Sort the data
+    data.sort((a, b) => {
+        let aVal = getNestedValue(a, column);
+        let bVal = getNestedValue(b, column);
+
+        // Handle different data types
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+            aVal = aVal.toLowerCase();
+            bVal = bVal.toLowerCase();
+        } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+            // Numbers are fine as is
+        } else if (aVal instanceof Date && bVal instanceof Date) {
+            // Dates are fine as is
+        } else {
+            // Convert to strings for comparison
+            aVal = String(aVal || '').toLowerCase();
+            bVal = String(bVal || '').toLowerCase();
+        }
+
+        if (aVal < bVal) return sortState[tableType].direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortState[tableType].direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    // Update the display
+    switch(tableType) {
+        case 'products':
+            displayProducts(data);
+            break;
+        case 'users':
+            displayUsers(data);
+            break;
+        case 'stores':
+            displayStores(data);
+            break;
+        case 'categories':
+            displayCategories(data);
+            break;
+        case 'riders':
+            displayRiders(data);
+            break;
+        case 'orders':
+            displayOrders(data);
+            break;
+    }
+
+    // Update sort indicators
+    updateAllSortIndicators(tableType);
+}
+
+// Get nested object value by dot notation
+function getNestedValue(obj, path) {
+    return path.split('.').reduce((current, key) => current?.[key], obj);
+}
+
+// Update sort indicators for all headers in a table
+function updateAllSortIndicators(tableType) {
+    const table = document.getElementById(`${tableType}Table`);
+    if (!table) return;
+
+    const headers = table.querySelectorAll('th');
+    headers.forEach((header, index) => {
+        const column = getColumnName(tableType, index);
+        updateSortIndicator(header, column, tableType);
+    });
+}
+
+// Update sort indicator for a specific header
+function updateSortIndicator(header, column, tableType) {
+    // Remove existing sort indicators
+    header.classList.remove('sort-asc', 'sort-desc', 'sortable');
+
+    // Add sortable class
+    header.classList.add('sortable');
+
+    // Add sort direction class if this column is currently sorted
+    if (sortState[tableType].column === column) {
+        header.classList.add(sortState[tableType].direction === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+}
+
+// Update other load functions to store data and initialize sorting
+function loadUsers() {
+    fetch(`${API_BASE}/api/users`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(response => response.json())
+    .then(data => {
+        currentUsers = data.users || [];
+        displayUsers(currentUsers);
+        initializeTableSorting('users');
+    })
+    .catch(error => console.error('Error loading users:', error));
+}
+
+function displayUsers(users) {
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = '';
+
+    users.forEach(user => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${user.id}</td>
+            <td>${user.first_name} ${user.last_name}</td>
+            <td>${user.email}</td>
+            <td>${user.user_type}</td>
+            <td><span class="status-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+                <button class="btn btn-small btn-edit" onclick="editUser(${user.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
+                    ${user.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function loadStores() {
+    fetch(`${API_BASE}/api/stores`)
+    .then(response => response.json())
+    .then(data => {
+        currentStores = data.stores || [];
+        displayStores(currentStores);
+        initializeTableSorting('stores');
+    })
+    .catch(error => console.error('Error loading stores:', error));
+}
+
+function displayStores(stores) {
+    const tbody = document.getElementById('storesTableBody');
+    tbody.innerHTML = '';
+
+    stores.forEach(store => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${store.id}</td>
+            <td>${store.name}</td>
+            <td>${store.location}</td>
+            <td>${store.owner_name || 'Admin'}</td>
+            <td>${store.rating} ⭐</td>
+            <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+                <button class="btn btn-small btn-edit" onclick="editStore(${store.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
+                    ${store.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function loadCategories() {
+    fetch(`${API_BASE}/api/categories`)
+    .then(response => response.json())
+    .then(data => {
+        currentCategories = data.categories || [];
+        displayCategories(currentCategories);
+        initializeTableSorting('categories');
+    })
+    .catch(error => console.error('Error loading categories:', error));
+}
+
+function displayCategories(categories) {
+    const tbody = document.getElementById('categoriesTableBody');
+    tbody.innerHTML = '';
+
+    categories.forEach(category => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${category.id}</td>
+            <td>${category.name}</td>
+            <td>${category.description || ''}</td>
+            <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+                <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
+                    ${category.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function loadRiders() {
+    fetch(`${API_BASE}/api/riders`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(response => response.json())
+    .then(data => {
+        currentRiders = data.riders || [];
+        displayRiders(currentRiders);
+        initializeTableSorting('riders');
+    })
+    .catch(error => console.error('Error loading riders:', error));
+}
+
+function displayRiders(riders) {
+    const tbody = document.getElementById('ridersTableBody');
+    tbody.innerHTML = '';
+
+    riders.forEach(rider => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${rider.id}</td>
+            <td>${rider.first_name} ${rider.last_name}</td>
+            <td>${rider.email}</td>
+            <td>${rider.phone}</td>
+            <td>${rider.vehicle_type}</td>
+            <td>${rider.license_number}</td>
+            <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
+            <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+                <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
+                    ${rider.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
     });
 }
