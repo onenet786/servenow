@@ -144,7 +144,6 @@ router.post('/', authenticateToken, requireStoreOwner, [
             phone,
             email,
             address
-            , opening_time, closing_time
         } = req.body;
 
         // If user is store owner, they can only create stores for themselves
@@ -152,9 +151,9 @@ router.post('/', authenticateToken, requireStoreOwner, [
         const ownerId = req.user.user_type === 'admin' ? req.body.owner_id || req.user.id : req.user.id;
 
         const [result] = await req.db.execute(
-            `INSERT INTO stores (name, description, location, latitude, longitude, delivery_time, opening_time, closing_time, phone, email, address, owner_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name, description || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, phone || null, email || null, address || null, ownerId]
+            `INSERT INTO stores (name, description, location, latitude, longitude, delivery_time, phone, email, address, owner_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [name, description || null, location, latitude || null, longitude || null, delivery_time || null, phone || null, email || null, address || null, ownerId]
         );
 
         res.status(201).json({
@@ -230,9 +229,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             phone,
             email,
             address,
-            is_active,
-            opening_time,
-            closing_time
+            is_active
         } = req.body;
 
         const updateData = {};
@@ -245,8 +242,6 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (latitude !== undefined) { updateFields.push('latitude = ?'); updateValues.push(latitude); }
         if (longitude !== undefined) { updateFields.push('longitude = ?'); updateValues.push(longitude); }
         if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateValues.push(delivery_time); }
-        if (opening_time !== undefined) { updateFields.push('opening_time = ?'); updateValues.push(opening_time); }
-        if (closing_time !== undefined) { updateFields.push('closing_time = ?'); updateValues.push(closing_time); }
         if (phone !== undefined) { updateFields.push('phone = ?'); updateValues.push(phone); }
         if (email !== undefined) { updateFields.push('email = ?'); updateValues.push(email); }
         if (address !== undefined) { updateFields.push('address = ?'); updateValues.push(address); }

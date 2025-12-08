@@ -198,12 +198,6 @@ function initializeAdmin() {
     document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
 
-    // Database backup buttons
-    const createBackupBtn = document.getElementById('createBackupBtn');
-    if (createBackupBtn) createBackupBtn.addEventListener('click', createBackup);
-    const refreshBackupsBtn = document.getElementById('refreshBackupsBtn');
-    if (refreshBackupsBtn) refreshBackupsBtn.addEventListener('click', loadBackups);
-
     // Add filter event listeners
     const filterDate = document.getElementById('filterDate');
     const filterRider = document.getElementById('filterRider');
@@ -531,10 +525,6 @@ function switchTab(tabName) {
         case 'order-reports':
             // Reports tab doesn't need initial loading, user will generate reports manually
             break;
-        case 'db-backup':
-            // Load list of available backups when backup tab is opened
-            loadBackups();
-            break;
     }
 }
 
@@ -572,110 +562,6 @@ function openRiderSubtab(subtab) {
         loadRiders();
     }
 }
-
-// ---------------- Database backup client functions ----------------
-function humanFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const thresh = 1024;
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let u = 0;
-    let n = bytes;
-    while (n >= thresh && u < units.length - 1) {
-        n /= thresh;
-        u++;
-    }
-    return `${n.toFixed(2)} ${units[u]}`;
-}
-
-async function createBackup() {
-    showInfo('Backup', 'Creating database backup...');
-    try {
-        const resp = await fetch(`${API_BASE}/api/admin/backup-db`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const data = await resp.json();
-        if (data.success) {
-            showSuccess('Backup Created', data.filename || 'Backup created');
-            document.getElementById('backupStatus').textContent = `Last: ${data.filename}`;
-            await loadBackups();
-        } else {
-            showError('Backup Failed', data.message || 'Unknown error');
-        }
-    } catch (err) {
-        console.error('createBackup error:', err);
-        showError('Backup Error', err.message || err);
-    }
-}
-
-async function loadBackups() {
-    const statusEl = document.getElementById('backupStatus');
-    if (statusEl) statusEl.textContent = 'Loading...';
-    try {
-        const resp = await fetch(`${API_BASE}/api/admin/backup-db/list`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const data = await resp.json();
-        if (!data.success) {
-            showError('Load Backups', data.message || 'Failed to list backups');
-            if (statusEl) statusEl.textContent = '';
-            return;
-        }
-        const body = document.getElementById('backupsTableBody');
-        body.innerHTML = '';
-        data.backups.forEach(b => {
-            const tr = document.createElement('tr');
-            const mtime = new Date(b.mtime).toLocaleString();
-            tr.innerHTML = `
-                <td>${b.filename}</td>
-                <td>${humanFileSize(b.size)}</td>
-                <td>${mtime}</td>
-                <td>
-                    <button class="btn btn-small" onclick="downloadBackup('${encodeURIComponent(b.filename)}')">Download</button>
-                </td>
-            `;
-            body.appendChild(tr);
-        });
-        if (statusEl) statusEl.textContent = `Found ${data.backups.length} backup(s)`;
-    } catch (err) {
-        console.error('loadBackups error:', err);
-        showError('Load Backups', err.message || err);
-        const statusEl2 = document.getElementById('backupStatus');
-        if (statusEl2) statusEl2.textContent = '';
-    }
-}
-
-async function downloadBackup(encodedFilename) {
-    const filename = decodeURIComponent(encodedFilename);
-    showInfo('Download', `Preparing download for ${filename}...`);
-    try {
-        const resp = await fetch(`${API_BASE}/api/admin/backup-db/download?file=${encodeURIComponent(filename)}`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        if (!resp.ok) {
-            const text = await resp.text();
-            showError('Download Failed', `Server responded: ${resp.status}`);
-            console.error('Download error:', resp.status, text);
-            return;
-        }
-
-        const blob = await resp.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
-        showSuccess('Download Started', filename);
-    } catch (err) {
-        console.error('downloadBackup error:', err);
-        showError('Download Error', err.message || err);
-    }
-}
-
 
 function loadDashboardStats() {
     // Load stats for dashboard

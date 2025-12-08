@@ -230,9 +230,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             phone,
             email,
             address,
-            is_active,
-            opening_time,
-            closing_time
+            is_active
         } = req.body;
 
         const updateData = {};
@@ -245,8 +243,6 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (latitude !== undefined) { updateFields.push('latitude = ?'); updateValues.push(latitude); }
         if (longitude !== undefined) { updateFields.push('longitude = ?'); updateValues.push(longitude); }
         if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateValues.push(delivery_time); }
-        if (opening_time !== undefined) { updateFields.push('opening_time = ?'); updateValues.push(opening_time); }
-        if (closing_time !== undefined) { updateFields.push('closing_time = ?'); updateValues.push(closing_time); }
         if (phone !== undefined) { updateFields.push('phone = ?'); updateValues.push(phone); }
         if (email !== undefined) { updateFields.push('email = ?'); updateValues.push(email); }
         if (address !== undefined) { updateFields.push('address = ?'); updateValues.push(address); }

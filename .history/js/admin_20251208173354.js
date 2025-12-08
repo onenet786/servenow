@@ -645,35 +645,10 @@ async function loadBackups() {
     }
 }
 
-async function downloadBackup(encodedFilename) {
+function downloadBackup(encodedFilename) {
     const filename = decodeURIComponent(encodedFilename);
-    showInfo('Download', `Preparing download for ${filename}...`);
-    try {
-        const resp = await fetch(`${API_BASE}/api/admin/backup-db/download?file=${encodeURIComponent(filename)}`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        if (!resp.ok) {
-            const text = await resp.text();
-            showError('Download Failed', `Server responded: ${resp.status}`);
-            console.error('Download error:', resp.status, text);
-            return;
-        }
-
-        const blob = await resp.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
-        showSuccess('Download Started', filename);
-    } catch (err) {
-        console.error('downloadBackup error:', err);
-        showError('Download Error', err.message || err);
-    }
+    // Trigger browser download
+    window.location.href = `${API_BASE}/api/admin/backup-db/download?file=${encodeURIComponent(filename)}`;
 }
 
 

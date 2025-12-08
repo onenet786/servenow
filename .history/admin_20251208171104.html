@@ -41,7 +41,6 @@
                 </li>
                 <li><a href="#" class="tab-link" data-tab="categories"><i class="fas fa-tags"></i> Categories</a></li>
                 <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
-                <li><a href="#" class="tab-link" data-tab="db-backup"><i class="fas fa-database"></i> Backup</a></li>
                 <li><a href="#" id="logoutBtn">Logout</a></li>
             </ul>
         </nav>
@@ -195,38 +194,6 @@
 
 
         
-                        <!-- Database Backup Tab -->
-
-                        <div id="db-backup" class="tab-content">
-
-                            <h2>Database Backup</h2>
-
-                            <p>Create and download backups of the application database. Backups are stored on the server in <code>database/backups/</code>.</p>
-
-                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
-                                <button class="btn btn-primary" id="createBackupBtn">Create Backup</button>
-                                <button class="btn btn-secondary" id="refreshBackupsBtn">Refresh List</button>
-                                <span id="backupStatus" style="font-size:0.95rem;color:#666;margin-left:0.5rem;"></span>
-                            </div>
-
-                            <div class="table-container">
-                                <table id="backupsTable">
-                                    <thead>
-                                        <tr>
-                                            <th>Filename</th>
-                                            <th>Size</th>
-                                            <th>Modified</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="backupsTableBody">
-                                        <!-- backup files will be listed here -->
-                                    </tbody>
-                                </table>
-                            </div>
-
-                        </div>
-
 
 
                         <!-- Stores Tab -->
