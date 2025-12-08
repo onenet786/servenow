@@ -504,20 +504,10 @@ function switchTab(tabName) {
         case 'riders':
             // loadRiders may be synchronous or return a Promise; normalize to Promise
             Promise.resolve(loadRiders()).then(() => {
-                // If a caller requested to suppress auto-opening (e.g. openRiderSubtab),
-                // skip opening the default subpanel. The flag is cleared here.
-                if (window._skipRiderAutoOpen) {
-                    window._skipRiderAutoOpen = false;
-                    return;
-                }
                 // show the default Riders sub-panel
                 openRiderSubtab('list');
             }).catch(() => {
-                // still attempt to show the list panel unless suppressed
-                if (window._skipRiderAutoOpen) {
-                    window._skipRiderAutoOpen = false;
-                    return;
-                }
+                // still attempt to show the list panel
                 openRiderSubtab('list');
             });
             break;
@@ -530,9 +520,7 @@ function switchTab(tabName) {
 
 // Open a sub-panel inside the Riders tab (either 'list' or 'fuel')
 function openRiderSubtab(subtab) {
-    // Ensure main Riders tab is active. Set a short-lived flag to prevent
-    // switchTab from auto-opening the default subpanel (avoids recursion).
-    window._skipRiderAutoOpen = true;
+    // Ensure main Riders tab is active
     switchTab('riders');
 
     // Hide all rider subpanels
@@ -1632,40 +1620,38 @@ function loadFuelHistory(riderId) {
     const tbody = document.getElementById('fuelHistoryTableBody');
     if (!tbody) return Promise.resolve();
     if (!riderId) {
-        tbody.innerHTML = '<tr><td colspan="10">Select a rider to view fuel history.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8">Select a rider to view fuel history.</td></tr>';
         return Promise.resolve();
     }
 
-    tbody.innerHTML = '<tr><td colspan="10">Loading...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8">Loading...</td></tr>';
 
     return fetch(`${API_BASE}/api/riders/${riderId}/fuel-history`, { headers: { 'Authorization': `Bearer ${authToken}` } })
     .then(r => r.json())
     .then(data => {
         tbody.innerHTML = '';
         if (data.success && Array.isArray(data.records)) {
-                if (data.records.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10">No fuel history records found.</td></tr>';
+            if (data.records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8">No fuel history records found.</td></tr>';
                 return data;
             }
 
             data.records.forEach(rec => {
                 const tr = document.createElement('tr');
-                const date = rec.entry_date ? new Date(rec.entry_date).toLocaleDateString() : '';
+                const date = rec.fuel_date ? new Date(rec.fuel_date).toLocaleDateString() : '';
                 const recorded = rec.created_at ? new Date(rec.created_at).toLocaleString() : '';
-                const start = rec.start_meter || '';
-                const end = rec.end_meter || '';
-                const distance = (rec.distance !== null && rec.distance !== undefined && rec.distance !== '') ? parseFloat(rec.distance).toFixed(2) : '';
+                const meter = rec.meter_reading || '';
                 const pr = (rec.petrol_rate !== null && rec.petrol_rate !== undefined) ? parseFloat(rec.petrol_rate).toFixed(2) : '';
-                const cost = (rec.fuel_cost !== null && rec.fuel_cost !== undefined && rec.fuel_cost !== '') ? parseFloat(rec.fuel_cost).toFixed(2) : '';
+                const pq = (rec.petrol_qty !== null && rec.petrol_qty !== undefined) ? parseFloat(rec.petrol_qty).toFixed(3) : '';
+                const cost = (rec.cost !== null && rec.cost !== undefined && rec.cost !== '') ? parseFloat(rec.cost).toFixed(2) : '';
 
                 tr.innerHTML = `
                     <td>${rec.id}</td>
                     <td>${date}</td>
                     <td>${recorded}</td>
-                    <td>${start}</td>
-                    <td>${end}</td>
-                    <td>${distance}</td>
+                    <td>${meter}</td>
                     <td>${pr}</td>
+                    <td>${pq}</td>
                     <td>${cost}</td>
                     <td>${rec.notes || ''}</td>
                     <td><button class="btn btn-small btn-danger" onclick="deleteFuelEntry(${rec.id}, ${riderId})">Delete</button></td>
@@ -1673,14 +1659,14 @@ function loadFuelHistory(riderId) {
                 tbody.appendChild(tr);
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="10">Failed to load fuel history.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8">Failed to load fuel history.</td></tr>';
             showError('Error', (data && data.message) ? data.message : 'Failed to load fuel history');
         }
         return data;
     })
     .catch(err => {
         console.error('Error loading fuel history:', err);
-        tbody.innerHTML = '<tr><td colspan="10">Error loading fuel history.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8">Error loading fuel history.</td></tr>';
         showError('Error', 'Error loading fuel history');
         return Promise.reject(err);
     });
@@ -1694,26 +1680,19 @@ async function saveFuelEntry() {
     }
     const riderId = sel.value;
     // Coerce numeric fields to numbers (or null) to match server validation
-    const entryDateVal = document.getElementById('entryDate').value || null;
-    const startMeterRaw = document.getElementById('startMeter').value || null;
-    const endMeterRaw = document.getElementById('endMeter').value || null;
-    const distanceRaw = document.getElementById('distance').value || null;
+    const fuelDateVal = document.getElementById('fuelDate').value || null;
+    const meterValRaw = document.getElementById('meterReading').value;
     const petrolRateRaw = document.getElementById('petrolRate').value;
-    const costRaw = document.getElementById('fuelCost') ? document.getElementById('fuelCost').value : null;
-
-    const startMeter = (startMeterRaw !== undefined && startMeterRaw !== null && startMeterRaw !== '') ? String(startMeterRaw) : null;
-    const endMeter = (endMeterRaw !== undefined && endMeterRaw !== null && endMeterRaw !== '') ? String(endMeterRaw) : null;
-    const distance = (distanceRaw !== undefined && distanceRaw !== null && distanceRaw !== '') ? parseFloat(distanceRaw) : null;
+    const petrolQtyRaw = document.getElementById('petrolQty').value;
+    const meterReading = (meterValRaw !== undefined && meterValRaw !== null && meterValRaw !== '') ? Number(meterValRaw) : null;
     const petrolRate = (petrolRateRaw !== undefined && petrolRateRaw !== null && petrolRateRaw !== '') ? parseFloat(petrolRateRaw) : null;
-    const fuelCost = (costRaw !== undefined && costRaw !== null && costRaw !== '') ? parseFloat(costRaw) : null;
+    const petrolQty = (petrolQtyRaw !== undefined && petrolQtyRaw !== null && petrolQtyRaw !== '') ? parseFloat(petrolQtyRaw) : null;
 
     const payload = {
-        entryDate: entryDateVal,
-        startMeter: startMeter,
-        endMeter: endMeter,
-        distance: distance,
+        fuelDate: fuelDateVal,
+        meterReading: meterReading,
         petrolRate: petrolRate,
-        fuelCost: fuelCost,
+        petrolQty: petrolQty,
         notes: document.getElementById('fuelNotes').value || null
     };
 
@@ -1732,12 +1711,10 @@ async function saveFuelEntry() {
         if (data && data.success) {
             showSuccess('Saved', 'Fuel history entry saved');
             // clear form
-            document.getElementById('entryDate').value = '';
-            document.getElementById('startMeter').value = '';
-            document.getElementById('endMeter').value = '';
-            document.getElementById('distance').value = '';
+            document.getElementById('fuelDate').value = '';
+            document.getElementById('meterReading').value = '';
             document.getElementById('petrolRate').value = '';
-            if (document.getElementById('fuelCost')) document.getElementById('fuelCost').value = '';
+            document.getElementById('petrolQty').value = '';
             document.getElementById('fuelNotes').value = '';
             loadFuelHistory(riderId);
         } else {

@@ -302,7 +302,7 @@ router.get('/types/vehicle', authenticateToken, requireAdmin, async (req, res) =
 
 // Riders Fuel History - Admin CRUD
 // Table assumed: `riders_fuel_history` with columns like
-// id, rider_id, entry_date, start_meter, end_meter, distance, petrol_rate, fuel_cost, notes, created_at
+// id, rider_id, fuel_date, meter_reading, petrol_rate, petrol_qty, cost, notes, created_at
 // List all fuel history entries (admin)
 router.get('/fuel-history', authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -319,13 +319,13 @@ router.get('/fuel-history', authenticateToken, requireAdmin, async (req, res) =>
             "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
         );
         const colNamesAll = Array.isArray(colsAll) ? colsAll.map(c => c.COLUMN_NAME) : [];
-        // Return all existing columns from the fuel history table and order by id.
-        // This avoids errors when specific columns are missing in the runtime schema.
+        const orderColAll = colNamesAll.includes('fuel_date') ? 'fh.fuel_date' : (colNamesAll.includes('created_at') ? 'fh.created_at' : 'fh.id');
+
         const [rows] = await req.db.execute(
             `SELECT fh.*, r.first_name, r.last_name
              FROM riders_fuel_history fh
              LEFT JOIN riders r ON r.id = fh.rider_id
-             ORDER BY fh.id DESC`
+             ORDER BY ${orderColAll} DESC, fh.id DESC`
         );
 
         res.json({ success: true, records: rows });
@@ -352,9 +352,10 @@ router.get('/:id/fuel-history', authenticateToken, requireAdmin, async (req, res
             "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
         );
         const colNames = Array.isArray(cols) ? cols.map(c => c.COLUMN_NAME) : [];
-        // Select all available columns for the rider and order by id to avoid relying on specific columns.
+        const orderCol = colNames.includes('fuel_date') ? 'fuel_date' : (colNames.includes('created_at') ? 'created_at' : 'id');
+
         const [rows] = await req.db.execute(
-            `SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY id DESC`,
+            `SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY ${orderCol} DESC, id DESC`,
             [id]
         );
 
@@ -367,12 +368,11 @@ router.get('/:id/fuel-history', authenticateToken, requireAdmin, async (req, res
 
 // Create a fuel history entry for a rider
 router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
-    body('entryDate').optional().isISO8601().withMessage('entryDate must be a valid date'),
-    body('startMeter').optional().trim().isLength({ max: 64 }).withMessage('startMeter must be a short string'),
-    body('endMeter').optional().trim().isLength({ max: 64 }).withMessage('endMeter must be a short string'),
-    body('distance').optional().isNumeric().withMessage('distance must be numeric'),
+    body('fuelDate').optional().isISO8601().withMessage('fuelDate must be a valid date'),
+    body('meterReading').optional().trim().isLength({ max: 64 }).withMessage('meterReading must be a short string'),
     body('petrolRate').optional().isNumeric().withMessage('petrolRate must be numeric'),
-    body('fuelCost').optional().isNumeric().withMessage('fuelCost must be numeric'),
+    body('petrolQty').optional().isNumeric().withMessage('petrolQty must be numeric'),
+    body('cost').optional().isNumeric().withMessage('cost must be numeric'),
     body('notes').optional().trim()
 ], async (req, res) => {
     try {
@@ -381,7 +381,7 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
             return res.status(400).json({ success: false, message: 'Validation errors', errors: errors.array() });
         }
         const { id } = req.params;
-        const { entryDate, startMeter, endMeter, distance, petrolRate, fuelCost: fuelCostProvided, notes } = req.body;
+        const { fuelDate, meterReading, petrolRate, petrolQty, cost: costProvided, notes } = req.body;
 
         // Ensure rider exists
         const [riderRows] = await req.db.execute('SELECT id FROM riders WHERE id = ?', [id]);
@@ -389,17 +389,19 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
             return res.status(404).json({ success: false, message: 'Rider not found' });
         }
 
-        // Coerce numeric fields
+        // Coerce numeric fields and calculate cost safely
         const pr = (petrolRate !== undefined && petrolRate !== null && petrolRate !== '') ? parseFloat(petrolRate) : null;
-        const dist = (distance !== undefined && distance !== null && distance !== '') ? parseFloat(distance) : null;
-        const sm = (startMeter !== undefined && startMeter !== null && startMeter !== '') ? startMeter : null;
-        const em = (endMeter !== undefined && endMeter !== null && endMeter !== '') ? endMeter : null;
+        const pq = (petrolQty !== undefined && petrolQty !== null && petrolQty !== '') ? parseFloat(petrolQty) : null;
+        const mr = (meterReading !== undefined && meterReading !== null && meterReading !== '') ? meterReading : null;
 
-        // Determine fuel_cost: prefer provided fuelCost; otherwise leave NULL
-        let fuel_cost = null;
-        const fcp = (fuelCostProvided !== undefined && fuelCostProvided !== null && fuelCostProvided !== '') ? parseFloat(fuelCostProvided) : null;
-        if (fcp !== null && Number.isFinite(fcp)) {
-            fuel_cost = Math.round(fcp * 100) / 100;
+
+        // Determine cost: if client provided a numeric cost, use it; otherwise compute from rate*qty
+        let cost = null;
+        const cp = (costProvided !== undefined && costProvided !== null && costProvided !== '') ? parseFloat(costProvided) : null;
+        if (cp !== null && Number.isFinite(cp)) {
+            cost = Math.round(cp * 100) / 100;
+        } else if (Number.isFinite(pr) && Number.isFinite(pq)) {
+            cost = Math.round((pr * pq) * 100) / 100; // store as numeric (2 decimals)
         }
 
         // Build an INSERT dynamically using only columns that exist in the actual DB table.
@@ -408,15 +410,14 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
         );
         const existingCols = Array.isArray(columns) ? columns.map(c => c.COLUMN_NAME) : [];
 
-        // Map of desired column -> value (match new schema)
+        // Map of desired column -> value
         const desired = {
             rider_id: id,
-            entry_date: entryDate || null,
-            start_meter: sm,
-            end_meter: em,
-            distance: dist,
+            fuel_date: fuelDate || null,
+            meter_reading: mr,
             petrol_rate: pr,
-            fuel_cost: fuel_cost,
+            petrol_qty: pq,
+            cost: cost,
             notes: notes || null
         };
 
@@ -436,8 +437,6 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
         }
 
         const insertSql = `INSERT INTO riders_fuel_history (${insertCols.join(', ')}) VALUES (${placeholders.join(', ')})`;
-        // Debug: log final SQL and values so we can confirm which columns are being written
-        console.debug('Inserting into riders_fuel_history:', insertSql, values);
         const [result] = await req.db.execute(insertSql, values);
 
         res.status(201).json({ success: true, id: result.insertId, message: 'Fuel history entry created' });
@@ -485,8 +484,8 @@ router.get('/debug/fuel-history/:id', authenticateToken, requireAdmin, async (re
             "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
         );
         const colNamesDbg = Array.isArray(colsDbg) ? colsDbg.map(c => c.COLUMN_NAME) : [];
-        // Fetch a few sample rows using a safe ORDER BY
-        const [sample] = await req.db.execute(`SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY id DESC LIMIT 5`, [id]);
+        const dbgOrderCol = colNamesDbg.includes('fuel_date') ? 'fuel_date' : (colNamesDbg.includes('created_at') ? 'created_at' : 'id');
+        const [sample] = await req.db.execute(`SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY ${dbgOrderCol} DESC, id DESC LIMIT 5`, [id]);
 
         return res.json({ success: true, tableExists: true, totalForRider: total, sampleRows: sample });
     } catch (err) {

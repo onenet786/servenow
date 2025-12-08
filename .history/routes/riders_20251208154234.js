@@ -319,13 +319,13 @@ router.get('/fuel-history', authenticateToken, requireAdmin, async (req, res) =>
             "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
         );
         const colNamesAll = Array.isArray(colsAll) ? colsAll.map(c => c.COLUMN_NAME) : [];
-        // Return all existing columns from the fuel history table and order by id.
-        // This avoids errors when specific columns are missing in the runtime schema.
+        const orderColAll = colNamesAll.includes('entry_date') ? 'fh.entry_date' : (colNamesAll.includes('created_at') ? 'fh.created_at' : 'fh.id');
+
         const [rows] = await req.db.execute(
-            `SELECT fh.*, r.first_name, r.last_name
+            `SELECT fh.id, fh.rider_id, fh.entry_date, fh.start_meter, fh.end_meter, fh.distance, fh.petrol_rate, fh.fuel_cost, fh.notes, fh.created_at, fh.updated_at, r.first_name, r.last_name
              FROM riders_fuel_history fh
              LEFT JOIN riders r ON r.id = fh.rider_id
-             ORDER BY fh.id DESC`
+             ORDER BY ${orderColAll} DESC, fh.id DESC`
         );
 
         res.json({ success: true, records: rows });
@@ -352,9 +352,11 @@ router.get('/:id/fuel-history', authenticateToken, requireAdmin, async (req, res
             "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
         );
         const colNames = Array.isArray(cols) ? cols.map(c => c.COLUMN_NAME) : [];
-        // Select all available columns for the rider and order by id to avoid relying on specific columns.
+        const orderCol = colNames.includes('entry_date') ? 'entry_date' : (colNames.includes('created_at') ? 'created_at' : 'id');
+
         const [rows] = await req.db.execute(
-            `SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY id DESC`,
+            `SELECT id, rider_id, entry_date, start_meter, end_meter, distance, petrol_rate, fuel_cost, notes, created_at, updated_at
+             FROM riders_fuel_history WHERE rider_id = ? ORDER BY ${orderCol} DESC, id DESC`,
             [id]
         );
 
@@ -436,8 +438,6 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
         }
 
         const insertSql = `INSERT INTO riders_fuel_history (${insertCols.join(', ')}) VALUES (${placeholders.join(', ')})`;
-        // Debug: log final SQL and values so we can confirm which columns are being written
-        console.debug('Inserting into riders_fuel_history:', insertSql, values);
         const [result] = await req.db.execute(insertSql, values);
 
         res.status(201).json({ success: true, id: result.insertId, message: 'Fuel history entry created' });
@@ -485,8 +485,8 @@ router.get('/debug/fuel-history/:id', authenticateToken, requireAdmin, async (re
             "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
         );
         const colNamesDbg = Array.isArray(colsDbg) ? colsDbg.map(c => c.COLUMN_NAME) : [];
-        // Fetch a few sample rows using a safe ORDER BY
-        const [sample] = await req.db.execute(`SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY id DESC LIMIT 5`, [id]);
+        const dbgOrderCol = colNamesDbg.includes('fuel_date') ? 'fuel_date' : (colNamesDbg.includes('created_at') ? 'created_at' : 'id');
+        const [sample] = await req.db.execute(`SELECT id, rider_id, fuel_date, meter_reading, petrol_rate, petrol_qty, cost, notes, created_at, updated_at FROM riders_fuel_history WHERE rider_id = ? ORDER BY ${dbgOrderCol} DESC, id DESC LIMIT 5`, [id]);
 
         return res.json({ success: true, tableExists: true, totalForRider: total, sampleRows: sample });
     } catch (err) {

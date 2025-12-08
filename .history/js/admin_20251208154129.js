@@ -1673,14 +1673,14 @@ function loadFuelHistory(riderId) {
                 tbody.appendChild(tr);
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="10">Failed to load fuel history.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9">Failed to load fuel history.</td></tr>';
             showError('Error', (data && data.message) ? data.message : 'Failed to load fuel history');
         }
         return data;
     })
     .catch(err => {
         console.error('Error loading fuel history:', err);
-        tbody.innerHTML = '<tr><td colspan="10">Error loading fuel history.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">Error loading fuel history.</td></tr>';
         showError('Error', 'Error loading fuel history');
         return Promise.reject(err);
     });
@@ -1694,26 +1694,23 @@ async function saveFuelEntry() {
     }
     const riderId = sel.value;
     // Coerce numeric fields to numbers (or null) to match server validation
-    const entryDateVal = document.getElementById('entryDate').value || null;
-    const startMeterRaw = document.getElementById('startMeter').value || null;
-    const endMeterRaw = document.getElementById('endMeter').value || null;
-    const distanceRaw = document.getElementById('distance').value || null;
+    const fuelDateVal = document.getElementById('fuelDate').value || null;
+    const meterValRaw = document.getElementById('meterReading').value;
     const petrolRateRaw = document.getElementById('petrolRate').value;
+    const petrolQtyRaw = document.getElementById('petrolQty').value;
     const costRaw = document.getElementById('fuelCost') ? document.getElementById('fuelCost').value : null;
-
-    const startMeter = (startMeterRaw !== undefined && startMeterRaw !== null && startMeterRaw !== '') ? String(startMeterRaw) : null;
-    const endMeter = (endMeterRaw !== undefined && endMeterRaw !== null && endMeterRaw !== '') ? String(endMeterRaw) : null;
-    const distance = (distanceRaw !== undefined && distanceRaw !== null && distanceRaw !== '') ? parseFloat(distanceRaw) : null;
+    // meter_reading is stored as VARCHAR in DB; keep as string (allow values like 'N/A')
+    const meterReading = (meterValRaw !== undefined && meterValRaw !== null && meterValRaw !== '') ? String(meterValRaw) : null;
     const petrolRate = (petrolRateRaw !== undefined && petrolRateRaw !== null && petrolRateRaw !== '') ? parseFloat(petrolRateRaw) : null;
-    const fuelCost = (costRaw !== undefined && costRaw !== null && costRaw !== '') ? parseFloat(costRaw) : null;
+    const petrolQty = (petrolQtyRaw !== undefined && petrolQtyRaw !== null && petrolQtyRaw !== '') ? parseFloat(petrolQtyRaw) : null;
+    const cost = (costRaw !== undefined && costRaw !== null && costRaw !== '') ? parseFloat(costRaw) : null;
 
     const payload = {
-        entryDate: entryDateVal,
-        startMeter: startMeter,
-        endMeter: endMeter,
-        distance: distance,
+        fuelDate: fuelDateVal,
+        meterReading: meterReading,
         petrolRate: petrolRate,
-        fuelCost: fuelCost,
+        petrolQty: petrolQty,
+        cost: cost,
         notes: document.getElementById('fuelNotes').value || null
     };
 
@@ -1732,11 +1729,10 @@ async function saveFuelEntry() {
         if (data && data.success) {
             showSuccess('Saved', 'Fuel history entry saved');
             // clear form
-            document.getElementById('entryDate').value = '';
-            document.getElementById('startMeter').value = '';
-            document.getElementById('endMeter').value = '';
-            document.getElementById('distance').value = '';
+            document.getElementById('fuelDate').value = '';
+            document.getElementById('meterReading').value = '';
             document.getElementById('petrolRate').value = '';
+            document.getElementById('petrolQty').value = '';
             if (document.getElementById('fuelCost')) document.getElementById('fuelCost').value = '';
             document.getElementById('fuelNotes').value = '';
             loadFuelHistory(riderId);
