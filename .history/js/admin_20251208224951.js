@@ -709,28 +709,43 @@ function loadUsers() {
 }
 
 function editUser(userId) {
-    // Get current user data first
-    fetch(`${API_BASE}/api/users`, {
+    // Fetch store details and open modal prefilled for editing
+    showAddStoreModal();
+    fetch(`${API_BASE}/api/stores/${storeId}`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
-        const user = data.users.find(u => u.id === userId);
-        if (!user) {
-            showError('User Not Found', 'The user could not be found in the system.');
+        if (!data.success || !data.store) {
+            showError('Error', 'Failed to load store details');
             return;
         }
-
-        const newType = prompt('Enter new user type (customer, store_owner, admin):', user.user_type);
-        if (!newType || !['customer', 'store_owner', 'admin'].includes(newType)) {
-            showWarning('Invalid User Type', 'Please select: customer, store_owner, or admin');
-            return;
+        const s = data.store;
+        const form = document.getElementById('addStoreForm');
+        if (!form) return;
+        // Fill fields
+        form.querySelector('#storeId').value = s.id || '';
+        form.querySelector('#storeName').value = s.name || '';
+        form.querySelector('#storeOwner').value = s.owner_name || '';
+        form.querySelector('#storeLocation').value = s.location || '';
+        form.querySelector('#storePhone').value = s.phone || '';
+        form.querySelector('#storeEmail').value = s.email || '';
+        form.querySelector('#storeRating').value = s.rating || 0;
+        form.querySelector('#storeDeliveryTime').value = s.delivery_time || '';
+        form.querySelector('#storeOpeningTime').value = s.opening_time || '';
+        form.querySelector('#storeClosingTime').value = s.closing_time || '';
+        if (form.querySelector('#storeStatus')) form.querySelector('#storeStatus').value = s.is_active ? 'active' : 'inactive';
+        form.querySelector('#storeDescription').value = s.description || '';
+        form.querySelector('#storeAddress').value = s.address || '';
+        if (form.querySelector('#storeCategory') && s.category_id) form.querySelector('#storeCategory').value = s.category_id;
+        if (form.querySelector('#storeImage')) form.querySelector('#storeImage').value = s.image_url || '';
+        const preview = document.getElementById('storeImagePreview');
+        if (preview) {
+            if (s.image_url) { preview.src = s.image_url; preview.style.display = 'inline-block'; }
+            else { preview.src = ''; preview.style.display = 'none'; }
         }
-
-        fetch(`${API_BASE}/api/users/${userId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
+    })
+    .catch(err => { console.error('Error loading store for edit:', err); showError('Error', 'Failed to load store details'); });
                 'Authorization': `Bearer ${authToken}`
             },
             body: JSON.stringify({ user_type: newType })
@@ -1336,7 +1351,75 @@ async function showAddStoreModal() {
             });
         }
 
+        // Clear form to create new store by default
+        const form = document.getElementById('addStoreForm');
+        if (form) {
+            form.reset();
+            const idField = document.getElementById('storeId');
+            if (idField) idField.value = '';
+            const preview = document.getElementById('storeImagePreview');
+            if (preview) { preview.src = ''; preview.style.display = 'none'; }
+        }
         showModal('addStoreModal');
+        // Setup image URL/file preview and paste helper for store image
+        try {
+            const pasteBtn = document.getElementById('pasteStoreImageBtn');
+            const urlInput = document.getElementById('storeImage');
+            const fileInput = document.getElementById('storeImageFile');
+            const preview = document.getElementById('storeImagePreview');
+
+            if (pasteBtn) {
+                pasteBtn.onclick = () => {
+                    const url = prompt('Paste image URL (http(s)://)');
+                    if (url) {
+                        if (urlInput) urlInput.value = url;
+                        if (preview) { preview.src = url; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+                    }
+                };
+            }
+
+            if (urlInput) {
+                urlInput.oninput = () => {
+                    if (urlInput.value) {
+                        if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+                    } else if (preview) {
+                        preview.style.display = 'none';
+                    }
+                };
+            }
+
+            if (fileInput) {
+                fileInput.onchange = (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (file && preview) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            preview.src = ev.target.result;
+                            preview.style.display = 'inline-block';
+                            applyOrientationFitAdmin(preview);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+            }
+
+            function applyOrientationFitAdmin(img) {
+                try {
+                    if (!img) return;
+                    const apply = () => {
+                        const w = img.naturalWidth || 0;
+                        const h = img.naturalHeight || 0;
+                        img.classList.remove('fit-contain', 'fit-cover');
+                        if (h >= w) img.classList.add('fit-contain'); else img.classList.add('fit-cover');
+                    };
+                    if (img.complete && img.naturalWidth && img.naturalHeight) apply();
+                    else {
+                        const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
+                        img.addEventListener('load', onLoad);
+                    }
+                } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
+            }
+        } catch (e) { /* ignore errors while wiring image helpers */ }
     } catch (error) {
         console.error('Error loading categories:', error);
         showModal('addStoreModal');
@@ -1344,7 +1427,8 @@ async function showAddStoreModal() {
 }
 
 async function saveStore() {
-    const formData = new FormData(document.getElementById('addStoreForm'));
+    const formEl = document.getElementById('addStoreForm');
+    const formData = new FormData(formEl);
     const storeData = {
         name: formData.get('name'),
         owner: formData.get('owner'),
@@ -1363,8 +1447,34 @@ async function saveStore() {
     };
 
     try {
-        const response = await fetch(`${API_BASE}/api/stores`, {
-            method: 'POST',
+        // If a file was selected for store image, upload it first (reuse product upload endpoint)
+        const fileInput = document.getElementById('storeImageFile');
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            try {
+                const fd = new FormData();
+                fd.append('image', fileInput.files[0]);
+                const upRes = await fetch(`${API_BASE}/api/products/upload-image`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` },
+                    body: fd
+                });
+                const upJson = await upRes.json();
+                if (upJson.success && upJson.image_url) {
+                    storeData.image_url = upJson.image_url;
+                }
+            } catch (e) {
+                console.warn('Store image upload failed:', e);
+                // proceed without uploaded image
+            }
+        }
+        // Determine if this is create or update
+        const storeId = (formEl && formEl.querySelector('#storeId')) ? formEl.querySelector('#storeId').value : '';
+        const isUpdate = storeId && String(storeId).trim().length > 0;
+        const url = isUpdate ? `${API_BASE}/api/stores/${storeId}` : `${API_BASE}/api/stores`;
+        const method = isUpdate ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method,
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${authToken}`
@@ -1685,9 +1795,38 @@ function editCategory(categoryId) {
 }
 
 // Riders Management Functions
-// Riders Management Functions
-// Note: the full `loadRiders` implementation is defined further below.
-// This placeholder avoids duplicate definitions and keeps ordering stable.
+function loadRiders() {
+    fetch(`${API_BASE}/api/riders`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.getElementById('ridersTableBody');
+        tbody.innerHTML = '';
+
+        data.riders.forEach(rider => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${rider.id}</td>
+                <td>${rider.first_name} ${rider.last_name}</td>
+                <td>${rider.email}</td>
+                <td>${rider.phone}</td>
+                <td>${rider.vehicle_type}</td>
+                <td>${rider.license_number}</td>
+                <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
+                <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
+                        ${rider.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    })
+    .catch(error => console.error('Error loading riders:', error));
+}
 
 // --- Rider Fuel History Client Functions ---
 function loadRidersForFuelSelect() {
@@ -2460,9 +2599,11 @@ function displayStores(stores) {
 
     stores.forEach(store => {
         const row = document.createElement('tr');
+        const imgCell = store.image_url ? `<td><a href="${store.image_url}" target="_blank" rel="noopener noreferrer"><img src="${store.image_url}" style="height:32px;border-radius:4px;object-fit:cover;" /></a></td>` : '<td></td>';
         row.innerHTML = `
             <td>${store.id}</td>
             <td>${store.name}</td>
+            ${imgCell}
             <td>${store.location}</td>
             <td>${store.owner_name || 'Admin'}</td>
             <td>${store.rating} ⭐</td>
@@ -2512,21 +2653,22 @@ function displayCategories(categories) {
 }
 
 function loadRiders() {
-    console.log('Loading riders...');
-    return fetch(`${API_BASE}/api/riders`, {
+    console.log('Loading riders from:', `${API_BASE}/api/riders`);
+    fetch(`${API_BASE}/api/riders`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Riders API response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Riders API response data:', data);
         currentRiders = data.riders || [];
+        console.log('Current riders count:', currentRiders.length);
         displayRiders(currentRiders);
         initializeTableSorting('riders');
-        return data;
     })
-    .catch(error => {
-        console.error('Error loading riders:', error);
-        throw error;
-    });
+    .catch(error => console.error('Error loading riders:', error));
 }
 
 function displayRiders(riders) {

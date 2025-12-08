@@ -2512,8 +2512,7 @@ function displayCategories(categories) {
 }
 
 function loadRiders() {
-    console.log('Loading riders...');
-    return fetch(`${API_BASE}/api/riders`, {
+    fetch(`${API_BASE}/api/riders`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
@@ -2521,12 +2520,8 @@ function loadRiders() {
         currentRiders = data.riders || [];
         displayRiders(currentRiders);
         initializeTableSorting('riders');
-        return data;
     })
-    .catch(error => {
-        console.error('Error loading riders:', error);
-        throw error;
-    });
+    .catch(error => console.error('Error loading riders:', error));
 }
 
 function displayRiders(riders) {

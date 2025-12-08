@@ -281,6 +281,24 @@ function applyImageFitClass(mode) {
     else document.body.classList.add('image-fit-cover');
 }
 
+// Admin preview orientation helper (global so store and product modals can use it)
+function applyOrientationFitAdmin(img) {
+    try {
+        if (!img) return;
+        const apply = () => {
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
+            img.classList.remove('fit-contain', 'fit-cover');
+            if (h >= w) img.classList.add('fit-contain'); else img.classList.add('fit-cover');
+        };
+        if (img.complete && img.naturalWidth && img.naturalHeight) apply();
+        else {
+            const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
+            img.addEventListener('load', onLoad);
+        }
+    } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
+}
+
 // Load riders for report filter
 function loadReportRiders() {
     fetch(`${API_BASE}/api/riders`, {
@@ -1337,6 +1355,48 @@ async function showAddStoreModal() {
         }
 
         showModal('addStoreModal');
+        // Setup image URL/file preview and paste helper for store image (match product modal)
+        try {
+            const pasteBtn = document.getElementById('pasteStoreImageBtn');
+            const urlInput = document.getElementById('storeImage');
+            const fileInput = document.getElementById('storeImageFile');
+            const preview = document.getElementById('storeImagePreview');
+
+            if (pasteBtn) {
+                pasteBtn.onclick = () => {
+                    const url = prompt('Paste image URL (http(s)://)');
+                    if (url) {
+                        if (urlInput) urlInput.value = url;
+                        if (preview) { preview.src = url; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+                    }
+                };
+            }
+
+            if (urlInput) {
+                urlInput.oninput = () => {
+                    if (urlInput.value) {
+                        if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+                    } else if (preview) {
+                        preview.style.display = 'none';
+                    }
+                };
+            }
+
+            if (fileInput) {
+                fileInput.onchange = (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (file && preview) {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            preview.src = ev.target.result;
+                            preview.style.display = 'inline-block';
+                            applyOrientationFitAdmin(preview);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+            }
+        } catch (e) { /* ignore wiring errors */ }
     } catch (error) {
         console.error('Error loading categories:', error);
         showModal('addStoreModal');
@@ -1363,6 +1423,28 @@ async function saveStore() {
     };
 
     try {
+        // If a file was selected for store image, upload it first (reuse product upload endpoint)
+        const fileInput = document.getElementById('storeImageFile');
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            try {
+                const fd = new FormData();
+                fd.append('image', fileInput.files[0]);
+                const upRes = await fetch(`${API_BASE}/api/products/upload-image`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${authToken}` },
+                    body: fd
+                });
+                const upJson = await upRes.json();
+                if (upJson.success && upJson.image_url) {
+                    storeData.image_url = upJson.image_url;
+                } else {
+                    console.warn('Store image upload returned no URL, using provided image_url if any');
+                }
+            } catch (err) {
+                console.warn('Store image upload failed', err);
+            }
+        }
+
         const response = await fetch(`${API_BASE}/api/stores`, {
             method: 'POST',
             headers: {
@@ -1685,9 +1767,38 @@ function editCategory(categoryId) {
 }
 
 // Riders Management Functions
-// Riders Management Functions
-// Note: the full `loadRiders` implementation is defined further below.
-// This placeholder avoids duplicate definitions and keeps ordering stable.
+function loadRiders() {
+    fetch(`${API_BASE}/api/riders`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.getElementById('ridersTableBody');
+        tbody.innerHTML = '';
+
+        data.riders.forEach(rider => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${rider.id}</td>
+                <td>${rider.first_name} ${rider.last_name}</td>
+                <td>${rider.email}</td>
+                <td>${rider.phone}</td>
+                <td>${rider.vehicle_type}</td>
+                <td>${rider.license_number}</td>
+                <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
+                <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
+                        ${rider.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    })
+    .catch(error => console.error('Error loading riders:', error));
+}
 
 // --- Rider Fuel History Client Functions ---
 function loadRidersForFuelSelect() {
@@ -2512,8 +2623,7 @@ function displayCategories(categories) {
 }
 
 function loadRiders() {
-    console.log('Loading riders...');
-    return fetch(`${API_BASE}/api/riders`, {
+    fetch(`${API_BASE}/api/riders`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
@@ -2521,12 +2631,8 @@ function loadRiders() {
         currentRiders = data.riders || [];
         displayRiders(currentRiders);
         initializeTableSorting('riders');
-        return data;
     })
-    .catch(error => {
-        console.error('Error loading riders:', error);
-        throw error;
-    });
+    .catch(error => console.error('Error loading riders:', error));
 }
 
 function displayRiders(riders) {
