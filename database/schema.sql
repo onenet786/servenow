@@ -155,15 +155,31 @@ INSERT INTO products (name, price, category_id, store_id, stock_quantity) VALUES
 ('Bread', 2.99, 4, 2, 40),
 ('Rice', 5.99, 4, 3, 60);
 
--- Insert sample riders
 INSERT INTO riders (first_name, last_name, email, phone, password, vehicle_type, license_number) VALUES
 ('Ahmed', 'Khan', 'ahmed.rider@servenow.com', '+1234567894', 'rider123', 'Motorcycle', 'LIC123456'),
 ('Fatima', 'Ali', 'fatima.rider@servenow.com', '+1234567895', 'rider456', 'Bicycle', 'LIC123457'),
 ('Omar', 'Hassan', 'omar.rider@servenow.com', '+1234567896', 'rider789', 'Scooter', 'LIC123458');
 
--- Create indexes for better performance
 CREATE INDEX idx_products_store_id ON products(store_id);
 CREATE INDEX idx_products_category_id ON products(category_id);
 CREATE INDEX idx_orders_user_id ON orders(user_id);
 CREATE INDEX idx_orders_store_id ON orders(store_id);
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+
+-- Table: riders_fuel_history
+-- Stores rider fuel entries: date, meter reading, petrol rate, quantity, cost, notes
+CREATE TABLE IF NOT EXISTS `riders_fuel_history` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `rider_id` INT NOT NULL,
+    `fuel_date` DATE DEFAULT NULL,
+    `meter_reading` VARCHAR(64) DEFAULT NULL,
+    `petrol_rate` DECIMAL(10,2) DEFAULT NULL,
+    `petrol_qty` DECIMAL(10,3) DEFAULT NULL,
+    `cost` DECIMAL(10,2) DEFAULT NULL,
+    `notes` TEXT DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_rfh_rider` (`rider_id`),
+    CONSTRAINT `fk_rfh_rider` FOREIGN KEY (`rider_id`) REFERENCES `riders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

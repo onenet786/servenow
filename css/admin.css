@@ -273,6 +273,66 @@ body {
     box-sizing: border-box;
 }
 
+/* Standardize tab content layout to match Users management appearance */
+.tab-content {
+    padding: 1rem 0 2rem 0;
+    background: transparent;
+}
+
+.tab-content > h2 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.25rem;
+    display: block;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+/* Ensure primary action buttons sit consistently under the heading */
+.tab-content .btn {
+    margin: 0.5rem 0 0.75rem 0;
+}
+.tab-content .btn {
+    margin: 0.5rem 0 0.75rem 0;
+}
+
+/* Explicit actions container used across tabs */
+.tab-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Where buttons are grouped in a flex row (some tabs have a wrapper), keep spacing consistent */
+.tab-content > div > .btn, .tab-content .actions {
+    margin-right: 0.5rem;
+}
+
+.table-container {
+    margin-top: 0.5rem;
+    background: #fff;
+    padding: 0.75rem;
+    border-radius: 10px;
+    box-shadow: var(--card-shadow);
+}
+
+/* Make tables full-width and consistent */
+.table-container table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-container thead th {
+    background: #f3f4f6;
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.table-container tbody td {
+    padding: 10px 12px;
+    border-top: 1px solid #eef2f6;
+}
+
 /* Header Navigation Styles */
 .admin-nav {
     width: 100%;
