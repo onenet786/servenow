@@ -301,22 +301,14 @@ router.get('/types/vehicle', authenticateToken, requireAdmin, async (req, res) =
 });
 
 // Riders Fuel History - Admin CRUD
-// Table assumed: `riders_fuel_history` with columns like
+// Table assumed: `riders_fuel_his` with columns like
 // id, rider_id, fuel_date, meter_reading, petrol_rate, petrol_qty, cost, notes, created_at
 // List all fuel history entries (admin)
 router.get('/fuel-history', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        // Ensure the table exists to give a clearer error message when missing
-        const [tbl] = await req.db.execute(
-            "SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
-        );
-        if (!tbl || tbl[0].cnt === 0) {
-            console.error('Table riders_fuel_history does not exist in database');
-            return res.status(500).json({ success: false, message: 'Required table `riders_fuel_history` not found in database' });
-        }
         const [rows] = await req.db.execute(
             `SELECT fh.*, r.first_name, r.last_name
-             FROM riders_fuel_history fh
+             FROM riders_fuel_his fh
              LEFT JOIN riders r ON r.id = fh.rider_id
              ORDER BY fh.fuel_date DESC, fh.id DESC`
         );
@@ -332,16 +324,8 @@ router.get('/fuel-history', authenticateToken, requireAdmin, async (req, res) =>
 router.get('/:id/fuel-history', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        // Ensure the table exists
-        const [tbl] = await req.db.execute(
-            "SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
-        );
-        if (!tbl || tbl[0].cnt === 0) {
-            console.error('Table riders_fuel_history does not exist in database');
-            return res.status(500).json({ success: false, message: 'Required table `riders_fuel_history` not found in database' });
-        }
         const [rows] = await req.db.execute(
-            'SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY entry_date DESC, id DESC',
+            'SELECT * FROM riders_fuel_his WHERE rider_id = ? ORDER BY fuel_date DESC, id DESC',
             [id]
         );
 
@@ -365,35 +349,25 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
         if (!errors.isEmpty()) {
             return res.status(400).json({ success: false, message: 'Validation errors', errors: errors.array() });
         }
+
         const { id } = req.params;
         const { fuelDate, meterReading, petrolRate, petrolQty, notes } = req.body;
 
-        // Ensure rider exists
-        const [riderRows] = await req.db.execute('SELECT id FROM riders WHERE id = ?', [id]);
-        if (!riderRows || riderRows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Rider not found' });
-        }
-
-        // Coerce numeric fields and calculate cost safely
-        const pr = (petrolRate !== undefined && petrolRate !== null && petrolRate !== '') ? parseFloat(petrolRate) : null;
-        const pq = (petrolQty !== undefined && petrolQty !== null && petrolQty !== '') ? parseFloat(petrolQty) : null;
-        const mr = (meterReading !== undefined && meterReading !== null && meterReading !== '') ? meterReading : null;
-
+        // Calculate cost if possible
         let cost = null;
-        if (Number.isFinite(pr) && Number.isFinite(pq)) {
-            cost = Math.round((pr * pq) * 100) / 100; // store as numeric (2 decimals)
-        }
+        const pr = petrolRate ? parseFloat(petrolRate) : null;
+        const pq = petrolQty ? parseFloat(petrolQty) : null;
+        if (pr !== null && pq !== null) cost = (pr * pq).toFixed(2);
 
         const [result] = await req.db.execute(
-            `INSERT INTO riders_fuel_history (rider_id, entry_date, meter_reading, petrol_rate, petrol_qty, cost, notes)
+            `INSERT INTO riders_fuel_his (rider_id, fuel_date, meter_reading, petrol_rate, petrol_qty, cost, notes)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [id, fuelDate || null, mr, pr, pq, cost, notes || null]
+            [id, fuelDate || null, meterReading || null, petrolRate || null, petrolQty || null, cost, notes || null]
         );
 
         res.status(201).json({ success: true, id: result.insertId, message: 'Fuel history entry created' });
     } catch (error) {
         console.error('Error creating fuel history entry:', error);
-        // Provide useful error info without exposing sensitive details
         res.status(500).json({ success: false, message: 'Failed to create fuel history entry', error: error.message });
     }
 });
@@ -402,37 +376,11 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
 router.delete('/fuel-history/:hid', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { hid } = req.params;
-        await req.db.execute('DELETE FROM riders_fuel_history WHERE id = ?', [hid]);
+        await req.db.execute('DELETE FROM riders_fuel_his WHERE id = ?', [hid]);
         res.json({ success: true, message: 'Fuel history entry deleted' });
     } catch (error) {
         console.error('Error deleting fuel history entry:', error);
         res.status(500).json({ success: false, message: 'Failed to delete fuel history entry', error: error.message });
-    }
-});
-
-// Debug: quick check for the fuel history table and sample rows (admin-only, temporary)
-router.get('/debug/fuel-history/:id', authenticateToken, requireAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        // Check table exists
-        const [tbl] = await req.db.execute(
-            "SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'riders_fuel_history'"
-        );
-        if (!tbl || tbl[0].cnt === 0) {
-            return res.status(500).json({ success: false, message: 'Required table `riders_fuel_history` not found in database' });
-        }
-
-        // Count rows for rider
-        const [countRows] = await req.db.execute('SELECT COUNT(*) AS cnt FROM riders_fuel_history WHERE rider_id = ?', [id]);
-        const total = (countRows && countRows[0]) ? countRows[0].cnt : 0;
-
-        // Fetch a few rows to inspect schema
-        const [sample] = await req.db.execute('SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY fuel_date DESC, id DESC LIMIT 5', [id]);
-
-        return res.json({ success: true, tableExists: true, totalForRider: total, sampleRows: sample });
-    } catch (err) {
-        console.error('Debug fuel-history error:', err && err.stack ? err.stack : err);
-        return res.status(500).json({ success: false, message: 'Debug query failed', error: err && err.message ? err.message : String(err) });
     }
 });
 

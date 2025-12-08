@@ -385,7 +385,7 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
         }
 
         const [result] = await req.db.execute(
-            `INSERT INTO riders_fuel_history (rider_id, entry_date, meter_reading, petrol_rate, petrol_qty, cost, notes)
+            `INSERT INTO riders_fuel_history (rider_id, e_date, meter_reading, petrol_rate, petrol_qty, cost, notes)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [id, fuelDate || null, mr, pr, pq, cost, notes || null]
         );

@@ -64,6 +64,7 @@
 
                             <h2>Dashboard Overview</h2>
 
+                            <div class="tab-actions"></div>
 
                             <div class="stats-grid">
 
@@ -134,7 +135,9 @@
                             <h2>Users Management</h2>
 
 
-                            <button class="btn btn-primary" id="addUserBtn">Add New User</button>
+                            <div class="tab-actions">
+                                <button class="btn btn-primary" id="addUserBtn">Add New User</button>
+                            </div>
 
 
                             <div class="table-container">
@@ -186,6 +189,66 @@
 
 
                             </div>
+                            <!-- Rider Fuel History Panel (hidden by default) -->
+                            <div id="riderFuelContainer" style="display:none;margin-top:1.5rem;border-top:1px solid #eee;padding-top:1rem;">
+                                <h3>Rider Fuel History</h3>
+                                <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:0.5rem;">
+                                    <label for="fuelRiderSelect" style="font-weight:600;">Select Rider:</label>
+                                    <select id="fuelRiderSelect" style="padding:0.4rem 0.6rem;">
+                                        <option value="">-- Select Rider --</option>
+                                    </select>
+                                    <button class="btn btn-secondary" id="refreshFuelBtn">Refresh</button>
+                                </div>
+
+                                <div class="table-container">
+                                    <table id="fuelHistoryTable">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Date</th>
+                                                <th>Meter</th>
+                                                <th>Petrol Rate</th>
+                                                <th>Qty</th>
+                                                <th>Cost</th>
+                                                <th>Notes</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="fuelHistoryTableBody"></tbody>
+                                    </table>
+                                </div>
+
+                                <div style="margin-top:0.75rem;">
+                                    <h4>Add Fuel Entry</h4>
+                                    <form id="addFuelForm" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;">
+                                        <div style="display:flex;flex-direction:column;">
+                                            <label for="fuelDate">Date</label>
+                                            <input type="date" id="fuelDate" />
+                                        </div>
+                                        <div style="display:flex;flex-direction:column;">
+                                            <label for="meterReading">Meter Reading</label>
+                                            <input type="number" id="meterReading" step="1" />
+                                        </div>
+                                        <div style="display:flex;flex-direction:column;">
+                                            <label for="petrolRate">Petrol Rate</label>
+                                            <input type="number" id="petrolRate" step="0.01" />
+                                        </div>
+                                        <div style="display:flex;flex-direction:column;">
+                                            <label for="petrolQty">Qty</label>
+                                            <input type="number" id="petrolQty" step="0.01" />
+                                        </div>
+                                        <div style="display:flex;flex-direction:column;min-width:220px;">
+                                            <label for="fuelNotes">Notes</label>
+                                            <input type="text" id="fuelNotes" />
+                                        </div>
+                                        <div>
+                                            <button type="button" class="btn btn-primary" id="saveFuelBtn">Save Entry</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+                        </div>
 
 
                         </div>
@@ -203,7 +266,9 @@
                             <h2>Stores Management</h2>
 
 
-                            <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
+                            <div class="tab-actions">
+                                <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
+                            </div>
 
 
                             <div class="table-container">
@@ -275,7 +340,7 @@
                             <h2>Products Management</h2>
 
 
-                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
+                            <div class="tab-actions" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
                                 <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
                                 <button class="btn btn-secondary" id="exportImagesBtn" title="Export base64 product images to /uploads">Export Base64 Images</button>
                                 <span id="exportImagesStatus" style="font-size:0.9rem;color:#666;margin-left:0.5rem;"></span>
@@ -359,9 +424,9 @@
                             <h2>Orders Management</h2>
 
                             
-                            
                             <!-- Filters -->
-                            <div class="filter-controls">
+                            <div class="tab-actions">
+                                <div class="filter-controls">
                                 <div class="filter-group">
                                     <label for="filterDate">Filter by Date:</label>
                                     <input type="date" id="filterDate">
@@ -373,6 +438,7 @@
                                     </select>
                                 </div>
                                 <button class="btn btn-secondary" id="clearFiltersBtn">Clear Filters</button>
+                                </div>
                             </div>
 
                             <div class="table-container">
@@ -441,8 +507,9 @@
                         <div id="order-reports" class="tab-content">
                             <h2>Order Reports</h2>
 
-                            <!-- Report Filters -->
-                            <div class="filter-controls">
+                            <div class="tab-actions">
+                                <!-- Report Filters -->
+                                <div class="filter-controls">
                                 <div class="filter-group">
                                     <label for="reportStartDate">Start Date:</label>
                                     <input type="date" id="reportStartDate">
@@ -522,7 +589,9 @@
                             <h2>Categories Management</h2>
 
 
-                            <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
+                            <div class="tab-actions">
+                                <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
+                            </div>
 
 
                             <div class="table-container">
@@ -585,14 +654,18 @@
                         <div id="riders" class="tab-content">
 
 
+
                             <h2>Riders Management</h2>
 
-
-
-                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
-                                <button class="btn btn-primary" id="addRiderBtn">Add New Rider</button>
-                                <button class="btn btn-secondary" id="openFuelPanelBtn">Fuel Management</button>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                                <div>
+                                    <button class="btn btn-primary" id="addRiderBtn">Add New Rider</button>
+                                </div>
+                                <div>
+                                    <button class="btn btn-secondary" id="fuelManagementBtn">Fuel Management</button>
+                                </div>
                             </div>
+
 
                             <div class="table-container">
 
@@ -652,66 +725,6 @@
 
 
                             </div>
-
-                                <!-- Rider Fuel History Panel -->
-                                <div id="riderFuelContainer" style="display:none;margin-top:1rem;border-top:1px solid #eee;padding-top:1rem;">
-                                    <h3>Rider Fuel History</h3>
-                                    <div class="tab-actions" style="align-items:center;margin-bottom:0.5rem;">
-                                        <div>
-                                            <label for="fuelRiderSelect" style="font-weight:600;margin-right:0.5rem;">Select Rider:</label>
-                                            <select id="fuelRiderSelect" style="padding:0.35rem 0.5rem;"><option value="">-- Select Rider --</option></select>
-                                            <button class="btn btn-secondary" id="refreshFuelBtn">Refresh</button>
-                                        </div>
-                                    </div>
-
-                                    <div class="table-container">
-                                        <table id="fuelHistoryTable">
-                                            <thead>
-                                                <tr>
-                                                    <th>ID</th>
-                                                    <th>Date</th>
-                                                    <th>Recorded</th>
-                                                    <th>Meter</th>
-                                                    <th>Petrol Rate</th>
-                                                    <th>Qty</th>
-                                                    <th>Cost</th>
-                                                    <th>Notes</th>
-                                                    <th>Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="fuelHistoryTableBody"></tbody>
-                                        </table>
-                                    </div>
-
-                                    <div style="margin-top:0.75rem;">
-                                        <h4>Add Fuel Entry</h4>
-                                        <form id="addFuelForm" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;">
-                                            <div style="display:flex;flex-direction:column;">
-                                                <label for="fuelDate">Date</label>
-                                                <input type="date" id="fuelDate" />
-                                            </div>
-                                            <div style="display:flex;flex-direction:column;">
-                                                <label for="meterReading">Meter Reading</label>
-                                                <input type="number" id="meterReading" step="1" />
-                                            </div>
-                                            <div style="display:flex;flex-direction:column;">
-                                                <label for="petrolRate">Petrol Rate</label>
-                                                <input type="number" id="petrolRate" step="0.01" />
-                                            </div>
-                                            <div style="display:flex;flex-direction:column;">
-                                                <label for="petrolQty">Qty</label>
-                                                <input type="number" id="petrolQty" step="0.01" />
-                                            </div>
-                                            <div style="display:flex;flex-direction:column;min-width:220px;">
-                                                <label for="fuelNotes">Notes</label>
-                                                <input type="text" id="fuelNotes" />
-                                            </div>
-                                            <div>
-                                                <button type="button" class="btn btn-primary" id="saveFuelBtn">Save Entry</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
 
 
                         </div>

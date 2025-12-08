@@ -291,17 +291,6 @@ body {
 .tab-content .btn {
     margin: 0.5rem 0 0.75rem 0;
 }
-.tab-content .btn {
-    margin: 0.5rem 0 0.75rem 0;
-}
-
-/* Explicit actions container used across tabs */
-.tab-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-}
 
 /* Where buttons are grouped in a flex row (some tabs have a wrapper), keep spacing consistent */
 .tab-content > div > .btn, .tab-content .actions {

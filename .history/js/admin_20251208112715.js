@@ -1638,20 +1638,11 @@ async function saveFuelEntry() {
         return;
     }
     const riderId = sel.value;
-    // Coerce numeric fields to numbers (or null) to match server validation
-    const fuelDateVal = document.getElementById('fuelDate').value || null;
-    const meterValRaw = document.getElementById('meterReading').value;
-    const petrolRateRaw = document.getElementById('petrolRate').value;
-    const petrolQtyRaw = document.getElementById('petrolQty').value;
-    const meterReading = (meterValRaw !== undefined && meterValRaw !== null && meterValRaw !== '') ? Number(meterValRaw) : null;
-    const petrolRate = (petrolRateRaw !== undefined && petrolRateRaw !== null && petrolRateRaw !== '') ? parseFloat(petrolRateRaw) : null;
-    const petrolQty = (petrolQtyRaw !== undefined && petrolQtyRaw !== null && petrolQtyRaw !== '') ? parseFloat(petrolQtyRaw) : null;
-
     const payload = {
-        fuelDate: fuelDateVal,
-        meterReading: meterReading,
-        petrolRate: petrolRate,
-        petrolQty: petrolQty,
+        fuelDate: document.getElementById('fuelDate').value || null,
+        meterReading: document.getElementById('meterReading').value || null,
+        petrolRate: document.getElementById('petrolRate').value || null,
+        petrolQty: document.getElementById('petrolQty').value || null,
         notes: document.getElementById('fuelNotes').value || null
     };
 
@@ -1661,13 +1652,8 @@ async function saveFuelEntry() {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
             body: JSON.stringify(payload)
         });
-        if (!resp.ok) {
-            const errBody = await resp.json().catch(()=>({ message: 'Unknown error' }));
-            showError('Save Failed', errBody.message || 'Failed to save entry');
-            return;
-        }
         const data = await resp.json();
-        if (data && data.success) {
+        if (data.success) {
             showSuccess('Saved', 'Fuel history entry saved');
             // clear form
             document.getElementById('fuelDate').value = '';
@@ -1677,7 +1663,7 @@ async function saveFuelEntry() {
             document.getElementById('fuelNotes').value = '';
             loadFuelHistory(riderId);
         } else {
-            showError('Save Failed', (data && data.message) ? data.message : 'Failed to save entry');
+            showError('Save Failed', data.message || 'Failed to save entry');
         }
     } catch (err) {
         console.error('Error saving fuel entry:', err);
@@ -2393,30 +2379,8 @@ function displayRiders(riders) {
                 <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
                     ${rider.is_active ? 'Deactivate' : 'Activate'}
                 </button>
-                <button class="btn btn-small btn-secondary" onclick="openFuelForRider(${rider.id})">Fuel</button>
             </td>
         `;
         tbody.appendChild(row);
     });
-}
-
-// Open fuel panel for specific rider and load history
-async function openFuelForRider(riderId) {
-    const container = document.getElementById('riderFuelContainer');
-    if (!container) return;
-    container.style.display = 'block';
-    // ensure select is populated
-    try {
-        await loadRidersForFuelSelect();
-        const sel = document.getElementById('fuelRiderSelect');
-        if (sel) {
-            sel.value = String(riderId);
-            await loadFuelHistory(sel.value);
-        }
-        // scroll into view
-        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (e) {
-        console.error('openFuelForRider error:', e);
-        showError('Error', 'Failed to open fuel panel');
-    }
 }

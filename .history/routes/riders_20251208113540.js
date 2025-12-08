@@ -341,7 +341,7 @@ router.get('/:id/fuel-history', authenticateToken, requireAdmin, async (req, res
             return res.status(500).json({ success: false, message: 'Required table `riders_fuel_history` not found in database' });
         }
         const [rows] = await req.db.execute(
-            'SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY entry_date DESC, id DESC',
+            'SELECT * FROM riders_fuel_history WHERE rider_id = ? ORDER BY e_date DESC, id DESC',
             [id]
         );
 
@@ -385,7 +385,7 @@ router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
         }
 
         const [result] = await req.db.execute(
-            `INSERT INTO riders_fuel_history (rider_id, entry_date, meter_reading, petrol_rate, petrol_qty, cost, notes)
+            `INSERT INTO riders_fuel_history (rider_id, fuel_date, meter_reading, petrol_rate, petrol_qty, cost, notes)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [id, fuelDate || null, mr, pr, pq, cost, notes || null]
         );
