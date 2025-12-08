@@ -167,15 +167,16 @@ CREATE INDEX idx_orders_store_id ON orders(store_id);
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 
 -- Table: riders_fuel_history
--- Stores rider fuel entries: date, meter reading, petrol rate, quantity, cost, notes
+-- Stores rider fuel entries with start/end meter, distance and cost
 CREATE TABLE IF NOT EXISTS `riders_fuel_history` (
     `id` INT NOT NULL AUTO_INCREMENT,
     `rider_id` INT NOT NULL,
-    `fuel_date` DATE DEFAULT NULL,
-    `meter_reading` VARCHAR(64) DEFAULT NULL,
+    `entry_date` DATE DEFAULT NULL,
+    `start_meter` VARCHAR(64) DEFAULT NULL,
+    `end_meter` VARCHAR(64) DEFAULT NULL,
+    `distance` DECIMAL(10,2) DEFAULT NULL,
     `petrol_rate` DECIMAL(10,2) DEFAULT NULL,
-    `petrol_qty` DECIMAL(10,3) DEFAULT NULL,
-    `cost` DECIMAL(10,2) DEFAULT NULL,
+    `fuel_cost` DECIMAL(10,2) DEFAULT NULL,
     `notes` TEXT DEFAULT NULL,
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
