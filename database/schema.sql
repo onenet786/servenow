@@ -28,6 +28,8 @@ CREATE TABLE stores (
     longitude DECIMAL(11, 8),
     rating DECIMAL(3, 2) DEFAULT 0.00,
     delivery_time VARCHAR(50),
+    opening_time TIME DEFAULT NULL,
+    closing_time TIME DEFAULT NULL,
     phone VARCHAR(20),
     email VARCHAR(100),
     address TEXT,
