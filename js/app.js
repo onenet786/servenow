@@ -58,6 +58,19 @@ function showInfo(title, message, duration = 3000) {
 let currentUser = null;
 let authToken = localStorage.getItem('serveNowToken');
 
+// Apply saved image-fit preference (so preview matches admin choice)
+window.addEventListener('DOMContentLoaded', function() {
+    try {
+        const fit = localStorage.getItem('productImageFit');
+        if (fit) {
+            document.body.classList.remove('image-fit-cover', 'image-fit-fill');
+            document.body.classList.add(`image-fit-${fit}`);
+        }
+    } catch (e) {
+        console.warn('Could not apply saved image fit:', e);
+    }
+});
+
 // Cart functionality
 var cart = JSON.parse(localStorage.getItem('serveNowCart')) || [];
 
@@ -247,8 +260,34 @@ async function loadProducts(category) {
             data.products.forEach(product => {
                 const productCard = document.createElement('div');
                 productCard.className = 'product-card';
+
+                // Normalize image URL: if it's a relative path, prefix with API_BASE
+                let imageSrc = 'https://via.placeholder.com/200x150/E0E0E0/666666?text=No+Image';
+                if (product.image_url) {
+                    // Normalize backslashes and trim
+                    let url = String(product.image_url).trim().replace(/\\/g, '/');
+                    if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) {
+                        // absolute URL or data URI — use as-is
+                        imageSrc = url;
+                    } else if (url.startsWith('/')) {
+                        // root-relative — make absolute using API_BASE to avoid host/path mismatch
+                        imageSrc = API_BASE.replace(/\/$/, '') + url;
+                    } else {
+                        // relative path (no leading slash) — prefix with API_BASE
+                        imageSrc = API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
+                    }
+                }
+
                 productCard.innerHTML = `
-                    <img src="${product.image_url || 'https://via.placeholder.com/200x150/E0E0E0/666666?text=No+Image'}" alt="${product.name}">
+                    <div class="product-image">
+                                ${buildImgTag(imageSrc, product.image_variants || null, product.name, product.id, {
+                                    image_bg_r: product.image_bg_r,
+                                    image_bg_g: product.image_bg_g,
+                                    image_bg_b: product.image_bg_b,
+                                    image_overlay_alpha: product.image_overlay_alpha,
+                                    image_contrast: product.image_contrast
+                                })}
+                    </div>
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>
@@ -256,6 +295,15 @@ async function loadProducts(category) {
                     </div>
                 `;
                 productGrid.appendChild(productCard);
+                // Ensure cached images get orientation fit applied immediately
+                productCard.querySelectorAll('img').forEach(img => {
+                    try {
+                        if (img.complete && img.naturalWidth && img.naturalHeight) {
+                            if (img.dataset && (img.dataset.bgR || img.dataset.bgR === '0')) window.applyImageBgFromMeta(img);
+                            else applyOrientationFit(img);
+                        }
+                    } catch (e) { /* ignore */ }
+                });
             });
         }
     } catch (error) {
@@ -263,6 +311,143 @@ async function loadProducts(category) {
         productGrid.innerHTML = '<p>Unable to load products at this time.</p>';
     }
 }
+
+// Build img tag string with optional srcset using variants mapping
+function buildImgTag(src, variants, alt, pid, meta) {
+    const safeAlt = (alt || '').replace(/"/g, '&quot;');
+    const fallback = "https://via.placeholder.com/200x150/E0E0E0/666666?text=No+Image";
+    if (variants && typeof variants === 'object') {
+        // build srcset entries sorted by width
+        const entries = Object.keys(variants).map(k => `${variants[k]} ${k}w`).join(', ');
+        // choose smallest variant as src if available, else src
+        const widths = Object.keys(variants).map(n=>parseInt(n,10)).sort((a,b)=>a-b);
+        const smallest = widths.length ? variants[widths[0]] : src;
+        // include data-* attributes when meta is provided so client can apply colors without canvas
+        const dataAttrs = meta ? `data-bg-r="${meta.image_bg_r || ''}" data-bg-g="${meta.image_bg_g || ''}" data-bg-b="${meta.image_bg_b || ''}" data-overlay-alpha="${meta.image_overlay_alpha || ''}" data-contrast="${meta.image_contrast || ''}"` : '';
+        return `<img src="${smallest || src || fallback}" srcset="${entries}" sizes="(max-width: 600px) 50vw, (max-width: 1200px) 33vw, 25vw" alt="${safeAlt}" ${dataAttrs} loading="lazy" decoding="async" onload="(function(i){ if(i.dataset && (i.dataset.bgR || i.dataset.bgR==='0')){ window.applyImageBgFromMeta(i); } else { applyOrientationFit(i); } })(this)" onerror="this.onerror=null;this.src='${fallback}'; console.warn('Product image failed to load:', '${pid}', this.src)">`;
+    }
+    const dataAttrs = meta ? `data-bg-r="${meta.image_bg_r || ''}" data-bg-g="${meta.image_bg_g || ''}" data-bg-b="${meta.image_bg_b || ''}" data-overlay-alpha="${meta.image_overlay_alpha || ''}" data-contrast="${meta.image_contrast || ''}"` : '';
+    return `<img src="${src || fallback}" alt="${safeAlt}" ${dataAttrs} loading="lazy" decoding="async" onload="(function(i){ if(i.dataset && (i.dataset.bgR || i.dataset.bgR==='0')){ window.applyImageBgFromMeta(i); } else { applyOrientationFit(i); } })(this)" onerror="this.onerror=null;this.src='${fallback}'; console.warn('Product image failed to load:', '${pid}', this.src)">`;
+}
+
+// Apply orientation-aware fit: portrait -> contain, landscape -> cover
+function applyOrientationFit(img) {
+    try {
+        if (!img) return;
+        const apply = () => {
+            try {
+                const w = img.naturalWidth || 0;
+                const h = img.naturalHeight || 0;
+                img.classList.remove('fit-contain', 'fit-cover');
+                if (h >= w) {
+                    img.classList.add('fit-contain');
+                } else {
+                    img.classList.add('fit-cover');
+                }
+                // Also set the parent `.product-image` background to a matching color
+                if (window.applyImageBgFromImage) {
+                    try { window.applyImageBgFromImage(img); } catch(e) { /* ignore */ }
+                }
+            } catch (e) { console.warn('applyOrientationFit inner error', e); }
+        };
+
+        if (img.complete && img.naturalWidth && img.naturalHeight) {
+            apply();
+        } else {
+            const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
+            img.addEventListener('load', onLoad);
+        }
+    } catch (e) {
+        console.warn('applyOrientationFit failed', e);
+    }
+}
+
+// Compute an average/dominant-ish background color from an image and apply it
+// to the parent `.product-image` element. Best-effort: if the image is cross-origin
+// and taints the canvas this will silently fail and leave the default background.
+window.applyImageBgFromImage = function(img) {
+    try {
+        if (!img) return;
+        const container = img.closest && img.closest('.product-image');
+        if (!container) return;
+
+        const computeAndSet = () => {
+            try {
+                const w = Math.min(40, Math.max(1, img.naturalWidth || 1));
+                const h = Math.min(40, Math.max(1, img.naturalHeight || 1));
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                const data = ctx.getImageData(0, 0, w, h).data;
+                let r = 0, g = 0, b = 0, count = 0;
+                for (let i = 0; i < data.length; i += 4) {
+                    const alpha = data[i + 3];
+                    if (alpha === 0) continue;
+                    r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
+                }
+                if (!count) return;
+                r = Math.round(r / count);
+                g = Math.round(g / count);
+                b = Math.round(b / count);
+                // Slightly desaturate and set CSS variables so CSS overlay can use them.
+                container.style.transition = 'background-color 450ms ease';
+                container.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                // Set CSS vars for overlay use (r,g,b) and compute a helpful overlay alpha
+                container.style.setProperty('--product-bg-r', String(r));
+                container.style.setProperty('--product-bg-g', String(g));
+                container.style.setProperty('--product-bg-b', String(b));
+                // Compute luminance to choose overlay strength (0..1)
+                const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+                let alpha = 0.20; // default for darker images
+                if (lum > 0.75) alpha = 0.55; // very light images -> stronger overlay
+                else if (lum > 0.6) alpha = 0.45;
+                else if (lum > 0.45) alpha = 0.32;
+                else alpha = 0.20;
+                container.style.setProperty('--product-overlay-alpha', String(alpha));
+                // Also expose a contrast color variable for potential label use
+                container.style.setProperty('--product-contrast', (lum > 0.5) ? '#111' : '#fff');
+            } catch (e) {
+                // likely CORS/tainted canvas; ignore and keep default background
+            }
+        };
+
+        if (img.complete && img.naturalWidth && img.naturalHeight) {
+            setTimeout(computeAndSet, 20);
+        } else {
+            const onLoad = function() { computeAndSet(); img.removeEventListener('load', onLoad); };
+            img.addEventListener('load', onLoad);
+        }
+    } catch (e) {
+        // swallow errors to avoid breaking UI
+    }
+};
+
+// Apply image meta supplied by server (data attributes or metadata object)
+window.applyImageBgFromMeta = function(img) {
+    try {
+        if (!img) return;
+        const container = img.closest && img.closest('.product-image');
+        if (!container) return;
+        const ds = img.dataset || {};
+        const r = ds.bgR || ds.imageBgR || null;
+        const g = ds.bgG || ds.imageBgG || null;
+        const b = ds.bgB || ds.imageBgB || null;
+        const alpha = ds.overlayAlpha || ds.imageOverlayAlpha || null;
+        const contrast = ds.contrast || ds.imageContrast || null;
+        if (r && g && b) {
+            container.style.transition = 'background-color 450ms ease';
+            container.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            if (alpha !== null && alpha !== undefined) container.style.setProperty('--product-overlay-alpha', String(alpha));
+            if (contrast) container.style.setProperty('--product-contrast', contrast);
+            // Also expose the rgb vars for advanced CSS usage
+            container.style.setProperty('--product-bg-r', String(r));
+            container.style.setProperty('--product-bg-g', String(g));
+            container.style.setProperty('--product-bg-b', String(b));
+        }
+    } catch (e) { /* ignore */ }
+};
 
 // Authentication functions
 async function handleLogin(e) {

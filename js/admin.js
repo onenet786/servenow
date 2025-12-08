@@ -133,6 +133,36 @@ function initializeAdmin() {
     document.getElementById('addUserBtn').addEventListener('click', () => showAddUserModal());
     document.getElementById('addStoreBtn').addEventListener('click', () => showAddStoreModal());
     document.getElementById('addProductBtn').addEventListener('click', () => showAddProductModal());
+    const exportBtn = document.getElementById('exportImagesBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportBase64Images);
+    }
+    // Image fit toggle (preview cover vs fill)
+    const imageFitSelect = document.getElementById('imageFitSelect');
+    if (imageFitSelect) {
+        // initialize from localStorage (default: cover)
+        const saved = localStorage.getItem('productImageFit') || 'cover';
+        imageFitSelect.value = saved;
+        applyImageFitClass(saved);
+        imageFitSelect.addEventListener('change', function() {
+            const val = this.value === 'fill' ? 'fill' : 'cover';
+            localStorage.setItem('productImageFit', val);
+            applyImageFitClass(val);
+            showSuccess('Image Fit Updated', `Image fit set to ${val}`);
+        });
+    }
+    // Apply matching background color for any product-image previews already on the page
+    try {
+        const imgs = document.querySelectorAll('.product-image img');
+        imgs.forEach(img => {
+            if (window.applyImageBgFromImage) {
+                try {
+                    if (img.complete && img.naturalWidth && img.naturalHeight) window.applyImageBgFromImage(img);
+                    else img.addEventListener('load', function onL(){ window.applyImageBgFromImage(img); img.removeEventListener('load', onL); });
+                } catch (e) { /* ignore */ }
+            }
+        });
+    } catch (e) { /* ignore */ }
     document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
     document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
 
@@ -198,6 +228,13 @@ function initializeAdmin() {
     if (document.getElementById('reportRiderFilter')) {
         loadReportRiders();
     }
+}
+
+// Apply image fit mode by toggling a class on <body>
+function applyImageFitClass(mode) {
+    document.body.classList.remove('image-fit-cover', 'image-fit-fill');
+    if (mode === 'fill') document.body.classList.add('image-fit-fill');
+    else document.body.classList.add('image-fit-cover');
 }
 
 // Load riders for report filter
@@ -612,6 +649,43 @@ function displayProducts(products) {
             </td>
         `;
         tbody.appendChild(row);
+    });
+}
+
+// Export base64 images to uploads via server endpoint
+function exportBase64Images() {
+    if (!confirm('Export all base64 product images to server /uploads and update product records?')) return;
+    const statusEl = document.getElementById('exportImagesStatus');
+    const btn = document.getElementById('exportImagesBtn');
+    if (statusEl) statusEl.textContent = 'Exporting...';
+    if (btn) btn.disabled = true;
+
+    fetch(`${API_BASE}/api/products/export-base64-images`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const converted = data.converted || 0;
+            showSuccess('Export Complete', `${converted} images converted and updated.`);
+            if (statusEl) statusEl.textContent = `Converted: ${converted}`;
+            // Refresh product list to show updated image paths
+            loadProducts();
+        } else {
+            showError('Export Failed', data.message || 'Export failed');
+            if (statusEl) statusEl.textContent = 'Export failed';
+        }
+        if (btn) btn.disabled = false;
+    })
+    .catch(err => {
+        console.error('Export error:', err);
+        showError('Error', 'Failed to export images. See console for details.');
+        if (statusEl) statusEl.textContent = 'Error';
+        if (btn) btn.disabled = false;
     });
 }
 
@@ -1170,7 +1244,7 @@ async function showAddProductModal() {
                 const url = prompt('Paste image URL (http(s)://)');
                 if (url) {
                     if (urlInput) urlInput.value = url;
-                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
+                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
                 }
             };
         }
@@ -1178,7 +1252,7 @@ async function showAddProductModal() {
         if (urlInput) {
             urlInput.oninput = () => {
                 if (urlInput.value) {
-                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
+                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
                 } else if (preview) {
                     preview.style.display = 'none';
                 }
@@ -1193,10 +1267,29 @@ async function showAddProductModal() {
                     reader.onload = (ev) => {
                         preview.src = ev.target.result;
                         preview.style.display = 'inline-block';
+                        applyOrientationFitAdmin(preview);
                     };
                     reader.readAsDataURL(file);
                 }
             };
+        }
+        
+        // Admin preview orientation helper
+        function applyOrientationFitAdmin(img) {
+            try {
+                if (!img) return;
+                const apply = () => {
+                    const w = img.naturalWidth || 0;
+                    const h = img.naturalHeight || 0;
+                    img.classList.remove('fit-contain', 'fit-cover');
+                    if (h >= w) img.classList.add('fit-contain'); else img.classList.add('fit-cover');
+                };
+                if (img.complete && img.naturalWidth && img.naturalHeight) apply();
+                else {
+                    const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
+                    img.addEventListener('load', onLoad);
+                }
+            } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
         }
     } catch (error) {
         console.error('Error loading dropdown data:', error);
@@ -1205,7 +1298,8 @@ async function showAddProductModal() {
 }
 
 async function saveProduct() {
-    const formData = new FormData(document.getElementById('addProductForm'));
+    const formEl = document.getElementById('addProductForm');
+    const formData = new FormData(formEl);
     const productData = {
         name: formData.get('name'),
         description: formData.get('description'),
@@ -1215,6 +1309,49 @@ async function saveProduct() {
         store_id: parseInt(formData.get('store_id')),
         stock_quantity: parseInt(formData.get('stock_quantity')) || 0
     };
+
+    // If a file was selected, upload it first to server to get back a public URL and variants
+    const fileInput = document.getElementById('productImageFile');
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        try {
+            const fd = new FormData();
+            fd.append('image', fileInput.files[0]);
+            const upRes = await fetch(`${API_BASE}/api/products/upload-image`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${authToken}` },
+                body: fd
+            });
+            const upJson = await upRes.json();
+            if (upJson.success && upJson.image_url) {
+                productData.image_url = upJson.image_url;
+                // include server-computed meta if returned so server can persist it with product
+                if (upJson.image_meta) {
+                    productData.image_bg_r = upJson.image_meta.image_bg_r;
+                    productData.image_bg_g = upJson.image_meta.image_bg_g;
+                    productData.image_bg_b = upJson.image_meta.image_bg_b;
+                    productData.image_overlay_alpha = upJson.image_meta.image_overlay_alpha;
+                    productData.image_contrast = upJson.image_meta.image_contrast;
+                }
+                // store variants in local hidden field if needed (not sent to server currently)
+                if (upJson.variants) {
+                    // attach variants as JSON string in a hidden form field for inspection
+                    let vfield = formEl.querySelector('input[name="image_variants"]');
+                    if (!vfield) {
+                        vfield = document.createElement('input');
+                        vfield.type = 'hidden';
+                        vfield.name = 'image_variants';
+                        formEl.appendChild(vfield);
+                    }
+                    vfield.value = JSON.stringify(upJson.variants);
+                }
+            } else {
+                showWarning('Upload Warning', upJson.message || 'Image upload returned no URL. Using provided URL instead.');
+            }
+        } catch (err) {
+            console.error('Image upload failed', err);
+            showWarning('Upload Failed', 'Image upload failed. Using provided image URL if any.');
+        }
+    }
 
     try {
         const response = await fetch(`${API_BASE}/api/products`, {

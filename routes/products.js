@@ -1,8 +1,118 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin, requireStoreOwner, optionalAuth } = require('../middleware/auth');
+const fs = require('fs');
+const path = require('path');
 
 const router = express.Router();
+const multer = require('multer');
+const sharp = (() => {
+    try { return require('sharp'); } catch (e) { console.warn('sharp not installed, image resizing disabled'); return null; }
+})();
+const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') });
+
+// Helper: given a public imageUrl like '/uploads/xxx.jpg', compute avg RGB and overlay alpha using sharp
+async function extractImageVarsFromPath(imageUrl) {
+    try {
+        if (!sharp) return null;
+        if (!imageUrl || typeof imageUrl !== 'string') return null;
+        if (!imageUrl.startsWith('/uploads/')) return null;
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        const rel = imageUrl.replace(/^\//, '');
+        const filePath = path.join(__dirname, '..', rel);
+        if (!fs.existsSync(filePath)) return null;
+
+        // Resize to small raw buffer and compute average
+        const small = await sharp(filePath).resize({ width: 40, height: 40, fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        const { data, info } = small;
+        let r = 0, g = 0, b = 0, count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            const alpha = data[i + 3];
+            if (alpha === 0) continue;
+            r += data[i]; g += data[i + 1]; b += data[i + 2]; count++;
+        }
+        if (!count) return null;
+        r = Math.round(r / count); g = Math.round(g / count); b = Math.round(b / count);
+        const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        let alpha = 0.20;
+        if (lum > 0.75) alpha = 0.55;
+        else if (lum > 0.6) alpha = 0.45;
+        else if (lum > 0.45) alpha = 0.32;
+        else alpha = 0.20;
+        const contrast = (lum > 0.5) ? '#111' : '#fff';
+        return { image_bg_r: r, image_bg_g: g, image_bg_b: b, image_overlay_alpha: parseFloat(alpha.toFixed(3)), image_contrast: contrast };
+    } catch (e) {
+        console.warn('extractImageVarsFromPath failed', e.message);
+        return null;
+    }
+}
+
+// Download a remote image URL into uploads and return public path and meta when possible
+async function downloadImageToUploads(remoteUrl) {
+    try {
+        if (!remoteUrl || !/^https?:\/\//i.test(remoteUrl)) return null;
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+        const resp = await fetch(remoteUrl);
+        if (!resp.ok) {
+            console.warn('Failed to fetch remote image', remoteUrl, resp.status);
+            return null;
+        }
+        const contentType = resp.headers.get('content-type') || '';
+        // Try to determine extension from content-type first, then fall back to URL path
+        let ext = '.jpg';
+        if (contentType.includes('png')) ext = '.png';
+        else if (contentType.includes('gif')) ext = '.gif';
+        else if (contentType.includes('webp')) ext = '.webp';
+        else if (contentType.includes('svg')) ext = '.svg';
+        else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
+        // If content-type is not present or unknown, attempt to parse extension from URL path
+        if (!ext || ext === '.jpg') {
+            try {
+                const u = new URL(remoteUrl);
+                const urlExt = path.extname(decodeURIComponent(u.pathname)) || '';
+                if (urlExt && urlExt.length <= 5) {
+                    ext = urlExt.toLowerCase();
+                }
+            } catch (e) { /* ignore URL parse errors */ }
+        }
+
+        const baseName = `remote_${Date.now()}_${Math.round(Math.random()*1000)}`;
+        const filename = `${baseName}${ext}`;
+        const filePath = path.join(uploadDir, filename);
+
+        const arrayBuffer = await resp.arrayBuffer();
+        fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+        const publicPath = '/uploads/' + filename;
+
+        // create variants if sharp available
+        const variants = {};
+        if (sharp) {
+            const sizes = [320, 640, 1024];
+            for (const w of sizes) {
+                try {
+                    const vname = `${baseName}_${w}${ext}`;
+                    const vpath = path.join(uploadDir, vname);
+                    await sharp(filePath).resize({ width: w }).toFile(vpath);
+                    variants[w] = '/uploads/' + vname;
+                } catch (err) {
+                    console.warn('sharp resize failed for downloaded image', filePath, err.message);
+                }
+            }
+        }
+
+        // attempt to extract meta
+        let meta = null;
+        try { meta = await extractImageVarsFromPath(publicPath); } catch(e) { /* ignore */ }
+
+        return { publicPath, variants, meta };
+    } catch (e) {
+        console.warn('downloadImageToUploads failed for', remoteUrl, e.message);
+        return null;
+    }
+}
 
 // Get all products with optional category filter
 router.get('/', optionalAuth, async (req, res) => {
@@ -52,6 +162,12 @@ router.get('/', optionalAuth, async (req, res) => {
                 description: product.description,
                 price: product.price,
                 image_url: product.image_url,
+                image_variants: getImageVariants(product.image_url),
+                image_bg_r: product.image_bg_r,
+                image_bg_g: product.image_bg_g,
+                image_bg_b: product.image_bg_b,
+                image_overlay_alpha: product.image_overlay_alpha,
+                image_contrast: product.image_contrast,
                 category_name: product.category_name,
                 store_name: product.store_name,
                 store_location: product.store_location,
@@ -69,6 +185,75 @@ router.get('/', optionalAuth, async (req, res) => {
             message: 'Failed to fetch products',
             error: error.message
         });
+    }
+});
+
+// helper to compute available image variants for products stored under /uploads
+function getImageVariants(imageUrl) {
+    try {
+        if (!imageUrl || typeof imageUrl !== 'string') return null;
+        if (!imageUrl.startsWith('/uploads/')) return null;
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        const rel = imageUrl.replace(/^\//, '');
+        const baseName = path.basename(rel, path.extname(rel));
+        const ext = path.extname(rel) || '.jpg';
+        const sizes = [320, 640, 1024];
+        const variants = {};
+        for (const w of sizes) {
+            const fn = `${baseName}_${w}${ext}`;
+            const p = path.join(uploadDir, fn);
+            if (fs.existsSync(p)) {
+                variants[w] = `/uploads/${fn}`;
+            }
+        }
+        return Object.keys(variants).length ? variants : null;
+    } catch (e) {
+        console.warn('getImageVariants failed', e.message);
+        return null;
+    }
+}
+
+// Upload image endpoint — accepts single file and generates resized variants
+router.post('/upload-image', authenticateToken, requireStoreOwner, upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+        const originalPath = req.file.path; // tmp file
+        const ext = path.extname(req.file.originalname) || '.jpg';
+        const baseName = `upload_${Date.now()}_${Math.round(Math.random()*1000)}`;
+        const outName = `${baseName}${ext}`;
+        const outPath = path.join(uploadDir, outName);
+
+        // Move tmp file to final location
+        fs.renameSync(originalPath, outPath);
+
+        const publicPath = '/uploads/' + outName;
+        const variants = {};
+
+        if (sharp) {
+            const sizes = [320, 640, 1024];
+            for (const w of sizes) {
+                try {
+                    const vname = `${baseName}_${w}${ext}`;
+                    const vpath = path.join(uploadDir, vname);
+                    await sharp(outPath).resize({ width: w }).toFile(vpath);
+                    variants[w] = '/uploads/' + vname;
+                } catch (err) {
+                    console.warn('sharp resize failed for', outPath, err.message);
+                }
+            }
+        }
+
+        // Try to extract image vars for this uploaded file and include in response
+        let meta = null;
+        try { meta = await extractImageVarsFromPath(publicPath); } catch(e) { /* ignore */ }
+
+        res.json({ success: true, image_url: publicPath, variants, image_meta: meta });
+    } catch (error) {
+        console.error('Upload image failed:', error);
+        res.status(500).json({ success: false, message: 'Image upload failed', error: error.message });
     }
 });
 
@@ -114,6 +299,12 @@ router.get('/:id', optionalAuth, async (req, res) => {
                 description: product.description,
                 price: product.price,
                 image_url: product.image_url,
+                image_variants: getImageVariants(product.image_url),
+                image_bg_r: product.image_bg_r,
+                image_bg_g: product.image_bg_g,
+                image_bg_b: product.image_bg_b,
+                image_overlay_alpha: product.image_overlay_alpha,
+                image_contrast: product.image_contrast,
                 category_name: product.category_name,
                 store_name: product.store_name,
                 store_location: product.store_location,
@@ -131,6 +322,85 @@ router.get('/:id', optionalAuth, async (req, res) => {
             message: 'Failed to fetch product',
             error: error.message
         });
+    }
+});
+
+// Export base64 images to files under /uploads and update DB image_url
+router.post('/export-base64-images', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const [rows] = await req.db.execute("SELECT id, image_url FROM products WHERE image_url LIKE 'data:%'");
+
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const results = [];
+
+        for (const row of rows) {
+            const id = row.id;
+            const dataUri = row.image_url || '';
+            const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/.exec(dataUri);
+            if (!match) {
+                results.push({ id, success: false, error: 'Invalid data URI' });
+                continue;
+            }
+
+            const mime = match[1];
+            const base64 = match[2];
+            let ext = 'jpg';
+            if (mime === 'image/png') ext = 'png';
+            else if (mime === 'image/gif') ext = 'gif';
+            else if (mime === 'image/webp') ext = 'webp';
+            else if (mime === 'image/svg+xml') ext = 'svg';
+            else if (/jpeg/i.test(mime)) ext = 'jpg';
+
+            const filename = `product_${id}_${Date.now()}.${ext}`;
+            const filePath = path.join(uploadDir, filename);
+
+            try {
+                fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+                const publicPath = '/uploads/' + filename;
+
+                // If sharp is available, generate resized variants
+                if (sharp) {
+                    const sizes = [320, 640, 1024];
+                    for (const w of sizes) {
+                        try {
+                            const vname = `product_${id}_${Date.now()}_${w}${path.extname(filename)}`;
+                            const vpath = path.join(uploadDir, vname);
+                            await sharp(filePath).resize({ width: w }).toFile(vpath);
+                        } catch (err) {
+                            console.warn('Failed to write variant for product', id, err.message);
+                        }
+                    }
+                }
+
+                await req.db.execute('UPDATE products SET image_url = ? WHERE id = ?', [publicPath, id]);
+                results.push({ id, success: true, new: publicPath });
+            } catch (err) {
+                console.error('Error writing file for product', id, err);
+                results.push({ id, success: false, error: err.message });
+            }
+        }
+
+        // After exporting files, attempt to compute and persist image vars for converted products
+        for (const r of results.filter(x => x.success)) {
+            try {
+                const meta = await extractImageVarsFromPath(r.new);
+                if (meta) {
+                    await req.db.execute(
+                        `UPDATE products SET image_bg_r = ?, image_bg_g = ?, image_bg_b = ?, image_overlay_alpha = ?, image_contrast = ? WHERE id = ?`,
+                        [meta.image_bg_r, meta.image_bg_g, meta.image_bg_b, meta.image_overlay_alpha, meta.image_contrast, r.id]
+                    );
+                }
+            } catch (e) { console.warn('Failed to persist image meta for product', r.id, e.message); }
+        }
+
+        res.json({ success: true, count: rows.length, converted: results.filter(r => r.success).length, results });
+    } catch (error) {
+        console.error('Error exporting base64 images:', error);
+        res.status(500).json({ success: false, message: 'Failed to export images', error: error.message });
     }
 });
 
@@ -196,11 +466,43 @@ router.post('/', authenticateToken, requireStoreOwner, [
             }
         }
 
-        const [result] = await req.db.execute(
-            `INSERT INTO products (name, description, price, image_url, category_id, store_id, stock_quantity)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [name, description, price, image_url, category_id, store_id, stock_quantity]
-        );
+        // If image_url is a remote link, download it into /uploads and use that path
+        let meta = null;
+        try {
+            if (image_url && /^https?:\/\//i.test(String(image_url))) {
+                const dl = await downloadImageToUploads(String(image_url));
+                if (dl && dl.publicPath) {
+                    image_url = dl.publicPath;
+                    // if we got meta or variants back from download step, use it
+                    if (dl.meta) meta = dl.meta;
+                }
+            }
+
+            // prefer metadata supplied by client (e.g., from upload endpoint)
+            if (!meta && req.body && (req.body.image_bg_r !== undefined || req.body.image_bg_g !== undefined)) {
+                meta = {
+                    image_bg_r: req.body.image_bg_r,
+                    image_bg_g: req.body.image_bg_g,
+                    image_bg_b: req.body.image_bg_b,
+                    image_overlay_alpha: req.body.image_overlay_alpha,
+                    image_contrast: req.body.image_contrast
+                };
+            }
+
+            if (!meta) meta = await extractImageVarsFromPath(String(image_url || ''));
+        } catch (e) { /* ignore */ }
+
+        const insertFields = ['name','description','price','image_url','category_id','store_id','stock_quantity'];
+        const insertPlaceholders = ['?','?','?','?','?','?','?'];
+        const insertValues = [name, description, price, image_url, category_id, store_id, stock_quantity];
+        if (meta) {
+            insertFields.push('image_bg_r','image_bg_g','image_bg_b','image_overlay_alpha','image_contrast');
+            insertPlaceholders.push('?,?,?,?,?');
+            insertValues.push(meta.image_bg_r, meta.image_bg_g, meta.image_bg_b, meta.image_overlay_alpha, meta.image_contrast);
+        }
+
+        const sql = `INSERT INTO products (${insertFields.join(',')}) VALUES (${insertPlaceholders.join(',')})`;
+        const [result] = await req.db.execute(sql, insertValues);
 
         res.status(201).json({
             success: true,
@@ -282,7 +584,38 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (name !== undefined) { updateFields.push('name = ?'); updateValues.push(name); }
         if (description !== undefined) { updateFields.push('description = ?'); updateValues.push(description); }
         if (price !== undefined) { updateFields.push('price = ?'); updateValues.push(price); }
-        if (image_url !== undefined) { updateFields.push('image_url = ?'); updateValues.push(image_url); }
+        if (image_url !== undefined) {
+            // If client supplied a remote URL, download it into uploads first
+            if (image_url && /^https?:\/\//i.test(String(image_url))) {
+                try {
+                    const dl = await downloadImageToUploads(String(image_url));
+                    if (dl && dl.publicPath) {
+                        image_url = dl.publicPath;
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            updateFields.push('image_url = ?'); updateValues.push(image_url);
+            // try to compute and persist image meta when image_url changed
+            try {
+                // prefer client-supplied meta if present
+                let meta = null;
+                if (req.body && (req.body.image_bg_r !== undefined || req.body.image_bg_g !== undefined)) {
+                    meta = {
+                        image_bg_r: req.body.image_bg_r,
+                        image_bg_g: req.body.image_bg_g,
+                        image_bg_b: req.body.image_bg_b,
+                        image_overlay_alpha: req.body.image_overlay_alpha,
+                        image_contrast: req.body.image_contrast
+                    };
+                }
+                if (!meta) meta = await extractImageVarsFromPath(String(image_url || ''));
+                if (meta) {
+                    updateFields.push('image_bg_r = ?', 'image_bg_g = ?', 'image_bg_b = ?', 'image_overlay_alpha = ?', 'image_contrast = ?');
+                    updateValues.push(meta.image_bg_r, meta.image_bg_g, meta.image_bg_b, meta.image_overlay_alpha, meta.image_contrast);
+                }
+            } catch (e) { /* ignore */ }
+        }
         if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id); }
         if (stock_quantity !== undefined) { updateFields.push('stock_quantity = ?'); updateValues.push(stock_quantity); }
         if (is_available !== undefined) { updateFields.push('is_available = ?'); updateValues.push(is_available); }

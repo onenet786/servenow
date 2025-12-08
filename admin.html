@@ -275,7 +275,16 @@
                             <h2>Products Management</h2>
 
 
-                            <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
+                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
+                                <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
+                                <button class="btn btn-secondary" id="exportImagesBtn" title="Export base64 product images to /uploads">Export Base64 Images</button>
+                                <span id="exportImagesStatus" style="font-size:0.9rem;color:#666;margin-left:0.5rem;"></span>
+                                <label for="imageFitSelect" style="margin-left:0.75rem;font-size:0.95rem;color:#333;">Image Fit:</label>
+                                <select id="imageFitSelect" class="btn-small" style="margin-left:0.5rem;padding:0.35rem 0.6rem;">
+                                    <option value="cover">Cover (crop)</option>
+                                    <option value="fill">Fill (stretch)</option>
+                                </select>
+                            </div>
 
 
                             <div class="table-container">

@@ -8,19 +8,28 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mysql2": "^3.6.5",
     "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "express-validator": "^7.0.1",
-    "multer": "^1.4.5-lts.1"
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.6.5"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.32.6"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
   },
-  "keywords": ["grocery", "delivery", "api", "mysql", "express"],
+  "keywords": [
+    "grocery",
+    "delivery",
+    "api",
+    "mysql",
+    "express"
+  ],
   "author": "ServeNow Team",
   "license": "MIT"
 }

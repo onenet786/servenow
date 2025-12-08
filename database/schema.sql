@@ -55,6 +55,12 @@ CREATE TABLE products (
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
     image_url VARCHAR(255),
+    -- Image color metadata for client-side rendering without canvas
+    image_bg_r INT DEFAULT NULL,
+    image_bg_g INT DEFAULT NULL,
+    image_bg_b INT DEFAULT NULL,
+    image_overlay_alpha DECIMAL(4,3) DEFAULT NULL,
+    image_contrast VARCHAR(7) DEFAULT NULL,
     category_id INT,
     store_id INT NOT NULL,
     stock_quantity INT DEFAULT 0,
