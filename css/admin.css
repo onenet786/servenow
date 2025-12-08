@@ -349,6 +349,117 @@ body {
     box-sizing: border-box;
 }
 
+/* Left sidebar layout overrides */
+.admin-nav.sidebar-left {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    /* Reduced further by ~30% from 146px → ~102px for an ultra-compact sidebar */
+    width: 102px;
+    padding: 0.45rem 0.35rem;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.25rem;
+    z-index: 1000;
+    border-radius: 0 6px 6px 0;
+}
+
+.admin-nav.sidebar-left .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-nav.sidebar-left .logo h1 {
+    font-size: 0.85rem;
+    margin: 0;
+    line-height: 1;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-nav.sidebar-left .hamburger-menu {
+    align-self: flex-end;
+}
+
+.admin-nav.sidebar-left .nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 0.06rem;
+    margin-top: 0.3rem;
+}
+
+.admin-nav.sidebar-left .nav-menu li a {
+    padding: 0.25rem 0.35rem;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    justify-content: flex-start; /* ensure icon + text align to left */
+    text-align: left; /* left-align text content */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Ensure nav icons align in a narrow column */
+.admin-nav.sidebar-left .nav-menu li a i {
+    width: 14px;
+    text-align: left; /* align icon to left edge */
+    font-size: 0.8rem;
+    margin-right: 6px; /* consistent spacing between icon and label */
+    flex: 0 0 18px;
+}
+
+/* Ensure dropdown and nested menu items are left aligned when sidebar is narrow */
+.admin-nav.sidebar-left .dropdown-menu,
+.admin-nav.sidebar-left .nav-menu li a {
+    text-align: left;
+}
+
+/* Force menu list to align items to the left */
+.admin-nav.sidebar-left .nav-menu {
+    align-items: flex-start;
+}
+
+/* Move main content to the right of the sidebar */
+.admin-container {
+    margin-left: 102px;
+    max-width: calc(100% - 102px);
+    padding-left: 0.9rem;
+}
+
+/* Adjust header/top spacing when sidebar present */
+header { position: relative; }
+
+/* Responsive: revert to top nav on narrow screens */
+@media (max-width: 900px) {
+    .admin-nav.sidebar-left {
+        position: relative;
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-radius: 0;
+    }
+    .admin-container {
+        margin-left: 0;
+        max-width: 100%;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .nav-menu {
+        flex-direction: row;
+    }
+    .hamburger-menu { display: flex; }
+}
+
 .logo h1 {
     margin: 0;
     font-size: 1.5rem;
@@ -1637,5 +1748,30 @@ table tbody tr:last-child td {
     table th,
     table td {
         padding: 0.3rem 0.2rem;
+
+/* Strong overrides for sidebar-left to ensure left-aligned labels */
+.admin-nav.sidebar-left .nav-menu li a {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    padding-left: 0.4rem !important;
+}
+
+.admin-nav.sidebar-left .nav-menu li a > i {
+    margin-right: 6px !important;
+}
+
+/* Ensure dropdowns and nested menus also align left */
+.admin-nav.sidebar-left .dropdown-menu,
+.admin-nav.sidebar-left .dropdown-menu a {
+    text-align: left !important;
+}
+
+/* If any global rules force center alignment, this will override them for the sidebar variant */
+.admin-nav.sidebar-left .nav-menu li,
+.admin-nav.sidebar-left .nav-menu li a {
+    align-items: flex-start !important;
+}
     }
 }
