@@ -428,6 +428,23 @@ body {
     align-items: flex-start;
 }
 
+/* FORCE: ensure any text inside nav anchors or buttons is left-aligned */
+.admin-nav.sidebar-left .nav-menu li a,
+.admin-nav.sidebar-left .nav-menu li a *,
+.admin-nav.sidebar-left .nav-menu li button,
+.admin-nav.sidebar-left .nav-menu li .btn,
+.admin-nav.sidebar-left #logoutBtn {
+    text-align: left !important;
+    justify-content: flex-start !important;
+}
+
+/* Make logout and other action links fill available width and align left */
+.admin-nav.sidebar-left #logoutBtn,
+.admin-nav.sidebar-left .nav-menu li a {
+    width: 100%;
+    padding-left: 0.45rem !important;
+}
+
 /* Move main content to the right of the sidebar */
 .admin-container {
     margin-left: 102px;
