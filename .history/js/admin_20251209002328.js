@@ -1,6 +1,5 @@
 // Admin Dashboard JavaScript
-// Use full origin to avoid relative-path edge cases
-const API_BASE = window.location.protocol + '//' + window.location.host;
+const API_BASE = '';
 let currentUser = null;
 let authToken = null;
 let currentOrders = [];
@@ -79,53 +78,35 @@ function showInfo(title, message, duration = 3000) {
 document.addEventListener('DOMContentLoaded', function() {
     // Check if user is logged in and is admin
     authToken = localStorage.getItem('serveNowToken');
-    // Debug: log token presence to help diagnose 401 issues
-    try { console.debug('[admin] serveNowToken present:', !!authToken); } catch (e) { /* ignore */ }
     if (!authToken) {
         window.location.href = 'login.html';
         return;
     }
 
     // Verify user is admin
-    (async () => {
-        try {
-            const resp = await fetch(`${API_BASE}/api/auth/profile`, {
-                headers: { 'Authorization': `Bearer ${authToken}` }
-            });
-
-            if (!resp.ok) {
-                console.warn('[admin] profile fetch status:', resp.status, resp.statusText);
-                if (resp.status === 401 || resp.status === 403) {
-                    localStorage.removeItem('serveNowToken');
-                    try { showError('Session Error', 'Please sign in again.'); } catch (e) {}
-                    window.location.href = 'login.html';
-                    return;
-                }
-                // other non-OK statuses
-                throw new Error(`Profile fetch failed: ${resp.status}`);
-            }
-
-            const data = await resp.json();
-            if (data && data.success && data.user) {
-                if (data.user.user_type === 'admin') {
-                    currentUser = data.user;
-                    initializeAdmin();
-                } else if (data.user.user_type === 'rider') {
-                    window.location.href = 'rider.html';
-                } else {
-                    localStorage.removeItem('serveNowToken');
-                    window.location.href = 'login.html';
-                }
-            } else {
-                localStorage.removeItem('serveNowToken');
-                window.location.href = 'login.html';
-            }
-        } catch (error) {
-            console.error('Auth check failed:', error);
+    fetch(`${API_BASE}/api/auth/profile`, {
+        headers: {
+            'Authorization': `Bearer ${authToken}`
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.user.user_type === 'admin') {
+            currentUser = data.user;
+            initializeAdmin();
+        } else if (data.success && data.user.user_type === 'rider') {
+            // Rider trying to access admin panel, redirect to rider dashboard
+            window.location.href = 'rider.html';
+        } else {
             localStorage.removeItem('serveNowToken');
             window.location.href = 'login.html';
         }
-    })();
+    })
+    .catch(error => {
+        console.error('Auth check failed:', error);
+        localStorage.removeItem('serveNowToken');
+        window.location.href = 'login.html';
+    });
 });
 
 function initializeAdmin() {

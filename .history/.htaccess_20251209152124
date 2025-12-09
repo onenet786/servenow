@@ -1,0 +1,4 @@
+RewriteEngine On
+RewriteRule ^api/(.*) http://localhost:3002// Try opening the Users tab
+if (typeof switchTab === 'function') { switchTab('users'); }
+else { console.warn('switchTab() not found'); }/api/$1 [P,L]

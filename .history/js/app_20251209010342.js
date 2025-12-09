@@ -4,51 +4,23 @@ const API_BASE = window.location.protocol + '//' + window.location.host;
 // Global fetch wrapper: automatically attach Authorization header when a token exists
 (() => {
     const nativeFetch = window.fetch.bind(window);
-    window.fetch = function(input, init) {
+    window.fetch = function(input, init = {}) {
         try {
             const token = localStorage.getItem('serveNowToken');
-            if (!token) return nativeFetch(input, init);
-
-            // If caller passed a Request object, clone it and add the header safely
-            if (typeof Request !== 'undefined' && input instanceof Request) {
-                const newHeaders = new Headers(input.headers || {});
-                if (!newHeaders.has('Authorization')) newHeaders.set('Authorization', `Bearer ${token}`);
-                const reqInit = {
-                    method: input.method,
-                    headers: newHeaders,
-                    body: input.body,
-                    mode: input.mode,
-                    credentials: input.credentials,
-                    cache: input.cache,
-                    redirect: input.redirect,
-                    referrer: input.referrer,
-                    referrerPolicy: input.referrerPolicy,
-                    integrity: input.integrity,
-                    keepalive: input.keepalive,
-                    signal: input.signal
-                };
-                // If an explicit init was also provided, merge it (init takes precedence)
-                const mergedInit = Object.assign({}, reqInit, init || {});
-                return nativeFetch(new Request(input.url, mergedInit));
-            }
-
-            // Otherwise handle (input, init) style
-            init = init || {};
-            init.headers = init.headers || {};
-
-            if (init.headers instanceof Headers) {
-                if (!init.headers.has('Authorization')) init.headers.set('Authorization', `Bearer ${token}`);
-            } else if (Array.isArray(init.headers)) {
-                const h = new Headers(init.headers);
-                if (!h.has('Authorization')) h.set('Authorization', `Bearer ${token}`);
-                init.headers = h;
-            } else {
-                if (!init.headers['Authorization'] && !init.headers['authorization']) {
-                    init.headers['Authorization'] = `Bearer ${token}`;
+            if (token) {
+                init = init || {};
+                init.headers = init.headers || {};
+                // If headers is a Headers instance, normalize
+                if (init.headers instanceof Headers) {
+                    if (!init.headers.has('Authorization')) init.headers.set('Authorization', `Bearer ${token}`);
+                } else {
+                    if (!init.headers['Authorization'] && !init.headers['authorization']) {
+                        init.headers['Authorization'] = `Bearer ${token}`;
+                    }
                 }
             }
         } catch (e) {
-            // ignore errors accessing localStorage or headers
+            // ignore errors accessing localStorage
         }
         return nativeFetch(input, init);
     };

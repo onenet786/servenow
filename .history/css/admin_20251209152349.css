@@ -55,8 +55,38 @@ body {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
     background: white;
     min-width: 300px;
-}
+        /* Desktop: show nav inline across the top (no fixed sidebar) */
+        .nav-menu {
+            position: relative;
+            left: 0;
+            top: auto;
+            height: auto;
+            width: auto;
+            display: flex;
+            flex-direction: row;
+            gap: 1rem;
+            padding: 0;
+            background: transparent;
+            box-shadow: none;
+            transition: none;
+            z-index: 1000;
+            align-items: center;
+        }
 
+        /* Main content uses full width with top nav */
+        .admin-container { transition: none; margin-left: 0; max-width: 100%; }
+
+        /* Show nav links as inline items */
+        .nav-menu li a {
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.9);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .nav-menu li .dropdown-menu { position: absolute; background: var(--dark-gradient); box-shadow: 0 8px 25px rgba(0,0,0,0.3); padding-left: 0; }
+        .nav-menu li .dropdown-menu { position: static; background: transparent; box-shadow: none; padding-left: 0; }
 .toast-message {
     font-size: 0.85rem;
     margin: 0;
@@ -292,45 +322,9 @@ body {
 }
 
 .table-container tbody td {
-    padding: 6px 8px;
+    padding: 10px 12px;
     border-top: 1px solid #eef2f6;
-    line-height: 1.0;
-    vertical-align: middle;
 }
-
-/* Reduce default row height for compact tables */
-.table-container table tbody tr {
-    height: auto;
-    min-height: 36px;
-}
-
-/* Compact action buttons container: single-line, small buttons */
-.action-buttons {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    justify-content: flex-start;
-    white-space: nowrap;
-}
-
-.action-buttons .btn-small,
-.table-container .btn-small {
-    padding: 4px 6px;
-    font-size: 0.78rem;
-    line-height: 1;
-    height: 28px;
-    min-width: 0;
-    border-radius: 6px;
-}
-
-/* Ensure icons inside action buttons are sized appropriately */
-.action-buttons .btn-small i {
-    font-size: 0.9rem;
-    margin-right: 6px;
-}
-
-/* Reduce image heights inside table rows to keep rows compact */
-.table-container td img { max-height: 36px; width: auto; }
 
 /* Header Navigation Styles */
 .admin-nav {
@@ -509,31 +503,6 @@ header { position: relative; }
     position: relative;
     overflow: hidden;
 }
-/* Force menu bar permanent across all viewports */
-.nav-menu {
-    display: flex !important;
-    position: relative !important;
-    left: auto !important;
-    top: auto !important;
-    height: auto !important;
-    width: auto !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    gap: 0.8rem !important;
-    padding: 0.5rem 1rem !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    z-index: 1000;
-}
-
-/* Hide hamburger always when menu is permanent */
-.hamburger-menu { display: none !important; }
-
-/* Ensure mobile still wraps the nav links nicely */
-@media (max-width: 600px) {
-    .nav-menu { justify-content: center; }
-    .nav-menu li a { padding: 0.45rem 0.6rem; font-size: 0.95rem; }
-}
 
 .nav-menu li a::before {
     content: '';
@@ -583,7 +552,7 @@ header { position: relative; }
 @media (min-width: 900px) {
     .nav-menu {
         position: fixed;
-        left: 0; /* permanent visible left panel */
+        left: -120px;
         top: 0;
         height: 100vh;
         width: 120px;
@@ -593,15 +562,21 @@ header { position: relative; }
         padding: 3.5rem 0.5rem 1rem 0.5rem;
         background: var(--dark-gradient);
         box-shadow: 0 8px 30px rgba(0,0,0,0.25);
-        transition: none;
+        transition: left 0.22s cubic-bezier(0.4,0,0.2,1);
         z-index: 1000;
     }
 
-    /* Hide hamburger on desktop since panel is permanent */
-    .hamburger-menu { display: none !important; }
+    /* Ensure hamburger menu is visible on desktop so users can toggle the left panel */
+    .hamburger-menu { display: flex !important; }
 
-    /* Main content shifted to the right of the permanent left panel */
-    .admin-container { transition: margin-left 0.22s cubic-bezier(0.4,0,0.2,1); margin-left: 120px; }
+    body.left-open .nav-menu { left: 0; }
+
+    /* Push main content when left panel is open */
+    .admin-container { transition: margin-left 0.22s cubic-bezier(0.4,0,0.2,1); margin-left: 0; }
+    body.left-open .admin-container { margin-left: 120px; }
+
+    /* Place hamburger at top-left above content */
+    .hamburger-menu { position: fixed; left: 12px; top: 12px; z-index: 1100; }
 
     /* Left-panel style for links */
     .nav-menu li a {
@@ -1657,20 +1632,6 @@ table tbody tr:last-child td {
     border-bottom: none;
 }
 
-/* Fix: ensure table cells in admin table containers align to their headers
-   and don't shift when content is long. This forces normal wrapping and
-   lets the browser calculate column widths correctly. */
-.table-container table {
-    table-layout: auto;
-}
-.table-container th,
-.table-container td {
-    white-space: normal !important;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-}
-
-
 /* Status badges */
 .status-active,
 .status-inactive {
@@ -1872,51 +1833,30 @@ table tbody tr:last-child td {
         padding: 0.3rem 0.2rem;
     }
 
-    /* Strong overrides for sidebar-left to ensure left-aligned labels */
-    .admin-nav.sidebar-left .nav-menu li a {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
-        padding-left: 0.4rem !important;
-    }
-
-    .admin-nav.sidebar-left .nav-menu li a > i {
-        margin-right: 6px !important;
-    }
-
-    /* Ensure dropdowns and nested menus also align left */
-    .admin-nav.sidebar-left .dropdown-menu,
-    .admin-nav.sidebar-left .dropdown-menu a {
-        text-align: left !important;
-    }
-
-    /* If any global rules force center alignment, this will override them for the sidebar variant */
-    .admin-nav.sidebar-left .nav-menu li,
-    .admin-nav.sidebar-left .nav-menu li a {
-        align-items: flex-start !important;
-    }
+/* Strong overrides for sidebar-left to ensure left-aligned labels */
+.admin-nav.sidebar-left .nav-menu li a {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    padding-left: 0.4rem !important;
 }
 
-/* Strong table layout overrides placed at end to avoid being overridden */
-.table-container table {
-    table-layout: auto !important;
-    min-width: 0 !important;
+.admin-nav.sidebar-left .nav-menu li a > i {
+    margin-right: 6px !important;
 }
 
-.table-container th,
-.table-container td {
-    white-space: normal !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
+/* Ensure dropdowns and nested menus also align left */
+.admin-nav.sidebar-left .dropdown-menu,
+.admin-nav.sidebar-left .dropdown-menu a {
+    text-align: left !important;
 }
 
-/* Ensure table rows and cells are not covered by the left nav on desktop
-   by keeping the main content offset in sync with the nav width. */
-@media (min-width: 900px) {
-    .admin-container {
-        margin-left: 120px !important;
+/* If any global rules force center alignment, this will override them for the sidebar variant */
+.admin-nav.sidebar-left .nav-menu li,
+.admin-nav.sidebar-left .nav-menu li a {
+    align-items: flex-start !important;
+}
     }
-    /* Make sure table content sits above unintended overlays */
-    .table-container { z-index: 2; position: relative; }
+}
 }

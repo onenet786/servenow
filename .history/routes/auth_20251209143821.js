@@ -130,15 +130,6 @@ router.post('/login', [
             'SELECT * FROM users WHERE email = ? AND is_active = true',
             [email]
         );
-        if (process.env.NODE_ENV === 'development') {
-            console.log(`[auth] DB lookup - users found: ${users.length}`);
-            if (users.length > 0) {
-                try {
-                    const u = users[0];
-                    console.log(`[auth] DB user id=${u.id} email=${u.email} user_type=${u.user_type} password_hash_len=${u.password ? u.password.length : 0}`);
-                } catch (e) { /* ignore logging issues */ }
-            }
-        }
 
         if (users.length === 0) {
             // Check if it's a rider login
@@ -190,16 +181,8 @@ router.post('/login', [
         let isPasswordValid = false;
         if (email === 'admin@servenow.com' && password === 'admin123') {
             isPasswordValid = true;
-            if (process.env.NODE_ENV === 'development') console.log('[auth] Dev admin shortcut used, password accepted');
         } else {
-            if (process.env.NODE_ENV === 'development') console.log('[auth] Comparing provided password with stored hash');
-            try {
-                isPasswordValid = await bcrypt.compare(password, user.password);
-            } catch (e) {
-                console.error('[auth] bcrypt.compare error:', e && e.message ? e.message : e);
-                isPasswordValid = false;
-            }
-            if (process.env.NODE_ENV === 'development') console.log(`[auth] Password comparison result: ${isPasswordValid}`);
+            isPasswordValid = await bcrypt.compare(password, user.password);
         }
 
         if (!isPasswordValid) {

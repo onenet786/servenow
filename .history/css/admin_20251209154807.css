@@ -294,7 +294,7 @@ body {
 .table-container tbody td {
     padding: 6px 8px;
     border-top: 1px solid #eef2f6;
-    line-height: 1.0;
+    line-height: 1.;
     vertical-align: middle;
 }
 
@@ -502,13 +502,6 @@ header { position: relative; }
     text-decoration: none;
     display: flex;
     align-items: center;
-    padding: 0.75rem 1rem;
-    border-radius: var(--border-radius-sm);
-    transition: var(--transition);
-    font-weight: 500;
-    position: relative;
-    overflow: hidden;
-}
 /* Force menu bar permanent across all viewports */
 .nav-menu {
     display: flex !important;
@@ -533,6 +526,13 @@ header { position: relative; }
 @media (max-width: 600px) {
     .nav-menu { justify-content: center; }
     .nav-menu li a { padding: 0.45rem 0.6rem; font-size: 0.95rem; }
+}
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius-sm);
+    transition: var(--transition);
+    font-weight: 500;
+    position: relative;
+    overflow: hidden;
 }
 
 .nav-menu li a::before {
@@ -1657,20 +1657,6 @@ table tbody tr:last-child td {
     border-bottom: none;
 }
 
-/* Fix: ensure table cells in admin table containers align to their headers
-   and don't shift when content is long. This forces normal wrapping and
-   lets the browser calculate column widths correctly. */
-.table-container table {
-    table-layout: auto;
-}
-.table-container th,
-.table-container td {
-    white-space: normal !important;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-}
-
-
 /* Status badges */
 .status-active,
 .status-inactive {
@@ -1896,27 +1882,4 @@ table tbody tr:last-child td {
     .admin-nav.sidebar-left .nav-menu li a {
         align-items: flex-start !important;
     }
-}
-
-/* Strong table layout overrides placed at end to avoid being overridden */
-.table-container table {
-    table-layout: auto !important;
-    min-width: 0 !important;
-}
-
-.table-container th,
-.table-container td {
-    white-space: normal !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
-}
-
-/* Ensure table rows and cells are not covered by the left nav on desktop
-   by keeping the main content offset in sync with the nav width. */
-@media (min-width: 900px) {
-    .admin-container {
-        margin-left: 120px !important;
-    }
-    /* Make sure table content sits above unintended overlays */
-    .table-container { z-index: 2; position: relative; }
 }

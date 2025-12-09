@@ -2,27 +2,12 @@ const jwt = require('jsonwebtoken');
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
-    // Look for token in several common locations to make local/dev debugging easier
     const authHeader = req.headers['authorization'];
-    let token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-    let tokenSource = null;
-
-    if (token) tokenSource = 'authorization';
-    // Check x-access-token header as alternative
-    if (!token && req.headers['x-access-token']) {
-        token = req.headers['x-access-token'];
-        tokenSource = 'x-access-token';
-    }
-    // Check query parameter as last resort (useful for quick curl/debugging)
-    if (!token && req.query && req.query.token) {
-        token = req.query.token;
-        tokenSource = 'query.token';
-    }
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     // Development-only debug logging to help diagnose 401/403 issues
     if (process.env.NODE_ENV === 'development') {
-        console.log('[auth] Authorization header present:', !!authHeader);
-        console.log('[auth] Token source:', tokenSource);
+        console.log('[auth] Authorization header:', authHeader);
         console.log('[auth] Extracted token present:', !!token);
     }
 

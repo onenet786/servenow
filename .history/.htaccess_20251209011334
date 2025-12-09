@@ -1,0 +1,2 @@
+RewriteEngine On
+RewriteRule ^api/(.*) http://localhost:3003/api/$1 [P,L]

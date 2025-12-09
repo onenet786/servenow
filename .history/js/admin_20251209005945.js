@@ -1,6 +1,5 @@
 // Admin Dashboard JavaScript
-// Use full origin to avoid relative-path edge cases
-const API_BASE = window.location.protocol + '//' + window.location.host;
+const API_BASE = '';
 let currentUser = null;
 let authToken = null;
 let currentOrders = [];
@@ -87,45 +86,48 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Verify user is admin
-    (async () => {
-        try {
-            const resp = await fetch(`${API_BASE}/api/auth/profile`, {
-                headers: { 'Authorization': `Bearer ${authToken}` }
-            });
-
-            if (!resp.ok) {
-                console.warn('[admin] profile fetch status:', resp.status, resp.statusText);
-                if (resp.status === 401 || resp.status === 403) {
-                    localStorage.removeItem('serveNowToken');
-                    try { showError('Session Error', 'Please sign in again.'); } catch (e) {}
-                    window.location.href = 'login.html';
-                    return;
-                }
-                // other non-OK statuses
-                throw new Error(`Profile fetch failed: ${resp.status}`);
-            }
-
-            const data = await resp.json();
-            if (data && data.success && data.user) {
-                if (data.user.user_type === 'admin') {
-                    currentUser = data.user;
-                    initializeAdmin();
-                } else if (data.user.user_type === 'rider') {
-                    window.location.href = 'rider.html';
-                } else {
-                    localStorage.removeItem('serveNowToken');
-                    window.location.href = 'login.html';
-                }
-            } else {
-                localStorage.removeItem('serveNowToken');
-                window.location.href = 'login.html';
-            }
-        } catch (error) {
-            console.error('Auth check failed:', error);
+    fetch(`${API_BASE}/api/auth/profile`, {
+        headers: {
+            'Authorization': `Bearer ${authToken}`
+        }
+    })
+    .then(response => {
+        // Log unexpected statuses for easier debugging
+        if (!response.ok) {
+            console.warn('[admin] profile fetch status:', response.status, response.statusText);
+        }
+        return response.json();
+    })
+    .then(response => {
+        // If unauthorized or forbidden, clear token and redirect to login with message
+        if (response.status === 401 || response.status === 403) {
+            try { console.warn('[admin] profile unauthorized:', response.status); } catch (e) {}
+            localStorage.removeItem('serveNowToken');
+            // show a quick message before redirecting (if running in browser)
+            try { showError('Session Error', 'Please sign in again.'); } catch (e) {}
+            window.location.href = 'login.html';
+            return Promise.reject(new Error('Unauthorized'));
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success && data.user.user_type === 'admin') {
+            currentUser = data.user;
+            initializeAdmin();
+        } else if (data.success && data.user.user_type === 'rider') {
+            // Rider trying to access admin panel, redirect to rider dashboard
+            window.location.href = 'rider.html';
+        } else {
             localStorage.removeItem('serveNowToken');
             window.location.href = 'login.html';
         }
-    })();
+    })
+    .catch(error => {
+        if (error && error.message === 'Unauthorized') return; // already handled above
+        console.error('Auth check failed:', error);
+        localStorage.removeItem('serveNowToken');
+        window.location.href = 'login.html';
+    });
 });
 
 function initializeAdmin() {
