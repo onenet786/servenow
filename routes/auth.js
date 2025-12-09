@@ -101,12 +101,44 @@ router.post('/login', [
         }
 
         const { email, password } = req.body;
+        console.log('[auth] Login attempt for:', email);
+
+        // Development shortcut: allow the default admin credentials even if user row is missing
+        if (process.env.NODE_ENV === 'development' && email && email.toLowerCase() === 'admin@servenow.com' && password === 'admin123') {
+            const token = jwt.sign(
+                {
+                    id: 0,
+                    email: 'admin@servenow.com',
+                    user_type: 'admin',
+                    first_name: 'Dev',
+                    last_name: 'Admin'
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: process.env.JWT_EXPIRE }
+            );
+
+            return res.json({
+                success: true,
+                message: 'Dev admin login',
+                token,
+                user: { id: 0, first_name: 'Dev', last_name: 'Admin', email: 'admin@servenow.com', user_type: 'admin' }
+            });
+        }
 
         // Find user
         const [users] = await req.db.execute(
             'SELECT * FROM users WHERE email = ? AND is_active = true',
             [email]
         );
+        if (process.env.NODE_ENV === 'development') {
+            console.log(`[auth] DB lookup - users found: ${users.length}`);
+            if (users.length > 0) {
+                try {
+                    const u = users[0];
+                    console.log(`[auth] DB user id=${u.id} email=${u.email} user_type=${u.user_type} password_hash_len=${u.password ? u.password.length : 0}`);
+                } catch (e) { /* ignore logging issues */ }
+            }
+        }
 
         if (users.length === 0) {
             // Check if it's a rider login
@@ -145,7 +177,7 @@ router.post('/login', [
                     });
                 }
             }
-
+            console.warn('[auth] Login failed - no user/rider found for:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
@@ -158,8 +190,16 @@ router.post('/login', [
         let isPasswordValid = false;
         if (email === 'admin@servenow.com' && password === 'admin123') {
             isPasswordValid = true;
+            if (process.env.NODE_ENV === 'development') console.log('[auth] Dev admin shortcut used, password accepted');
         } else {
-            isPasswordValid = await bcrypt.compare(password, user.password);
+            if (process.env.NODE_ENV === 'development') console.log('[auth] Comparing provided password with stored hash');
+            try {
+                isPasswordValid = await bcrypt.compare(password, user.password);
+            } catch (e) {
+                console.error('[auth] bcrypt.compare error:', e && e.message ? e.message : e);
+                isPasswordValid = false;
+            }
+            if (process.env.NODE_ENV === 'development') console.log(`[auth] Password comparison result: ${isPasswordValid}`);
         }
 
         if (!isPasswordValid) {
@@ -200,6 +240,7 @@ router.post('/login', [
                 }
             }
 
+            console.warn('[auth] Login failed - password invalid for:', email);
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
@@ -219,6 +260,7 @@ router.post('/login', [
             { expiresIn: process.env.JWT_EXPIRE }
         );
 
+        console.log('[auth] Login successful for:', email, 'user_type=', user.user_type);
         res.json({
             success: true,
             message: 'Login successful',
@@ -246,6 +288,19 @@ router.post('/login', [
 const { authenticateToken } = require('../middleware/auth');
 router.get('/me', authenticateToken, async (req, res) => {
     try {
+        // Development convenience: if token represents the dev admin (id:0), return the token's user payload
+        if (process.env.NODE_ENV === 'development' && req.user && req.user.id === 0 && req.user.email === 'admin@servenow.com') {
+            return res.json({
+                success: true,
+                user: {
+                    id: 0,
+                    first_name: req.user.first_name || 'Dev',
+                    last_name: req.user.last_name || 'Admin',
+                    email: req.user.email,
+                    user_type: req.user.user_type || 'admin'
+                }
+            });
+        }
         const [users] = await req.db.execute(
             'SELECT id, first_name, last_name, email, phone, address, user_type, created_at FROM users WHERE id = ?',
             [req.user.id]
@@ -275,6 +330,19 @@ router.get('/me', authenticateToken, async (req, res) => {
 
 router.get('/profile', authenticateToken, async (req, res) => {
     try {
+        // Development convenience: if token represents the dev admin (id:0), return the token's user payload
+        if (process.env.NODE_ENV === 'development' && req.user && req.user.id === 0 && req.user.email === 'admin@servenow.com') {
+            return res.json({
+                success: true,
+                user: {
+                    id: 0,
+                    first_name: req.user.first_name || 'Dev',
+                    last_name: req.user.last_name || 'Admin',
+                    email: req.user.email,
+                    user_type: req.user.user_type || 'admin'
+                }
+            });
+        }
         const [users] = await req.db.execute(
             'SELECT id, first_name, last_name, email, phone, address, user_type, created_at FROM users WHERE id = ?',
             [req.user.id]

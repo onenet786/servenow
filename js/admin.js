@@ -1,5 +1,6 @@
 // Admin Dashboard JavaScript
-const API_BASE = '';
+// Use full origin to avoid relative-path edge cases
+const API_BASE = window.location.protocol + '//' + window.location.host;
 let currentUser = null;
 let authToken = null;
 let currentOrders = [];
@@ -78,35 +79,53 @@ function showInfo(title, message, duration = 3000) {
 document.addEventListener('DOMContentLoaded', function() {
     // Check if user is logged in and is admin
     authToken = localStorage.getItem('serveNowToken');
+    // Debug: log token presence to help diagnose 401 issues
+    try { console.debug('[admin] serveNowToken present:', !!authToken); } catch (e) { /* ignore */ }
     if (!authToken) {
         window.location.href = 'login.html';
         return;
     }
 
     // Verify user is admin
-    fetch(`${API_BASE}/api/auth/profile`, {
-        headers: {
-            'Authorization': `Bearer ${authToken}`
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.user.user_type === 'admin') {
-            currentUser = data.user;
-            initializeAdmin();
-        } else if (data.success && data.user.user_type === 'rider') {
-            // Rider trying to access admin panel, redirect to rider dashboard
-            window.location.href = 'rider.html';
-        } else {
+    (async () => {
+        try {
+            const resp = await fetch(`${API_BASE}/api/auth/profile`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+
+            if (!resp.ok) {
+                console.warn('[admin] profile fetch status:', resp.status, resp.statusText);
+                if (resp.status === 401 || resp.status === 403) {
+                    localStorage.removeItem('serveNowToken');
+                    try { showError('Session Error', 'Please sign in again.'); } catch (e) {}
+                    window.location.href = 'login.html';
+                    return;
+                }
+                // other non-OK statuses
+                throw new Error(`Profile fetch failed: ${resp.status}`);
+            }
+
+            const data = await resp.json();
+            if (data && data.success && data.user) {
+                if (data.user.user_type === 'admin') {
+                    currentUser = data.user;
+                    initializeAdmin();
+                } else if (data.user.user_type === 'rider') {
+                    window.location.href = 'rider.html';
+                } else {
+                    localStorage.removeItem('serveNowToken');
+                    window.location.href = 'login.html';
+                }
+            } else {
+                localStorage.removeItem('serveNowToken');
+                window.location.href = 'login.html';
+            }
+        } catch (error) {
+            console.error('Auth check failed:', error);
             localStorage.removeItem('serveNowToken');
             window.location.href = 'login.html';
         }
-    })
-    .catch(error => {
-        console.error('Auth check failed:', error);
-        localStorage.removeItem('serveNowToken');
-        window.location.href = 'login.html';
-    });
+    })();
 });
 
 function initializeAdmin() {
@@ -272,6 +291,36 @@ function initializeAdmin() {
             if (sub) openRiderSubtab(sub);
         });
     });
+
+    // Hamburger menu: toggle left-side panel
+    const hamburger = document.getElementById('hamburgerMenu');
+    if (hamburger) {
+        // Toggle class on body to open/close left panel
+        hamburger.addEventListener('click', function(e) {
+            e.preventDefault();
+            const isOpen = document.body.classList.toggle('left-open');
+            this.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+
+        // Close left panel when clicking outside the panel on desktop
+        document.addEventListener('click', function(e) {
+            if (!document.body.classList.contains('left-open')) return;
+            const nav = document.getElementById('navMenu');
+            const target = e.target;
+            if (nav && !nav.contains(target) && !hamburger.contains(target)) {
+                document.body.classList.remove('left-open');
+                hamburger.setAttribute('aria-expanded', 'false');
+            }
+        });
+
+        // Close panel on Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.body.classList.contains('left-open')) {
+                document.body.classList.remove('left-open');
+                hamburger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
 }
 
 // Apply image fit mode by toggling a class on <body>

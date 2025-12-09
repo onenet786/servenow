@@ -1112,24 +1112,26 @@
         const navMenu = document.getElementById('navMenu');
 
         if (hamburgerMenu && navMenu) {
-            hamburgerMenu.addEventListener('click', function() {
-                navMenu.classList.toggle('active');
-                hamburgerMenu.classList.toggle('active');
+            // Toggle the left panel by toggling the body class so desktop and mobile behave consistently
+            hamburgerMenu.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isOpen = document.body.classList.toggle('left-open');
+                hamburgerMenu.classList.toggle('active', isOpen);
             });
 
-            // Close mobile menu when clicking on a link
+            // Close menu when clicking a nav link (both desktop and mobile)
             const navLinks = navMenu.querySelectorAll('a');
             navLinks.forEach(link => {
                 link.addEventListener('click', function() {
-                    navMenu.classList.remove('active');
+                    document.body.classList.remove('left-open');
                     hamburgerMenu.classList.remove('active');
                 });
             });
 
-            // Close mobile menu when clicking outside
+            // Close menu when clicking outside
             document.addEventListener('click', function(event) {
                 if (!navMenu.contains(event.target) && !hamburgerMenu.contains(event.target)) {
-                    navMenu.classList.remove('active');
+                    document.body.classList.remove('left-open');
                     hamburgerMenu.classList.remove('active');
                 }
             });
