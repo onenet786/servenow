@@ -124,6 +124,63 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Load categories on the homepage dynamically (replaces the static 4 cards)
+async function loadHomeCategories() {
+    const grid = document.querySelector('.category-grid');
+    if (!grid) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/categories`);
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.categories)) return;
+
+        // Clear existing (static) cards so we render server-driven categories
+        grid.innerHTML = '';
+
+        data.categories.forEach(cat => {
+            // only show active categories
+            if (!cat.is_active) return;
+
+            const name = cat.name || 'Category';
+            // build URL-safe slug
+            const slug = String(name).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+            // normalize image URL similar to product handling
+            let imageSrc = 'https://via.placeholder.com/300x200/E0E0E0/666666?text=No+Image';
+            if (cat.image_url) {
+                let url = String(cat.image_url).trim().replace(/\\/g, '/');
+                if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) {
+                    imageSrc = url;
+                } else if (url.startsWith('/')) {
+                    imageSrc = API_BASE.replace(/\/$/, '') + url;
+                } else {
+                    imageSrc = API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
+                }
+            }
+
+            const card = document.createElement('div');
+            card.className = 'category-card';
+            card.innerHTML = `
+                <img src="${imageSrc}" alt="${name}">
+                <div class="category-card-content">
+                    <h4>${name}</h4>
+                    <a href="products.html?category=${encodeURIComponent(slug)}">Shop Now</a>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+
+    } catch (err) {
+        // Leave static cards as fallback and log error
+        console.error('Error loading home categories:', err);
+    }
+}
+
+// Trigger home categories load on DOM ready (safe to call on any page)
+window.addEventListener('DOMContentLoaded', function() {
+    try { loadHomeCategories(); } catch(e) { /* ignore */ }
+});
+
 // Cart functionality
 var cart = JSON.parse(localStorage.getItem('serveNowCart')) || [];
 

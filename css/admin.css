@@ -999,8 +999,7 @@ table {
     border-collapse: collapse;
     border-spacing: 0;
     font-size: 0.9rem;
-    table-layout: fixed;
-    table-layout: fixed;
+    table-layout: auto; /* use automatic column sizing */
 }
 
 table th {
@@ -1014,9 +1013,9 @@ table th {
     letter-spacing: 0.5px;
     border-bottom: 2px solid #dee2e6;
     border-right: 1px solid #dee2e6;
-    position: sticky;
-    top: 0;
-    z-index: 10;
+    position: static !important;
+    top: auto !important;
+    z-index: auto !important;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1064,36 +1063,20 @@ table tr td:last-child {
     overflow: visible;
 }
 
+/* Table row styling: keep native flow, avoid positioning that shifts layout */
 table tbody tr {
     transition: var(--transition);
-    position: relative;
-}
-
-table tbody tr::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: var(--primary-gradient);
-    transform: scaleY(0);
-    transition: var(--transition);
-    border-radius: 0 2px 2px 0;
+    position: static !important;
+    transform: none !important;
 }
 
 table tbody tr:hover {
     background: linear-gradient(135deg, #f8f9fb 0%, #e8f4fd 100%);
-    transform: translateX(2px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-table tbody tr:hover::before {
-    transform: scaleY(1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 table tbody tr:nth-child(even) {
-    background-color: rgba(248, 249, 250, 0.3);
+    background-color: rgba(248, 249, 250, 0.18);
 }
 
 table tbody tr:last-child td {
@@ -1919,4 +1902,32 @@ table tbody tr:last-child td {
     }
     /* Make sure table content sits above unintended overlays */
     .table-container { z-index: 2; position: relative; }
+}
+
+/* Ensure first column never collapses under overlays or fixed navs */
+.table-container table th:first-child,
+.table-container table td:first-child {
+    min-width: 120px !important;
+    max-width: 40% !important;
+    width: auto !important;
+}
+
+/* Defensive: prevent tbody/rows from being offset by transforms/margins/padding */
+.table-container table,
+.table-container thead,
+.table-container tbody,
+.table-container tr,
+.table-container th,
+.table-container td {
+    transform: none !important;
+    margin: 0 !important;
+}
+
+.table-container thead { display: table-header-group !important; }
+.table-container tbody { display: table-row-group !important; position: static !important; margin-left: 0 !important; padding-left: 0 !important; left: auto !important; }
+
+/* If any other stylesheet set a different display model, this restores native table layout */
+.table-container table thead th,
+.table-container table tbody td {
+    display: table-cell !important;
 }

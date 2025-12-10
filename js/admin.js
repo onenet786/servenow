@@ -2649,3 +2649,96 @@ async function openFuelForRider(riderId) {
         showError('Error', 'Failed to open fuel panel');
     }
 }
+
+// Debug helper: highlight first column & print computed styles when ?debugTable=1 is present
+function runDebugTableHighlight() {
+    try {
+        const table = document.querySelector('#ridersTable');
+        if (!table) return console.log('Debug: No #ridersTable found');
+
+        const thead = table.querySelector('thead');
+        const tbody = table.querySelector('tbody');
+        const firstTr = tbody ? tbody.querySelector('tr') : null;
+        const th = table.querySelector('thead th:first-child');
+        const td = table.querySelector('tbody tr td:first-child');
+
+        function pick(el){
+            if(!el) return null;
+            const cs = getComputedStyle(el);
+            return {
+                tag: el.tagName,
+                id: el.id || null,
+                class: el.className || null,
+                inlineStyle: el.style && el.style.cssText ? el.style.cssText : null,
+                display: cs.display,
+                position: cs.position,
+                left: cs.left,
+                transform: cs.transform,
+                marginLeft: cs.marginLeft,
+                paddingLeft: cs.paddingLeft,
+                width: cs.width,
+                minWidth: cs.minWidth,
+                maxWidth: cs.maxWidth,
+                boxSizing: cs.boxSizing,
+                whiteSpace: cs.whiteSpace,
+                overflow: cs.overflow
+            };
+        }
+
+        console.log('DEBUG: Table element:', pick(table));
+        console.log('DEBUG: Thead element:', pick(thead));
+        console.log('DEBUG: Tbody element:', pick(tbody));
+        console.log('DEBUG: First TR (tbody):', pick(firstTr));
+        console.log('DEBUG: First TH:', pick(th));
+        console.log('DEBUG: First TD:', pick(td));
+
+        console.log('DEBUG: Bounding rects:');
+        console.log('Table rect:', table.getBoundingClientRect());
+        if(thead) console.log('Thead rect:', thead.getBoundingClientRect());
+        if(tbody) console.log('Tbody rect:', tbody.getBoundingClientRect());
+        if(th) console.log('TH rect:', th.getBoundingClientRect());
+        if(td) console.log('TD rect:', td.getBoundingClientRect());
+
+        console.log('DEBUG: Children of first TR (index,text,left,width):');
+        if(firstTr){
+            Array.from(firstTr.children).forEach((c,i)=>{
+                console.log(i, c.tagName, c.textContent.trim().slice(0,40), c.getBoundingClientRect().left, getComputedStyle(c).width);
+            });
+        }
+
+        console.log('DEBUG: Any colgroup present?', !!table.querySelector('colgroup'), 'colgroup:', table.querySelector('colgroup') ? table.querySelector('colgroup').outerHTML : null);
+
+        if(thead && tbody){
+            const dx = (tbody.getBoundingClientRect().left - thead.getBoundingClientRect().left);
+            console.log('DEBUG: tbody left - thead left =', dx);
+        }
+
+        // highlight first column visually
+        document.querySelectorAll('#ridersTable th:first-child, #ridersTable td:first-child').forEach(e=>{
+            e.style.outline = '3px dashed red';
+            e.style.background = 'rgba(255,0,0,0.03)';
+        });
+
+        // log ancestor chain to detect unexpected offsets
+        let el = table;
+        console.log('DEBUG: Ancestor chain (tag, id, classes, inline style, left/margin/padding/transform):');
+        while(el && el.tagName){
+            const cs = getComputedStyle(el);
+            console.log(el.tagName, el.id || '', el.className || '', 'inlineStyle=', el.style && el.style.cssText ? el.style.cssText : '', 'left=', cs.left, 'marginLeft=', cs.marginLeft, 'paddingLeft=', cs.paddingLeft, 'transform=', cs.transform);
+            el = el.parentElement;
+        }
+
+    } catch (err) {
+        console.error('runDebugTableHighlight error:', err);
+    }
+}
+
+// Auto-run when requested via URL param
+document.addEventListener('DOMContentLoaded', function(){
+    try {
+        if (window.location && window.location.search && window.location.search.indexOf('debugTable=1') !== -1) {
+            // give the page a moment to render tables
+            setTimeout(runDebugTableHighlight, 600);
+        }
+    } catch (e) { /* ignore */ }
+});
