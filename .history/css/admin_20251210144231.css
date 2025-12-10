@@ -999,7 +999,8 @@ table {
     border-collapse: collapse;
     border-spacing: 0;
     font-size: 0.9rem;
-    table-layout: auto; /* use automatic column sizing */
+    table-layout: fixed;
+    table-layout: fixed;
 }
 
 table th {
@@ -1013,9 +1014,9 @@ table th {
     letter-spacing: 0.5px;
     border-bottom: 2px solid #dee2e6;
     border-right: 1px solid #dee2e6;
-    position: static !important;
-    top: auto !important;
-    z-index: auto !important;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1063,20 +1064,36 @@ table tr td:last-child {
     overflow: visible;
 }
 
-/* Table row styling: keep native flow, avoid positioning that shifts layout */
 table tbody tr {
     transition: var(--transition);
-    position: static !important;
-    transform: none !important;
+    position: relative;
+}
+
+table tbody tr::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--primary-gradient);
+    transform: scaleY(0);
+    transition: var(--transition);
+    border-radius: 0 2px 2px 0;
 }
 
 table tbody tr:hover {
     background: linear-gradient(135deg, #f8f9fb 0%, #e8f4fd 100%);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+table tbody tr:hover::before {
+    transform: scaleY(1);
 }
 
 table tbody tr:nth-child(even) {
-    background-color: rgba(248, 249, 250, 0.18);
+    background-color: rgba(248, 249, 250, 0.3);
 }
 
 table tbody tr:last-child td {
@@ -1924,7 +1941,7 @@ table tbody tr:last-child td {
 }
 
 .table-container thead { display: table-header-group !important; }
-.table-container tbody { display: table-row-group !important; position: static !important; margin-left: 0 !important; padding-left: 0 !important; left: auto !important; }
+.table-container tbody { display: table-row-group !important; position: relative !important; left: 0 !important; margin-left: 0 !important; padding-left: 0 !important; }
 
 /* If any other stylesheet set a different display model, this restores native table layout */
 .table-container table thead th,

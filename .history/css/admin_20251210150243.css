@@ -1924,7 +1924,7 @@ table tbody tr:last-child td {
 }
 
 .table-container thead { display: table-header-group !important; }
-.table-container tbody { display: table-row-group !important; position: static !important; margin-left: 0 !important; padding-left: 0 !important; left: auto !important; }
+.table-container tbody { display: table-row-group !important; position: relative !important; left: 0 !important; margin-left: 0 !important; padding-left: 0 !important; }
 
 /* If any other stylesheet set a different display model, this restores native table layout */
 .table-container table thead th,
