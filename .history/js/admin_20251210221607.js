@@ -479,16 +479,15 @@ document.addEventListener('click', function(e) {
         }
     } catch (e) { /* ignore */ }
 });
-
-// Rider sub-tab links (inside Riders management): show list or fuel panel
-const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
-riderSubtabLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const sub = this.dataset.riderSubtab;
-        if (sub) openRiderSubtab(sub);
+    // Rider sub-tab links (inside Riders management): show list or fuel panel
+    const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
+    riderSubtabLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const sub = this.dataset.riderSubtab;
+            if (sub) openRiderSubtab(sub);
+        });
     });
-});
 
     // Hamburger menu: toggle left-side panel
     const hamburger = document.getElementById('hamburgerMenu');

@@ -1,8 +1,5 @@
 // Admin Dashboard JavaScript
 // Use full origin to avoid relative-path edge cases
-// Expose a diagnostics object early so console helpers are always available
-window._adminDiag = window._adminDiag || {};
-
 const API_BASE = window.location.protocol + '//' + window.location.host;
 let currentUser = null;
 let authToken = null;
@@ -13,14 +10,6 @@ let currentStores = [];
 let currentCategories = [];
 let currentRiders = [];
 let editingProductId = null;
-let editingUserId = null;
-let editingStoreId = null;
-let editingCategoryId = null;
-let editingRiderId = null;
-let currentUnits = [];
-let currentSizes = [];
-let editingUnitId = null;
-let editingSizeId = null;
 
 // Sorting state for each table
 let sortState = {
@@ -141,41 +130,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeAdmin() {
-    // Ensure Units/Sizes tabs and modals exist in the DOM even if the HTML
-    // didn't include them (helps when pages are cached or partially rendered).
-    try {
-        const ensureTab = (id, title, tableHeadHtml) => {
-            if (document.getElementById(id)) return;
-            const ref = document.getElementById('db-backup') || document.getElementById('riders') || document.getElementById('categories') || document.querySelector('.tab-content');
-            const div = document.createElement('div');
-            div.id = id;
-            div.className = 'tab-content';
-            div.innerHTML = `\n                <h2>${title} Management</h2>\n                <button class="btn btn-primary" id="add${title}Btn">Add New ${title}</button>\n                <div class="table-container" style="margin-top:0.75rem;">\n                    <table id="${id}Table">\n                        <thead>\n                            ${tableHeadHtml}\n                        </thead>\n                        <tbody id="${id}TableBody"></tbody>\n                    </table>\n                </div>\n            `;
-            if (ref && ref.parentNode) ref.parentNode.insertBefore(div, ref);
-            else document.querySelector('section.admin-content')?.appendChild(div);
-        };
-
-        ensureTab('units', 'Unit', ` <tr><th>ID</th><th>Name</th><th>Abbreviation</th><th>Multiplier</th><th>Actions</th></tr>`);
-        ensureTab('sizes', 'Size', ` <tr><th>ID</th><th>Label</th><th>Description</th><th>Actions</th></tr>`);
-
-        const ensureModal = (id, formId, fieldsHtml, saveBtnId, title) => {
-            if (document.getElementById(id)) return;
-            const modal = document.createElement('div');
-            modal.id = id;
-            modal.className = 'modal';
-            modal.innerHTML = `\n                <div class="modal-content">\n                    <span class="close" data-modal="${id}">&times;</span>\n                    <h3>${title}</h3>\n                    <form id="${formId}">\n                        ${fieldsHtml}\n                        <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">\n                            <button type="button" class="btn btn-primary" id="${saveBtnId}">Save</button>\n                            <button type="button" class="btn btn-secondary" data-modal="${id}">Cancel</button>\n                        </div>\n                    </form>\n                </div>\n            `;
-            document.body.appendChild(modal);
-        };
-
-        ensureModal('addUnitModal', 'addUnitForm', `\n            <label for="unitName">Name</label>\n            <input id="unitName" name="name" required />\n            <label for="unitAbbrev">Abbreviation</label>\n            <input id="unitAbbrev" name="abbreviation" />\n            <label for="unitMultiplier">Multiplier</label>\n            <input id="unitMultiplier" name="multiplier" type="number" step="0.0001" value="1.0000" />\n        `, 'saveUnitBtn', 'Add / Edit Unit');
-
-        ensureModal('addSizeModal', 'addSizeForm', `\n            <label for="sizeLabel">Label</label>\n            <input id="sizeLabel" name="label" required />\n            <label for="sizeDescription">Description</label>\n            <textarea id="sizeDescription" name="description"></textarea>\n        `, 'saveSizeBtn', 'Add / Edit Size');
-    } catch (e) { console.error('Error ensuring units/sizes DOM:', e); }
-
-    // Add event listeners for unit and size buttons after DOM is ensured
-    document.getElementById('addUnitBtn').addEventListener('click', () => showAddUnitModal());
-    document.getElementById('addSizeBtn').addEventListener('click', () => showAddSizeModal());
-
     // Logout functionality
     document.getElementById('logoutBtn').addEventListener('click', function(e) {
         e.preventDefault();
@@ -231,49 +185,6 @@ function initializeAdmin() {
     } catch (e) { /* ignore */ }
     document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
     document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
-    let addUnitBtn = document.getElementById('addUnitBtn');
-    console.debug('admin:init addUnitBtn present:', !!addUnitBtn);
-    if (!addUnitBtn) {
-        // Create a fallback Add Unit button if missing in the DOM
-        try {
-            const unitsTab = document.getElementById('units');
-            if (unitsTab) {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-primary';
-                btn.id = 'addUnitBtn';
-                btn.textContent = 'Add New Unit';
-                btn.style.marginBottom = '0.5rem';
-                const tableContainer = unitsTab.querySelector('.table-container');
-                if (tableContainer) unitsTab.insertBefore(btn, tableContainer);
-                else unitsTab.appendChild(btn);
-                console.debug('admin:init created fallback addUnitBtn');
-                addUnitBtn = btn;
-            }
-        } catch (e) { console.error('Error creating fallback addUnitBtn', e); }
-    }
-    if (addUnitBtn) addUnitBtn.addEventListener('click', () => showAddUnitModal());
-
-    let addSizeBtn = document.getElementById('addSizeBtn');
-    console.debug('admin:init addSizeBtn present:', !!addSizeBtn);
-    if (!addSizeBtn) {
-        // Create a fallback Add Size button if missing in the DOM
-        try {
-            const sizesTab = document.getElementById('sizes');
-            if (sizesTab) {
-                const btn2 = document.createElement('button');
-                btn2.className = 'btn btn-primary';
-                btn2.id = 'addSizeBtn';
-                btn2.textContent = 'Add New Size';
-                btn2.style.marginBottom = '0.5rem';
-                const tableContainer2 = sizesTab.querySelector('.table-container');
-                if (tableContainer2) sizesTab.insertBefore(btn2, tableContainer2);
-                else sizesTab.appendChild(btn2);
-                console.debug('admin:init created fallback addSizeBtn');
-                addSizeBtn = btn2;
-            }
-        } catch (e) { console.error('Error creating fallback addSizeBtn', e); }
-    }
-    if (addSizeBtn) addSizeBtn.addEventListener('click', () => showAddSizeModal());
 
     // Add event listeners for modal close/cancel buttons
     const closeButtons = document.querySelectorAll('.close');
@@ -303,10 +214,6 @@ function initializeAdmin() {
     document.getElementById('saveUserBtn').addEventListener('click', saveUser);
     document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
     document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
-    const saveUnitBtn = document.getElementById('saveUnitBtn');
-    if (saveUnitBtn) saveUnitBtn.addEventListener('click', saveUnit);
-    const saveSizeBtn = document.getElementById('saveSizeBtn');
-    if (saveSizeBtn) saveSizeBtn.addEventListener('click', saveSize);
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
     document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
@@ -376,119 +283,15 @@ function initializeAdmin() {
         loadReportRiders();
     }
 
-    // Load Units and Sizes lists for admin
-    try { loadUnits(); } catch(e) { /* ignore */ }
-    try { loadSizes(); } catch(e) { /* ignore */ }
-
-
-// Fallback delegated click handlers: ensure Add buttons always work even if
-// their direct listeners weren't attached (helps diagnose missing bindings).
-console.debug('admin: registering delegated click handlers');
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (!t) return;
-        // normalize to the button element if an inner icon/text was clicked
-        const btn = t.closest ? t.closest('#addUnitBtn') || (t.id === 'addUnitBtn' ? t : null) : (t.id === 'addUnitBtn' ? t : null);
-        if (btn) {
+    // Rider sub-tab links (inside Riders management): show list or fuel panel
+    const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
+    riderSubtabLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
-            console.debug('Delegated click: addUnitBtn');
-            try { showAddUnitModal(); } catch (err) { console.error('showAddUnitModal error', err); }
-            return;
-        }
-
-        const btn2 = t.closest ? t.closest('#addSizeBtn') || (t.id === 'addSizeBtn' ? t : null) : (t.id === 'addSizeBtn' ? t : null);
-        if (btn2) {
-            e.preventDefault();
-            console.debug('Delegated click: addSizeBtn');
-            try { showAddSizeModal(); } catch (err) { console.error('showAddSizeModal error', err); }
-            return;
-        }
-    } catch (e) { /* ignore delegated handler errors */ }
-});
-
-// Capture-phase listeners to help trace pointer and click events before any
-// other handlers may stopPropagation. These log minimal info to avoid spam.
-document.addEventListener('pointerdown', function(e) {
-    try {
-        const t = e.target;
-        const path = (e.composedPath && e.composedPath().slice(0,5)) || [t, t.parentNode, t.parentElement];
-        if (t && (t.id === 'addUnitBtn' || t.closest && t.closest('#addUnitBtn'))) {
-            console.debug('capture:pointerdown on addUnitBtn, path:', path.map(p => p && p.id).slice(0,5));
-        }
-        if (t && (t.id === 'addSizeBtn' || t.closest && t.closest('#addSizeBtn'))) {
-            console.debug('capture:pointerdown on addSizeBtn, path:', path.map(p => p && p.id).slice(0,5));
-        }
-    } catch (e) { /* ignore */ }
-}, true);
-
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (t && (t.id === 'addUnitBtn' || (t.closest && t.closest('#addUnitBtn')))) {
-            console.debug('capture:click reached addUnitBtn (bubble phase handler)');
-        }
-        if (t && (t.id === 'addSizeBtn' || (t.closest && t.closest('#addSizeBtn')))) {
-            console.debug('capture:click reached addSizeBtn (bubble phase handler)');
-        }
-    } catch (e) { /* ignore */ }
-}, true);
-
-// Temporary keyboard shortcut and diagnostic helper:
-// Press 'u' to open the Units modal (works even if the button is missing).
-document.addEventListener('keydown', function(e) {
-    // ignore when focused on input/textarea to avoid interfering with typing
-    const tag = (document.activeElement && document.activeElement.tagName) || '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement && document.activeElement.isContentEditable) return;
-    if (e.key === 'u' || e.key === 'U') {
-        console.debug('keyboard: open Units modal (shortcut)');
-        try { showAddUnitModal(); } catch (err) { console.error('keyboard showAddUnitModal error', err); }
-    }
-});
-
-// Diagnostic helper exposed under window for quick checks from console
-window._adminDiag = window._adminDiag || {};
-window._adminDiag.checkAddUnitPresence = function() {
-    const byId = document.getElementById('addUnitBtn');
-    const qs = document.querySelectorAll('#addUnitBtn');
-    console.log('getElementById:', byId, 'querySelectorAll length:', qs.length);
-    if (byId) console.log('addUnitBtn parent:', byId.parentElement && byId.parentElement.id, 'outerHTML snippet:', byId.outerHTML.slice(0,200));
-    console.log('document contains "addUnitBtn" string?', document.body.innerHTML.indexOf('addUnitBtn') !== -1);
-    return { byId: !!byId, foundCount: qs.length };
-};
-
-// Delegated handlers for Save buttons (in case direct listeners didn't attach)
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (!t) return;
-        const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
-        if (saveUnitBtn) {
-            e.preventDefault();
-            console.debug('Delegated click: saveUnitBtn');
-            try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
-            return;
-        }
-
-        const saveSizeBtn = t.closest ? t.closest('#saveSizeBtn') || (t.id === 'saveSizeBtn' ? t : null) : (t.id === 'saveSizeBtn' ? t : null);
-        if (saveSizeBtn) {
-            e.preventDefault();
-            console.debug('Delegated click: saveSizeBtn');
-            try { saveSize(); } catch (err) { console.error('saveSize error', err); }
-            return;
-        }
-    } catch (e) { /* ignore */ }
-});
-
-// Rider sub-tab links (inside Riders management): show list or fuel panel
-const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
-riderSubtabLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const sub = this.dataset.riderSubtab;
-        if (sub) openRiderSubtab(sub);
+            const sub = this.dataset.riderSubtab;
+            if (sub) openRiderSubtab(sub);
+        });
     });
-});
 
     // Hamburger menu: toggle left-side panel
     const hamburger = document.getElementById('hamburgerMenu');
@@ -754,28 +557,6 @@ function switchTab(tabName) {
         case 'categories':
             loadCategories();
             break;
-        case 'units':
-            // Load units list when Units tab opened
-            Promise.resolve(loadUnits()).catch(err => console.error('Error loading units tab', err));
-            // Attach event listener for add unit button when tab is active
-            setTimeout(() => {
-                const addUnitBtn = document.getElementById('addUnitBtn');
-                if (addUnitBtn) {
-                    addUnitBtn.addEventListener('click', () => showAddUnitModal());
-                }
-            }, 100);
-            break;
-        case 'sizes':
-            // Load sizes list when Sizes tab opened
-            Promise.resolve(loadSizes()).catch(err => console.error('Error loading sizes tab', err));
-            // Attach event listener for add size button when tab is active
-            setTimeout(() => {
-                const addSizeBtn = document.getElementById('addSizeBtn');
-                if (addSizeBtn) {
-                    addSizeBtn.addEventListener('click', () => showAddSizeModal());
-                }
-            }, 100);
-            break;
         case 'riders':
             // loadRiders may be synchronous or return a Promise; normalize to Promise
             Promise.resolve(loadRiders()).then(() => {
@@ -977,7 +758,7 @@ function loadUsers() {
     .catch(error => console.error('Error loading users:', error));
 }
 
-async function editUser(userId) {
+function editUser(userId) {
     // Get current user data first
     fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
@@ -1055,7 +836,7 @@ function loadStores() {
     .catch(error => console.error('Error loading stores:', error));
 }
 
-async function editStore(storeId) {
+function editStore(storeId) {
     showInfo('Coming Soon', 'Edit store functionality is being implemented.');
 }
 
@@ -1169,7 +950,7 @@ function exportBase64Images() {
     });
 }
 
-async function editProduct(productId) {
+function editProduct(productId) {
     showInfo('Coming Soon', 'Edit product functionality is being implemented.');
 }
 
@@ -1492,326 +1273,16 @@ function toggleCategoryStatus(categoryId, currentStatus) {
     .catch(error => console.error('Error updating category:', error));
 }
 
-// Units Management
-async function loadUnits() {
-    try {
-        const resp = await fetch(`${API_BASE}/api/units`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-        const data = await resp.json();
-        const tbody = document.getElementById('unitsTableBody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-        if (!data.success || !Array.isArray(data.units)) {
-            console.warn('No units returned', data);
-            return;
-        }
-        currentUnits = data.units;
-        data.units.forEach(u => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${u.id}</td>
-                <td>${u.name}</td>
-                <td>${u.abbreviation || ''}</td>
-                <td>${typeof u.multiplier !== 'undefined' ? parseFloat(u.multiplier).toFixed(4) : ''}</td>
-                <td>
-                    <button class="btn btn-small btn-edit" onclick="editUnit(${u.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="deleteUnit(${u.id})">Delete</button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
-    } catch (err) {
-        console.error('Error loading units:', err);
-        showError('Error', 'Failed to load units');
-    }
-}
-
-function showAddUnitModal() {
-    editingUnitId = null;
-    const form = document.getElementById('addUnitForm');
-    if (form) form.reset();
-    showModal('addUnitModal');
-}
-
-async function saveUnit() {
-    const form = document.getElementById('addUnitForm');
-    if (!form) return;
-    const formData = new FormData(form);
-    const payload = {
-        name: formData.get('name'),
-        abbreviation: formData.get('abbreviation') || null,
-        multiplier: formData.get('multiplier') || 1.0
-    };
-    try {
-        console.debug('saveUnit: sending', { editingUnitId, payload });
-        let resp;
-        if (editingUnitId) {
-            resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(payload)
-            });
-        } else {
-            resp = await fetch(`${API_BASE}/api/units`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(payload)
-            });
-        }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveUnit: response', resp.status, data);
-        if (resp.ok && data && data.success) {
-            showSuccess('Saved', 'Unit saved successfully');
-            hideModal('addUnitModal');
-            editingUnitId = null;
-            await loadUnits();
-        } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveUnit failed', msg, data);
-            showError('Error', msg || 'Failed to save unit');
-        }
-    } catch (err) {
-        console.error('Error saving unit (exception):', err);
-        showError('Error', 'Failed to save unit');
-    }
-}
-
-async function editUnit(unitId) {
-    editingUnitId = unitId;
-    // try find in currentUnits
-    const unit = (currentUnits || []).find(u => u.id === unitId);
-    if (!unit) {
-        // fallback: fetch single unit from API if available
-        try {
-            const resp = await fetch(`${API_BASE}/api/units`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-            const data = await resp.json();
-            if (data.success) {
-                currentUnits = data.units || [];
-            }
-        } catch (e) { /* ignore */ }
-    }
-    const u = (currentUnits || []).find(x => x.id === unitId);
-    if (u) {
-        const form = document.getElementById('addUnitForm');
-        form.querySelector('#unitName').value = u.name || '';
-        form.querySelector('#unitAbbrev').value = u.abbreviation || '';
-        form.querySelector('#unitMultiplier').value = typeof u.multiplier !== 'undefined' ? parseFloat(u.multiplier).toFixed(4) : '1.0000';
-        showModal('addUnitModal');
-    } else {
-        showError('Not Found', 'Unit not found');
-    }
-}
-
-async function deleteUnit(unitId) {
-    if (!confirm('Delete this unit? This cannot be undone.')) return;
-    try {
-        const resp = await fetch(`${API_BASE}/api/units/${unitId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const data = await resp.json();
-        if (data.success) {
-            showSuccess('Deleted', 'Unit deleted');
-            await loadUnits();
-        } else {
-            showError('Error', data.message || 'Failed to delete unit');
-        }
-    } catch (err) {
-        console.error('Error deleting unit:', err);
-        showError('Error', 'Failed to delete unit');
-    }
-}
-
-// Sizes Management
-async function loadSizes() {
-    try {
-        const resp = await fetch(`${API_BASE}/api/sizes`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-        const data = await resp.json();
-        const tbody = document.getElementById('sizesTableBody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-        if (!data.success || !Array.isArray(data.sizes)) return;
-        currentSizes = data.sizes;
-        data.sizes.forEach(s => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${s.id}</td>
-                <td>${s.label}</td>
-                <td>${s.description || ''}</td>
-                <td>
-                    <button class="btn btn-small btn-edit" onclick="editSize(${s.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="deleteSize(${s.id})">Delete</button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
-    } catch (err) {
-        console.error('Error loading sizes:', err);
-        showError('Error', 'Failed to load sizes');
-    }
-}
-
-function showAddSizeModal() {
-    editingSizeId = null;
-    const form = document.getElementById('addSizeForm');
-    if (form) form.reset();
-    showModal('addSizeModal');
-}
-
-async function saveSize() {
-    const form = document.getElementById('addSizeForm');
-    if (!form) return;
-    const formData = new FormData(form);
-    const payload = {
-        label: formData.get('label'),
-        description: formData.get('description') || null
-    };
-    try {
-        console.debug('saveSize: sending', { editingSizeId, payload });
-        let resp;
-        if (editingSizeId) {
-            resp = await fetch(`${API_BASE}/api/sizes/${editingSizeId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(payload)
-            });
-        } else {
-            resp = await fetch(`${API_BASE}/api/sizes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(payload)
-            });
-        }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveSize: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveSize: response', resp.status, data);
-        if (resp.ok && data && data.success) {
-            showSuccess('Saved', 'Size saved successfully');
-            hideModal('addSizeModal');
-            editingSizeId = null;
-            await loadSizes();
-        } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveSize failed', msg, data);
-            showError('Error', msg || 'Failed to save size');
-        }
-    } catch (err) {
-        console.error('Error saving size (exception):', err);
-        showError('Error', 'Failed to save size');
-    }
-}
-
-async function editSize(sizeId) {
-    editingSizeId = sizeId;
-    const s = (currentSizes || []).find(x => x.id === sizeId);
-    if (s) {
-        const form = document.getElementById('addSizeForm');
-        form.querySelector('#sizeLabel').value = s.label || '';
-        form.querySelector('#sizeDescription').value = s.description || '';
-        showModal('addSizeModal');
-    } else {
-        showError('Not Found', 'Size not found');
-    }
-}
-
-async function deleteSize(sizeId) {
-    if (!confirm('Delete this size? This cannot be undone.')) return;
-    try {
-        const resp = await fetch(`${API_BASE}/api/sizes/${sizeId}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        const data = await resp.json();
-        if (data.success) {
-            showSuccess('Deleted', 'Size deleted');
-            await loadSizes();
-        } else {
-            showError('Error', data.message || 'Failed to delete size');
-        }
-    } catch (err) {
-        console.error('Error deleting size:', err);
-        showError('Error', 'Failed to delete size');
-    }
-}
-
 // Modal functions
 function showModal(modalId) {
-    // Hide any other open modals first so only one modal is visible at a time
-    document.querySelectorAll('.modal').forEach(m => {
-        try { m.style.display = 'none'; } catch (e) { /* ignore */ }
-    });
-    const el = document.getElementById(modalId);
-    if (!el) {
-        console.warn('showModal: modal not found', modalId);
-        return;
-    }
-    // If the modal is nested inside another hidden container, move it to
-    // `document.body` so it's not affected by ancestor visibility/display.
-    try {
-        if (el.parentElement && el.parentElement !== document.body) {
-            try { document.body.appendChild(el); } catch (e) { /* ignore DOM move errors */ }
-        }
-    } catch (e) { /* ignore */ }
-
-    // Ensure modal is visible and on top; apply robust visibility fixes
-    try {
-        el.classList.add('show');
-        el.style.display = 'block';
-        el.style.visibility = 'visible';
-        el.style.pointerEvents = 'auto';
-        el.style.zIndex = 9999;
-
-        const content = el.querySelector('.modal-content');
-        if (content) {
-            content.style.display = 'block';
-            content.style.visibility = 'visible';
-            content.style.pointerEvents = 'auto';
-            content.style.transform = 'none';
-            content.style.opacity = '1';
-            // ensure content is in front
-            content.style.zIndex = 10000;
-        }
-    } catch (e) { /* ignore style errors */ }
-
-    // Focus first focusable element inside modal to ensure keyboard and visibility
-    try {
-        const first = el.querySelector('input, select, textarea, button, [tabindex]');
-        if (first) {
-            first.focus();
-        } else if (content) {
-            content.setAttribute('tabindex', '-1');
-            content.focus();
-        }
-    } catch (e) { /* ignore focus errors */ }
-
-    // Debug computed style to help if the form remains hidden
-    try {
-        const cs = getComputedStyle(el);
-        const csContent = content ? getComputedStyle(content) : null;
-        console.debug('showModal: opened', modalId, 'modalStyle:', {display: cs.display, visibility: cs.visibility, zIndex: cs.zIndex}, 'contentStyle:', csContent && {display: csContent.display, visibility: csContent.visibility, opacity: csContent.opacity, pointerEvents: csContent.pointerEvents});
-    } catch (e) { /* ignore */ }
-
-    console.debug('showModal: opened', modalId);
+    document.getElementById(modalId).style.display = 'block';
 }
 
 function hideModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.style.display = 'none';
+    document.getElementById(modalId).style.display = 'none';
     // Reset form
     const form = document.querySelector(`#${modalId} form`);
     if (form) form.reset();
-    // Clear any editing state related to this modal to avoid stale IDs
-    try {
-        if (modalId === 'addUserModal') editingUserId = null;
-        if (modalId === 'addUnitModal') editingUnitId = null;
-        if (modalId === 'addSizeModal') editingSizeId = null;
-        if (modalId === 'addStoreModal') editingStoreId = null;
-        if (modalId === 'addProductModal') editingProductId = null;
-        if (modalId === 'addCategoryModal') editingCategoryId = null;
-        if (modalId === 'addRiderModal') editingRiderId = null;
-    } catch (e) { /* ignore */ }
 }
 
 // User Management Functions
@@ -1828,84 +1299,76 @@ async function saveUser() {
         phone: formData.get('phone'),
         password: formData.get('password'),
         address: formData.get('address'),
-        userType: formData.get('userType'),
-        is_active: formData.get('is_active') !== null ? (formData.get('is_active') === '1' ? true : false) : true
+        userType: formData.get('userType')
     };
-    try {
-        if (editingUserId) {
-            // Update existing user (send editable fields)
-            const payload = {
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                email: userData.email,
-                phone: userData.phone,
-                address: userData.address,
-                user_type: userData.userType,
-                is_active: userData.is_active
-            };
-            // include password only if provided
-            if (userData.password) payload.password = userData.password;
 
-            const response = await fetch(`${API_BASE}/api/users/${editingUserId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('User Updated', 'User updated successfully!');
-                hideModal('addUserModal');
-                editingUserId = null;
-                loadUsers();
-            } else {
-                showError('Error', data.message || 'Failed to update user');
-            }
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(userData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess('User Created', 'User created successfully!');
+            hideModal('addUserModal');
+            loadUsers();
         } else {
-            const response = await fetch(`${API_BASE}/api/auth/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(userData)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('User Created', 'User created successfully!');
-                hideModal('addUserModal');
-                loadUsers();
-            } else {
-                showError('Error', data.message || 'Failed to create user');
-            }
+            showError('Error', data.message || 'Failed to create user');
         }
     } catch (error) {
-        console.error('Error saving user:', error);
-        showError('Error', 'Failed to save user');
+        console.error('Error creating user:', error);
+        showError('Error', 'Failed to create user');
     }
 }
 
-async function editUser(userId) {
-    // Open addUser modal in edit mode
-    editingUserId = userId;
-    try {
-        const resp = await fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-        const data = await resp.json();
-        if (!data.success) { showError('Error', 'Failed to load user data'); return; }
+function editUser(userId) {
+    // Get current user data first
+    fetch(`${API_BASE}/api/users`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+    .then(response => response.json())
+    .then(data => {
         const user = data.users.find(u => u.id === userId);
-        if (!user) { showError('User Not Found', 'The selected user could not be found'); return; }
+        if (!user) {
+            showError('User Not Found', 'The selected user could not be found');
+            return;
+        }
 
-        const form = document.getElementById('addUserForm');
-        form.querySelector('#userFirstName').value = user.first_name || '';
-        form.querySelector('#userLastName').value = user.last_name || '';
-        form.querySelector('#userEmail').value = user.email || '';
-        form.querySelector('#userPhone').value = user.phone || '';
-        form.querySelector('#userAddress').value = user.address || '';
-        form.querySelector('#userType').value = user.user_type || 'customer';
-        const statusSel = form.querySelector('#userStatus');
-        if (statusSel) statusSel.value = user.is_active ? '1' : '0';
+        const newType = prompt('Enter new user type (customer, store_owner, admin):', user.user_type);
+        if (!newType || !['customer', 'store_owner', 'admin'].includes(newType)) return;
 
-        showModal('addUserModal');
-    } catch (e) {
-        console.error('Error loading user for edit', e);
-        showError('Error', 'Failed to load user for edit');
-    }
+        fetch(`${API_BASE}/api/users/${userId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ user_type: newType })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadUsers();
+                showSuccess('User Updated', 'User updated successfully!');
+            } else {
+                showError('Error', 'Failed to update user');
+            }
+        })
+        .catch(error => {
+            console.error('Error updating user:', error);
+            showError('Error', 'Failed to update user');
+        });
+    })
+    .catch(error => {
+        console.error('Error fetching user:', error);
+        showError('Error', 'Failed to fetch user data');
+    });
 }
 
 async function showAddStoreModal() {
@@ -1950,70 +1413,56 @@ async function saveStore() {
     };
 
     try {
-        if (editingStoreId) {
-            const response = await fetch(`${API_BASE}/api/stores/${editingStoreId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(storeData)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('Store Updated', 'Store updated successfully!');
-                hideModal('addStoreModal');
-                editingStoreId = null;
-                loadStores();
-            } else {
-                showError('Error', data.message || 'Failed to update store');
-            }
+        const response = await fetch(`${API_BASE}/api/stores`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(storeData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess('Store Created', 'Store created successfully!');
+            hideModal('addStoreModal');
+            loadStores();
         } else {
-            const response = await fetch(`${API_BASE}/api/stores`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(storeData)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('Store Created', 'Store created successfully!');
-                hideModal('addStoreModal');
-                loadStores();
-            } else {
-                showError('Error', data.message || 'Failed to create store');
-            }
+            showError('Error', data.message || 'Failed to create store');
         }
     } catch (error) {
-        console.error('Error creating/updating store:', error);
-        showError('Error', 'Failed to save store');
+        console.error('Error creating store:', error);
+        showError('Error', 'Failed to create store');
     }
 }
 
-async function editStore(storeId) {
-    // Open edit modal and populate
-    editingStoreId = storeId;
-    try {
-        const resp = await fetch(`${API_BASE}/api/stores/${storeId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-        const data = await resp.json();
-        if (!data || !data.success || !data.store) { showError('Error', 'Failed to load store'); return; }
-        const s = data.store;
-        const form = document.getElementById('addStoreForm');
-        form.querySelector('#storeName').value = s.name || '';
-        form.querySelector('#storeOwner').value = s.owner_id || '';
-        form.querySelector('#storeLocation').value = s.location || '';
-        form.querySelector('#storeImage').value = s.image_url || '';
-        form.querySelector('#storePhone').value = s.phone || '';
-        form.querySelector('#storeEmail').value = s.email || '';
-        form.querySelector('#storeRating').value = s.rating || 0;
-        form.querySelector('#storeDeliveryTime').value = s.delivery_time || '';
-        if (s.opening_time) form.querySelector('#storeOpeningTime').value = s.opening_time;
-        if (s.closing_time) form.querySelector('#storeClosingTime').value = s.closing_time;
-        form.querySelector('#storeDescription').value = s.description || '';
-        form.querySelector('#storeAddress').value = s.address || '';
-        // category dropdown may be populated; attempt to set value
-        const catSel = form.querySelector('#storeCategory'); if (catSel && s.category_id) catSel.value = s.category_id;
-        showModal('addStoreModal');
-    } catch (e) {
-        console.error('Failed to load store for edit', e);
-        showError('Error', 'Failed to load store for edit');
-    }
+function editStore(storeId) {
+    // Simple edit functionality - could be expanded with a full modal
+    const newName = prompt('Enter new store name:');
+    if (!newName) return;
+
+    fetch(`${API_BASE}/api/stores/${storeId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ name: newName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadStores();
+            showSuccess('Store Updated', 'Store updated successfully!');
+        } else {
+            showError('Error', 'Failed to update store');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating store:', error);
+        showError('Error', 'Failed to update store');
+    });
 }
 
 // Product Management Functions
@@ -2228,39 +1677,32 @@ async function saveProduct() {
     }
 }
 
-async function editProduct(productId) {
-    // Open edit modal and populate fields
-    editingProductId = productId;
-    try {
-        const resp = await fetch(`${API_BASE}/api/products/${productId}?admin=1`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-        const data = await resp.json();
-        if (!data.success || !data.product) {
-            showError('Error', 'Failed to load product for editing');
-            return;
-        }
-        const p = data.product;
-        // populate form
-        const form = document.getElementById('addProductForm');
-        form.querySelector('#productName').value = p.name || '';
-        form.querySelector('#productPrice').value = p.price || '';
-        form.querySelector('#productDescription').value = p.description || '';
-        form.querySelector('#productStock').value = p.stock_quantity || 0;
-        if (form.querySelector('#productImage')) form.querySelector('#productImage').value = p.image_url || '';
-        if (form.querySelector('#productImagePreview') && p.image_url) {
-            const prev = form.querySelector('#productImagePreview'); prev.src = p.image_url; prev.style.display = 'inline-block';
-        }
-        // set selects (store/category/unit/size)
-        if (p.store_id) form.querySelector('#productStore').value = p.store_id;
-        if (p.category_id) form.querySelector('#productCategory').value = p.category_id;
-        if (p.unit_id && form.querySelector('#productUnit')) form.querySelector('#productUnit').value = p.unit_id;
-        if (p.size_id && form.querySelector('#productSize')) form.querySelector('#productSize').value = p.size_id;
+function editProduct(productId) {
+    // Simple edit functionality - could be expanded
+    const newPrice = prompt('Enter new price:');
+    if (!newPrice || isNaN(newPrice)) return;
 
-        // Show modal
-        showModal('addProductModal');
-    } catch (e) {
-        console.error('Failed to load product for edit', e);
-        showError('Error', 'Failed to load product for editing');
-    }
+    fetch(`${API_BASE}/api/products/${productId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ price: parseFloat(newPrice) })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadProducts();
+            showSuccess('Product Updated', 'Product updated successfully!');
+        } else {
+            showError('Error', 'Failed to update product');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating product:', error);
+        showError('Error', 'Failed to update product');
+    });
 }
 
 // Category Management Functions
@@ -2277,58 +1719,27 @@ async function saveCategory() {
     };
 
     try {
-        if (editingCategoryId) {
-            const response = await fetch(`${API_BASE}/api/categories/${editingCategoryId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(categoryData)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('Category Updated', 'Category updated successfully!');
-                hideModal('addCategoryModal');
-                editingCategoryId = null;
-                loadCategories();
-            } else {
-                showError('Error', data.message || 'Failed to update category');
-            }
+        const response = await fetch(`${API_BASE}/api/categories`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(categoryData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess('Category Created', 'Category created successfully!');
+            hideModal('addCategoryModal');
+            loadCategories();
         } else {
-            const response = await fetch(`${API_BASE}/api/categories`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(categoryData)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('Category Created', 'Category created successfully!');
-                hideModal('addCategoryModal');
-                loadCategories();
-            } else {
-                showError('Error', data.message || 'Failed to create category');
-            }
+            showError('Error', data.message || 'Failed to create category');
         }
     } catch (error) {
-        console.error('Error creating/updating category:', error);
-        showError('Error', 'Failed to save category');
-    }
-}
-
-async function editCategory(categoryId) {
-    editingCategoryId = categoryId;
-    try {
-        const resp = await fetch(`${API_BASE}/api/categories`);
-        const data = await resp.json();
-        if (!data.success) { showError('Error', 'Failed to load categories'); return; }
-        const c = data.categories.find(x => x.id === categoryId);
-        if (!c) { showError('Error', 'Category not found'); return; }
-        const form = document.getElementById('addCategoryForm');
-        form.querySelector('#categoryName').value = c.name || '';
-        form.querySelector('#categoryImage').value = c.image_url || '';
-        form.querySelector('#categoryDescription').value = c.description || '';
-        showModal('addCategoryModal');
-    } catch (e) {
-        console.error('Failed to load category for edit', e);
-        showError('Error', 'Failed to load category for edit');
+        console.error('Error creating category:', error);
+        showError('Error', 'Failed to create category');
     }
 }
 
@@ -2559,20 +1970,6 @@ function deleteFuelEntry(entryId, riderId) {
     });
 }
 
-function showAddUnitModal() {
-    editingUnitId = null;
-    const form = document.getElementById('addUnitForm');
-    if (form) form.reset();
-    showModal('addUnitModal');
-}
-
-function showAddSizeModal() {
-    editingSizeId = null;
-    const form = document.getElementById('addSizeForm');
-    if (form) form.reset();
-    showModal('addSizeModal');
-}
-
 async function showAddRiderModal() {
     // Load vehicle types for dropdown
     try {
@@ -2610,40 +2007,23 @@ async function saveRider() {
     };
 
     try {
-        if (editingRiderId) {
-            const response = await fetch(`${API_BASE}/api/riders/${editingRiderId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(riderData)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('Rider Updated', 'Rider updated successfully!');
-                hideModal('addRiderModal');
-                editingRiderId = null;
-                loadRiders();
-            } else {
-                showError('Error', data.message || 'Failed to update rider');
-            }
+        const response = await fetch(`${API_BASE}/api/riders`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(riderData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess('Rider Created', 'Rider created successfully!');
+            hideModal('addRiderModal');
+            loadRiders();
         } else {
-            const response = await fetch(`${API_BASE}/api/riders`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify(riderData)
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                showSuccess('Rider Created', 'Rider created successfully!');
-                hideModal('addRiderModal');
-                loadRiders();
-            } else {
-                showError('Error', data.message || 'Failed to create rider');
-            }
+            showError('Error', data.message || 'Failed to create rider');
         }
     } catch (error) {
         console.error('Error creating rider:', error);
@@ -2651,25 +2031,32 @@ async function saveRider() {
     }
 }
 
-async function editRider(riderId) {
-    editingRiderId = riderId;
-    try {
-        const resp = await fetch(`${API_BASE}/api/riders/${riderId}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-        const data = await resp.json();
-        if (!data || !data.success || !data.rider) { showError('Error', 'Failed to load rider'); return; }
-        const r = data.rider;
-        const form = document.getElementById('addRiderForm');
-        form.querySelector('#riderFirstName').value = r.first_name || '';
-        form.querySelector('#riderLastName').value = r.last_name || '';
-        form.querySelector('#riderEmail').value = r.email || '';
-        form.querySelector('#riderPhone').value = r.phone || '';
-        form.querySelector('#riderVehicleType').value = r.vehicle_type || '';
-        form.querySelector('#riderLicenseNumber').value = r.license_number || '';
-        showModal('addRiderModal');
-    } catch (e) {
-        console.error('Failed to load rider for edit', e);
-        showError('Error', 'Failed to load rider for edit');
-    }
+function editRider(riderId) {
+    // Simple edit functionality - could be expanded with a full modal
+    const newVehicleType = prompt('Enter new vehicle type:');
+    if (!newVehicleType) return;
+
+    fetch(`${API_BASE}/api/riders/${riderId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ vehicleType: newVehicleType })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadRiders();
+            showSuccess('Rider Updated', 'Rider updated successfully!');
+        } else {
+            showError('Error', 'Failed to update rider');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating rider:', error);
+        showError('Error', 'Failed to update rider');
+    });
 }
 
 function toggleRiderStatus(riderId, currentStatus) {

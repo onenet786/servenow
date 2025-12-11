@@ -1,8 +1,5 @@
 // Admin Dashboard JavaScript
 // Use full origin to avoid relative-path edge cases
-// Expose a diagnostics object early so console helpers are always available
-window._adminDiag = window._adminDiag || {};
-
 const API_BASE = window.location.protocol + '//' + window.location.host;
 let currentUser = null;
 let authToken = null;
@@ -141,41 +138,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeAdmin() {
-    // Ensure Units/Sizes tabs and modals exist in the DOM even if the HTML
-    // didn't include them (helps when pages are cached or partially rendered).
-    try {
-        const ensureTab = (id, title, tableHeadHtml) => {
-            if (document.getElementById(id)) return;
-            const ref = document.getElementById('db-backup') || document.getElementById('riders') || document.getElementById('categories') || document.querySelector('.tab-content');
-            const div = document.createElement('div');
-            div.id = id;
-            div.className = 'tab-content';
-            div.innerHTML = `\n                <h2>${title} Management</h2>\n                <button class="btn btn-primary" id="add${title}Btn">Add New ${title}</button>\n                <div class="table-container" style="margin-top:0.75rem;">\n                    <table id="${id}Table">\n                        <thead>\n                            ${tableHeadHtml}\n                        </thead>\n                        <tbody id="${id}TableBody"></tbody>\n                    </table>\n                </div>\n            `;
-            if (ref && ref.parentNode) ref.parentNode.insertBefore(div, ref);
-            else document.querySelector('section.admin-content')?.appendChild(div);
-        };
-
-        ensureTab('units', 'Unit', ` <tr><th>ID</th><th>Name</th><th>Abbreviation</th><th>Multiplier</th><th>Actions</th></tr>`);
-        ensureTab('sizes', 'Size', ` <tr><th>ID</th><th>Label</th><th>Description</th><th>Actions</th></tr>`);
-
-        const ensureModal = (id, formId, fieldsHtml, saveBtnId, title) => {
-            if (document.getElementById(id)) return;
-            const modal = document.createElement('div');
-            modal.id = id;
-            modal.className = 'modal';
-            modal.innerHTML = `\n                <div class="modal-content">\n                    <span class="close" data-modal="${id}">&times;</span>\n                    <h3>${title}</h3>\n                    <form id="${formId}">\n                        ${fieldsHtml}\n                        <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">\n                            <button type="button" class="btn btn-primary" id="${saveBtnId}">Save</button>\n                            <button type="button" class="btn btn-secondary" data-modal="${id}">Cancel</button>\n                        </div>\n                    </form>\n                </div>\n            `;
-            document.body.appendChild(modal);
-        };
-
-        ensureModal('addUnitModal', 'addUnitForm', `\n            <label for="unitName">Name</label>\n            <input id="unitName" name="name" required />\n            <label for="unitAbbrev">Abbreviation</label>\n            <input id="unitAbbrev" name="abbreviation" />\n            <label for="unitMultiplier">Multiplier</label>\n            <input id="unitMultiplier" name="multiplier" type="number" step="0.0001" value="1.0000" />\n        `, 'saveUnitBtn', 'Add / Edit Unit');
-
-        ensureModal('addSizeModal', 'addSizeForm', `\n            <label for="sizeLabel">Label</label>\n            <input id="sizeLabel" name="label" required />\n            <label for="sizeDescription">Description</label>\n            <textarea id="sizeDescription" name="description"></textarea>\n        `, 'saveSizeBtn', 'Add / Edit Size');
-    } catch (e) { console.error('Error ensuring units/sizes DOM:', e); }
-
-    // Add event listeners for unit and size buttons after DOM is ensured
-    document.getElementById('addUnitBtn').addEventListener('click', () => showAddUnitModal());
-    document.getElementById('addSizeBtn').addEventListener('click', () => showAddSizeModal());
-
     // Logout functionality
     document.getElementById('logoutBtn').addEventListener('click', function(e) {
         e.preventDefault();
@@ -231,48 +193,9 @@ function initializeAdmin() {
     } catch (e) { /* ignore */ }
     document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
     document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
-    let addUnitBtn = document.getElementById('addUnitBtn');
-    console.debug('admin:init addUnitBtn present:', !!addUnitBtn);
-    if (!addUnitBtn) {
-        // Create a fallback Add Unit button if missing in the DOM
-        try {
-            const unitsTab = document.getElementById('units');
-            if (unitsTab) {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-primary';
-                btn.id = 'addUnitBtn';
-                btn.textContent = 'Add New Unit';
-                btn.style.marginBottom = '0.5rem';
-                const tableContainer = unitsTab.querySelector('.table-container');
-                if (tableContainer) unitsTab.insertBefore(btn, tableContainer);
-                else unitsTab.appendChild(btn);
-                console.debug('admin:init created fallback addUnitBtn');
-                addUnitBtn = btn;
-            }
-        } catch (e) { console.error('Error creating fallback addUnitBtn', e); }
-    }
+    const addUnitBtn = document.getElementById('addUnitBtn');
     if (addUnitBtn) addUnitBtn.addEventListener('click', () => showAddUnitModal());
-
-    let addSizeBtn = document.getElementById('addSizeBtn');
-    console.debug('admin:init addSizeBtn present:', !!addSizeBtn);
-    if (!addSizeBtn) {
-        // Create a fallback Add Size button if missing in the DOM
-        try {
-            const sizesTab = document.getElementById('sizes');
-            if (sizesTab) {
-                const btn2 = document.createElement('button');
-                btn2.className = 'btn btn-primary';
-                btn2.id = 'addSizeBtn';
-                btn2.textContent = 'Add New Size';
-                btn2.style.marginBottom = '0.5rem';
-                const tableContainer2 = sizesTab.querySelector('.table-container');
-                if (tableContainer2) sizesTab.insertBefore(btn2, tableContainer2);
-                else sizesTab.appendChild(btn2);
-                console.debug('admin:init created fallback addSizeBtn');
-                addSizeBtn = btn2;
-            }
-        } catch (e) { console.error('Error creating fallback addSizeBtn', e); }
-    }
+    const addSizeBtn = document.getElementById('addSizeBtn');
     if (addSizeBtn) addSizeBtn.addEventListener('click', () => showAddSizeModal());
 
     // Add event listeners for modal close/cancel buttons
@@ -380,115 +303,15 @@ function initializeAdmin() {
     try { loadUnits(); } catch(e) { /* ignore */ }
     try { loadSizes(); } catch(e) { /* ignore */ }
 
-
-// Fallback delegated click handlers: ensure Add buttons always work even if
-// their direct listeners weren't attached (helps diagnose missing bindings).
-console.debug('admin: registering delegated click handlers');
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (!t) return;
-        // normalize to the button element if an inner icon/text was clicked
-        const btn = t.closest ? t.closest('#addUnitBtn') || (t.id === 'addUnitBtn' ? t : null) : (t.id === 'addUnitBtn' ? t : null);
-        if (btn) {
+    // Rider sub-tab links (inside Riders management): show list or fuel panel
+    const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
+    riderSubtabLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
-            console.debug('Delegated click: addUnitBtn');
-            try { showAddUnitModal(); } catch (err) { console.error('showAddUnitModal error', err); }
-            return;
-        }
-
-        const btn2 = t.closest ? t.closest('#addSizeBtn') || (t.id === 'addSizeBtn' ? t : null) : (t.id === 'addSizeBtn' ? t : null);
-        if (btn2) {
-            e.preventDefault();
-            console.debug('Delegated click: addSizeBtn');
-            try { showAddSizeModal(); } catch (err) { console.error('showAddSizeModal error', err); }
-            return;
-        }
-    } catch (e) { /* ignore delegated handler errors */ }
-});
-
-// Capture-phase listeners to help trace pointer and click events before any
-// other handlers may stopPropagation. These log minimal info to avoid spam.
-document.addEventListener('pointerdown', function(e) {
-    try {
-        const t = e.target;
-        const path = (e.composedPath && e.composedPath().slice(0,5)) || [t, t.parentNode, t.parentElement];
-        if (t && (t.id === 'addUnitBtn' || t.closest && t.closest('#addUnitBtn'))) {
-            console.debug('capture:pointerdown on addUnitBtn, path:', path.map(p => p && p.id).slice(0,5));
-        }
-        if (t && (t.id === 'addSizeBtn' || t.closest && t.closest('#addSizeBtn'))) {
-            console.debug('capture:pointerdown on addSizeBtn, path:', path.map(p => p && p.id).slice(0,5));
-        }
-    } catch (e) { /* ignore */ }
-}, true);
-
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (t && (t.id === 'addUnitBtn' || (t.closest && t.closest('#addUnitBtn')))) {
-            console.debug('capture:click reached addUnitBtn (bubble phase handler)');
-        }
-        if (t && (t.id === 'addSizeBtn' || (t.closest && t.closest('#addSizeBtn')))) {
-            console.debug('capture:click reached addSizeBtn (bubble phase handler)');
-        }
-    } catch (e) { /* ignore */ }
-}, true);
-
-// Temporary keyboard shortcut and diagnostic helper:
-// Press 'u' to open the Units modal (works even if the button is missing).
-document.addEventListener('keydown', function(e) {
-    // ignore when focused on input/textarea to avoid interfering with typing
-    const tag = (document.activeElement && document.activeElement.tagName) || '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement && document.activeElement.isContentEditable) return;
-    if (e.key === 'u' || e.key === 'U') {
-        console.debug('keyboard: open Units modal (shortcut)');
-        try { showAddUnitModal(); } catch (err) { console.error('keyboard showAddUnitModal error', err); }
-    }
-});
-
-// Diagnostic helper exposed under window for quick checks from console
-window._adminDiag = window._adminDiag || {};
-window._adminDiag.checkAddUnitPresence = function() {
-    const byId = document.getElementById('addUnitBtn');
-    const qs = document.querySelectorAll('#addUnitBtn');
-    console.log('getElementById:', byId, 'querySelectorAll length:', qs.length);
-    if (byId) console.log('addUnitBtn parent:', byId.parentElement && byId.parentElement.id, 'outerHTML snippet:', byId.outerHTML.slice(0,200));
-    console.log('document contains "addUnitBtn" string?', document.body.innerHTML.indexOf('addUnitBtn') !== -1);
-    return { byId: !!byId, foundCount: qs.length };
-};
-
-// Delegated handlers for Save buttons (in case direct listeners didn't attach)
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (!t) return;
-        const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
-        if (saveUnitBtn) {
-            e.preventDefault();
-            console.debug('Delegated click: saveUnitBtn');
-            try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
-            return;
-        }
-
-        const saveSizeBtn = t.closest ? t.closest('#saveSizeBtn') || (t.id === 'saveSizeBtn' ? t : null) : (t.id === 'saveSizeBtn' ? t : null);
-        if (saveSizeBtn) {
-            e.preventDefault();
-            console.debug('Delegated click: saveSizeBtn');
-            try { saveSize(); } catch (err) { console.error('saveSize error', err); }
-            return;
-        }
-    } catch (e) { /* ignore */ }
-});
-
-// Rider sub-tab links (inside Riders management): show list or fuel panel
-const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
-riderSubtabLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const sub = this.dataset.riderSubtab;
-        if (sub) openRiderSubtab(sub);
+            const sub = this.dataset.riderSubtab;
+            if (sub) openRiderSubtab(sub);
+        });
     });
-});
 
     // Hamburger menu: toggle left-side panel
     const hamburger = document.getElementById('hamburgerMenu');
@@ -753,28 +576,6 @@ function switchTab(tabName) {
             break;
         case 'categories':
             loadCategories();
-            break;
-        case 'units':
-            // Load units list when Units tab opened
-            Promise.resolve(loadUnits()).catch(err => console.error('Error loading units tab', err));
-            // Attach event listener for add unit button when tab is active
-            setTimeout(() => {
-                const addUnitBtn = document.getElementById('addUnitBtn');
-                if (addUnitBtn) {
-                    addUnitBtn.addEventListener('click', () => showAddUnitModal());
-                }
-            }, 100);
-            break;
-        case 'sizes':
-            // Load sizes list when Sizes tab opened
-            Promise.resolve(loadSizes()).catch(err => console.error('Error loading sizes tab', err));
-            // Attach event listener for add size button when tab is active
-            setTimeout(() => {
-                const addSizeBtn = document.getElementById('addSizeBtn');
-                if (addSizeBtn) {
-                    addSizeBtn.addEventListener('click', () => showAddSizeModal());
-                }
-            }, 100);
             break;
         case 'riders':
             // loadRiders may be synchronous or return a Promise; normalize to Promise
@@ -1542,7 +1343,6 @@ async function saveUnit() {
         multiplier: formData.get('multiplier') || 1.0
     };
     try {
-        console.debug('saveUnit: sending', { editingUnitId, payload });
         let resp;
         if (editingUnitId) {
             resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
@@ -1557,22 +1357,17 @@ async function saveUnit() {
                 body: JSON.stringify(payload)
             });
         }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveUnit: response', resp.status, data);
-        if (resp.ok && data && data.success) {
+        const data = await resp.json();
+        if (data.success) {
             showSuccess('Saved', 'Unit saved successfully');
             hideModal('addUnitModal');
             editingUnitId = null;
             await loadUnits();
         } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveUnit failed', msg, data);
-            showError('Error', msg || 'Failed to save unit');
+            showError('Error', data.message || 'Failed to save unit');
         }
     } catch (err) {
-        console.error('Error saving unit (exception):', err);
+        console.error('Error saving unit:', err);
         showError('Error', 'Failed to save unit');
     }
 }
@@ -1668,7 +1463,6 @@ async function saveSize() {
         description: formData.get('description') || null
     };
     try {
-        console.debug('saveSize: sending', { editingSizeId, payload });
         let resp;
         if (editingSizeId) {
             resp = await fetch(`${API_BASE}/api/sizes/${editingSizeId}`, {
@@ -1683,22 +1477,17 @@ async function saveSize() {
                 body: JSON.stringify(payload)
             });
         }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveSize: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveSize: response', resp.status, data);
-        if (resp.ok && data && data.success) {
+        const data = await resp.json();
+        if (data.success) {
             showSuccess('Saved', 'Size saved successfully');
             hideModal('addSizeModal');
             editingSizeId = null;
             await loadSizes();
         } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveSize failed', msg, data);
-            showError('Error', msg || 'Failed to save size');
+            showError('Error', data.message || 'Failed to save size');
         }
     } catch (err) {
-        console.error('Error saving size (exception):', err);
+        console.error('Error saving size:', err);
         showError('Error', 'Failed to save size');
     }
 }
@@ -1738,80 +1527,14 @@ async function deleteSize(sizeId) {
 
 // Modal functions
 function showModal(modalId) {
-    // Hide any other open modals first so only one modal is visible at a time
-    document.querySelectorAll('.modal').forEach(m => {
-        try { m.style.display = 'none'; } catch (e) { /* ignore */ }
-    });
-    const el = document.getElementById(modalId);
-    if (!el) {
-        console.warn('showModal: modal not found', modalId);
-        return;
-    }
-    // If the modal is nested inside another hidden container, move it to
-    // `document.body` so it's not affected by ancestor visibility/display.
-    try {
-        if (el.parentElement && el.parentElement !== document.body) {
-            try { document.body.appendChild(el); } catch (e) { /* ignore DOM move errors */ }
-        }
-    } catch (e) { /* ignore */ }
-
-    // Ensure modal is visible and on top; apply robust visibility fixes
-    try {
-        el.classList.add('show');
-        el.style.display = 'block';
-        el.style.visibility = 'visible';
-        el.style.pointerEvents = 'auto';
-        el.style.zIndex = 9999;
-
-        const content = el.querySelector('.modal-content');
-        if (content) {
-            content.style.display = 'block';
-            content.style.visibility = 'visible';
-            content.style.pointerEvents = 'auto';
-            content.style.transform = 'none';
-            content.style.opacity = '1';
-            // ensure content is in front
-            content.style.zIndex = 10000;
-        }
-    } catch (e) { /* ignore style errors */ }
-
-    // Focus first focusable element inside modal to ensure keyboard and visibility
-    try {
-        const first = el.querySelector('input, select, textarea, button, [tabindex]');
-        if (first) {
-            first.focus();
-        } else if (content) {
-            content.setAttribute('tabindex', '-1');
-            content.focus();
-        }
-    } catch (e) { /* ignore focus errors */ }
-
-    // Debug computed style to help if the form remains hidden
-    try {
-        const cs = getComputedStyle(el);
-        const csContent = content ? getComputedStyle(content) : null;
-        console.debug('showModal: opened', modalId, 'modalStyle:', {display: cs.display, visibility: cs.visibility, zIndex: cs.zIndex}, 'contentStyle:', csContent && {display: csContent.display, visibility: csContent.visibility, opacity: csContent.opacity, pointerEvents: csContent.pointerEvents});
-    } catch (e) { /* ignore */ }
-
-    console.debug('showModal: opened', modalId);
+    document.getElementById(modalId).style.display = 'block';
 }
 
 function hideModal(modalId) {
-    const el = document.getElementById(modalId);
-    if (el) el.style.display = 'none';
+    document.getElementById(modalId).style.display = 'none';
     // Reset form
     const form = document.querySelector(`#${modalId} form`);
     if (form) form.reset();
-    // Clear any editing state related to this modal to avoid stale IDs
-    try {
-        if (modalId === 'addUserModal') editingUserId = null;
-        if (modalId === 'addUnitModal') editingUnitId = null;
-        if (modalId === 'addSizeModal') editingSizeId = null;
-        if (modalId === 'addStoreModal') editingStoreId = null;
-        if (modalId === 'addProductModal') editingProductId = null;
-        if (modalId === 'addCategoryModal') editingCategoryId = null;
-        if (modalId === 'addRiderModal') editingRiderId = null;
-    } catch (e) { /* ignore */ }
 }
 
 // User Management Functions
@@ -2557,20 +2280,6 @@ function deleteFuelEntry(entryId, riderId) {
         console.error('Error deleting fuel entry:', err);
         showError('Error', 'Failed to delete fuel entry');
     });
-}
-
-function showAddUnitModal() {
-    editingUnitId = null;
-    const form = document.getElementById('addUnitForm');
-    if (form) form.reset();
-    showModal('addUnitModal');
-}
-
-function showAddSizeModal() {
-    editingSizeId = null;
-    const form = document.getElementById('addSizeForm');
-    if (form) form.reset();
-    showModal('addSizeModal');
 }
 
 async function showAddRiderModal() {

@@ -612,45 +612,6 @@
 
                         </div>
 
-                        <!-- Units Tab -->
-                        <div id="units" class="tab-content">
-                            <h2>Units Management</h2>
-                            <button class="btn btn-primary" id="addUnitBtn">Add New Unit</button>
-                            <div class="table-container" style="margin-top:0.75rem;">
-                                <table id="unitsTable">
-                                    <thead>
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Name</th>
-                                            <th>Abbreviation</th>
-                                            <th>Multiplier</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="unitsTableBody"></tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Sizes Tab -->
-                        <div id="sizes" class="tab-content">
-                            <h2>Sizes Management</h2>
-                            <button class="btn btn-primary" id="addSizeBtn">Add New Size</button>
-                            <div class="table-container" style="margin-top:0.75rem;">
-                                <table id="sizesTable">
-                                    <thead>
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Label</th>
-                                            <th>Description</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="sizesTableBody"></tbody>
-                                </table>
-                            </div>
-                        </div>
-
 
         
 
@@ -783,33 +744,37 @@
             </div>
             <div class="modal-body">
                 <form id="addUserForm">
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userFirstName">First Name:</label>
                             <input type="text" id="userFirstName" name="firstName" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userLastName">Last Name:</label>
                             <input type="text" id="userLastName" name="lastName" required>
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userEmail">Email:</label>
                             <input type="email" id="userEmail" name="email" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userPhone">Phone:</label>
                             <input type="tel" id="userPhone" name="phone">
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userPassword">Password:</label>
                             <input type="password" id="userPassword" name="password" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userType">User Type:</label>
                             <select id="userType" name="userType" required>
@@ -819,8 +784,7 @@
                             </select>
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userStatus">Status:</label>
                             <select id="userStatus" name="is_active">
@@ -828,9 +792,11 @@
                                 <option value="0">Inactive</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userAddress">Address:</label>
-                            <textarea id="userAddress" name="address" rows="2"></textarea>
+                            <textarea id="userAddress" name="address"></textarea>
                         </div>
                     </div>
                 </form>
@@ -1049,70 +1015,6 @@
                             <input type="url" id="categoryImage" name="image_url">
                         </div>
                     </div>
-
-                        <!-- Add Unit Modal -->
-                        <div id="addUnitModal" class="modal">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h3>Add / Edit Unit</h3>
-                                    <span class="close" data-modal="addUnitModal">&times;</span>
-                                </div>
-                                <div class="modal-body">
-                                    <form id="addUnitForm">
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="unitName">Unit Name:</label>
-                                                <input type="text" id="unitName" name="name" required />
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="unitAbbrev">Abbreviation:</label>
-                                                <input type="text" id="unitAbbrev" name="abbreviation" />
-                                            </div>
-                                        </div>
-                                        <div class="form-row-full">
-                                            <div class="form-group">
-                                                <label for="unitMultiplier">Multiplier (relative):</label>
-                                                <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" />
-                                            </div>
-                                        </div>
-                                    </form>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
-                                    <button type="button" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Add Size Modal -->
-                        <div id="addSizeModal" class="modal">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h3>Add / Edit Size</h3>
-                                    <span class="close" data-modal="addSizeModal">&times;</span>
-                                </div>
-                                <div class="modal-body">
-                                    <form id="addSizeForm">
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="sizeLabel">Label:</label>
-                                                <input type="text" id="sizeLabel" name="label" required />
-                                            </div>
-                                        </div>
-                                        <div class="form-row-full">
-                                            <div class="form-group">
-                                                <label for="sizeDescription">Description:</label>
-                                                <textarea id="sizeDescription" name="description"></textarea>
-                                            </div>
-                                        </div>
-                                    </form>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-modal="addSizeModal">Cancel</button>
-                                    <button type="button" class="btn btn-primary" id="saveSizeBtn">Save Size</button>
-                                </div>
-                            </div>
-                        </div>
                     <div class="form-row-full">
                         <div class="form-group">
                             <label for="categoryDescription">Description:</label>

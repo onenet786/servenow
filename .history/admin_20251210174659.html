@@ -783,33 +783,37 @@
             </div>
             <div class="modal-body">
                 <form id="addUserForm">
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userFirstName">First Name:</label>
                             <input type="text" id="userFirstName" name="firstName" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userLastName">Last Name:</label>
                             <input type="text" id="userLastName" name="lastName" required>
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userEmail">Email:</label>
                             <input type="email" id="userEmail" name="email" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userPhone">Phone:</label>
                             <input type="tel" id="userPhone" name="phone">
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userPassword">Password:</label>
                             <input type="password" id="userPassword" name="password" required>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userType">User Type:</label>
                             <select id="userType" name="userType" required>
@@ -819,8 +823,7 @@
                             </select>
                         </div>
                     </div>
-
-                    <div class="form-row">
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userStatus">Status:</label>
                             <select id="userStatus" name="is_active">
@@ -828,9 +831,11 @@
                                 <option value="0">Inactive</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="form-row-full">
                         <div class="form-group">
                             <label for="userAddress">Address:</label>
-                            <textarea id="userAddress" name="address" rows="2"></textarea>
+                            <textarea id="userAddress" name="address"></textarea>
                         </div>
                     </div>
                 </form>

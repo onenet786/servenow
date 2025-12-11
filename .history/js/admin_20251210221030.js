@@ -456,39 +456,15 @@ window._adminDiag.checkAddUnitPresence = function() {
     console.log('document contains "addUnitBtn" string?', document.body.innerHTML.indexOf('addUnitBtn') !== -1);
     return { byId: !!byId, foundCount: qs.length };
 };
-
-// Delegated handlers for Save buttons (in case direct listeners didn't attach)
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (!t) return;
-        const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
-        if (saveUnitBtn) {
+    // Rider sub-tab links (inside Riders management): show list or fuel panel
+    const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
+    riderSubtabLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
-            console.debug('Delegated click: saveUnitBtn');
-            try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
-            return;
-        }
-
-        const saveSizeBtn = t.closest ? t.closest('#saveSizeBtn') || (t.id === 'saveSizeBtn' ? t : null) : (t.id === 'saveSizeBtn' ? t : null);
-        if (saveSizeBtn) {
-            e.preventDefault();
-            console.debug('Delegated click: saveSizeBtn');
-            try { saveSize(); } catch (err) { console.error('saveSize error', err); }
-            return;
-        }
-    } catch (e) { /* ignore */ }
-});
-
-// Rider sub-tab links (inside Riders management): show list or fuel panel
-const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
-riderSubtabLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const sub = this.dataset.riderSubtab;
-        if (sub) openRiderSubtab(sub);
+            const sub = this.dataset.riderSubtab;
+            if (sub) openRiderSubtab(sub);
+        });
     });
-});
 
     // Hamburger menu: toggle left-side panel
     const hamburger = document.getElementById('hamburgerMenu');

@@ -139,15 +139,9 @@ router.get('/', optionalAuth, async (req, res) => {
         }
 
         if (category) {
-            // If category looks like a numeric id, filter by category_id directly
-            if (/^\d+$/.test(String(category))) {
-                whereClauses.push('p.category_id = ?');
-                queryParams.push(category);
-            } else {
-                // normalize incoming category (dashes allowed) in SQL parameter
-                whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
-                queryParams.push(category);
-            }
+            // normalize incoming category (dashes allowed) in SQL parameter
+            whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
+            queryParams.push(category);
         }
 
         if (store) {
@@ -643,8 +637,6 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id); }
         if (stock_quantity !== undefined) { updateFields.push('stock_quantity = ?'); updateValues.push(stock_quantity); }
         if (is_available !== undefined) { updateFields.push('is_available = ?'); updateValues.push(is_available); }
-        if (req.body.unit_id !== undefined) { updateFields.push('unit_id = ?'); updateValues.push(req.body.unit_id); }
-        if (req.body.size_id !== undefined) { updateFields.push('size_id = ?'); updateValues.push(req.body.size_id); }
 
         if (updateFields.length === 0) {
             return res.status(400).json({

@@ -139,15 +139,9 @@ router.get('/', optionalAuth, async (req, res) => {
         }
 
         if (category) {
-            // If category looks like a numeric id, filter by category_id directly
-            if (/^\d+$/.test(String(category))) {
-                whereClauses.push('p.category_id = ?');
-                queryParams.push(category);
-            } else {
-                // normalize incoming category (dashes allowed) in SQL parameter
-                whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
-                queryParams.push(category);
-            }
+            // normalize incoming category (dashes allowed) in SQL parameter
+            whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
+            queryParams.push(category);
         }
 
         if (store) {
@@ -448,9 +442,7 @@ router.post('/', authenticateToken, requireStoreOwner, [
             image_url,
             category_id,
             store_id,
-            stock_quantity = 0,
-            unit_id = null,
-            size_id = null
+            stock_quantity = 0
         } = req.body;
 
         // Check if store exists and user has permission
@@ -517,8 +509,6 @@ router.post('/', authenticateToken, requireStoreOwner, [
         const insertFields = ['name','description','price','image_url','category_id','store_id','stock_quantity'];
         const insertPlaceholders = ['?','?','?','?','?','?','?'];
         const insertValues = [name, description, price, image_url, category_id, store_id, stock_quantity];
-        if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
-        if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
         if (meta) {
             insertFields.push('image_bg_r','image_bg_g','image_bg_b','image_overlay_alpha','image_contrast');
             insertPlaceholders.push('?,?,?,?,?');
@@ -643,8 +633,6 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id); }
         if (stock_quantity !== undefined) { updateFields.push('stock_quantity = ?'); updateValues.push(stock_quantity); }
         if (is_available !== undefined) { updateFields.push('is_available = ?'); updateValues.push(is_available); }
-        if (req.body.unit_id !== undefined) { updateFields.push('unit_id = ?'); updateValues.push(req.body.unit_id); }
-        if (req.body.size_id !== undefined) { updateFields.push('size_id = ?'); updateValues.push(req.body.size_id); }
 
         if (updateFields.length === 0) {
             return res.status(400).json({

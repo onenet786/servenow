@@ -139,15 +139,9 @@ router.get('/', optionalAuth, async (req, res) => {
         }
 
         if (category) {
-            // If category looks like a numeric id, filter by category_id directly
-            if (/^\d+$/.test(String(category))) {
-                whereClauses.push('p.category_id = ?');
-                queryParams.push(category);
-            } else {
-                // normalize incoming category (dashes allowed) in SQL parameter
-                whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
-                queryParams.push(category);
-            }
+            // normalize incoming category (dashes allowed) in SQL parameter
+            whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
+            queryParams.push(category);
         }
 
         if (store) {

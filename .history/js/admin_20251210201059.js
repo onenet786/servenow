@@ -172,10 +172,6 @@ function initializeAdmin() {
         ensureModal('addSizeModal', 'addSizeForm', `\n            <label for="sizeLabel">Label</label>\n            <input id="sizeLabel" name="label" required />\n            <label for="sizeDescription">Description</label>\n            <textarea id="sizeDescription" name="description"></textarea>\n        `, 'saveSizeBtn', 'Add / Edit Size');
     } catch (e) { console.error('Error ensuring units/sizes DOM:', e); }
 
-    // Add event listeners for unit and size buttons after DOM is ensured
-    document.getElementById('addUnitBtn').addEventListener('click', () => showAddUnitModal());
-    document.getElementById('addSizeBtn').addEventListener('click', () => showAddSizeModal());
-
     // Logout functionality
     document.getElementById('logoutBtn').addEventListener('click', function(e) {
         e.preventDefault();
@@ -456,39 +452,15 @@ window._adminDiag.checkAddUnitPresence = function() {
     console.log('document contains "addUnitBtn" string?', document.body.innerHTML.indexOf('addUnitBtn') !== -1);
     return { byId: !!byId, foundCount: qs.length };
 };
-
-// Delegated handlers for Save buttons (in case direct listeners didn't attach)
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (!t) return;
-        const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
-        if (saveUnitBtn) {
+    // Rider sub-tab links (inside Riders management): show list or fuel panel
+    const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
+    riderSubtabLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
-            console.debug('Delegated click: saveUnitBtn');
-            try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
-            return;
-        }
-
-        const saveSizeBtn = t.closest ? t.closest('#saveSizeBtn') || (t.id === 'saveSizeBtn' ? t : null) : (t.id === 'saveSizeBtn' ? t : null);
-        if (saveSizeBtn) {
-            e.preventDefault();
-            console.debug('Delegated click: saveSizeBtn');
-            try { saveSize(); } catch (err) { console.error('saveSize error', err); }
-            return;
-        }
-    } catch (e) { /* ignore */ }
-});
-
-// Rider sub-tab links (inside Riders management): show list or fuel panel
-const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
-riderSubtabLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const sub = this.dataset.riderSubtab;
-        if (sub) openRiderSubtab(sub);
+            const sub = this.dataset.riderSubtab;
+            if (sub) openRiderSubtab(sub);
+        });
     });
-});
 
     // Hamburger menu: toggle left-side panel
     const hamburger = document.getElementById('hamburgerMenu');
@@ -757,24 +729,10 @@ function switchTab(tabName) {
         case 'units':
             // Load units list when Units tab opened
             Promise.resolve(loadUnits()).catch(err => console.error('Error loading units tab', err));
-            // Attach event listener for add unit button when tab is active
-            setTimeout(() => {
-                const addUnitBtn = document.getElementById('addUnitBtn');
-                if (addUnitBtn) {
-                    addUnitBtn.addEventListener('click', () => showAddUnitModal());
-                }
-            }, 100);
             break;
         case 'sizes':
             // Load sizes list when Sizes tab opened
             Promise.resolve(loadSizes()).catch(err => console.error('Error loading sizes tab', err));
-            // Attach event listener for add size button when tab is active
-            setTimeout(() => {
-                const addSizeBtn = document.getElementById('addSizeBtn');
-                if (addSizeBtn) {
-                    addSizeBtn.addEventListener('click', () => showAddSizeModal());
-                }
-            }, 100);
             break;
         case 'riders':
             // loadRiders may be synchronous or return a Promise; normalize to Promise
@@ -1542,7 +1500,6 @@ async function saveUnit() {
         multiplier: formData.get('multiplier') || 1.0
     };
     try {
-        console.debug('saveUnit: sending', { editingUnitId, payload });
         let resp;
         if (editingUnitId) {
             resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
@@ -1557,22 +1514,17 @@ async function saveUnit() {
                 body: JSON.stringify(payload)
             });
         }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveUnit: response', resp.status, data);
-        if (resp.ok && data && data.success) {
+        const data = await resp.json();
+        if (data.success) {
             showSuccess('Saved', 'Unit saved successfully');
             hideModal('addUnitModal');
             editingUnitId = null;
             await loadUnits();
         } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveUnit failed', msg, data);
-            showError('Error', msg || 'Failed to save unit');
+            showError('Error', data.message || 'Failed to save unit');
         }
     } catch (err) {
-        console.error('Error saving unit (exception):', err);
+        console.error('Error saving unit:', err);
         showError('Error', 'Failed to save unit');
     }
 }
@@ -1668,7 +1620,6 @@ async function saveSize() {
         description: formData.get('description') || null
     };
     try {
-        console.debug('saveSize: sending', { editingSizeId, payload });
         let resp;
         if (editingSizeId) {
             resp = await fetch(`${API_BASE}/api/sizes/${editingSizeId}`, {
@@ -1683,22 +1634,17 @@ async function saveSize() {
                 body: JSON.stringify(payload)
             });
         }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveSize: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveSize: response', resp.status, data);
-        if (resp.ok && data && data.success) {
+        const data = await resp.json();
+        if (data.success) {
             showSuccess('Saved', 'Size saved successfully');
             hideModal('addSizeModal');
             editingSizeId = null;
             await loadSizes();
         } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveSize failed', msg, data);
-            showError('Error', msg || 'Failed to save size');
+            showError('Error', data.message || 'Failed to save size');
         }
     } catch (err) {
-        console.error('Error saving size (exception):', err);
+        console.error('Error saving size:', err);
         showError('Error', 'Failed to save size');
     }
 }
@@ -1747,51 +1693,20 @@ function showModal(modalId) {
         console.warn('showModal: modal not found', modalId);
         return;
     }
-    // If the modal is nested inside another hidden container, move it to
-    // `document.body` so it's not affected by ancestor visibility/display.
-    try {
-        if (el.parentElement && el.parentElement !== document.body) {
-            try { document.body.appendChild(el); } catch (e) { /* ignore DOM move errors */ }
-        }
-    } catch (e) { /* ignore */ }
-
-    // Ensure modal is visible and on top; apply robust visibility fixes
-    try {
-        el.classList.add('show');
-        el.style.display = 'block';
-        el.style.visibility = 'visible';
-        el.style.pointerEvents = 'auto';
-        el.style.zIndex = 9999;
-
-        const content = el.querySelector('.modal-content');
-        if (content) {
-            content.style.display = 'block';
-            content.style.visibility = 'visible';
-            content.style.pointerEvents = 'auto';
-            content.style.transform = 'none';
-            content.style.opacity = '1';
-            // ensure content is in front
-            content.style.zIndex = 10000;
-        }
-    } catch (e) { /* ignore style errors */ }
+    // Ensure modal is visible and on top
+    el.style.display = 'block';
+    try { el.style.zIndex = 9999; } catch (e) { /* ignore */ }
 
     // Focus first focusable element inside modal to ensure keyboard and visibility
     try {
         const first = el.querySelector('input, select, textarea, button, [tabindex]');
         if (first) {
             first.focus();
-        } else if (content) {
-            content.setAttribute('tabindex', '-1');
-            content.focus();
+        } else {
+            const content = el.querySelector('.modal-content');
+            if (content) { content.setAttribute('tabindex', '-1'); content.focus(); }
         }
     } catch (e) { /* ignore focus errors */ }
-
-    // Debug computed style to help if the form remains hidden
-    try {
-        const cs = getComputedStyle(el);
-        const csContent = content ? getComputedStyle(content) : null;
-        console.debug('showModal: opened', modalId, 'modalStyle:', {display: cs.display, visibility: cs.visibility, zIndex: cs.zIndex}, 'contentStyle:', csContent && {display: csContent.display, visibility: csContent.visibility, opacity: csContent.opacity, pointerEvents: csContent.pointerEvents});
-    } catch (e) { /* ignore */ }
 
     console.debug('showModal: opened', modalId);
 }
@@ -2557,20 +2472,6 @@ function deleteFuelEntry(entryId, riderId) {
         console.error('Error deleting fuel entry:', err);
         showError('Error', 'Failed to delete fuel entry');
     });
-}
-
-function showAddUnitModal() {
-    editingUnitId = null;
-    const form = document.getElementById('addUnitForm');
-    if (form) form.reset();
-    showModal('addUnitModal');
-}
-
-function showAddSizeModal() {
-    editingSizeId = null;
-    const form = document.getElementById('addSizeForm');
-    if (form) form.reset();
-    showModal('addSizeModal');
 }
 
 async function showAddRiderModal() {

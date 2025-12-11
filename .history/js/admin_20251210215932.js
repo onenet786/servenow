@@ -1,6 +1,6 @@
 // Admin Dashboard JavaScript
 // Use full origin to avoid relative-path edge cases
-// Expose a diagnostics object early so console helpers are always available
+// Diagnostics object (kept minimal in production)
 window._adminDiag = window._adminDiag || {};
 
 const API_BASE = window.location.protocol + '//' + window.location.host;
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if user is logged in and is admin
     authToken = localStorage.getItem('serveNowToken');
     // Debug: log token presence to help diagnose 401 issues
-    try { console.debug('[admin] serveNowToken present:', !!authToken); } catch (e) { /* ignore */ }
+    try { /* token presence check (silent) */ } catch (e) { /* ignore */ }
     if (!authToken) {
         window.location.href = 'login.html';
         return;
@@ -232,7 +232,7 @@ function initializeAdmin() {
     document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
     document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
     let addUnitBtn = document.getElementById('addUnitBtn');
-    console.debug('admin:init addUnitBtn present:', !!addUnitBtn);
+    // silent presence check for addUnitBtn
     if (!addUnitBtn) {
         // Create a fallback Add Unit button if missing in the DOM
         try {
@@ -246,7 +246,7 @@ function initializeAdmin() {
                 const tableContainer = unitsTab.querySelector('.table-container');
                 if (tableContainer) unitsTab.insertBefore(btn, tableContainer);
                 else unitsTab.appendChild(btn);
-                console.debug('admin:init created fallback addUnitBtn');
+                // created fallback addUnitBtn
                 addUnitBtn = btn;
             }
         } catch (e) { console.error('Error creating fallback addUnitBtn', e); }
@@ -254,7 +254,7 @@ function initializeAdmin() {
     if (addUnitBtn) addUnitBtn.addEventListener('click', () => showAddUnitModal());
 
     let addSizeBtn = document.getElementById('addSizeBtn');
-    console.debug('admin:init addSizeBtn present:', !!addSizeBtn);
+    // silent presence check for addSizeBtn
     if (!addSizeBtn) {
         // Create a fallback Add Size button if missing in the DOM
         try {
@@ -268,7 +268,7 @@ function initializeAdmin() {
                 const tableContainer2 = sizesTab.querySelector('.table-container');
                 if (tableContainer2) sizesTab.insertBefore(btn2, tableContainer2);
                 else sizesTab.appendChild(btn2);
-                console.debug('admin:init created fallback addSizeBtn');
+                // created fallback addSizeBtn
                 addSizeBtn = btn2;
             }
         } catch (e) { console.error('Error creating fallback addSizeBtn', e); }
@@ -383,7 +383,7 @@ function initializeAdmin() {
 
 // Fallback delegated click handlers: ensure Add buttons always work even if
 // their direct listeners weren't attached (helps diagnose missing bindings).
-console.debug('admin: registering delegated click handlers');
+// delegated click handlers (silent)
 document.addEventListener('click', function(e) {
     try {
         const t = e.target;
@@ -413,14 +413,12 @@ document.addEventListener('pointerdown', function(e) {
     try {
         const t = e.target;
         const path = (e.composedPath && e.composedPath().slice(0,5)) || [t, t.parentNode, t.parentElement];
-        if (t && (t.id === 'addUnitBtn' || t.closest && t.closest('#addUnitBtn'))) {
-            console.debug('capture:pointerdown on addUnitBtn, path:', path.map(p => p && p.id).slice(0,5));
-        }
-        if (t && (t.id === 'addSizeBtn' || t.closest && t.closest('#addSizeBtn'))) {
-            console.debug('capture:pointerdown on addSizeBtn, path:', path.map(p => p && p.id).slice(0,5));
+        // capture-phase pointerdown trace removed (silent)
         }
     } catch (e) { /* ignore */ }
 }, true);
+
+document.addEventListener('click', function(e) { try { /* silent bubble-phase handler */ } catch(e){} }, true);
 
 document.addEventListener('click', function(e) {
     try {
@@ -441,54 +439,28 @@ document.addEventListener('keydown', function(e) {
     const tag = (document.activeElement && document.activeElement.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement && document.activeElement.isContentEditable) return;
     if (e.key === 'u' || e.key === 'U') {
-        console.debug('keyboard: open Units modal (shortcut)');
-        try { showAddUnitModal(); } catch (err) { console.error('keyboard showAddUnitModal error', err); }
+        try { showAddUnitModal(); } catch (err) { /* ignore */ }
+    }
     }
 });
 
 // Diagnostic helper exposed under window for quick checks from console
 window._adminDiag = window._adminDiag || {};
+// Basic diagnostic helper (no console output)
 window._adminDiag.checkAddUnitPresence = function() {
     const byId = document.getElementById('addUnitBtn');
     const qs = document.querySelectorAll('#addUnitBtn');
-    console.log('getElementById:', byId, 'querySelectorAll length:', qs.length);
-    if (byId) console.log('addUnitBtn parent:', byId.parentElement && byId.parentElement.id, 'outerHTML snippet:', byId.outerHTML.slice(0,200));
-    console.log('document contains "addUnitBtn" string?', document.body.innerHTML.indexOf('addUnitBtn') !== -1);
     return { byId: !!byId, foundCount: qs.length };
 };
-
-// Delegated handlers for Save buttons (in case direct listeners didn't attach)
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (!t) return;
-        const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
-        if (saveUnitBtn) {
+    // Rider sub-tab links (inside Riders management): show list or fuel panel
+    const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
+    riderSubtabLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
-            console.debug('Delegated click: saveUnitBtn');
-            try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
-            return;
-        }
-
-        const saveSizeBtn = t.closest ? t.closest('#saveSizeBtn') || (t.id === 'saveSizeBtn' ? t : null) : (t.id === 'saveSizeBtn' ? t : null);
-        if (saveSizeBtn) {
-            e.preventDefault();
-            console.debug('Delegated click: saveSizeBtn');
-            try { saveSize(); } catch (err) { console.error('saveSize error', err); }
-            return;
-        }
-    } catch (e) { /* ignore */ }
-});
-
-// Rider sub-tab links (inside Riders management): show list or fuel panel
-const riderSubtabLinks = document.querySelectorAll('.rider-subtab-link');
-riderSubtabLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const sub = this.dataset.riderSubtab;
-        if (sub) openRiderSubtab(sub);
+            const sub = this.dataset.riderSubtab;
+            if (sub) openRiderSubtab(sub);
+        });
     });
-});
 
     // Hamburger menu: toggle left-side panel
     const hamburger = document.getElementById('hamburgerMenu');
@@ -1542,7 +1514,6 @@ async function saveUnit() {
         multiplier: formData.get('multiplier') || 1.0
     };
     try {
-        console.debug('saveUnit: sending', { editingUnitId, payload });
         let resp;
         if (editingUnitId) {
             resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
@@ -1557,22 +1528,17 @@ async function saveUnit() {
                 body: JSON.stringify(payload)
             });
         }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveUnit: response', resp.status, data);
-        if (resp.ok && data && data.success) {
+        const data = await resp.json();
+        if (data.success) {
             showSuccess('Saved', 'Unit saved successfully');
             hideModal('addUnitModal');
             editingUnitId = null;
             await loadUnits();
         } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveUnit failed', msg, data);
-            showError('Error', msg || 'Failed to save unit');
+            showError('Error', data.message || 'Failed to save unit');
         }
     } catch (err) {
-        console.error('Error saving unit (exception):', err);
+        console.error('Error saving unit:', err);
         showError('Error', 'Failed to save unit');
     }
 }
@@ -1668,7 +1634,6 @@ async function saveSize() {
         description: formData.get('description') || null
     };
     try {
-        console.debug('saveSize: sending', { editingSizeId, payload });
         let resp;
         if (editingSizeId) {
             resp = await fetch(`${API_BASE}/api/sizes/${editingSizeId}`, {
@@ -1683,22 +1648,17 @@ async function saveSize() {
                 body: JSON.stringify(payload)
             });
         }
-
-        let data;
-        try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveSize: invalid JSON response', resp.status, text); throw e; }
-        console.debug('saveSize: response', resp.status, data);
-        if (resp.ok && data && data.success) {
+        const data = await resp.json();
+        if (data.success) {
             showSuccess('Saved', 'Size saved successfully');
             hideModal('addSizeModal');
             editingSizeId = null;
             await loadSizes();
         } else {
-            const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-            console.error('saveSize failed', msg, data);
-            showError('Error', msg || 'Failed to save size');
+            showError('Error', data.message || 'Failed to save size');
         }
     } catch (err) {
-        console.error('Error saving size (exception):', err);
+        console.error('Error saving size:', err);
         showError('Error', 'Failed to save size');
     }
 }
