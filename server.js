@@ -32,6 +32,8 @@ const orderRoutes = require('./routes/orders');
 const categoryRoutes = require('./routes/categories');
 const riderRoutes = require('./routes/riders');
 const adminRoutes = require('./routes/admin');
+const unitRoutes = require('./routes/units');
+const sizeRoutes = require('./routes/sizes');
 
 const app = express();
 console.log('Express application created.');
@@ -105,6 +107,10 @@ app.use('/api/riders', riderRoutes);
 console.log('Rider routes mounted at /api/riders');
 app.use('/api/admin', adminRoutes);
 console.log('Admin routes mounted at /api/admin');
+app.use('/api/units', unitRoutes);
+console.log('Unit routes mounted at /api/units');
+app.use('/api/sizes', sizeRoutes);
+console.log('Size routes mounted at /api/sizes');
 console.log('All API routes configured.');
 
 // Serve login.html for the root path

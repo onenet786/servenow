@@ -121,10 +121,13 @@ router.get('/', optionalAuth, async (req, res) => {
         const isAdminUser = req.user && req.user.user_type === 'admin';
 
         let query = `
-            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location
+            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location,
+                   u.id as unit_id, u.name as unit_name, sz.id as size_id, sz.label as size_label
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stores s ON p.store_id = s.id
+            LEFT JOIN units u ON p.unit_id = u.id
+            LEFT JOIN sizes sz ON p.size_id = sz.id
         `;
         const queryParams = [];
         const whereClauses = [];
@@ -136,9 +139,15 @@ router.get('/', optionalAuth, async (req, res) => {
         }
 
         if (category) {
-            // normalize incoming category (dashes allowed) in SQL parameter
-            whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
-            queryParams.push(category);
+            // If category looks like a numeric id, filter by category_id directly
+            if (/^\d+$/.test(String(category))) {
+                whereClauses.push('p.category_id = ?');
+                queryParams.push(category);
+            } else {
+                // normalize incoming category (dashes allowed) in SQL parameter
+                whereClauses.push('LOWER(c.name) = LOWER(REPLACE(?, "-", " "))');
+                queryParams.push(category);
+            }
         }
 
         if (store) {
@@ -174,7 +183,11 @@ router.get('/', optionalAuth, async (req, res) => {
                 stock_quantity: product.stock_quantity,
                 is_available: product.is_available,
                 store_id: product.store_id,
-                category_id: product.category_id
+                category_id: product.category_id,
+                unit_id: product.unit_id,
+                unit_name: product.unit_name,
+                size_id: product.size_id,
+                size_label: product.size_label
             }))
         });
 
@@ -265,10 +278,13 @@ router.get('/:id', optionalAuth, async (req, res) => {
         const isAdminUser = req.user && req.user.user_type === 'admin';
 
         let detailQuery = `
-            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location
+            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location,
+                   u.id as unit_id, u.name as unit_name, sz.id as size_id, sz.label as size_label
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stores s ON p.store_id = s.id
+            LEFT JOIN units u ON p.unit_id = u.id
+            LEFT JOIN sizes sz ON p.size_id = sz.id
         `;
         const detailParams = [id];
         const detailWhere = ['p.id = ?'];
@@ -293,7 +309,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
 
         res.json({
             success: true,
-            product: {
+                product: {
                 id: product.id,
                 name: product.name,
                 description: product.description,
@@ -311,7 +327,11 @@ router.get('/:id', optionalAuth, async (req, res) => {
                 stock_quantity: product.stock_quantity,
                 is_available: product.is_available,
                 store_id: product.store_id,
-                category_id: product.category_id
+                category_id: product.category_id,
+                unit_id: product.unit_id,
+                unit_name: product.unit_name,
+                size_id: product.size_id,
+                size_label: product.size_label
             }
         });
 
@@ -428,7 +448,9 @@ router.post('/', authenticateToken, requireStoreOwner, [
             image_url,
             category_id,
             store_id,
-            stock_quantity = 0
+            stock_quantity = 0,
+            unit_id = null,
+            size_id = null
         } = req.body;
 
         // Check if store exists and user has permission
@@ -495,6 +517,8 @@ router.post('/', authenticateToken, requireStoreOwner, [
         const insertFields = ['name','description','price','image_url','category_id','store_id','stock_quantity'];
         const insertPlaceholders = ['?','?','?','?','?','?','?'];
         const insertValues = [name, description, price, image_url, category_id, store_id, stock_quantity];
+        if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
+        if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
         if (meta) {
             insertFields.push('image_bg_r','image_bg_g','image_bg_b','image_overlay_alpha','image_contrast');
             insertPlaceholders.push('?,?,?,?,?');
@@ -619,6 +643,8 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id); }
         if (stock_quantity !== undefined) { updateFields.push('stock_quantity = ?'); updateValues.push(stock_quantity); }
         if (is_available !== undefined) { updateFields.push('is_available = ?'); updateValues.push(is_available); }
+        if (req.body.unit_id !== undefined) { updateFields.push('unit_id = ?'); updateValues.push(req.body.unit_id); }
+        if (req.body.size_id !== undefined) { updateFields.push('size_id = ?'); updateValues.push(req.body.size_id); }
 
         if (updateFields.length === 0) {
             return res.status(400).json({
