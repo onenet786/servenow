@@ -793,6 +793,40 @@ document.addEventListener('DOMContentLoaded', function() {
         getLocationBtn.addEventListener('click', getUserLocation);
     }
 
+    const formatPhoneValue = (raw) => {
+        const digits = String(raw || '').replace(/[^\d]/g, '');
+        let local = digits.replace(/^92/, '');
+        if (local.length > 10) local = local.slice(0, 10);
+        return '+92' + local;
+    };
+    const attachPhoneFormatterTo = (input) => {
+        if (!input) return;
+        const ensurePrefix = () => {
+            if (!input.value || !String(input.value).startsWith('+92')) {
+                input.value = formatPhoneValue(input.value);
+            }
+        };
+        input.addEventListener('focus', ensurePrefix);
+        input.addEventListener('keydown', function(e) {
+            const v = String(input.value || '');
+            if ((e.key === 'Backspace' || e.key === 'Delete') && input.selectionStart <= 3) {
+                e.preventDefault();
+                input.setSelectionRange(3, 3);
+            }
+        });
+        input.addEventListener('input', function() {
+            const start = input.selectionStart;
+            input.value = formatPhoneValue(input.value);
+            const pos = Math.max(3, start);
+            input.setSelectionRange(pos, pos);
+        });
+        input.addEventListener('blur', ensurePrefix);
+        ensurePrefix();
+    };
+    window.attachPhoneFormatterTo = attachPhoneFormatterTo;
+    const phoneInputs = Array.from(document.querySelectorAll('input[type="tel"][name="phone"], #phone, #userPhone, #storePhone, #riderPhone'));
+    phoneInputs.forEach(attachPhoneFormatterTo);
+
     // Load products if on products page
     const urlParams = new URLSearchParams(window.location.search);
     const category = urlParams.get('category');

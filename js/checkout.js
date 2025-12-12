@@ -188,6 +188,7 @@ async function prefillUserInfo() {
         document.getElementById('fullName').value = `${user.first_name} ${user.last_name}`;
         document.getElementById('phone').value = user.phone || '';
         document.getElementById('deliveryAddress').value = user.address || '';
+        if (window.attachPhoneFormatterTo) window.attachPhoneFormatterTo(document.getElementById('phone'));
         console.log('Form prefilled');
     } catch (error) {
         console.error('Error parsing user data:', error);
@@ -214,6 +215,7 @@ async function prefillUserInfo() {
             document.getElementById('fullName').value = `${user.first_name} ${user.last_name}`;
             document.getElementById('phone').value = user.phone || '';
             document.getElementById('deliveryAddress').value = user.address || '';
+            if (window.attachPhoneFormatterTo) window.attachPhoneFormatterTo(document.getElementById('phone'));
             console.log('Form updated from API');
         } else {
             console.log('Failed to get user data from API:', data.message);

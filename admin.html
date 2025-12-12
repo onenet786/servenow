@@ -66,65 +66,49 @@
 
 
                         <div id="dashboard" class="tab-content active">
-
-
                             <h2>Dashboard Overview</h2>
-
-
-                            <div class="stats-grid">
-
-
-                                <div class="stat-card">
-
-
-                                    <h3 id="totalUsers">-</h3>
-
-
-                                    <p>Total Users</p>
-
-
+                            <div class="stats-grid" style="grid-template-columns: 1fr;">
+                                <div>
+                                    <h3>Today's Orders</h3>
+                                    <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                                        <div class="stat-card">
+                                            <h3 id="todayTotalOrders">-</h3>
+                                            <p>Total Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="todayDelivered">-</h3>
+                                            <p>Total Delivered</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="todayPending">-</h3>
+                                            <p>Pending Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="todayCancelled">-</h3>
+                                            <p>Cancelled</p>
+                                        </div>
+                                    </div>
+                                    <h3 style="margin-top:1.5rem;">All Orders</h3>
+                                    <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                                        <div class="stat-card">
+                                            <h3 id="allTotalOrders">-</h3>
+                                            <p>Total Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="allDelivered">-</h3>
+                                            <p>Total Delivered</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="allPending">-</h3>
+                                            <p>Pending Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="allCancelled">-</h3>
+                                            <p>Cancelled</p>
+                                        </div>
+                                    </div>
                                 </div>
-
-
-                                <div class="stat-card">
-
-
-                                    <h3 id="totalStores">-</h3>
-
-
-                                    <p>Total Stores</p>
-
-
-                                </div>
-
-
-                                <div class="stat-card">
-
-
-                                    <h3 id="totalProducts">-</h3>
-
-
-                                    <p>Total Products</p>
-
-
-                                </div>
-
-
-                                <div class="stat-card">
-
-
-                                    <h3 id="totalOrders">-</h3>
-
-
-                                    <p>Total Orders</p>
-
-
-                                </div>
-
-
                             </div>
-
-
                         </div>
 
                         <!-- Rider Fuel panel moved inside Riders management as a sub-panel -->
@@ -861,20 +845,19 @@
                         </div>
                         <div class="form-group">
                             <label for="storeOwner">Owner:</label>
-                            <input type="text" id="storeOwner" name="owner" required>
+                            <input type="text" id="storeOwner" name="owner_name" placeholder="Owner name" required>
                         </div>
-                    </div>
-                    <div class="form-row">
                         <div class="form-group">
                             <label for="storeLocation">Location:</label>
                             <input type="text" id="storeLocation" name="location" required>
                         </div>
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="storePhone">Phone:</label>
                             <input type="tel" id="storePhone" name="phone">
                         </div>
-                    </div>
-                    <div class="form-row">
                         <div class="form-group">
                             <label for="storeEmail">Email:</label>
                             <input type="email" id="storeEmail" name="email">
@@ -884,6 +867,7 @@
                             <input type="number" id="storeRating" name="rating" step="0.1" min="0" max="5" value="0">
                         </div>
                     </div>
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="storeDeliveryTime">Delivery Time:</label>
@@ -896,18 +880,17 @@
                                 <option value="inactive">Inactive</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="form-row">
                         <div class="form-group">
                             <label for="storeOpeningTime">Opening Time:</label>
                             <input type="time" id="storeOpeningTime" name="opening_time">
                         </div>
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="storeClosingTime">Closing Time:</label>
                             <input type="time" id="storeClosingTime" name="closing_time">
                         </div>
-                    </div>
-                    <div class="form-row">
                         <div class="form-group">
                             <label for="storeCategory">Category:</label>
                             <select id="storeCategory" name="category_id">
@@ -926,6 +909,7 @@
                             </div>
                         </div>
                     </div>
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="storeAddress">Address:</label>
