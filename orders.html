@@ -6,14 +6,20 @@
     <title>Orders Management - ServeNow</title>
     <link rel="stylesheet" href="style/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="images/servenow.png">
 </head>
 <body>
     <header>
         <nav>
             <div class="logo">
-                <h1>ServeNow</h1>
+                <img src="images/servenow.png" alt="ServeNow Logo">
             </div>
-            <ul>
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul id="navMenu">
                 <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
                 <li><a href="admin.html"><i class="fas fa-cog"></i> Admin</a></li>
                 <li><a href="#" onclick="logout()">Logout</a></li>

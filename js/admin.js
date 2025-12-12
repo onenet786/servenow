@@ -490,35 +490,31 @@ riderSubtabLinks.forEach(link => {
     });
 });
 
-    // Hamburger menu: toggle left-side panel
-    const hamburger = document.getElementById('hamburgerMenu');
-    if (hamburger) {
-        // Toggle class on body to open/close left panel
-        hamburger.addEventListener('click', function(e) {
+// Dropdown: click-to-open for mobile/landscape
+try {
+    const dropdownToggles = document.querySelectorAll('.nav-menu .dropdown > .dropdown-toggle');
+    dropdownToggles.forEach(t => {
+        t.addEventListener('click', function(e) {
             e.preventDefault();
-            const isOpen = document.body.classList.toggle('left-open');
-            this.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            e.stopPropagation();
+            const li = this.closest('.dropdown');
+            if (!li) return;
+            const nowOpen = li.classList.toggle('open');
+            // Close other dropdowns
+            document.querySelectorAll('.nav-menu .dropdown').forEach(d => {
+                if (d !== li) d.classList.remove('open');
+            });
         });
+    });
+    // Close dropdowns when clicking outside nav
+    document.addEventListener('click', function(e) {
+        const nav = document.getElementById('navMenu');
+        if (nav && !nav.contains(e.target)) {
+            document.querySelectorAll('.nav-menu .dropdown').forEach(d => d.classList.remove('open'));
+        }
+    });
+} catch (e) { /* ignore */ }
 
-        // Close left panel when clicking outside the panel on desktop
-        document.addEventListener('click', function(e) {
-            if (!document.body.classList.contains('left-open')) return;
-            const nav = document.getElementById('navMenu');
-            const target = e.target;
-            if (nav && !nav.contains(target) && !hamburger.contains(target)) {
-                document.body.classList.remove('left-open');
-                hamburger.setAttribute('aria-expanded', 'false');
-            }
-        });
-
-        // Close panel on Escape
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && document.body.classList.contains('left-open')) {
-                document.body.classList.remove('left-open');
-                hamburger.setAttribute('aria-expanded', 'false');
-            }
-        });
-    }
 }
 
 // Apply image fit mode by toggling a class on <body>

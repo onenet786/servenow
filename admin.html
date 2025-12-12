@@ -6,7 +6,9 @@
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="style/main.css">
     <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <link rel="icon" type="image/png" href="images/servenow.png">
 
 </head>
 <body>
@@ -16,7 +18,7 @@
     <header>
         <nav class="admin-nav sidebar-left">
             <div class="logo">
-                <h1>ServeNow Admin</h1>
+                <img src="images/servenow.png" alt="ServeNow Admin">
             </div>
             
             <!-- Hamburger Menu Button -->
@@ -47,6 +49,7 @@
                 <li><a href="#" id="logoutBtn">Logout</a></li>
             </ul>
         </nav>
+        <div class="nav-overlay"></div>
     </header>
 
 
@@ -1226,19 +1229,14 @@
 
     <script src="js/admin.js?v=3"></script>
     <script>
-        // Mobile menu toggle functionality
         const hamburgerMenu = document.getElementById('hamburgerMenu');
         const navMenu = document.getElementById('navMenu');
-
         if (hamburgerMenu && navMenu) {
-            // Toggle the left panel by toggling the body class so desktop and mobile behave consistently
             hamburgerMenu.addEventListener('click', function(e) {
                 e.stopPropagation();
                 const isOpen = document.body.classList.toggle('left-open');
                 hamburgerMenu.classList.toggle('active', isOpen);
             });
-
-            // Close menu when clicking a nav link (both desktop and mobile)
             const navLinks = navMenu.querySelectorAll('a');
             navLinks.forEach(link => {
                 link.addEventListener('click', function() {
@@ -1246,8 +1244,6 @@
                     hamburgerMenu.classList.remove('active');
                 });
             });
-
-            // Close menu when clicking outside
             document.addEventListener('click', function(event) {
                 if (!navMenu.contains(event.target) && !hamburgerMenu.contains(event.target)) {
                     document.body.classList.remove('left-open');

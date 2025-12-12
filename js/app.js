@@ -682,6 +682,55 @@ function logout() {
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
+    // Mobile menu toggle (available on pages with menuToggle/navMenu)
+    try {
+        const menuToggle = document.getElementById('menuToggle');
+        const navMenu = document.getElementById('navMenu');
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isActive = navMenu.classList.toggle('active');
+                menuToggle.classList.toggle('active');
+                if (isActive) {
+                    try {
+                        navMenu.style.transform = 'translateY(0)';
+                        navMenu.style.opacity = '1';
+                        navMenu.style.visibility = 'visible';
+                        navMenu.style.display = 'flex';
+                    } catch (e2) { /* ignore */ }
+                } else {
+                    try {
+                        navMenu.style.transform = 'translateY(-100%)';
+                        navMenu.style.opacity = '0';
+                        navMenu.style.visibility = 'hidden';
+                    } catch (e2) { /* ignore */ }
+                }
+            });
+            const navLinks = navMenu.querySelectorAll('a');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    navMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
+                    try {
+                        navMenu.style.transform = 'translateY(-100%)';
+                        navMenu.style.opacity = '0';
+                        navMenu.style.visibility = 'hidden';
+                    } catch (e2) { /* ignore */ }
+                });
+            });
+            document.addEventListener('click', function(event) {
+                if (!navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
+                    navMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
+                    try {
+                        navMenu.style.transform = 'translateY(-100%)';
+                        navMenu.style.opacity = '0';
+                        navMenu.style.visibility = 'hidden';
+                    } catch (e2) { /* ignore */ }
+                }
+            });
+        }
+    } catch (e) { /* ignore toggle wiring errors */ }
     // Redirect to login if not authenticated
     const currentPage = window.location.pathname;
     const isLoginPage = currentPage.includes('login.html');

@@ -74,6 +74,12 @@ nav {
     gap: 0.5rem;
 }
 
+.logo img {
+    height: 40px;
+    width: auto;
+    display: block;
+}
+
 .logo h1 {
     background: linear-gradient(45deg, #ffffff, #e2e8f0);
     -webkit-background-clip: text;
@@ -1194,14 +1200,18 @@ footer {
     nav {
         position: relative;
         padding: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .menu-toggle {
-        display: flex;
-        order: 2;
+        display: flex !important;
+        order: 1;
     }
 
     nav ul {
+        order: 2;
         position: absolute;
         top: 100%;
         left: 0;
@@ -1215,13 +1225,18 @@ footer {
         opacity: 0;
         visibility: hidden;
         transition: all 0.3s ease;
-        z-index: 999;
+        z-index: 2000;
     }
 
     nav ul.active {
         transform: translateY(0);
         opacity: 1;
         visibility: visible;
+    }
+
+    .logo {
+        order: 3;
+        margin-left: auto;
     }
 
     nav ul li {
