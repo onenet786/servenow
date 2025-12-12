@@ -354,44 +354,32 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    /* Revert to top navigation layout (no fixed sidebar) */
-    width: auto;
-    position: relative;
-    padding: 0.45rem 0.35rem;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 0.25rem;
-    z-index: 1000;
-    border-radius: 0 6px 6px 0;
+    width: 240px;
+    padding: 0.75rem 0.5rem;
+    background: var(--dark-gradient);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    border-right: 1px solid rgba(255,255,255,0.12);
 }
-
-.admin-nav.sidebar-left .logo {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+.admin-container {
+    margin-left: 240px;
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
-
-.admin-nav.sidebar-left .logo h1 {
-    font-size: 0.85rem;
-    margin: 0;
-    line-height: 1;
-    text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.admin-nav.sidebar-left .hamburger-menu {
-    align-self: flex-end;
-}
-
 .admin-nav.sidebar-left .nav-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 0.06rem;
-    margin-top: 0.3rem;
+    flex-direction: column !important;
+    gap: 0.25rem;
+}
+.admin-nav.sidebar-left .nav-menu li a {
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    color: rgba(255,255,255,0.9);
+}
+.admin-nav.sidebar-left .nav-menu li a:hover,
+.admin-nav.sidebar-left .nav-menu li a.active {
+    color: #fff;
+    background: linear-gradient(90deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
+}
 }
 
 .admin-nav.sidebar-left .nav-menu li a {
@@ -509,25 +497,15 @@ header { position: relative; }
     position: relative;
     overflow: hidden;
 }
-/* Force menu bar permanent across all viewports */
+/* Responsive base nav list (top nav fallback) */
 .nav-menu {
-    display: flex !important;
-    position: relative !important;
-    left: auto !important;
-    top: auto !important;
-    height: auto !important;
-    width: auto !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    gap: 0.8rem !important;
-    padding: 0.5rem 1rem !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    z-index: 1000;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
 }
-
-/* Hide hamburger always when menu is permanent */
-.hamburger-menu { display: none !important; }
 
 /* Ensure mobile still wraps the nav links nicely */
 @media (max-width: 600px) {
@@ -579,32 +557,40 @@ header { position: relative; }
     transition: transform 0.18s ease, opacity 0.18s ease;
 }
 
-/* Desktop: convert top nav into a left panel that can slide-in */
+/* Desktop: sticky left sidebar container */
 @media (min-width: 900px) {
-    .nav-menu {
+    .admin-nav.sidebar-left {
         position: fixed;
-        left: 0; /* permanent visible left panel */
         top: 0;
-        height: 100vh;
-        width: 120px;
+        left: 0;
+        bottom: 0;
+        width: 240px;
+        background: var(--dark-gradient);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+        border-right: 1px solid rgba(255,255,255,0.12);
+        padding: 0.75rem 0.5rem;
+        z-index: 1000;
+    }
+    .admin-container {
+        transition: margin-left 0.22s cubic-bezier(0.4,0,0.2,1);
+        margin-left: 240px;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .admin-nav.sidebar-left .nav-menu {
+        position: static;
+        height: auto;
+        width: 100%;
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
-        padding: 3.5rem 0.5rem 1rem 0.5rem;
-        background: var(--dark-gradient);
-        box-shadow: 0 8px 30px rgba(0,0,0,0.25);
-        transition: none;
-        z-index: 1000;
+        padding: 0.25rem 0.25rem 0.75rem;
+        background: transparent;
+        box-shadow: none;
     }
-
-    /* Hide hamburger on desktop since panel is permanent */
-    .hamburger-menu { display: none !important; }
-
-    /* Main content shifted to the right of the permanent left panel */
-    .admin-container { transition: margin-left 0.22s cubic-bezier(0.4,0,0.2,1); margin-left: 120px; }
-
-    /* Left-panel style for links */
-    .nav-menu li a {
+    /* Hide hamburger on desktop only */
+    @media (min-width: 900px) { .hamburger-menu { display: none !important; } }
+    .admin-nav.sidebar-left .nav-menu li a {
         display: flex;
         align-items: center;
         gap: 0.75rem;
@@ -615,7 +601,7 @@ header { position: relative; }
         border-radius: 10px;
         margin: 0.25rem 0.5rem;
     }
-    .nav-menu li .dropdown-menu { position: static; background: transparent; box-shadow: none; padding-left: 0; }
+    .admin-nav.sidebar-left .nav-menu li .dropdown-menu { position: static; background: transparent; box-shadow: none; padding-left: 0; }
 }
 
 .nav-menu li a:hover,
@@ -1075,6 +1061,17 @@ table tbody tr:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
+table tbody tr:hover::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    border-radius: 0 2px 2px 0;
+}
+
 table tbody tr:nth-child(even) {
     background-color: rgba(248, 249, 250, 0.18);
 }
@@ -1184,7 +1181,7 @@ th.sortable.sort-desc::before {
     position: relative;
     overflow: hidden;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
 }
 
 .btn::before {
@@ -1348,56 +1345,21 @@ th.sortable.sort-desc::before {
         content: '' !important;
     }
 
-    /* Show hamburger menu on mobile */
-    .hamburger-menu {
-        display: flex !important;
-    }
+    /* Mobile: left drawer with overlay controlled by body.left-open */
+    .hamburger-menu { display: flex !important; }
 
-    /* Hide full nav menu by default on mobile */
-    .nav-menu {
-        display: none;
-        position: fixed;
-        top: 60px;
-        left: 0;
-        right: 0;
-        flex-direction: column;
-        background: var(--dark-gradient);
-        padding: 0.3rem 0.5rem;
-        gap: 0.2rem;
-        width: 100%;
-        max-height: calc(100vh - 60px);
-        overflow-y: auto;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        z-index: 998;
-    }
+    .admin-nav.sidebar-left { position: fixed; top: 0; left: 0; bottom: 0; width: 80vw; max-width: 360px; transform: translateX(-100%); transition: transform 280ms ease; z-index: 1000; }
+    body.left-open .admin-nav.sidebar-left { transform: translateX(0); }
 
-    /* Show nav menu when active */
-    .nav-menu.active {
-        display: flex;
-    }
+    .nav-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; pointer-events: none; transition: opacity 240ms ease; z-index: 900; }
+    body.left-open .nav-overlay { opacity: 1; pointer-events: auto; }
 
-    .nav-menu li {
-        width: 100%;
-    }
+    .admin-nav.sidebar-left .nav-menu { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.5rem; max-height: calc(100vh - 60px); overflow-y: auto; }
+    .admin-nav.sidebar-left .nav-menu li { width: 100%; }
+    .admin-nav.sidebar-left .nav-menu li a { width: 100%; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.95rem; color: rgba(255,255,255,0.85); }
 
-    .nav-menu li a {
-        width: 100%;
-        padding: 0.5rem 0.75rem;
-        border-radius: 4px;
-        font-size: 0.85rem;
-    }
-
-    /* Admin nav flex direction for mobile */
-    .admin-nav {
-        flex-wrap: wrap;
-        padding: 0.5rem;
-        position: relative;
-        z-index: 1000;
-        width: 100%;
-        max-width: 100%;
-        margin: 0;
-        box-sizing: border-box;
-        gap: 0.3rem;
+    /* Admin nav base for mobile */
+    .admin-nav { flex-wrap: wrap; padding: 0.5rem; position: relative; z-index: 1000; width: 100%; max-width: 100%; margin: 0; box-sizing: border-box; gap: 0.3rem; }
     }
 
     /* Logo styling for mobile */
@@ -1649,8 +1611,8 @@ table tbody tr:last-child td {
 .table-container th,
 .table-container td {
     white-space: normal !important;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
 }
 
 
@@ -1898,10 +1860,50 @@ table tbody tr:last-child td {
    by keeping the main content offset in sync with the nav width. */
 @media (min-width: 900px) {
     .admin-container {
-        margin-left: 120px !important;
+        margin-left: 240px !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
     /* Make sure table content sits above unintended overlays */
     .table-container { z-index: 2; position: relative; }
+}
+
+/* Sidebar visual upgrades */
+.admin-nav.sidebar-left {
+    background: linear-gradient(180deg, #0f172a 0%, #1f2937 100%) !important;
+    border-right: 1px solid rgba(255,255,255,0.12) !important;
+}
+.admin-nav.sidebar-left .logo h1 {
+    color: #e5e7eb !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+}
+.admin-nav.sidebar-left .nav-menu {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.25rem !important;
+}
+.admin-nav.sidebar-left .nav-menu li a {
+    width: 100% !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    color: #cbd5e1 !important;
+    border-radius: 10px !important;
+    padding: 0.7rem 0.9rem !important;
+    background: transparent !important;
+}
+.admin-nav.sidebar-left .nav-menu li a:hover,
+.admin-nav.sidebar-left .nav-menu li a.active {
+    color: #ffffff !important;
+    background: linear-gradient(90deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08)) !important;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12) !important;
+}
+.admin-nav.sidebar-left .nav-menu li a i {
+    color: #60a5fa !important;
+    width: 18px !important;
+    font-size: 0.95rem !important;
+    text-align: left !important;
+    margin-right: 8px !important;
 }
 
 /* Ensure first column never collapses under overlays or fixed navs */
@@ -1930,4 +1932,45 @@ table tbody tr:last-child td {
 .table-container table thead th,
 .table-container table tbody td {
     display: table-cell !important;
+}
+
+/* Ensure true left alignment under ServeNow logo on desktop */
+@media (min-width: 901px) {
+  .admin-nav.sidebar-left {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    box-sizing: border-box !important;
+  }
+  .admin-nav.sidebar-left .logo,
+  .admin-nav.sidebar-left .nav-menu {
+    width: 100% !important;
+  }
+  .admin-nav.sidebar-left .logo {
+    display: block !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  .admin-nav.sidebar-left .logo h1 {
+    text-align: left !important;
+    margin: 0 !important;
+  }
+  .admin-nav.sidebar-left .nav-menu {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding: 0.25rem 0.5rem !important;
+    gap: 0.3rem !important;
+  }
+  .admin-nav.sidebar-left .nav-menu li { width: 100% !important; }
+  .admin-nav.sidebar-left .nav-menu li a {
+    width: 100% !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    padding: 0.7rem 0.9rem 0.7rem 0.75rem !important;
+  }
 }

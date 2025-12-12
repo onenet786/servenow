@@ -528,6 +528,30 @@ function applyImageFitClass(mode) {
     else document.body.classList.add('image-fit-cover');
 }
 
+// Global helper: apply orientation-based object-fit to any img preview
+function applyOrientationFitAdmin(img) {
+    try {
+        if (!img) return;
+        const apply = () => {
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
+            // Ensure correct fit by toggling class and inline style
+            img.classList.remove('fit-contain', 'fit-cover');
+            if (h >= w) {
+                img.classList.add('fit-contain');
+                img.style.objectFit = 'contain';
+            } else {
+                img.classList.add('fit-cover');
+                img.style.objectFit = 'cover';
+            }
+        };
+        if (img.complete && img.naturalWidth && img.naturalHeight) apply();
+        else {
+            const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
+            img.addEventListener('load', onLoad);
+        }
+    } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
+}
 // Load riders for report filter
 function loadReportRiders() {
     fetch(`${API_BASE}/api/riders`, {
@@ -1922,16 +1946,60 @@ async function showAddStoreModal() {
                 categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
             });
         }
-
-        showModal('addStoreModal');
     } catch (error) {
         console.error('Error loading categories:', error);
-        showModal('addStoreModal');
     }
+
+    // Show modal regardless of category load success
+    showModal('addStoreModal');
+
+    // Setup image URL/file preview and paste helper (override handlers to avoid duplicates)
+    const pasteBtn = document.getElementById('pasteStoreImageUrlBtn');
+    const urlInput = document.getElementById('storeImage');
+    const fileInput = document.getElementById('storeImageFile');
+    const preview = document.getElementById('storeImagePreview');
+
+    if (pasteBtn) {
+        pasteBtn.onclick = () => {
+            const url = prompt('Paste image URL (http(s)://)');
+            if (url) {
+                if (urlInput) urlInput.value = url;
+                if (preview) { preview.src = url; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+            }
+        };
+    }
+
+    if (urlInput) {
+        urlInput.oninput = () => {
+            if (urlInput.value) {
+                if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+            } else if (preview) {
+                preview.style.display = 'none';
+            }
+        };
+    }
+
+    if (fileInput) {
+        fileInput.onchange = (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file && preview) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    preview.src = ev.target.result;
+                    preview.style.display = 'inline-block';
+                    applyOrientationFitAdmin(preview);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+    }
+
+
 }
 
 async function saveStore() {
-    const formData = new FormData(document.getElementById('addStoreForm'));
+    const formEl = document.getElementById('addStoreForm');
+    const formData = new FormData(formEl);
     const storeData = {
         name: formData.get('name'),
         owner: formData.get('owner'),
@@ -1948,6 +2016,47 @@ async function saveStore() {
         status: formData.get('status') || 'active',
         category_id: formData.get('category_id') || null
     };
+
+    // If a file was selected, upload it first to server to get back a public URL and variants
+    const fileInput = document.getElementById('storeImageFile');
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        try {
+            const fd = new FormData();
+            fd.append('image', fileInput.files[0]);
+            const upRes = await fetch(`${API_BASE}/api/stores/upload-image`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${authToken}` },
+                body: fd
+            });
+            const upJson = await upRes.json();
+            if (upJson.success && upJson.image_url) {
+                storeData.image_url = upJson.image_url;
+                // include server-computed meta if returned
+                if (upJson.image_meta) {
+                    storeData.image_bg_r = upJson.image_meta.image_bg_r;
+                    storeData.image_bg_g = upJson.image_meta.image_bg_g;
+                    storeData.image_bg_b = upJson.image_meta.image_bg_b;
+                    storeData.image_overlay_alpha = upJson.image_meta.image_overlay_alpha;
+                    storeData.image_contrast = upJson.image_meta.image_contrast;
+                }
+                if (upJson.variants) {
+                    let vfield = formEl.querySelector('input[name="image_variants"]');
+                    if (!vfield) {
+                        vfield = document.createElement('input');
+                        vfield.type = 'hidden';
+                        vfield.name = 'image_variants';
+                        formEl.appendChild(vfield);
+                    }
+                    vfield.value = JSON.stringify(upJson.variants);
+                }
+            } else {
+                showWarning('Upload Warning', upJson.message || 'Image upload returned no URL. Using provided URL instead.');
+            }
+        } catch (err) {
+            console.error('Image upload failed', err);
+            showWarning('Upload Failed', 'Image upload failed. Using provided image URL if any.');
+        }
+    }
 
     try {
         if (editingStoreId) {
@@ -1999,6 +2108,18 @@ async function editStore(storeId) {
         form.querySelector('#storeOwner').value = s.owner_id || '';
         form.querySelector('#storeLocation').value = s.location || '';
         form.querySelector('#storeImage').value = s.image_url || '';
+        // Set preview image if exists
+        const preview = document.getElementById('storeImagePreview');
+        if (preview) {
+            if (s.image_url) {
+                preview.src = s.image_url;
+                preview.style.display = 'inline-block';
+                // try to fit orientation if helper present in scope
+                try { applyOrientationFitAdmin(preview); } catch (e) { /* no-op */ }
+            } else {
+                preview.style.display = 'none';
+            }
+        }
         form.querySelector('#storePhone').value = s.phone || '';
         form.querySelector('#storeEmail').value = s.email || '';
         form.querySelector('#storeRating').value = s.rating || 0;
@@ -2115,24 +2236,7 @@ async function showAddProductModal() {
                 }
             };
         }
-        
-        // Admin preview orientation helper
-        function applyOrientationFitAdmin(img) {
-            try {
-                if (!img) return;
-                const apply = () => {
-                    const w = img.naturalWidth || 0;
-                    const h = img.naturalHeight || 0;
-                    img.classList.remove('fit-contain', 'fit-cover');
-                    if (h >= w) img.classList.add('fit-contain'); else img.classList.add('fit-cover');
-                };
-                if (img.complete && img.naturalWidth && img.naturalHeight) apply();
-                else {
-                    const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
-                    img.addEventListener('load', onLoad);
-                }
-            } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
-        }
+
     } catch (error) {
         console.error('Error loading dropdown data:', error);
         showError('Error', 'Failed to load form data');
@@ -2248,6 +2352,7 @@ async function editProduct(productId) {
         if (form.querySelector('#productImage')) form.querySelector('#productImage').value = p.image_url || '';
         if (form.querySelector('#productImagePreview') && p.image_url) {
             const prev = form.querySelector('#productImagePreview'); prev.src = p.image_url; prev.style.display = 'inline-block';
+            try { applyOrientationFitAdmin(prev); } catch (e) { /* no-op */ }
         }
         // set selects (store/category/unit/size)
         if (p.store_id) form.querySelector('#productStore').value = p.store_id;
