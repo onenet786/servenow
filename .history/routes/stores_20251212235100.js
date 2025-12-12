@@ -55,11 +55,8 @@ router.get('/', async (req, res) => {
                 category_name: store.category_name || null,
                 image_url: store.cover_image || null,
                 is_active: store.is_active,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             }))
         })
 
@@ -129,11 +126,8 @@ router.get('/:id', async (req, res) => {
                 category_id: store.category_id || null,
                 category_name: store.category_name || null,
                 image_url: store.cover_image || null,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             },
             products: products.map(product => ({
                 id: product.id,
@@ -243,8 +237,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
     body('name').optional().trim().isLength({ min: 2 }).withMessage('Store name must be at least 2 characters'),
     body('location').optional().trim().notEmpty().withMessage('Location is required'),
     body('phone').optional().isString().withMessage('Please provide a valid phone'),
-    body('email').optional().isEmail().withMessage('Please provide a valid email'),
-    body('owner_name').optional().isString().isLength({ min: 1 }).withMessage('owner_name must be text')
+    body('email').optional().isEmail().withMessage('Please provide a valid email')
 ], async (req, res) => {
     try {
         const errors = validationResult(req)
@@ -296,8 +289,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             closing_time,
             image_url,
             owner_id,
-            category_id,
-            owner_name
+            category_id
         } = req.body
 
         const updateFields = []
@@ -318,10 +310,6 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (category_id !== undefined) {
             const hasCat = await hasColumn(req.db, 'stores', 'category_id')
             if (hasCat) { updateFields.push('category_id = ?'); updateValues.push(category_id) }
-        }
-        if (owner_name !== undefined) {
-            const hasOwnerName = await hasColumn(req.db, 'stores', 'owner_name')
-            if (hasOwnerName) { updateFields.push('owner_name = ?'); updateValues.push(owner_name) }
         }
         if (owner_id !== undefined && req.user.user_type === 'admin') { updateFields.push('owner_id = ?'); updateValues.push(owner_id) }
         if (is_active !== undefined && req.user.user_type === 'admin') { updateFields.push('is_active = ?'); updateValues.push(is_active) }

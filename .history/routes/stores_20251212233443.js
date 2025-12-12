@@ -55,11 +55,8 @@ router.get('/', async (req, res) => {
                 category_name: store.category_name || null,
                 image_url: store.cover_image || null,
                 is_active: store.is_active,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             }))
         })
 
@@ -129,11 +126,8 @@ router.get('/:id', async (req, res) => {
                 category_id: store.category_id || null,
                 category_name: store.category_name || null,
                 image_url: store.cover_image || null,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             },
             products: products.map(product => ({
                 id: product.id,
@@ -163,8 +157,7 @@ router.post('/', authenticateToken, requireStoreOwner, [
     body('location').trim().notEmpty().withMessage('Location is required'),
     body('phone').optional().isString().withMessage('Please provide a valid phone'),
     body('email').optional().isEmail().withMessage('Please provide a valid email'),
-    body('owner_id').optional().isInt().withMessage('owner_id must be a valid user id'),
-    body('owner_name').optional().isString().isLength({ min: 1 }).withMessage('owner_name must be text')
+    body('owner_id').optional().isInt().withMessage('owner_id must be a valid user id')
 ], async (req, res) => {
     try {
         const errors = validationResult(req)
@@ -191,22 +184,22 @@ router.post('/', authenticateToken, requireStoreOwner, [
         } = req.body
 
         // Owner assignment:
-        // - If owner_id provided (admin use-case), use it; otherwise assign to current user
-        let ownerId = req.user.id;
-        if (req.user.user_type === 'admin' && req.body.owner_id) {
+        // - Admin must provide owner_id explicitly
+        // - Store owner always assigned to themselves
+        let ownerId;
+        if (req.user.user_type === 'admin') {
+            if (!req.body.owner_id) {
+                return res.status(400).json({ success: false, message: 'owner_id is required when creating a store as admin' });
+            }
             ownerId = parseInt(req.body.owner_id, 10);
+        } else {
+            ownerId = req.user.id;
         }
 
         const hasCat = await hasColumn(req.db, 'stores', 'category_id')
-        const hasOwnerName = await hasColumn(req.db, 'stores', 'owner_name')
         const fields = ['name','description','location','latitude','longitude','delivery_time','opening_time','closing_time','phone','email','address','owner_id','cover_image']
         const placeholders = Array(fields.length).fill('?')
         const values = [name, description || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, phone || null, email || null, address || null, ownerId, image_url || null]
-        if (hasOwnerName) {
-            fields.push('owner_name')
-            placeholders.push('?')
-            values.push(req.body.owner_name || null)
-        }
         if (hasCat) {
             fields.push('category_id')
             placeholders.push('?')
@@ -222,7 +215,6 @@ router.post('/', authenticateToken, requireStoreOwner, [
                 name,
                 location,
                 owner_id: ownerId,
-                owner_name: req.body.owner_name || null,
                 category_id: req.body.category_id || null,
                 image_url: image_url || null
             }
@@ -243,8 +235,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
     body('name').optional().trim().isLength({ min: 2 }).withMessage('Store name must be at least 2 characters'),
     body('location').optional().trim().notEmpty().withMessage('Location is required'),
     body('phone').optional().isString().withMessage('Please provide a valid phone'),
-    body('email').optional().isEmail().withMessage('Please provide a valid email'),
-    body('owner_name').optional().isString().isLength({ min: 1 }).withMessage('owner_name must be text')
+    body('email').optional().isEmail().withMessage('Please provide a valid email')
 ], async (req, res) => {
     try {
         const errors = validationResult(req)
@@ -296,8 +287,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             closing_time,
             image_url,
             owner_id,
-            category_id,
-            owner_name
+            category_id
         } = req.body
 
         const updateFields = []
@@ -315,14 +305,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (email !== undefined) { updateFields.push('email = ?'); updateValues.push(email) }
         if (address !== undefined) { updateFields.push('address = ?'); updateValues.push(address) }
         if (image_url !== undefined) { updateFields.push('cover_image = ?'); updateValues.push(image_url) }
-        if (category_id !== undefined) {
-            const hasCat = await hasColumn(req.db, 'stores', 'category_id')
-            if (hasCat) { updateFields.push('category_id = ?'); updateValues.push(category_id) }
-        }
-        if (owner_name !== undefined) {
-            const hasOwnerName = await hasColumn(req.db, 'stores', 'owner_name')
-            if (hasOwnerName) { updateFields.push('owner_name = ?'); updateValues.push(owner_name) }
-        }
+        if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id) }
         if (owner_id !== undefined && req.user.user_type === 'admin') { updateFields.push('owner_id = ?'); updateValues.push(owner_id) }
         if (is_active !== undefined && req.user.user_type === 'admin') { updateFields.push('is_active = ?'); updateValues.push(is_active) }
 

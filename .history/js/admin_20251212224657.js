@@ -581,7 +581,6 @@ function loadReportRiders() {
             hideModal(e.target.id);
         }
     });
-    attachPhoneFormatHandlers();
 }
 
 // Print Order Report Function
@@ -1975,18 +1974,24 @@ async function editUser(userId) {
 }
 
 async function showAddStoreModal() {
+    // Load categories for dropdown
     try {
-        await populateStoreCategorySelect();
+        const categoriesResponse = await fetch(`${API_BASE}/api/categories`);
+        const categoriesData = await categoriesResponse.json();
+
+        // Populate category dropdown
+        const categorySelect = document.getElementById('storeCategory');
+        categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
+        if (categoriesData.success) {
+            categoriesData.categories.forEach(category => {
+                categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+            });
+        }
     } catch (error) {
         console.error('Error loading categories:', error);
     }
-    const modal = document.getElementById('addStoreModal');
-    if (modal) {
-        const titleEl = modal.querySelector('.modal-header h3');
-        if (titleEl) titleEl.textContent = 'Add New Store';
-        const saveBtn = modal.querySelector('#saveStoreBtn');
-        if (saveBtn) saveBtn.textContent = 'Save Store';
-    }
+
+    // Show modal regardless of category load success
     showModal('addStoreModal');
 
     // Setup image URL/file preview and paste helper (override handlers to avoid duplicates)
@@ -2038,10 +2043,10 @@ async function saveStore() {
     const formData = new FormData(formEl);
     const storeData = {
         name: formData.get('name'),
+        owner_id: parseInt(formData.get('owner')) || null,
         description: formData.get('description'),
         location: formData.get('location'),
-        // Normalize phone: keep as entered, but trim to reduce validation issues
-        phone: (formData.get('phone') || '').trim() || undefined,
+        phone: formData.get('phone'),
         email: formData.get('email'),
         image_url: formData.get('image_url'),
         rating: parseFloat(formData.get('rating')) || 0,
@@ -2050,8 +2055,7 @@ async function saveStore() {
         closing_time: formData.get('closing_time') || null,
         address: formData.get('address'),
         status: formData.get('status') || 'active',
-        category_id: formData.get('category_id') || null,
-        owner_name: (formData.get('owner_name') || '').trim() || undefined
+        category_id: formData.get('category_id') || null
     };
 
     // If a file was selected, upload it first to server to get back a public URL and variants
@@ -2140,10 +2144,9 @@ async function editStore(storeId) {
         const data = await resp.json();
         if (!data || !data.success || !data.store) { showError('Error', 'Failed to load store'); return; }
         const s = data.store;
-        await populateStoreCategorySelect(s.category_id || null);
         const form = document.getElementById('addStoreForm');
         form.querySelector('#storeName').value = s.name || '';
-        form.querySelector('#storeOwner').value = s.owner_name || '';
+        form.querySelector('#storeOwner').value = s.owner_id || '';
         form.querySelector('#storeLocation').value = s.location || '';
         form.querySelector('#storeImage').value = s.image_url || '';
         // Set preview image if exists
@@ -2171,13 +2174,6 @@ async function editStore(storeId) {
         form.querySelector('#storeAddress').value = s.address || '';
         // category dropdown may be populated; attempt to set value
         const catSel = form.querySelector('#storeCategory'); if (catSel && s.category_id) catSel.value = s.category_id;
-        const modal = document.getElementById('addStoreModal');
-        if (modal) {
-            const titleEl = modal.querySelector('.modal-header h3');
-            if (titleEl) titleEl.textContent = 'Edit Store';
-            const saveBtn = modal.querySelector('#saveStoreBtn');
-            if (saveBtn) saveBtn.textContent = 'Update Store';
-        }
         showModal('addStoreModal');
     } catch (e) {
         console.error('Failed to load store for edit', e);
@@ -2185,21 +2181,6 @@ async function editStore(storeId) {
     }
 }
 
-async function populateStoreCategorySelect(selectedId = null) {
-    const categorySelect = document.getElementById('storeCategory');
-    if (!categorySelect) return;
-    categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
-    const resp = await fetch(`${API_BASE}/api/categories`);
-    const data = await resp.json();
-    if (data && data.success && Array.isArray(data.categories)) {
-        data.categories.forEach(category => {
-            categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
-        });
-    }
-    if (selectedId) {
-        categorySelect.value = String(selectedId);
-    }
-}
 // Product Management Functions
 async function showAddProductModal() {
     // Load stores and categories for dropdowns
@@ -2741,85 +2722,28 @@ function showAddSizeModal() {
     showModal('addSizeModal');
 }
 
-function formatPhoneValue(raw) {
-    const digits = String(raw || '').replace(/[^\d]/g, '');
-    let local = digits.replace(/^92/, '');
-    if (local.length > 10) local = local.slice(0, 10);
-    return '+92' + local;
-}
-
-function attachPhoneFormatterTo(input) {
-    if (!input) return;
-    const ensurePrefix = () => {
-        if (!input.value || !String(input.value).startsWith('+92')) {
-            input.value = formatPhoneValue(input.value);
-        }
-    };
-    input.addEventListener('focus', ensurePrefix);
-    input.addEventListener('keydown', function(e) {
-        const v = String(input.value || '');
-        if ((e.key === 'Backspace' || e.key === 'Delete') && input.selectionStart <= 3) {
-            e.preventDefault();
-            input.setSelectionRange(3, 3);
-        }
-    });
-    input.addEventListener('input', function() {
-        const start = input.selectionStart;
-        input.value = formatPhoneValue(input.value);
-        const pos = Math.max(3, start);
-        input.setSelectionRange(pos, pos);
-    });
-    input.addEventListener('blur', ensurePrefix);
-    ensurePrefix();
-}
-
-function attachPhoneFormatHandlers() {
-    ['userPhone', 'storePhone', 'riderPhone'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) attachPhoneFormatterTo(el);
-    });
-}
-
-async function populateVehicleTypeSelect(selectEl, currentValue) {
-    if (!selectEl) return;
-    selectEl.innerHTML = '<option value="">Select Vehicle Type</option>';
-    let types = [];
+async function showAddRiderModal() {
+    // Load vehicle types for dropdown
     try {
-        const resp = await fetch(`${API_BASE}/api/riders/types/vehicle`, {
+        const vehicleTypesResponse = await fetch(`${API_BASE}/api/riders/types/vehicle`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
-        const data = await resp.json();
-        if (data && data.success && Array.isArray(data.vehicleTypes)) {
-            types = data.vehicleTypes;
-        }
-    } catch (_) {}
-    if (!types || types.length === 0) {
-        types = ['Motorcycle', 'Bicycle', 'Scooter', 'Car', 'Van'];
-    }
-    if (currentValue && !types.includes(currentValue)) {
-        types = [currentValue, ...types];
-    }
-    types.forEach(type => {
-        const opt = document.createElement('option');
-        opt.value = type;
-        opt.textContent = type;
-        selectEl.appendChild(opt);
-    });
-    if (currentValue) selectEl.value = currentValue;
-}
+        const vehicleTypesData = await vehicleTypesResponse.json();
 
-async function showAddRiderModal() {
-    editingRiderId = null;
-    const vehicleTypeSelect = document.getElementById('riderVehicleType');
-    await populateVehicleTypeSelect(vehicleTypeSelect, null);
-    const modal = document.getElementById('addRiderModal');
-    if (modal) {
-        const titleEl = modal.querySelector('.modal-header h3');
-        if (titleEl) titleEl.textContent = 'Add New Rider';
-        const saveBtn = modal.querySelector('#saveRiderBtn');
-        if (saveBtn) saveBtn.textContent = 'Save Rider';
+        // Populate vehicle type dropdown
+        const vehicleTypeSelect = document.getElementById('riderVehicleType');
+        vehicleTypeSelect.innerHTML = '<option value="">Select Vehicle Type</option>';
+        if (vehicleTypesData.success) {
+            vehicleTypesData.vehicleTypes.forEach(type => {
+                vehicleTypeSelect.innerHTML += `<option value="${type}">${type}</option>`;
+            });
+        }
+
+        showModal('addRiderModal');
+    } catch (error) {
+        console.error('Error loading vehicle types:', error);
+        showModal('addRiderModal');
     }
-    showModal('addRiderModal');
 }
 
 async function saveRider() {
@@ -2883,21 +2807,13 @@ async function editRider(riderId) {
         const data = await resp.json();
         if (!data || !data.success || !data.rider) { showError('Error', 'Failed to load rider'); return; }
         const r = data.rider;
-        const vehicleTypeSelect = document.getElementById('riderVehicleType');
-        await populateVehicleTypeSelect(vehicleTypeSelect, r.vehicle_type || null);
         const form = document.getElementById('addRiderForm');
         form.querySelector('#riderFirstName').value = r.first_name || '';
         form.querySelector('#riderLastName').value = r.last_name || '';
         form.querySelector('#riderEmail').value = r.email || '';
         form.querySelector('#riderPhone').value = r.phone || '';
+        form.querySelector('#riderVehicleType').value = r.vehicle_type || '';
         form.querySelector('#riderLicenseNumber').value = r.license_number || '';
-        const modal = document.getElementById('addRiderModal');
-        if (modal) {
-            const titleEl = modal.querySelector('.modal-header h3');
-            if (titleEl) titleEl.textContent = 'Edit Rider';
-            const saveBtn = modal.querySelector('#saveRiderBtn');
-            if (saveBtn) saveBtn.textContent = 'Update Rider';
-        }
         showModal('addRiderModal');
     } catch (e) {
         console.error('Failed to load rider for edit', e);

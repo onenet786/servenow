@@ -2126,7 +2126,7 @@ table tbody tr:last-child td {
 /* Ensure first column never collapses under overlays or fixed navs */
 .table-container table th:first-child,
 .table-container table td:first-child {
-     width:3% !important;
+     width: 1% !important;
     min-width: 36px !important;
     max-width: 80px !important;
     white-space: nowrap !important;

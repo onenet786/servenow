@@ -55,11 +55,8 @@ router.get('/', async (req, res) => {
                 category_name: store.category_name || null,
                 image_url: store.cover_image || null,
                 is_active: store.is_active,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             }))
         })
 
@@ -129,11 +126,8 @@ router.get('/:id', async (req, res) => {
                 category_id: store.category_id || null,
                 category_name: store.category_name || null,
                 image_url: store.cover_image || null,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             },
             products: products.map(product => ({
                 id: product.id,

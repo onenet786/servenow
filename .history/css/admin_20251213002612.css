@@ -2126,28 +2126,11 @@ table tbody tr:last-child td {
 /* Ensure first column never collapses under overlays or fixed navs */
 .table-container table th:first-child,
 .table-container table td:first-child {
-     width:3% !important;
+     width: 1% !important;
     min-width: 36px !important;
     max-width: 80px !important;
     white-space: nowrap !important;
     text-align: left !important;
-}
-#usersTable th:nth-child(5),
-#usersTable td:nth-child(5),
-#storesTable th:nth-child(6),
-#storesTable td:nth-child(6),
-#productsTable th:nth-child(7),
-#productsTable td:nth-child(7),
-#categoriesTable th:nth-child(4),
-#categoriesTable td:nth-child(4),
-#ordersTable th:nth-child(5),
-#ordersTable td:nth-child(5),
-#ridersTable th:nth-child(8),
-#ridersTable td:nth-child(8) {
-    width: 6% !important;
-    min-width: 64px !important;
-    max-width: 110px !important;
-    white-space: nowrap !important;
 }
 
 /* Defensive: prevent tbody/rows from being offset by transforms/margins/padding */

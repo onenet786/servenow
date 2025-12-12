@@ -581,7 +581,6 @@ function loadReportRiders() {
             hideModal(e.target.id);
         }
     });
-    attachPhoneFormatHandlers();
 }
 
 // Print Order Report Function
@@ -2739,45 +2738,6 @@ function showAddSizeModal() {
     const form = document.getElementById('addSizeForm');
     if (form) form.reset();
     showModal('addSizeModal');
-}
-
-function formatPhoneValue(raw) {
-    const digits = String(raw || '').replace(/[^\d]/g, '');
-    let local = digits.replace(/^92/, '');
-    if (local.length > 10) local = local.slice(0, 10);
-    return '+92' + local;
-}
-
-function attachPhoneFormatterTo(input) {
-    if (!input) return;
-    const ensurePrefix = () => {
-        if (!input.value || !String(input.value).startsWith('+92')) {
-            input.value = formatPhoneValue(input.value);
-        }
-    };
-    input.addEventListener('focus', ensurePrefix);
-    input.addEventListener('keydown', function(e) {
-        const v = String(input.value || '');
-        if ((e.key === 'Backspace' || e.key === 'Delete') && input.selectionStart <= 3) {
-            e.preventDefault();
-            input.setSelectionRange(3, 3);
-        }
-    });
-    input.addEventListener('input', function() {
-        const start = input.selectionStart;
-        input.value = formatPhoneValue(input.value);
-        const pos = Math.max(3, start);
-        input.setSelectionRange(pos, pos);
-    });
-    input.addEventListener('blur', ensurePrefix);
-    ensurePrefix();
-}
-
-function attachPhoneFormatHandlers() {
-    ['userPhone', 'storePhone', 'riderPhone'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) attachPhoneFormatterTo(el);
-    });
 }
 
 async function populateVehicleTypeSelect(selectEl, currentValue) {

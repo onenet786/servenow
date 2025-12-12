@@ -1107,23 +1107,6 @@ table, table th, table td {
     max-width: 1000px;
 }
 
-.modal-body form#addStoreForm .form-row {
-    gap: 0.75rem;
-}
-.modal-body form#addStoreForm .form-group label {
-    margin-bottom: 0.35rem;
-}
-.modal-body form#addStoreForm .form-group input,
-.modal-body form#addStoreForm .form-group select {
-    padding: 0.45rem 0.6rem;
-    font-size: 0.9rem;
-}
-.modal-body form#addStoreForm .form-group textarea {
-    padding: 0.45rem 0.6rem;
-    font-size: 0.9rem;
-    min-height: 64px;
-}
-
 table td:last-child {
     border-right: none;
 }
@@ -1363,20 +1346,16 @@ th.sortable.sort-desc::before {
 }
 
 .modal.show {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
 }
 
 .modal-content {
     background-color: white;
-    margin: 0 auto;
+    margin: 5% auto;
     padding: 2rem;
     border-radius: 8px;
     width: 95%;
     max-width: 1100px;
-    max-height: 90vh;
-    overflow-y: auto;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
@@ -1464,7 +1443,7 @@ th.sortable.sort-desc::before {
     /* Modal responsive */
     .modal-content {
         width: 95%;
-        margin: 0 auto;
+        margin: 20% auto;
         padding: 1.5rem;
     }
 
@@ -2126,28 +2105,9 @@ table tbody tr:last-child td {
 /* Ensure first column never collapses under overlays or fixed navs */
 .table-container table th:first-child,
 .table-container table td:first-child {
-     width:3% !important;
-    min-width: 36px !important;
-    max-width: 80px !important;
-    white-space: nowrap !important;
-    text-align: left !important;
-}
-#usersTable th:nth-child(5),
-#usersTable td:nth-child(5),
-#storesTable th:nth-child(6),
-#storesTable td:nth-child(6),
-#productsTable th:nth-child(7),
-#productsTable td:nth-child(7),
-#categoriesTable th:nth-child(4),
-#categoriesTable td:nth-child(4),
-#ordersTable th:nth-child(5),
-#ordersTable td:nth-child(5),
-#ridersTable th:nth-child(8),
-#ridersTable td:nth-child(8) {
-    width: 6% !important;
-    min-width: 64px !important;
-    max-width: 110px !important;
-    white-space: nowrap !important;
+    min-width: 120px !important;
+    max-width: 40% !important;
+    width: auto !important;
 }
 
 /* Defensive: prevent tbody/rows from being offset by transforms/margins/padding */
