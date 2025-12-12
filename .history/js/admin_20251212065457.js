@@ -2352,7 +2352,6 @@ async function editProduct(productId) {
         if (form.querySelector('#productImage')) form.querySelector('#productImage').value = p.image_url || '';
         if (form.querySelector('#productImagePreview') && p.image_url) {
             const prev = form.querySelector('#productImagePreview'); prev.src = p.image_url; prev.style.display = 'inline-block';
-            try { applyOrientationFitAdmin(prev); } catch (e) { /* no-op */ }
         }
         // set selects (store/category/unit/size)
         if (p.store_id) form.querySelector('#productStore').value = p.store_id;

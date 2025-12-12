@@ -528,30 +528,6 @@ function applyImageFitClass(mode) {
     else document.body.classList.add('image-fit-cover');
 }
 
-// Global helper: apply orientation-based object-fit to any img preview
-function applyOrientationFitAdmin(img) {
-    try {
-        if (!img) return;
-        const apply = () => {
-            const w = img.naturalWidth || 0;
-            const h = img.naturalHeight || 0;
-            // Ensure correct fit by toggling class and inline style
-            img.classList.remove('fit-contain', 'fit-cover');
-            if (h >= w) {
-                img.classList.add('fit-contain');
-                img.style.objectFit = 'contain';
-            } else {
-                img.classList.add('fit-cover');
-                img.style.objectFit = 'cover';
-            }
-        };
-        if (img.complete && img.naturalWidth && img.naturalHeight) apply();
-        else {
-            const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
-            img.addEventListener('load', onLoad);
-        }
-    } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
-}
 // Load riders for report filter
 function loadReportRiders() {
     fetch(`${API_BASE}/api/riders`, {
@@ -1994,7 +1970,23 @@ async function showAddStoreModal() {
         };
     }
 
-
+    // Admin preview orientation helper
+    function applyOrientationFitAdmin(img) {
+        try {
+            if (!img) return;
+            const apply = () => {
+                const w = img.naturalWidth || 0;
+                const h = img.naturalHeight || 0;
+                img.classList.remove('fit-contain', 'fit-cover');
+                if (h >= w) img.classList.add('fit-contain'); else img.classList.add('fit-cover');
+            };
+            if (img.complete && img.naturalWidth && img.naturalHeight) apply();
+            else {
+                const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
+                img.addEventListener('load', onLoad);
+            }
+        } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
+    }
 }
 
 async function saveStore() {
@@ -2108,18 +2100,6 @@ async function editStore(storeId) {
         form.querySelector('#storeOwner').value = s.owner_id || '';
         form.querySelector('#storeLocation').value = s.location || '';
         form.querySelector('#storeImage').value = s.image_url || '';
-        // Set preview image if exists
-        const preview = document.getElementById('storeImagePreview');
-        if (preview) {
-            if (s.image_url) {
-                preview.src = s.image_url;
-                preview.style.display = 'inline-block';
-                // try to fit orientation if helper present in scope
-                try { applyOrientationFitAdmin(preview); } catch (e) { /* no-op */ }
-            } else {
-                preview.style.display = 'none';
-            }
-        }
         form.querySelector('#storePhone').value = s.phone || '';
         form.querySelector('#storeEmail').value = s.email || '';
         form.querySelector('#storeRating').value = s.rating || 0;
@@ -2236,7 +2216,24 @@ async function showAddProductModal() {
                 }
             };
         }
-
+        
+        // Admin preview orientation helper
+        function applyOrientationFitAdmin(img) {
+            try {
+                if (!img) return;
+                const apply = () => {
+                    const w = img.naturalWidth || 0;
+                    const h = img.naturalHeight || 0;
+                    img.classList.remove('fit-contain', 'fit-cover');
+                    if (h >= w) img.classList.add('fit-contain'); else img.classList.add('fit-cover');
+                };
+                if (img.complete && img.naturalWidth && img.naturalHeight) apply();
+                else {
+                    const onLoad = function() { apply(); img.removeEventListener('load', onLoad); };
+                    img.addEventListener('load', onLoad);
+                }
+            } catch (e) { console.warn('applyOrientationFitAdmin failed', e); }
+        }
     } catch (error) {
         console.error('Error loading dropdown data:', error);
         showError('Error', 'Failed to load form data');
@@ -2352,7 +2349,6 @@ async function editProduct(productId) {
         if (form.querySelector('#productImage')) form.querySelector('#productImage').value = p.image_url || '';
         if (form.querySelector('#productImagePreview') && p.image_url) {
             const prev = form.querySelector('#productImagePreview'); prev.src = p.image_url; prev.style.display = 'inline-block';
-            try { applyOrientationFitAdmin(prev); } catch (e) { /* no-op */ }
         }
         // set selects (store/category/unit/size)
         if (p.store_id) form.querySelector('#productStore').value = p.store_id;

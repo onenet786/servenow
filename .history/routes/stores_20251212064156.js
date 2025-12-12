@@ -1,13 +1,6 @@
 const express = require('express')
 const { body, validationResult } = require('express-validator')
 const { authenticateToken, requireAdmin, requireStoreOwner } = require('../middleware/auth')
-const fs = require('fs')
-const path = require('path')
-const multer = require('multer')
-const sharp = (() => {
-    try { return require('sharp') } catch (e) { console.warn('sharp not installed, image resizing disabled'); return null }
-})()
-const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') })
 
 const router = express.Router()
 
