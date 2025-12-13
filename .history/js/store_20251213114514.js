@@ -1,5 +1,5 @@
-// Local API base to avoid colliding with global const in app.js
-const STORE_API_BASE = window.location.protocol + '//' + window.location.host;
+// API Base URL
+const API_BASE = window.location.protocol + '//' + window.location.host;
 
 // Get store ID from URL
 function getStoreId() {
@@ -44,9 +44,9 @@ function displayStoreProductsData(storeProducts) {
             if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) {
                 imageSrc = url;
             } else if (url.startsWith('/')) {
-                imageSrc = STORE_API_BASE.replace(/\/$/, '') + url;
+                imageSrc = API_BASE.replace(/\/$/, '') + url;
             } else {
-                imageSrc = STORE_API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
+                imageSrc = API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
             }
             variants = product.image_variants || product.variants || null;
         }
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadStore(storeId) {
     try {
-        const resp = await fetch(`${STORE_API_BASE}/api/stores/${storeId}`);
+        const resp = await fetch(`${API_BASE}/api/stores/${storeId}`);
         const data = await resp.json();
         if (!data || !data.success || !data.store) {
             const title = document.getElementById('storeTitle');
@@ -99,7 +99,7 @@ async function loadStore(storeId) {
             document.getElementById('storeInfo').innerHTML = `<h2>Store #${storeId}</h2>`;
             let list = [];
             try {
-                const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
+                const resp2 = await fetch(`${API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
                 const data2 = await resp2.json();
                 if (data2 && data2.success && Array.isArray(data2.products)) {
                     const onlyAvailable = data2.products.filter(p => p.is_available);
@@ -113,7 +113,7 @@ async function loadStore(storeId) {
         let list = Array.isArray(data.products) ? data.products : [];
         if (!list || list.length === 0) {
             try {
-                const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}`);
+                const resp2 = await fetch(`${API_BASE}/api/products?store=${encodeURIComponent(storeId)}`);
                 const data2 = await resp2.json();
                 if (data2 && data2.success && Array.isArray(data2.products)) {
                     // Prefer available products for store page
@@ -129,7 +129,7 @@ async function loadStore(storeId) {
         document.getElementById('storeInfo').innerHTML = `<h2>Store #${storeId}</h2>`;
         let list = [];
         try {
-            const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
+            const resp2 = await fetch(`${API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
             const data2 = await resp2.json();
             if (data2 && data2.success && Array.isArray(data2.products)) {
                 const onlyAvailable = data2.products.filter(p => p.is_available);

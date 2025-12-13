@@ -503,11 +503,6 @@ document.addEventListener('click', function(e) {
         if (!t) return;
         const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
         if (saveUnitBtn) {
-            const formEl = document.getElementById('addUnitForm');
-            if (formEl && formEl.contains(saveUnitBtn)) {
-                // Let the form submit handler handle it to avoid double calls
-                return;
-            }
             e.preventDefault();
             try { console.log('Delegated click: saveUnitBtn'); } catch (e) {}
             try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }

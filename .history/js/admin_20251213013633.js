@@ -303,13 +303,10 @@ function initializeAdmin() {
     document.getElementById('saveUserBtn').addEventListener('click', saveUser);
     document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
     document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
+    const saveUnitBtn = document.getElementById('saveUnitBtn');
+    if (saveUnitBtn) saveUnitBtn.addEventListener('click', saveUnit);
     const saveSizeBtn = document.getElementById('saveSizeBtn');
     if (saveSizeBtn) saveSizeBtn.addEventListener('click', saveSize);
-    const addUnitFormEl = document.getElementById('addUnitForm');
-    if (addUnitFormEl && !addUnitFormEl.dataset.boundSubmit) {
-        addUnitFormEl.addEventListener('submit', function(e){ e.preventDefault(); try { saveUnit(); } catch (err) { console.error('saveUnit submit error', err); } });
-        addUnitFormEl.dataset.boundSubmit = '1';
-    }
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
     document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
@@ -368,42 +365,6 @@ function initializeAdmin() {
     if (fuelRiderSelect) fuelRiderSelect.addEventListener('change', function() {
         if (this.value) loadFuelHistory(this.value);
     });
-    (function attachFuelAutoCalc(){
-        const s = document.getElementById('startMeter');
-        const e = document.getElementById('endMeter');
-        const d = document.getElementById('distance');
-        const r = document.getElementById('petrolRate');
-        const c = document.getElementById('fuelCost');
-        if (d) { try { d.readOnly = true; } catch(_) {} }
-        if (!s || !e) return;
-        const recalc = () => {
-            const sv = parseFloat(String(s.value || '').replace(/[^\d.]/g, ''));
-            const ev = parseFloat(String(e.value || '').replace(/[^\d.]/g, ''));
-            if (Number.isFinite(sv) && Number.isFinite(ev)) {
-                if (ev <= sv) {
-                    if (d) d.value = '';
-                    if (c) c.value = '';
-                    showWarning('Invalid Meter', 'End meter must be greater than start meter');
-                    return;
-                }
-                const dist = ev - sv;
-                if (d) d.value = dist.toFixed(2);
-                const rate = parseFloat(String(r && r.value || '').replace(/[^\d.]/g, ''));
-                if (Number.isFinite(rate) && c) c.value = (rate * dist).toFixed(2);
-            } else {
-                if (d) d.value = '';
-                if (c) c.value = '';
-            }
-        };
-        const recalcCostOnly = () => {
-            const rate = parseFloat(String(r && r.value || '').replace(/[^\d.]/g, ''));
-            const dist = parseFloat(String(d && d.value || '').replace(/[^\d.]/g, ''));
-            if (Number.isFinite(rate) && Number.isFinite(dist) && c) c.value = (rate * dist).toFixed(2);
-        };
-        s.addEventListener('input', recalc);
-        e.addEventListener('input', recalc);
-        if (r) r.addEventListener('input', recalcCostOnly);
-    })();
 
     const printReportBtn = document.getElementById('printReportBtn');
     if (printReportBtn) {
@@ -503,13 +464,8 @@ document.addEventListener('click', function(e) {
         if (!t) return;
         const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
         if (saveUnitBtn) {
-            const formEl = document.getElementById('addUnitForm');
-            if (formEl && formEl.contains(saveUnitBtn)) {
-                // Let the form submit handler handle it to avoid double calls
-                return;
-            }
             e.preventDefault();
-            try { console.log('Delegated click: saveUnitBtn'); } catch (e) {}
+            console.debug('Delegated click: saveUnitBtn');
             try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
             return;
         }
@@ -1212,87 +1168,6 @@ function displayProducts(products) {
                 </div>
             </td>
         `;
-        const ensureHoverCard = () => {
-            let card = document.getElementById('productHoverCard');
-            if (!card) {
-                card = document.createElement('div');
-                card.id = 'productHoverCard';
-                card.style.position = 'absolute';
-                card.style.zIndex = '10000';
-                card.style.display = 'none';
-                card.style.minWidth = '260px';
-                card.style.maxWidth = '340px';
-                card.style.padding = '10px';
-                card.style.borderRadius = '10px';
-                card.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
-                card.style.background = 'linear-gradient(180deg, #fff 0%, #f6f7fb 100%)';
-                card.style.border = '1px solid #e5e7eb';
-                card.style.pointerEvents = 'none';
-                document.body.appendChild(card);
-            }
-            return card;
-        };
-        const renderCard = (p) => {
-            const statusColor = isAvailable ? '#16a34a' : '#ef4444';
-            const statusBg = isAvailable ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
-            let imgSrc = p.image_url ? String(p.image_url).trim().replace(/\\/g, '/') : '';
-            if (imgSrc) {
-                if (!(imgSrc.startsWith('http') || imgSrc.startsWith('data:'))) {
-                    imgSrc = API_BASE.replace(/\/$/, '') + '/' + imgSrc.replace(/^\/+/, '');
-                }
-            }
-            const avatar = imgSrc ? `<img src="${imgSrc}" alt="${productName}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb;">` : `<div style="width:56px;height:56px;border-radius:8px;background:#e5e7eb;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;color:#6b7280;font-weight:700;">${(productName||'P').slice(0,1).toUpperCase()}</div>`;
-            const pill = `<span style="padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block;background:${statusBg};color:${statusColor};">${isAvailable ? 'Available' : 'Unavailable'}</span>`;
-            const label = (lbl, val) => `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="width:88px;color:#9ca3af;font-size:12px;">${lbl}</div><div style="flex:1;color:#374151;font-size:13px;word-break:break-word;">${val || '-'}</div></div>`;
-            return `
-                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
-                    ${avatar}
-                    <div style="flex:1;min-width:0;">
-                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                            <div style="font-weight:800;color:#1f2937;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">${productName}</div>
-                            ${pill}
-                        </div>
-                        <div style="color:#64748b;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${categoryName}</div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;"><span style="color:#111827;font-weight:800;">PKR ${productPrice}</span></div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    ${label('Store', storeName)}
-                    ${label('Category', categoryName)}
-                    ${label('Stock', p.unit_name ? (String(stockQuantity) + ' ' + p.unit_name) : String(stockQuantity))}
-                    ${label('Unit', p.unit_name || '')}
-                    ${label('Size', p.size_label || '')}
-                </div>
-            `;
-        };
-        const positionCard = (card, evt) => {
-            const x = (evt.clientX || 0) + 16 + (window.scrollX || 0);
-            const y = (evt.clientY || 0) + 16 + (window.scrollY || 0);
-            const ww = window.innerWidth || document.documentElement.clientWidth || 800;
-            const wh = window.innerHeight || document.documentElement.clientHeight || 600;
-            card.style.display = 'block';
-            card.style.left = x + 'px';
-            card.style.top = y + 'px';
-            const rect = card.getBoundingClientRect();
-            if (rect.right > ww) card.style.left = Math.max(8, x - (rect.right - ww) - 24) + 'px';
-            if (rect.bottom > wh) card.style.top = Math.max(8, y - (rect.bottom - wh) - 24) + 'px';
-        };
-        const showCard = (evt) => {
-            const card = ensureHoverCard();
-            card.innerHTML = renderCard(product);
-            positionCard(card, evt);
-        };
-        const moveCard = (evt) => {
-            const card = document.getElementById('productHoverCard');
-            if (card && card.style.display !== 'none') positionCard(card, evt);
-        };
-        const hideCard = () => {
-            const card = document.getElementById('productHoverCard');
-            if (card) card.style.display = 'none';
-        };
-        row.addEventListener('mouseenter', showCard);
-        row.addEventListener('mousemove', moveCard);
-        row.addEventListener('mouseleave', hideCard);
         tbody.appendChild(row);
     });
 }
@@ -1686,18 +1561,8 @@ function toggleCategoryStatus(categoryId, currentStatus) {
 // Units Management
 async function loadUnits() {
     try {
-        const url = `${API_BASE}/api/units?ts=${Date.now()}`;
-        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' });
-        let data;
-        try { data = await resp.json(); }
-        catch (e) {
-            if (resp.status === 304) {
-                const resp2 = await fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'reload' });
-                data = await resp2.json();
-            } else {
-                throw e;
-            }
-        }
+        const resp = await fetch(`${API_BASE}/api/units`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = await resp.json();
         const tbody = document.getElementById('unitsTableBody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -1728,102 +1593,14 @@ async function loadUnits() {
 
 function showAddUnitModal() {
     editingUnitId = null;
-    let modal = document.getElementById('addUnitModal');
-    if (!modal) {
-        const m = document.createElement('div');
-        m.id = 'addUnitModal';
-        m.className = 'modal';
-        m.innerHTML = `
-            <div class="modal-content">
-                <span class="close" data-modal="addUnitModal">&times;</span>
-                <h3>Add / Edit Unit</h3>
-                <form id="addUnitForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="unitName">Unit Name:</label>
-                            <input type="text" id="unitName" name="name" required />
-                        </div>
-                        <div class="form-group">
-                            <label for="unitAbbrev">Abbreviation:</label>
-                            <input type="text" id="unitAbbrev" name="abbreviation" />
-                        </div>
-                    </div>
-                    <div class="form-row-full">
-                        <div class="form-group">
-                            <label for="unitMultiplier">Multiplier (relative):</label>
-                            <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" />
-                        </div>
-                    </div>
-                    <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
-                        <button type="submit" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
-                        <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
-                    </div>
-                </form>
-            </div>
-        `;
-        document.body.appendChild(m);
-        modal = m;
-    }
     const form = document.getElementById('addUnitForm');
-    if (form) {
-        try { form.reset(); } catch (e) {}
-        if (!form.dataset.boundSubmit) {
-            form.addEventListener('submit', function(e){ e.preventDefault(); try { saveUnit(); } catch (err) { console.error('saveUnit submit error', err); } });
-            form.dataset.boundSubmit = '1';
-        }
-    }
+    if (form) form.reset();
     showModal('addUnitModal');
 }
 
 async function saveUnit() {
     const form = document.getElementById('addUnitForm');
-    if (!form) {
-        try { console.error('saveUnit: addUnitForm not found'); } catch (e) {}
-        const nameEl = document.getElementById('unitName');
-        const abbrevEl = document.getElementById('unitAbbrev');
-        const multEl = document.getElementById('unitMultiplier');
-        const nameVal = nameEl && nameEl.value ? nameEl.value.trim() : '';
-        const abbrevVal = abbrevEl && abbrevEl.value ? abbrevEl.value.trim() : null;
-        const multVal = multEl && multEl.value ? parseFloat(multEl.value) : 1.0;
-        if (!nameVal) { showError('Validation', 'Unit name is required'); return; }
-        const payload = { name: nameVal, abbreviation: abbrevVal, multiplier: multVal };
-        return await (async function(payloadLocal){
-            try {
-                console.debug('saveUnit: sending (no-form fallback)', { editingUnitId, payload: payloadLocal });
-                let resp;
-                if (editingUnitId) {
-                    resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                        body: JSON.stringify(payloadLocal)
-                    });
-                } else {
-                    resp = await fetch(`${API_BASE}/api/units`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                        body: JSON.stringify(payloadLocal)
-                    });
-                }
-                let data;
-                try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
-                console.debug('saveUnit: response', resp.status, data);
-                if (resp.ok && data && data.success) {
-                    showSuccess('Saved', 'Unit saved successfully');
-                    hideModal('addUnitModal');
-                    editingUnitId = null;
-                    await loadUnits();
-                } else {
-                    const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-                    console.error('saveUnit failed', msg, data);
-                    showError('Error', msg || 'Failed to save unit');
-                }
-            } catch (err) {
-                console.error('Error saving unit (exception):', err);
-                showError('Error', 'Failed to save unit');
-            }
-        })(payload);
-    }
-    try { console.log('saveUnit: click'); } catch (e) {}
+    if (!form) return;
     const formData = new FormData(form);
     const payload = {
         name: formData.get('name'),
@@ -1866,8 +1643,6 @@ async function saveUnit() {
     }
 }
 
-try { window.saveUnit = saveUnit; } catch (e) {}
-
 async function editUnit(unitId) {
     editingUnitId = unitId;
     // try find in currentUnits
@@ -1875,7 +1650,7 @@ async function editUnit(unitId) {
     if (!unit) {
         // fallback: fetch single unit from API if available
         try {
-            const resp = await fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' });
+            const resp = await fetch(`${API_BASE}/api/units`, { headers: { 'Authorization': `Bearer ${authToken}` } });
             const data = await resp.json();
             if (data.success) {
                 currentUnits = data.units || [];
@@ -2064,11 +1839,6 @@ function showModal(modalId) {
             // ensure content is in front
             content.style.zIndex = 10000;
         }
-        const overlay = document.querySelector('.nav-overlay');
-        if (overlay) {
-            overlay.style.pointerEvents = 'none';
-            overlay.style.zIndex = '0';
-        }
     } catch (e) { /* ignore style errors */ }
 
     // Focus first focusable element inside modal to ensure keyboard and visibility
@@ -2098,13 +1868,6 @@ function hideModal(modalId) {
     // Reset form
     const form = document.querySelector(`#${modalId} form`);
     if (form) form.reset();
-    try {
-        const overlay = document.querySelector('.nav-overlay');
-        if (overlay) {
-            overlay.style.pointerEvents = '';
-            overlay.style.zIndex = '';
-        }
-    } catch (e) { /* ignore */ }
     // Clear any editing state related to this modal to avoid stale IDs
     try {
         if (modalId === 'addUserModal') editingUserId = null;
@@ -2470,8 +2233,8 @@ async function showAddProductModal() {
         // Populate units and sizes
         try {
             const [unitsResp, sizesResp] = await Promise.all([
-                fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { cache: 'no-store' }),
-                fetch(`${API_BASE}/api/sizes?ts=${Date.now()}`, { cache: 'no-store' })
+                fetch(`${API_BASE}/api/units`),
+                fetch(`${API_BASE}/api/sizes`)
             ]);
             const unitsJson = await unitsResp.json();
             const sizesJson = await sizesResp.json();

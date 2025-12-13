@@ -303,13 +303,12 @@ function initializeAdmin() {
     document.getElementById('saveUserBtn').addEventListener('click', saveUser);
     document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
     document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
+    const saveUnitBtn = document.getElementById('saveUnitBtn');
+    if (saveUnitBtn) saveUnitBtn.addEventListener('click', saveUnit);
     const saveSizeBtn = document.getElementById('saveSizeBtn');
     if (saveSizeBtn) saveSizeBtn.addEventListener('click', saveSize);
     const addUnitFormEl = document.getElementById('addUnitForm');
-    if (addUnitFormEl && !addUnitFormEl.dataset.boundSubmit) {
-        addUnitFormEl.addEventListener('submit', function(e){ e.preventDefault(); try { saveUnit(); } catch (err) { console.error('saveUnit submit error', err); } });
-        addUnitFormEl.dataset.boundSubmit = '1';
-    }
+    if (addUnitFormEl) addUnitFormEl.addEventListener('submit', function(e){ e.preventDefault(); try { saveUnit(); } catch (err) { console.error('saveUnit submit error', err); } });
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
     document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
@@ -503,11 +502,6 @@ document.addEventListener('click', function(e) {
         if (!t) return;
         const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
         if (saveUnitBtn) {
-            const formEl = document.getElementById('addUnitForm');
-            if (formEl && formEl.contains(saveUnitBtn)) {
-                // Let the form submit handler handle it to avoid double calls
-                return;
-            }
             e.preventDefault();
             try { console.log('Delegated click: saveUnitBtn'); } catch (e) {}
             try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }

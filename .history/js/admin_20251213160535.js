@@ -21,6 +21,7 @@ let currentUnits = [];
 let currentSizes = [];
 let editingUnitId = null;
 let editingSizeId = null;
+let unitSaveInFlight = false;
 
 // Sorting state for each table
 let sortState = {
@@ -196,9 +197,9 @@ function initializeAdmin() {
     loadDashboardStats();
 
     // Add event listeners for modal open buttons
-    document.getElementById('addUserBtn').addEventListener('click', () => showAddUserModal());
-    document.getElementById('addStoreBtn').addEventListener('click', () => showAddStoreModal());
-    document.getElementById('addProductBtn').addEventListener('click', () => showAddProductModal());
+    document.getElementById('addUserBtn').addEventListener('click', () => window.showAddUserModal());
+    document.getElementById('addStoreBtn').addEventListener('click', () => window.showAddStoreModal());
+    document.getElementById('addProductBtn').addEventListener('click', () => window.showAddProductModal());
     const exportBtn = document.getElementById('exportImagesBtn');
     if (exportBtn) {
         exportBtn.addEventListener('click', exportBase64Images);
@@ -229,8 +230,8 @@ function initializeAdmin() {
             }
         });
     } catch (e) { /* ignore */ }
-    document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
-    document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
+    document.getElementById('addCategoryBtn').addEventListener('click', () => window.showAddCategoryModal());
+    document.getElementById('addRiderBtn').addEventListener('click', () => window.showAddRiderModal());
     let addUnitBtn = document.getElementById('addUnitBtn');
     console.debug('admin:init addUnitBtn present:', !!addUnitBtn);
     if (!addUnitBtn) {
@@ -1776,53 +1777,50 @@ function showAddUnitModal() {
 }
 
 async function saveUnit() {
-    const form = document.getElementById('addUnitForm');
-    if (!form) {
-        try { console.error('saveUnit: addUnitForm not found'); } catch (e) {}
-        const nameEl = document.getElementById('unitName');
-        const abbrevEl = document.getElementById('unitAbbrev');
-        const multEl = document.getElementById('unitMultiplier');
-        const nameVal = nameEl && nameEl.value ? nameEl.value.trim() : '';
-        const abbrevVal = abbrevEl && abbrevEl.value ? abbrevEl.value.trim() : null;
-        const multVal = multEl && multEl.value ? parseFloat(multEl.value) : 1.0;
-        if (!nameVal) { showError('Validation', 'Unit name is required'); return; }
-        const payload = { name: nameVal, abbreviation: abbrevVal, multiplier: multVal };
-        return await (async function(payloadLocal){
-            try {
-                console.debug('saveUnit: sending (no-form fallback)', { editingUnitId, payload: payloadLocal });
-                let resp;
-                if (editingUnitId) {
-                    resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                        body: JSON.stringify(payloadLocal)
-                    });
-                } else {
-                    resp = await fetch(`${API_BASE}/api/units`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                        body: JSON.stringify(payloadLocal)
-                    });
-                }
-                let data;
-                try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
-                console.debug('saveUnit: response', resp.status, data);
-                if (resp.ok && data && data.success) {
-                    showSuccess('Saved', 'Unit saved successfully');
-                    hideModal('addUnitModal');
-                    editingUnitId = null;
-                    await loadUnits();
-                } else {
-                    const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-                    console.error('saveUnit failed', msg, data);
-                    showError('Error', msg || 'Failed to save unit');
-                }
-            } catch (err) {
-                console.error('Error saving unit (exception):', err);
-                showError('Error', 'Failed to save unit');
+    if (unitSaveInFlight) { try { console.warn('saveUnit: already in flight'); } catch (e) {} return; }
+    unitSaveInFlight = true;
+    try {
+        const form = document.getElementById('addUnitForm');
+        if (!form) {
+            try { console.error('saveUnit: addUnitForm not found'); } catch (e) {}
+            const nameEl = document.getElementById('unitName');
+            const abbrevEl = document.getElementById('unitAbbrev');
+            const multEl = document.getElementById('unitMultiplier');
+            const nameVal = nameEl && nameEl.value ? nameEl.value.trim() : '';
+            const abbrevVal = abbrevEl && abbrevEl.value ? abbrevEl.value.trim() : null;
+            const multVal = multEl && multEl.value ? parseFloat(multEl.value) : 1.0;
+            if (!nameVal) { showError('Validation', 'Unit name is required'); return; }
+            const payload = { name: nameVal, abbreviation: abbrevVal, multiplier: multVal };
+            console.debug('saveUnit: sending (no-form fallback)', { editingUnitId, payload });
+            let resp;
+            if (editingUnitId) {
+                resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                resp = await fetch(`${API_BASE}/api/units`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(payload)
+                });
             }
-        })(payload);
-    }
+            let data;
+            try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
+            console.debug('saveUnit: response', resp.status, data);
+            if (resp.ok && data && data.success) {
+                showSuccess('Saved', 'Unit saved successfully');
+                hideModal('addUnitModal');
+                editingUnitId = null;
+                await loadUnits();
+            } else {
+                const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
+                console.error('saveUnit failed', msg, data);
+                showError('Error', msg || 'Failed to save unit');
+            }
+            return;
+        }
     try { console.log('saveUnit: click'); } catch (e) {}
     const formData = new FormData(form);
     const payload = {
@@ -1863,10 +1861,13 @@ async function saveUnit() {
     } catch (err) {
         console.error('Error saving unit (exception):', err);
         showError('Error', 'Failed to save unit');
+    } finally {
+        unitSaveInFlight = false;
     }
 }
 
-try { window.saveUnit = saveUnit; } catch (e) {}
+window.saveUnit = saveUnit;
+
 
 async function editUnit(unitId) {
     editingUnitId = unitId;
@@ -3945,4 +3946,4 @@ document.addEventListener('DOMContentLoaded', function(){
             setTimeout(runDebugTableHighlight, 600);
         }
     } catch (e) { /* ignore */ }
-});
+});}

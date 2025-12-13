@@ -123,6 +123,16 @@ console.log('Setting up frontend static file serving...');
 app.use(express.static(path.join(__dirname)));
 console.log('Frontend static files configured.');
 
+// Disable caching for JS files to avoid stale script issues during development
+app.use((req, res, next) => {
+    if (req.path.endsWith('.js')) {
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
 // Catch all handler: send back index.html for any non-API routes
 console.log('Setting up catch-all handler for frontend routing...');
 app.get('*', (req, res) => {

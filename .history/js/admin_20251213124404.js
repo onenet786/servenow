@@ -303,13 +303,10 @@ function initializeAdmin() {
     document.getElementById('saveUserBtn').addEventListener('click', saveUser);
     document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
     document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
+    const saveUnitBtn = document.getElementById('saveUnitBtn');
+    if (saveUnitBtn) saveUnitBtn.addEventListener('click', saveUnit);
     const saveSizeBtn = document.getElementById('saveSizeBtn');
     if (saveSizeBtn) saveSizeBtn.addEventListener('click', saveSize);
-    const addUnitFormEl = document.getElementById('addUnitForm');
-    if (addUnitFormEl && !addUnitFormEl.dataset.boundSubmit) {
-        addUnitFormEl.addEventListener('submit', function(e){ e.preventDefault(); try { saveUnit(); } catch (err) { console.error('saveUnit submit error', err); } });
-        addUnitFormEl.dataset.boundSubmit = '1';
-    }
     document.getElementById('saveCategoryBtn').addEventListener('click', saveCategory);
     document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
@@ -503,11 +500,6 @@ document.addEventListener('click', function(e) {
         if (!t) return;
         const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
         if (saveUnitBtn) {
-            const formEl = document.getElementById('addUnitForm');
-            if (formEl && formEl.contains(saveUnitBtn)) {
-                // Let the form submit handler handle it to avoid double calls
-                return;
-            }
             e.preventDefault();
             try { console.log('Delegated click: saveUnitBtn'); } catch (e) {}
             try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
@@ -1686,18 +1678,8 @@ function toggleCategoryStatus(categoryId, currentStatus) {
 // Units Management
 async function loadUnits() {
     try {
-        const url = `${API_BASE}/api/units?ts=${Date.now()}`;
-        const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' });
-        let data;
-        try { data = await resp.json(); }
-        catch (e) {
-            if (resp.status === 304) {
-                const resp2 = await fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'reload' });
-                data = await resp2.json();
-            } else {
-                throw e;
-            }
-        }
+        const resp = await fetch(`${API_BASE}/api/units`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const data = await resp.json();
         const tbody = document.getElementById('unitsTableBody');
         if (!tbody) return;
         tbody.innerHTML = '';
@@ -1728,101 +1710,14 @@ async function loadUnits() {
 
 function showAddUnitModal() {
     editingUnitId = null;
-    let modal = document.getElementById('addUnitModal');
-    if (!modal) {
-        const m = document.createElement('div');
-        m.id = 'addUnitModal';
-        m.className = 'modal';
-        m.innerHTML = `
-            <div class="modal-content">
-                <span class="close" data-modal="addUnitModal">&times;</span>
-                <h3>Add / Edit Unit</h3>
-                <form id="addUnitForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="unitName">Unit Name:</label>
-                            <input type="text" id="unitName" name="name" required />
-                        </div>
-                        <div class="form-group">
-                            <label for="unitAbbrev">Abbreviation:</label>
-                            <input type="text" id="unitAbbrev" name="abbreviation" />
-                        </div>
-                    </div>
-                    <div class="form-row-full">
-                        <div class="form-group">
-                            <label for="unitMultiplier">Multiplier (relative):</label>
-                            <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" />
-                        </div>
-                    </div>
-                    <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
-                        <button type="submit" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
-                        <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
-                    </div>
-                </form>
-            </div>
-        `;
-        document.body.appendChild(m);
-        modal = m;
-    }
     const form = document.getElementById('addUnitForm');
-    if (form) {
-        try { form.reset(); } catch (e) {}
-        if (!form.dataset.boundSubmit) {
-            form.addEventListener('submit', function(e){ e.preventDefault(); try { saveUnit(); } catch (err) { console.error('saveUnit submit error', err); } });
-            form.dataset.boundSubmit = '1';
-        }
-    }
+    if (form) form.reset();
     showModal('addUnitModal');
 }
 
 async function saveUnit() {
     const form = document.getElementById('addUnitForm');
-    if (!form) {
-        try { console.error('saveUnit: addUnitForm not found'); } catch (e) {}
-        const nameEl = document.getElementById('unitName');
-        const abbrevEl = document.getElementById('unitAbbrev');
-        const multEl = document.getElementById('unitMultiplier');
-        const nameVal = nameEl && nameEl.value ? nameEl.value.trim() : '';
-        const abbrevVal = abbrevEl && abbrevEl.value ? abbrevEl.value.trim() : null;
-        const multVal = multEl && multEl.value ? parseFloat(multEl.value) : 1.0;
-        if (!nameVal) { showError('Validation', 'Unit name is required'); return; }
-        const payload = { name: nameVal, abbreviation: abbrevVal, multiplier: multVal };
-        return await (async function(payloadLocal){
-            try {
-                console.debug('saveUnit: sending (no-form fallback)', { editingUnitId, payload: payloadLocal });
-                let resp;
-                if (editingUnitId) {
-                    resp = await fetch(`${API_BASE}/api/units/${editingUnitId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                        body: JSON.stringify(payloadLocal)
-                    });
-                } else {
-                    resp = await fetch(`${API_BASE}/api/units`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                        body: JSON.stringify(payloadLocal)
-                    });
-                }
-                let data;
-                try { data = await resp.json(); } catch (e) { const text = await resp.text(); console.error('saveUnit: invalid JSON response', resp.status, text); throw e; }
-                console.debug('saveUnit: response', resp.status, data);
-                if (resp.ok && data && data.success) {
-                    showSuccess('Saved', 'Unit saved successfully');
-                    hideModal('addUnitModal');
-                    editingUnitId = null;
-                    await loadUnits();
-                } else {
-                    const msg = data && (data.message || (data.errors && JSON.stringify(data.errors))) ? (data.message || JSON.stringify(data.errors)) : `HTTP ${resp.status}`;
-                    console.error('saveUnit failed', msg, data);
-                    showError('Error', msg || 'Failed to save unit');
-                }
-            } catch (err) {
-                console.error('Error saving unit (exception):', err);
-                showError('Error', 'Failed to save unit');
-            }
-        })(payload);
-    }
+    if (!form) return;
     try { console.log('saveUnit: click'); } catch (e) {}
     const formData = new FormData(form);
     const payload = {
@@ -1866,8 +1761,6 @@ async function saveUnit() {
     }
 }
 
-try { window.saveUnit = saveUnit; } catch (e) {}
-
 async function editUnit(unitId) {
     editingUnitId = unitId;
     // try find in currentUnits
@@ -1875,7 +1768,7 @@ async function editUnit(unitId) {
     if (!unit) {
         // fallback: fetch single unit from API if available
         try {
-            const resp = await fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' });
+            const resp = await fetch(`${API_BASE}/api/units`, { headers: { 'Authorization': `Bearer ${authToken}` } });
             const data = await resp.json();
             if (data.success) {
                 currentUnits = data.units || [];
@@ -2064,11 +1957,6 @@ function showModal(modalId) {
             // ensure content is in front
             content.style.zIndex = 10000;
         }
-        const overlay = document.querySelector('.nav-overlay');
-        if (overlay) {
-            overlay.style.pointerEvents = 'none';
-            overlay.style.zIndex = '0';
-        }
     } catch (e) { /* ignore style errors */ }
 
     // Focus first focusable element inside modal to ensure keyboard and visibility
@@ -2098,13 +1986,6 @@ function hideModal(modalId) {
     // Reset form
     const form = document.querySelector(`#${modalId} form`);
     if (form) form.reset();
-    try {
-        const overlay = document.querySelector('.nav-overlay');
-        if (overlay) {
-            overlay.style.pointerEvents = '';
-            overlay.style.zIndex = '';
-        }
-    } catch (e) { /* ignore */ }
     // Clear any editing state related to this modal to avoid stale IDs
     try {
         if (modalId === 'addUserModal') editingUserId = null;
@@ -2470,8 +2351,8 @@ async function showAddProductModal() {
         // Populate units and sizes
         try {
             const [unitsResp, sizesResp] = await Promise.all([
-                fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { cache: 'no-store' }),
-                fetch(`${API_BASE}/api/sizes?ts=${Date.now()}`, { cache: 'no-store' })
+                fetch(`${API_BASE}/api/units`),
+                fetch(`${API_BASE}/api/sizes`)
             ]);
             const unitsJson = await unitsResp.json();
             const sizesJson = await sizesResp.json();
