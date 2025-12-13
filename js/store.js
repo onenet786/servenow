@@ -1,5 +1,5 @@
-// API Base URL
-const API_BASE = window.location.protocol + '//' + window.location.host;
+// Local API base to avoid colliding with global const in app.js
+const STORE_API_BASE = window.location.protocol + '//' + window.location.host;
 
 // Get store ID from URL
 function getStoreId() {
@@ -7,38 +7,24 @@ function getStoreId() {
     return parseInt(urlParams.get('id'));
 }
 
-// Display store information
-function displayStoreInfo(storeId) {
-    const store = stores.find(s => s.id === storeId);
+function displayStoreInfoData(store) {
     if (!store) {
         document.getElementById('storeInfo').innerHTML = '<h2>Store not found</h2>';
         return;
     }
-
-    document.getElementById('storeTitle').textContent = `${store.name} - ServeNow`;
+    const title = document.getElementById('storeTitle');
+    if (title) title.textContent = `${store.name} - ServeNow`;
     document.getElementById('storeInfo').innerHTML = `
         <h2>${store.name}</h2>
         <div class="store-details">
-            <p><strong>Location:</strong> ${store.location}</p>
-            <p><strong>Rating:</strong> ${store.rating} ⭐</p>
-            <p><strong>Delivery Time:</strong> ${store.deliveryTime}</p>
+            <p><strong>Location:</strong> ${store.location || ''}</p>
+            <p><strong>Rating:</strong> ${store.rating || 0} ⭐</p>
+            <p><strong>Delivery Time:</strong> ${store.delivery_time || ''}</p>
         </div>
     `;
 }
 
-// Display products for the store
-function displayStoreProducts(storeId) {
-    const storeProducts = [];
-
-    // Get all products that belong to this store
-    Object.keys(products).forEach(category => {
-        products[category].forEach(product => {
-            if (product.storeId === storeId) {
-                storeProducts.push(product);
-            }
-        });
-    });
-
+function displayStoreProductsData(storeProducts) {
     const productGrid = document.getElementById('storeProducts');
     productGrid.innerHTML = '';
 
@@ -51,20 +37,17 @@ function displayStoreProducts(storeId) {
         const productCard = document.createElement('div');
         productCard.className = 'product-card';
 
-        // Normalize image path and build <img> with optional srcset
         let imageSrc = 'https://via.placeholder.com/200x150/E0E0E0/666666?text=No+Image';
         let variants = null;
-        if (product.image) {
-            // Normalize backslashes and trim
-            let url = String(product.image).trim().replace(/\\/g, '/');
+        if (product.image_url || product.image) {
+            let url = String(product.image_url || product.image).trim().replace(/\\/g, '/');
             if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) {
                 imageSrc = url;
             } else if (url.startsWith('/')) {
-                imageSrc = API_BASE.replace(/\/$/, '') + url;
+                imageSrc = STORE_API_BASE.replace(/\/$/, '') + url;
             } else {
-                imageSrc = API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
+                imageSrc = STORE_API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
             }
-            // if server provided variants mapping, use it
             variants = product.image_variants || product.variants || null;
         }
 
@@ -80,12 +63,11 @@ function displayStoreProducts(storeId) {
                 </div>
             <div class="product-card-content">
                 <h4>${product.name}</h4>
-                <p class="price">PKR ${product.price.toFixed(2)}</p>
+                <p class="price">PKR ${Number.isFinite(parseFloat(product.price)) ? parseFloat(product.price).toFixed(2) : product.price}</p>
                 <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price})">Add to Cart</button>
             </div>
         `;
         productGrid.appendChild(productCard);
-        // Apply orientation fit or server-provided meta for cached images in this card
         productCard.querySelectorAll('img').forEach(img => {
             try {
                 if (img.complete && img.naturalWidth && img.naturalHeight) {
@@ -101,12 +83,62 @@ function displayStoreProducts(storeId) {
 document.addEventListener('DOMContentLoaded', function() {
     const storeId = getStoreId();
     if (storeId) {
-        displayStoreInfo(storeId);
-        displayStoreProducts(storeId);
+        loadStore(storeId);
     } else {
         document.getElementById('storeInfo').innerHTML = '<h2>Invalid store ID</h2>';
     }
 });
+
+async function loadStore(storeId) {
+    try {
+        const resp = await fetch(`${STORE_API_BASE}/api/stores/${storeId}`);
+        const data = await resp.json();
+        if (!data || !data.success || !data.store) {
+            const title = document.getElementById('storeTitle');
+            if (title) title.textContent = `Store #${storeId} - ServeNow`;
+            document.getElementById('storeInfo').innerHTML = `<h2>Store #${storeId}</h2>`;
+            let list = [];
+            try {
+                const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
+                const data2 = await resp2.json();
+                if (data2 && data2.success && Array.isArray(data2.products)) {
+                    const onlyAvailable = data2.products.filter(p => p.is_available);
+                    list = onlyAvailable.length ? onlyAvailable : data2.products;
+                }
+            } catch (_) { /* ignore */ }
+            displayStoreProductsData(list || []);
+            return;
+        }
+        displayStoreInfoData(data.store);
+        let list = Array.isArray(data.products) ? data.products : [];
+        if (!list || list.length === 0) {
+            try {
+                const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}`);
+                const data2 = await resp2.json();
+                if (data2 && data2.success && Array.isArray(data2.products)) {
+                    // Prefer available products for store page
+                    const onlyAvailable = data2.products.filter(p => p.is_available);
+                    list = onlyAvailable.length ? onlyAvailable : data2.products;
+                }
+            } catch (_) { /* ignore */ }
+        }
+        displayStoreProductsData(list || []);
+    } catch (e) {
+        const title = document.getElementById('storeTitle');
+        if (title) title.textContent = `Store #${storeId} - ServeNow`;
+        document.getElementById('storeInfo').innerHTML = `<h2>Store #${storeId}</h2>`;
+        let list = [];
+        try {
+            const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
+            const data2 = await resp2.json();
+            if (data2 && data2.success && Array.isArray(data2.products)) {
+                const onlyAvailable = data2.products.filter(p => p.is_available);
+                list = onlyAvailable.length ? onlyAvailable : data2.products;
+            }
+        } catch (_) { /* ignore */ }
+        displayStoreProductsData(list || []);
+    }
+}
 
 // Helper to build img tag with srcset for store page
 function buildImgTagForStore(src, variants, alt, pid, meta) {

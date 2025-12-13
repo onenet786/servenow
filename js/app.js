@@ -737,7 +737,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const isRegisterPage = currentPage.includes('register.html');
 
     const token = localStorage.getItem('serveNowToken');
-    if (!token && !isLoginPage && !isRegisterPage) {
+    const path = (currentPage || '').toLowerCase();
+    const publicPages = ['index.html','stores.html','store.html','products.html','cart.html','login.html','register.html'];
+    const isPublic = publicPages.some(p => path.endsWith(p));
+    if (!token && !isPublic) {
         window.location.href = 'login.html';
         return;
     }
