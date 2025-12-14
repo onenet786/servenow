@@ -2270,8 +2270,31 @@ async function showAddStoreModal() {
     }
     showModal('addStoreModal');
 
+    // Setup image URL/file preview and paste helper (override handlers to avoid duplicates)
+    const pasteBtn = document.getElementById('pasteStoreImageUrlBtn');
+    const urlInput = document.getElementById('storeImage');
     const fileInput = document.getElementById('storeImageFile');
     const preview = document.getElementById('storeImagePreview');
+
+    if (pasteBtn) {
+        pasteBtn.onclick = () => {
+            const url = prompt('Paste image URL (http(s)://)');
+            if (url) {
+                if (urlInput) urlInput.value = url;
+                if (preview) { preview.src = url; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+            }
+        };
+    }
+
+    if (urlInput) {
+        urlInput.oninput = () => {
+            if (urlInput.value) {
+                if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+            } else if (preview) {
+                preview.style.display = 'none';
+            }
+        };
+    }
 
     if (fileInput) {
         fileInput.onchange = (e) => {
@@ -2301,6 +2324,7 @@ async function saveStore() {
         // Normalize phone: keep as entered, but trim to reduce validation issues
         phone: (formData.get('phone') || '').trim() || undefined,
         email: formData.get('email'),
+        image_url: formData.get('image_url'),
         rating: parseFloat(formData.get('rating')) || 0,
         delivery_time: formData.get('delivery_time'),
         opening_time: formData.get('opening_time') || null,
@@ -2344,11 +2368,11 @@ async function saveStore() {
                     vfield.value = JSON.stringify(upJson.variants);
                 }
             } else {
-                showWarning('Upload Warning', upJson.message || 'Image upload returned no URL.');
+                showWarning('Upload Warning', upJson.message || 'Image upload returned no URL. Using provided URL instead.');
             }
         } catch (err) {
             console.error('Image upload failed', err);
-            showWarning('Upload Failed', 'Image upload failed.');
+            showWarning('Upload Failed', 'Image upload failed. Using provided image URL if any.');
         }
     }
 
@@ -2402,6 +2426,7 @@ async function editStore(storeId) {
         form.querySelector('#storeName').value = s.name || '';
         form.querySelector('#storeOwner').value = s.owner_name || '';
         form.querySelector('#storeLocation').value = s.location || '';
+        form.querySelector('#storeImage').value = s.image_url || '';
         // Set preview image if exists
         const preview = document.getElementById('storeImagePreview');
         if (preview) {
@@ -2503,6 +2528,7 @@ async function showAddProductModal() {
             }
             const nameEl = document.getElementById('productName');
             const descEl = document.getElementById('productDescription');
+            const imgUrlEl = document.getElementById('productImage');
             const fileEl = document.getElementById('productImageFile');
             const unitSel = document.getElementById('productUnit');
             const sizeSel = document.getElementById('productSize');
@@ -2559,8 +2585,31 @@ async function showAddProductModal() {
         }
 
         showModal('addProductModal');
+        // Setup image URL/file preview and paste helper (replace handlers to avoid duplicates)
+        const pasteBtn = document.getElementById('pasteImageUrlBtn');
+        const urlInput = document.getElementById('productImage');
         const fileInput = document.getElementById('productImageFile');
         const preview = document.getElementById('productImagePreview');
+
+        if (pasteBtn) {
+            pasteBtn.onclick = () => {
+                const url = prompt('Paste image URL (http(s)://)');
+                if (url) {
+                    if (urlInput) urlInput.value = url;
+                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+                }
+            };
+        }
+
+        if (urlInput) {
+            urlInput.oninput = () => {
+                if (urlInput.value) {
+                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; applyOrientationFitAdmin(preview); }
+                } else if (preview) {
+                    preview.style.display = 'none';
+                }
+            };
+        }
 
         if (fileInput) {
             fileInput.onchange = (e) => {
@@ -2611,6 +2660,8 @@ async function saveProduct() {
         name: usingItem ? null : rawName,
         description: usingItem ? null : formData.get('description'),
         price: priceVal,
+        // Allow image override even when using item
+        image_url: (formData.get('image_url') || null),
         category_id: formData.get('category_id') || null,
         store_id: storeId,
         stock_quantity: parseInt(formData.get('stock_quantity'), 10) || 0,
@@ -2655,11 +2706,11 @@ async function saveProduct() {
                     vfield.value = JSON.stringify(upJson.variants);
                 }
             } else {
-                showWarning('Upload Warning', upJson.message || 'Image upload returned no URL.');
+                showWarning('Upload Warning', upJson.message || 'Image upload returned no URL. Using provided URL instead.');
             }
         } catch (err) {
             console.error('Image upload failed', err);
-            showWarning('Upload Failed', 'Image upload failed.');
+            showWarning('Upload Failed', 'Image upload failed. Using provided image URL if any.');
         }
     }
 
@@ -2712,6 +2763,7 @@ async function editProduct(productId) {
         form.querySelector('#productPrice').value = p.price || '';
         form.querySelector('#productDescription').value = p.description || '';
         form.querySelector('#productStock').value = p.stock_quantity || 0;
+        if (form.querySelector('#productImage')) form.querySelector('#productImage').value = p.image_url || '';
         if (form.querySelector('#productImagePreview') && p.image_url) {
             const prev = form.querySelector('#productImagePreview'); prev.src = p.image_url; prev.style.display = 'inline-block';
             try { applyOrientationFitAdmin(prev); } catch (e) { /* no-op */ }
@@ -2728,8 +2780,12 @@ async function editProduct(productId) {
                 const useItem = true;
                 const nameEl = document.getElementById('productName');
                 const descEl = document.getElementById('productDescription');
+                const imgUrlEl = document.getElementById('productImage');
+                const fileEl = document.getElementById('productImageFile');
                 if (nameEl) nameEl.disabled = useItem;
                 if (descEl) descEl.disabled = useItem;
+                if (imgUrlEl) imgUrlEl.disabled = useItem;
+                if (fileEl) fileEl.disabled = useItem;
             } else {
                 itemSelect.value = '';
             }
@@ -2746,8 +2802,28 @@ async function editProduct(productId) {
 function showAddCategoryModal() {
     showModal('addCategoryModal');
     try {
+        const pasteBtn = document.getElementById('pasteCategoryImageUrlBtn');
+        const urlInput = document.getElementById('categoryImage');
         const fileInput = document.getElementById('categoryImageFile');
         const preview = document.getElementById('categoryImagePreview');
+        if (pasteBtn) {
+            pasteBtn.onclick = () => {
+                const url = prompt('Paste image URL (http(s)://)');
+                if (url) {
+                    if (urlInput) urlInput.value = url;
+                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
+                }
+            };
+        }
+        if (urlInput) {
+            urlInput.oninput = () => {
+                if (urlInput.value) {
+                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
+                } else if (preview) {
+                    preview.style.display = 'none';
+                }
+            };
+        }
         if (fileInput) {
             fileInput.onchange = (e) => {
                 const file = e.target.files && e.target.files[0];
@@ -2768,11 +2844,12 @@ async function saveCategory() {
     const formData = new FormData(document.getElementById('addCategoryForm'));
     const name = String(formData.get('name') || '').trim();
     const description = String(formData.get('description') || '').trim();
+    const image_url = String(formData.get('image_url') || '').trim();
     if (name.length < 2) {
         showError('Validation Error', 'Category name must be at least 2 characters');
         return;
     }
-    const categoryData = { name, description };
+    const categoryData = { name, description, image_url };
     const catFileInput = document.getElementById('categoryImageFile');
     if (catFileInput && catFileInput.files && catFileInput.files.length > 0) {
         try {
@@ -2844,8 +2921,10 @@ async function editCategory(categoryId) {
             const form = document.getElementById('addCategoryForm');
             if (!form) return;
             const nameInput = document.getElementById('categoryName');
+            const imageInput = document.getElementById('categoryImage');
             const descInput = document.getElementById('categoryDescription');
             if (nameInput) nameInput.value = c.name || '';
+            if (imageInput) imageInput.value = c.image_url || '';
             if (descInput) descInput.value = c.description || '';
             const preview = document.getElementById('categoryImagePreview');
             if (preview) {

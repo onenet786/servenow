@@ -2503,6 +2503,7 @@ async function showAddProductModal() {
             }
             const nameEl = document.getElementById('productName');
             const descEl = document.getElementById('productDescription');
+            const imgUrlEl = document.getElementById('productImage');
             const fileEl = document.getElementById('productImageFile');
             const unitSel = document.getElementById('productUnit');
             const sizeSel = document.getElementById('productSize');

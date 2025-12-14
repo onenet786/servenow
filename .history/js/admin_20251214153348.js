@@ -2503,6 +2503,7 @@ async function showAddProductModal() {
             }
             const nameEl = document.getElementById('productName');
             const descEl = document.getElementById('productDescription');
+            const imgUrlEl = document.getElementById('productImage');
             const fileEl = document.getElementById('productImageFile');
             const unitSel = document.getElementById('productUnit');
             const sizeSel = document.getElementById('productSize');
@@ -2728,8 +2729,12 @@ async function editProduct(productId) {
                 const useItem = true;
                 const nameEl = document.getElementById('productName');
                 const descEl = document.getElementById('productDescription');
+                const imgUrlEl = document.getElementById('productImage');
+                const fileEl = document.getElementById('productImageFile');
                 if (nameEl) nameEl.disabled = useItem;
                 if (descEl) descEl.disabled = useItem;
+                if (imgUrlEl) imgUrlEl.disabled = useItem;
+                if (fileEl) fileEl.disabled = useItem;
             } else {
                 itemSelect.value = '';
             }
