@@ -1703,14 +1703,8 @@ async function loadUnits() {
                 <td>${u.abbreviation || ''}</td>
                 <td>${typeof u.multiplier !== 'undefined' ? parseFloat(u.multiplier).toFixed(4) : ''}</td>
                 <td>
-                    <div class="action-buttons">
-                        <button class="btn-small btn-edit" onclick="editUnit(${u.id})">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn-small btn-secondary" onclick="deleteUnit(${u.id})">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
+                    <button class="btn btn-small btn-edit" onclick="editUnit(${u.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="deleteUnit(${u.id})">Delete</button>
                 </td>
             `;
             tbody.appendChild(row);
@@ -1966,14 +1960,8 @@ async function loadSizes() {
                 <td>${s.label}</td>
                 <td>${s.description || ''}</td>
                 <td>
-                    <div class="action-buttons">
-                        <button class="btn-small btn-edit" onclick="editSize(${s.id})">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn-small btn-secondary" onclick="deleteSize(${s.id})">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
+                    <button class="btn btn-small btn-edit" onclick="editSize(${s.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="deleteSize(${s.id})">Delete</button>
                 </td>
             `;
             tbody.appendChild(row);
@@ -3769,14 +3757,10 @@ function displayUsers(users) {
             <td>${user.user_type}</td>
             <td><span class="status-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <div class="action-buttons">
-                    <button class="btn-small btn-edit" onclick="editUser(${user.id})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
-                        <i class="fas fa-${user.is_active ? 'ban' : 'check'}"></i> ${user.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                </div>
+                <button class="btn btn-small btn-edit" onclick="editUser(${user.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
+                    ${user.is_active ? 'Deactivate' : 'Activate'}
+                </button>
             </td>
         `;
         tbody.appendChild(row);
@@ -3808,14 +3792,10 @@ function displayStores(stores) {
             <td>${store.rating} ⭐</td>
             <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <div class="action-buttons">
-                    <button class="btn-small btn-edit" onclick="editStore(${store.id})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
-                        <i class="fas fa-${store.is_active ? 'ban' : 'check'}"></i> ${store.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                </div>
+                <button class="btn btn-small btn-edit" onclick="editStore(${store.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
+                    ${store.is_active ? 'Deactivate' : 'Activate'}
+                </button>
             </td>
         `;
         const ensureHoverCard = () => {
@@ -3929,14 +3909,10 @@ function displayCategories(categories) {
             <td>${category.description || ''}</td>
             <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <div class="action-buttons">
-                    <button class="btn-small btn-edit" onclick="editCategory(${category.id})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
-                        <i class="fas fa-${category.is_active ? 'ban' : 'check'}"></i> ${category.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                </div>
+                <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
+                    ${category.is_active ? 'Deactivate' : 'Activate'}
+                </button>
             </td>
         `;
         tbody.appendChild(row);
@@ -3972,15 +3948,11 @@ function displayRiders(riders) {
             <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
             <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <div class="action-buttons">
-                    <button class="btn-small btn-edit" onclick="editRider(${rider.id})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
-                        <i class="fas fa-${rider.is_active ? 'ban' : 'check'}"></i> ${rider.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button class="btn-small btn-secondary" onclick="openFuelForRider(${rider.id})">Fuel</button>
-                </div>
+                <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
+                <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
+                    ${rider.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button class="btn btn-small btn-secondary" onclick="openFuelForRider(${rider.id})">Fuel</button>
             </td>
         `;
         tbody.appendChild(row);

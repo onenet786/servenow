@@ -1966,14 +1966,8 @@ async function loadSizes() {
                 <td>${s.label}</td>
                 <td>${s.description || ''}</td>
                 <td>
-                    <div class="action-buttons">
-                        <button class="btn-small btn-edit" onclick="editSize(${s.id})">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn-small btn-secondary" onclick="deleteSize(${s.id})">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
+                    <button class="btn btn-small btn-edit" onclick="editSize(${s.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="deleteSize(${s.id})">Delete</button>
                 </td>
             `;
             tbody.appendChild(row);
