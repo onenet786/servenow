@@ -462,8 +462,8 @@ router.post('/export-base64-images', authenticateToken, requireAdmin, async (req
 
 // Create new product (Admin or Store Owner)
 router.post('/', authenticateToken, requireStoreOwner, [
-    body('name').trim().optional({ checkFalsy: true }).isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
-    body('item_id').optional({ checkFalsy: true }).isInt().withMessage('Item ID must be a valid integer'),
+    body('name').optional().trim().isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
+    body('item_id').optional().isInt().withMessage('Item ID must be a valid integer'),
     body().custom((value, { req }) => {
         if (!req.body.item_id && (!req.body.name || String(req.body.name).trim().length < 2)) {
             throw new Error('Either item_id or a valid name is required');

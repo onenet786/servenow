@@ -147,6 +147,7 @@ router.get('/', optionalAuth, async (req, res) => {
             LEFT JOIN items i ON p.item_id = i.id`);
         }
         const useItemFields = itemsExists;
+        `;
         const queryParams = [];
         const whereClauses = [];
 
@@ -289,39 +290,23 @@ router.post('/upload-image', authenticateToken, requireStoreOwner, upload.single
 });
 
 // Get product by ID
-router.get('/:id(\\d+)', optionalAuth, async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const { admin } = req.query;
         const isAdminUser = req.user && req.user.user_type === 'admin';
 
-        let itemsExists = false;
-        try {
-            const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE;
-            if (dbName) {
-                const [[row]] = await req.db.execute(
-                    'SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "items"',
-                    [dbName]
-                );
-                itemsExists = !!(row && row.cnt);
-            }
-        } catch (e) { /* ignore existence check errors */ }
-
         let detailQuery = `
             SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location,
-                   u.id as unit_id, u.name as unit_name, sz.id as size_id, sz.label as size_label
+                   u.id as unit_id, u.name as unit_name, sz.id as size_id, sz.label as size_label,
+                   i.id as item_id, i.name as item_name, i.description as item_description, i.image_url as item_image_url
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN stores s ON p.store_id = s.id
             LEFT JOIN units u ON p.unit_id = u.id
             LEFT JOIN sizes sz ON p.size_id = sz.id
+            LEFT JOIN items i ON p.item_id = i.id
         `;
-        if (itemsExists) {
-            detailQuery = detailQuery.replace('FROM products p', `
-            FROM products p
-            LEFT JOIN items i ON p.item_id = i.id`);
-        }
-        const useItemFields = itemsExists;
         const detailParams = [id];
         const detailWhere = ['p.id = ?'];
 
@@ -347,11 +332,11 @@ router.get('/:id(\\d+)', optionalAuth, async (req, res) => {
             success: true,
                 product: {
                 id: product.id,
-                name: useItemFields ? (product.item_name || product.name) : product.name,
-                description: useItemFields ? (product.item_description || product.description) : product.description,
+                name: product.item_name || product.name,
+                description: product.item_description || product.description,
                 price: product.price,
-                image_url: useItemFields ? (product.item_image_url || product.image_url) : product.image_url,
-                image_variants: getImageVariants(useItemFields ? (product.item_image_url || product.image_url) : product.image_url),
+                image_url: product.item_image_url || product.image_url,
+                image_variants: getImageVariants(product.item_image_url || product.image_url),
                 image_bg_r: product.image_bg_r,
                 image_bg_g: product.image_bg_g,
                 image_bg_b: product.image_bg_b,
@@ -462,8 +447,8 @@ router.post('/export-base64-images', authenticateToken, requireAdmin, async (req
 
 // Create new product (Admin or Store Owner)
 router.post('/', authenticateToken, requireStoreOwner, [
-    body('name').trim().optional({ checkFalsy: true }).isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
-    body('item_id').optional({ checkFalsy: true }).isInt().withMessage('Item ID must be a valid integer'),
+    body('name').optional().trim().isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
+    body('item_id').optional().isInt().withMessage('Item ID must be a valid integer'),
     body().custom((value, { req }) => {
         if (!req.body.item_id && (!req.body.name || String(req.body.name).trim().length < 2)) {
             throw new Error('Either item_id or a valid name is required');
@@ -496,21 +481,6 @@ router.post('/', authenticateToken, requireStoreOwner, [
             size_id = null,
             item_id = null
         } = req.body;
-
-        let itemRow = null;
-        if (item_id) {
-            const [items] = await req.db.execute(
-                'SELECT id, name, description, image_url, category_id, unit_id, size_id FROM items WHERE id = ?',
-                [item_id]
-            );
-            if (!items || items.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid item_id'
-                });
-            }
-            itemRow = items[0];
-        }
 
         // Check if store exists and user has permission
         const [stores] = await req.db.execute(
@@ -573,19 +543,12 @@ router.post('/', authenticateToken, requireStoreOwner, [
             if (!meta) meta = await extractImageVarsFromPath(String(image_url || ''));
         } catch (e) { /* ignore */ }
 
-        const nameVal = (name !== undefined && name !== null && String(name).trim() !== '') ? name : (itemRow ? itemRow.name : null);
-        const descVal = (description !== undefined && description !== null) ? description : (itemRow ? itemRow.description : null);
-        const imgVal = (image_url !== undefined && image_url !== null && String(image_url).length > 0) ? image_url : (itemRow ? itemRow.image_url : null);
-        const categoryVal = (category_id !== undefined && category_id !== null && String(category_id).length > 0) ? category_id : (itemRow ? itemRow.category_id : null);
-        const unitVal = (unit_id !== undefined && unit_id !== null && String(unit_id).length > 0) ? unit_id : (itemRow ? itemRow.unit_id : null);
-        const sizeVal = (size_id !== undefined && size_id !== null && String(size_id).length > 0) ? size_id : (itemRow ? itemRow.size_id : null);
-
         const insertFields = ['name','description','price','image_url','category_id','store_id','stock_quantity'];
         const insertPlaceholders = ['?','?','?','?','?','?','?'];
-        const insertValues = [nameVal, descVal, price, imgVal, categoryVal || null, store_id, stock_quantity];
+        const insertValues = [name || null, description || null, price, image_url || null, category_id || null, store_id, stock_quantity];
         if (item_id) { insertFields.push('item_id'); insertPlaceholders.push('?'); insertValues.push(item_id); }
-        if (unitVal) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unitVal); }
-        if (sizeVal) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(sizeVal); }
+        if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
+        if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
         if (meta) {
             insertFields.push('image_bg_r','image_bg_g','image_bg_b','image_overlay_alpha','image_contrast');
             insertPlaceholders.push('?,?,?,?,?');

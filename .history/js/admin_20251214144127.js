@@ -2667,7 +2667,6 @@ async function saveProduct() {
         size_id: formData.get('size_id') || null,
         item_id: usingItem ? rawItemId : null
     };
-    if (!usingItem) { delete productData.item_id; }
 
     // If a file was selected, upload it first to server to get back a public URL and variants
     const fileInput = document.getElementById('productImageFile');

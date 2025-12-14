@@ -2513,47 +2513,27 @@ async function showAddProductModal() {
             });
         }
 
-        // Populate items dropdown and wire selection behavior
         const itemSelect = document.getElementById('productItem');
         if (itemSelect) {
-            // build map for quick lookup
-            const itemsById = {};
+            itemSelect.innerHTML = '<option value="">None</option>';
             if (itemsData && itemsData.success && Array.isArray(itemsData.items)) {
-                itemSelect.innerHTML = '<option value="">None</option>';
                 itemsData.items.forEach(it => {
-                    itemsById[it.id] = it;
-                    const label = it.category_name ? `${it.name} — ${it.category_name}` : it.name;
-                    itemSelect.innerHTML += `<option value="${it.id}">${label}</option>`;
+                    const cat = it.category_name ? ` (${it.category_name})` : '';
+                    itemSelect.innerHTML += `<option value="${it.id}">${it.name}${cat}</option>`;
                 });
             }
-            const nameEl = document.getElementById('productName');
-            const descEl = document.getElementById('productDescription');
-            const imgUrlEl = document.getElementById('productImage');
-            const fileEl = document.getElementById('productImageFile');
-            const unitSel = document.getElementById('productUnit');
-            const sizeSel = document.getElementById('productSize');
-            const catSel = document.getElementById('productCategory');
-
-            const applyItemSelection = (val) => {
-                const usingItem = !!val;
-                if (nameEl) { nameEl.disabled = usingItem; nameEl.required = !usingItem; if (usingItem) nameEl.value = ''; }
-                if (descEl) { descEl.disabled = usingItem; if (usingItem) descEl.value = ''; }
-                if (imgUrlEl) { imgUrlEl.disabled = usingItem; if (usingItem) imgUrlEl.value = ''; }
-                if (fileEl) { fileEl.disabled = usingItem; if (usingItem) { try { fileEl.value = ''; } catch(e){} } }
-
-                if (usingItem && itemsById[val]) {
-                    const it = itemsById[val];
-                    if (catSel && it.category_id) catSel.value = it.category_id;
-                    if (unitSel && it.unit_id) unitSel.value = it.unit_id;
-                    if (sizeSel && it.size_id) sizeSel.value = it.size_id;
-                }
+            itemSelect.onchange = () => {
+                const useItem = !!itemSelect.value;
+                const nameEl = document.getElementById('productName');
+                const descEl = document.getElementById('productDescription');
+                const imgUrlEl = document.getElementById('productImage');
+                const fileEl = document.getElementById('productImageFile');
+                if (nameEl) nameEl.disabled = useItem;
+                if (descEl) descEl.disabled = useItem;
+                if (imgUrlEl) imgUrlEl.disabled = useItem;
+                if (fileEl) fileEl.disabled = useItem;
             };
-
-            itemSelect.addEventListener('change', (e) => applyItemSelection(e.target.value));
-            applyItemSelection(itemSelect.value);
         }
-
-        
 
         // Populate units and sizes
         try {
@@ -2634,40 +2614,18 @@ async function showAddProductModal() {
 async function saveProduct() {
     const formEl = document.getElementById('addProductForm');
     const formData = new FormData(formEl);
-    const rawStoreId = formData.get('store_id');
-    const rawPrice = formData.get('price');
-    const rawName = (formData.get('name') || '').trim();
-    const rawItemId = formData.get('item_id') || '';
-    const storeId = parseInt(rawStoreId, 10);
-    const priceVal = parseFloat(rawPrice);
-    const usingItem = !!rawItemId;
-
-    if (!Number.isInteger(storeId) || storeId <= 0) {
-        showError('Invalid Input', 'Please select a store');
-        return;
-    }
-    if (!Number.isFinite(priceVal) || priceVal < 0) {
-        showError('Invalid Input', 'Please enter a valid price');
-        return;
-    }
-    if (!usingItem && rawName.length < 2) {
-        showError('Invalid Input', 'Please enter a product name or choose an existing item');
-        return;
-    }
-
     const productData = {
-        name: usingItem ? null : rawName,
-        description: usingItem ? null : formData.get('description'),
-        price: priceVal,
-        image_url: usingItem ? null : formData.get('image_url'),
+        name: formData.get('item_id') ? null : formData.get('name'),
+        description: formData.get('item_id') ? null : formData.get('description'),
+        price: parseFloat(formData.get('price')),
+        image_url: formData.get('item_id') ? null : formData.get('image_url'),
         category_id: formData.get('category_id') || null,
-        store_id: storeId,
-        stock_quantity: parseInt(formData.get('stock_quantity'), 10) || 0,
+        store_id: parseInt(formData.get('store_id')),
+        stock_quantity: parseInt(formData.get('stock_quantity')) || 0,
         unit_id: formData.get('unit_id') || null,
         size_id: formData.get('size_id') || null,
-        item_id: usingItem ? rawItemId : null
+        item_id: formData.get('item_id') || null
     };
-    if (!usingItem) { delete productData.item_id; }
 
     // If a file was selected, upload it first to server to get back a public URL and variants
     const fileInput = document.getElementById('productImageFile');
@@ -2735,8 +2693,7 @@ async function saveProduct() {
             editingProductId = null;
             loadProducts();
         } else {
-            const msg = data.message || (data.errors ? data.errors.map(e => e.msg).join(', ') : 'Failed to create product');
-            showError('Error', msg);
+            showError('Error', data.message || 'Failed to create product');
         }
     } catch (error) {
         console.error('Error creating product:', error);

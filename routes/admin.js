@@ -172,3 +172,59 @@ router.get('/backup-db/download', authenticateToken, requireAdmin, async (req, r
         return res.status(500).json({ success: false, message: 'Download failed', error: err.message });
     }
 });
+
+router.post('/migrate/items', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const createItemsSql = `
+            CREATE TABLE IF NOT EXISTS items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT NULL,
+                image_url VARCHAR(255) NULL,
+                category_id INT NULL,
+                unit_id INT NULL,
+                size_id INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `;
+        await req.db.execute(createItemsSql);
+
+        const [[colExists]] = await req.db.execute(`
+            SELECT COUNT(*) AS cnt
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'products' AND COLUMN_NAME = 'item_id'
+        `, [process.env.DB_NAME || process.env.MYSQL_DATABASE]);
+        if (!colExists || !colExists.cnt) {
+            await req.db.execute(`ALTER TABLE products ADD COLUMN item_id INT NULL`);
+        }
+
+        await req.db.execute(`ALTER TABLE items ADD UNIQUE KEY uniq_items (name, category_id, unit_id, size_id)`);
+
+        await req.db.execute(`
+            INSERT INTO items (name, description, image_url, category_id, unit_id, size_id)
+            SELECT p.name, 
+                   SUBSTRING_INDEX(GROUP_CONCAT(IFNULL(p.description, '') ORDER BY p.id SEPARATOR '||'), '||', 1),
+                   SUBSTRING_INDEX(GROUP_CONCAT(IFNULL(p.image_url, '') ORDER BY p.id SEPARATOR '||'), '||', 1),
+                   p.category_id, p.unit_id, p.size_id
+            FROM products p
+            GROUP BY p.name, p.category_id, p.unit_id, p.size_id
+            ON DUPLICATE KEY UPDATE description=VALUES(description), image_url=VALUES(image_url)
+        `);
+
+        const [updateRes] = await req.db.execute(`
+            UPDATE products p
+            JOIN items i
+              ON i.name = p.name
+             AND (i.category_id <=> p.category_id)
+             AND (i.unit_id <=> p.unit_id)
+             AND (i.size_id <=> p.size_id)
+            SET p.item_id = i.id
+            WHERE p.item_id IS NULL
+        `);
+
+        return res.json({ success: true, message: 'Migration completed', updated: updateRes.affectedRows || 0 });
+    } catch (err) {
+        console.error('Items migration error:', err);
+        return res.status(500).json({ success: false, message: 'Migration failed', error: err.message });
+    }
+});

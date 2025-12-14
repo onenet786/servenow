@@ -2513,47 +2513,27 @@ async function showAddProductModal() {
             });
         }
 
-        // Populate items dropdown and wire selection behavior
         const itemSelect = document.getElementById('productItem');
         if (itemSelect) {
-            // build map for quick lookup
-            const itemsById = {};
+            itemSelect.innerHTML = '<option value="">None</option>';
             if (itemsData && itemsData.success && Array.isArray(itemsData.items)) {
-                itemSelect.innerHTML = '<option value="">None</option>';
                 itemsData.items.forEach(it => {
-                    itemsById[it.id] = it;
-                    const label = it.category_name ? `${it.name} — ${it.category_name}` : it.name;
-                    itemSelect.innerHTML += `<option value="${it.id}">${label}</option>`;
+                    const cat = it.category_name ? ` (${it.category_name})` : '';
+                    itemSelect.innerHTML += `<option value="${it.id}">${it.name}${cat}</option>`;
                 });
             }
-            const nameEl = document.getElementById('productName');
-            const descEl = document.getElementById('productDescription');
-            const imgUrlEl = document.getElementById('productImage');
-            const fileEl = document.getElementById('productImageFile');
-            const unitSel = document.getElementById('productUnit');
-            const sizeSel = document.getElementById('productSize');
-            const catSel = document.getElementById('productCategory');
-
-            const applyItemSelection = (val) => {
-                const usingItem = !!val;
-                if (nameEl) { nameEl.disabled = usingItem; nameEl.required = !usingItem; if (usingItem) nameEl.value = ''; }
-                if (descEl) { descEl.disabled = usingItem; if (usingItem) descEl.value = ''; }
-                if (imgUrlEl) { imgUrlEl.disabled = usingItem; if (usingItem) imgUrlEl.value = ''; }
-                if (fileEl) { fileEl.disabled = usingItem; if (usingItem) { try { fileEl.value = ''; } catch(e){} } }
-
-                if (usingItem && itemsById[val]) {
-                    const it = itemsById[val];
-                    if (catSel && it.category_id) catSel.value = it.category_id;
-                    if (unitSel && it.unit_id) unitSel.value = it.unit_id;
-                    if (sizeSel && it.size_id) sizeSel.value = it.size_id;
-                }
+            itemSelect.onchange = () => {
+                const useItem = !!itemSelect.value;
+                const nameEl = document.getElementById('productName');
+                const descEl = document.getElementById('productDescription');
+                const imgUrlEl = document.getElementById('productImage');
+                const fileEl = document.getElementById('productImageFile');
+                if (nameEl) nameEl.disabled = useItem;
+                if (descEl) descEl.disabled = useItem;
+                if (imgUrlEl) imgUrlEl.disabled = useItem;
+                if (fileEl) fileEl.disabled = useItem;
             };
-
-            itemSelect.addEventListener('change', (e) => applyItemSelection(e.target.value));
-            applyItemSelection(itemSelect.value);
         }
-
-        
 
         // Populate units and sizes
         try {
@@ -2667,7 +2647,6 @@ async function saveProduct() {
         size_id: formData.get('size_id') || null,
         item_id: usingItem ? rawItemId : null
     };
-    if (!usingItem) { delete productData.item_id; }
 
     // If a file was selected, upload it first to server to get back a public URL and variants
     const fileInput = document.getElementById('productImageFile');

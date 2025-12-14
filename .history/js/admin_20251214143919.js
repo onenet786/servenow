@@ -2553,7 +2553,27 @@ async function showAddProductModal() {
             applyItemSelection(itemSelect.value);
         }
 
-        
+        const itemSelect = document.getElementById('productItem');
+        if (itemSelect) {
+            itemSelect.innerHTML = '<option value="">None</option>';
+            if (itemsData && itemsData.success && Array.isArray(itemsData.items)) {
+                itemsData.items.forEach(it => {
+                    const cat = it.category_name ? ` (${it.category_name})` : '';
+                    itemSelect.innerHTML += `<option value="${it.id}">${it.name}${cat}</option>`;
+                });
+            }
+            itemSelect.onchange = () => {
+                const useItem = !!itemSelect.value;
+                const nameEl = document.getElementById('productName');
+                const descEl = document.getElementById('productDescription');
+                const imgUrlEl = document.getElementById('productImage');
+                const fileEl = document.getElementById('productImageFile');
+                if (nameEl) nameEl.disabled = useItem;
+                if (descEl) descEl.disabled = useItem;
+                if (imgUrlEl) imgUrlEl.disabled = useItem;
+                if (fileEl) fileEl.disabled = useItem;
+            };
+        }
 
         // Populate units and sizes
         try {
@@ -2667,7 +2687,6 @@ async function saveProduct() {
         size_id: formData.get('size_id') || null,
         item_id: usingItem ? rawItemId : null
     };
-    if (!usingItem) { delete productData.item_id; }
 
     // If a file was selected, upload it first to server to get back a public URL and variants
     const fileInput = document.getElementById('productImageFile');
