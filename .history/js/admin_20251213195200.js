@@ -2735,14 +2735,11 @@ function showAddCategoryModal() {
 
 async function saveCategory() {
     const formData = new FormData(document.getElementById('addCategoryForm'));
-    const name = String(formData.get('name') || '').trim();
-    const description = String(formData.get('description') || '').trim();
-    const image_url = String(formData.get('image_url') || '').trim();
-    if (name.length < 2) {
-        showError('Validation Error', 'Category name must be at least 2 characters');
-        return;
-    }
-    const categoryData = { name, description, image_url };
+    const categoryData = {
+        name: formData.get('name'),
+        description: formData.get('description'),
+        image_url: formData.get('image_url')
+    };
     const catFileInput = document.getElementById('categoryImageFile');
     if (catFileInput && catFileInput.files && catFileInput.files.length > 0) {
         try {
@@ -2802,7 +2799,7 @@ async function editCategory(categoryId) {
     try {
         let c = (currentCategories || []).find(x => String(x.id) === String(categoryId));
         if (!c) {
-            const resp = await fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' });
+            const resp = await fetch(`${API_BASE}/api/categories`);
             const data = await resp.json();
             if (!data.success) { showError('Error', 'Failed to load categories'); return; }
             currentCategories = data.categories || [];
@@ -2810,32 +2807,26 @@ async function editCategory(categoryId) {
             if (!c) { showError('Error', 'Category not found'); return; }
         }
         showAddCategoryModal();
-        setTimeout(function(){
-            const form = document.getElementById('addCategoryForm');
-            if (!form) return;
-            const nameInput = document.getElementById('categoryName');
-            const imageInput = document.getElementById('categoryImage');
-            const descInput = document.getElementById('categoryDescription');
-            if (nameInput) nameInput.value = c.name || '';
-            if (imageInput) imageInput.value = c.image_url || '';
-            if (descInput) descInput.value = c.description || '';
-            const preview = document.getElementById('categoryImagePreview');
-            if (preview) {
-                if (c.image_url) {
-                    preview.src = c.image_url;
-                    preview.style.display = 'inline-block';
-                } else {
-                    preview.style.display = 'none';
-                }
+        const form = document.getElementById('addCategoryForm');
+        form.querySelector('#categoryName').value = c.name || '';
+        form.querySelector('#categoryImage').value = c.image_url || '';
+        form.querySelector('#categoryDescription').value = c.description || '';
+        const preview = document.getElementById('categoryImagePreview');
+        if (preview) {
+            if (c.image_url) {
+                preview.src = c.image_url;
+                preview.style.display = 'inline-block';
+            } else {
+                preview.style.display = 'none';
             }
-            const modal = document.getElementById('addCategoryModal');
-            if (modal) {
-                const titleEl = modal.querySelector('.modal-header h3');
-                if (titleEl) titleEl.textContent = 'Edit Category';
-                const saveBtn = modal.querySelector('#saveCategoryBtn');
-                if (saveBtn) saveBtn.textContent = 'Update Category';
-            }
-        }, 100);
+        }
+        const modal = document.getElementById('addCategoryModal');
+        if (modal) {
+            const titleEl = modal.querySelector('.modal-header h3');
+            if (titleEl) titleEl.textContent = 'Edit Category';
+            const saveBtn = modal.querySelector('#saveCategoryBtn');
+            if (saveBtn) saveBtn.textContent = 'Update Category';
+        }
     } catch (e) {
         console.error('Failed to load category for edit', e);
         showError('Error', 'Failed to load category for edit');
@@ -3877,7 +3868,7 @@ function displayStores(stores) {
 }
 
 function loadCategories() {
-    fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' })
+    fetch(`${API_BASE}/api/categories`)
     .then(response => response.json())
     .then(data => {
         currentCategories = data.categories || [];

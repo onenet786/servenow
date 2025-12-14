@@ -1039,7 +1039,69 @@
                         </div>
                     </div>
 
-                        
+                        <!-- Add Unit Modal -->
+                        <div id="addUnitModal" class="modal">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Add / Edit Unit</h3>
+                                    <span class="close" data-modal="addUnitModal">&times;</span>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="addUnitForm">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="unitName">Unit Name:</label>
+                                                <input type="text" id="unitName" name="name" required />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="unitAbbrev">Abbreviation:</label>
+                                                <input type="text" id="unitAbbrev" name="abbreviation" />
+                                            </div>
+                                        </div>
+                                        <div class="form-row-full">
+                                            <div class="form-group">
+                                                <label for="unitMultiplier">Multiplier (relative):</label>
+                                                <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" />
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                                    <button type="submit" form="addUnitForm" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Add Size Modal -->
+                        <div id="addSizeModal" class="modal">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Add / Edit Size</h3>
+                                    <span class="close" data-modal="addSizeModal">&times;</span>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="addSizeForm">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="sizeLabel">Label:</label>
+                                                <input type="text" id="sizeLabel" name="label" required />
+                                            </div>
+                                        </div>
+                                        <div class="form-row-full">
+                                            <div class="form-group">
+                                                <label for="sizeDescription">Description:</label>
+                                                <textarea id="sizeDescription" name="description"></textarea>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-modal="addSizeModal">Cancel</button>
+                                    <button type="button" class="btn btn-primary" id="saveSizeBtn">Save Size</button>
+                                </div>
+                            </div>
+                        </div>
                     <div class="form-row-full">
                         <div class="form-group">
                             <label for="categoryDescription">Description:</label>
@@ -1055,69 +1117,6 @@
         </div>
     </div>
 
-    <!-- Add Unit Modal (moved outside of addCategoryForm to avoid nested forms) -->
-    <div id="addUnitModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Add / Edit Unit</h3>
-                <span class="close" data-modal="addUnitModal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="addUnitForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="unitName">Unit Name:</label>
-                            <input type="text" id="unitName" name="name" required />
-                        </div>
-                        <div class="form-group">
-                            <label for="unitAbbrev">Abbreviation:</label>
-                            <input type="text" id="unitAbbrev" name="abbreviation" />
-                        </div>
-                    </div>
-                    <div class="form-row-full">
-                        <div class="form-group">
-                            <label for="unitMultiplier">Multiplier (relative):</label>
-                            <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" />
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
-                <button type="submit" form="addUnitForm" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add Size Modal (moved outside of addCategoryForm to avoid nested forms) -->
-    <div id="addSizeModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Add / Edit Size</h3>
-                <span class="close" data-modal="addSizeModal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="addSizeForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="sizeLabel">Label:</label>
-                            <input type="text" id="sizeLabel" name="label" required />
-                        </div>
-                    </div>
-                    <div class="form-row-full">
-                        <div class="form-group">
-                            <label for="sizeDescription">Description:</label>
-                            <textarea id="sizeDescription" name="description"></textarea>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-modal="addSizeModal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveSizeBtn">Save Size</button>
-            </div>
-        </div>
-    </div>
     <!-- Add Rider Modal -->
     <div id="addRiderModal" class="modal">
         <div class="modal-content">

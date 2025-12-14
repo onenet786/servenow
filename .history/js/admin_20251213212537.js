@@ -2735,14 +2735,11 @@ function showAddCategoryModal() {
 
 async function saveCategory() {
     const formData = new FormData(document.getElementById('addCategoryForm'));
-    const name = String(formData.get('name') || '').trim();
-    const description = String(formData.get('description') || '').trim();
-    const image_url = String(formData.get('image_url') || '').trim();
-    if (name.length < 2) {
-        showError('Validation Error', 'Category name must be at least 2 characters');
-        return;
-    }
-    const categoryData = { name, description, image_url };
+    const categoryData = {
+        name: formData.get('name'),
+        description: formData.get('description'),
+        image_url: formData.get('image_url')
+    };
     const catFileInput = document.getElementById('categoryImageFile');
     if (catFileInput && catFileInput.files && catFileInput.files.length > 0) {
         try {

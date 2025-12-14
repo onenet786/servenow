@@ -1647,6 +1647,36 @@ function assignRider(orderId) {
 }
 
 // Categories Management
+function loadCategories() {
+    fetch(`${API_BASE}/api/categories`)
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.getElementById('categoriesTableBody');
+        tbody.innerHTML = '';
+
+        data.categories.forEach(category => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${category.id}</td>
+                <td>${category.name}</td>
+                <td>${category.description || ''}</td>
+                <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
+                        ${category.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    })
+    .catch(error => console.error('Error loading categories:', error));
+}
+
+function editCategory(categoryId) {
+    showInfo('Coming Soon', 'Edit category functionality will be implemented soon');
+}
 
 function toggleCategoryStatus(categoryId, currentStatus) {
     fetch(`${API_BASE}/api/categories/${categoryId}`, {
@@ -2692,73 +2722,18 @@ async function editProduct(productId) {
     }
 }
 
+// Category Management Functions
 function showAddCategoryModal() {
     showModal('addCategoryModal');
-    try {
-        const pasteBtn = document.getElementById('pasteCategoryImageUrlBtn');
-        const urlInput = document.getElementById('categoryImage');
-        const fileInput = document.getElementById('categoryImageFile');
-        const preview = document.getElementById('categoryImagePreview');
-        if (pasteBtn) {
-            pasteBtn.onclick = () => {
-                const url = prompt('Paste image URL (http(s)://)');
-                if (url) {
-                    if (urlInput) urlInput.value = url;
-                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
-                }
-            };
-        }
-        if (urlInput) {
-            urlInput.oninput = () => {
-                if (urlInput.value) {
-                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
-                } else if (preview) {
-                    preview.style.display = 'none';
-                }
-            };
-        }
-        if (fileInput) {
-            fileInput.onchange = (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (file && preview) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        preview.src = ev.target.result;
-                        preview.style.display = 'inline-block';
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-        }
-    } catch (e) {}
 }
 
 async function saveCategory() {
     const formData = new FormData(document.getElementById('addCategoryForm'));
-    const name = String(formData.get('name') || '').trim();
-    const description = String(formData.get('description') || '').trim();
-    const image_url = String(formData.get('image_url') || '').trim();
-    if (name.length < 2) {
-        showError('Validation Error', 'Category name must be at least 2 characters');
-        return;
-    }
-    const categoryData = { name, description, image_url };
-    const catFileInput = document.getElementById('categoryImageFile');
-    if (catFileInput && catFileInput.files && catFileInput.files.length > 0) {
-        try {
-            const fd = new FormData();
-            fd.append('image', catFileInput.files[0]);
-            const upRes = await fetch(`${API_BASE}/api/categories/upload-image`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${authToken}` },
-                body: fd
-            });
-            const upJson = await upRes.json();
-            if (upJson.success && upJson.image_url) {
-                categoryData.image_url = upJson.image_url;
-            }
-        } catch (e) {}
-    }
+    const categoryData = {
+        name: formData.get('name'),
+        description: formData.get('description'),
+        image_url: formData.get('image_url')
+    };
 
     try {
         if (editingCategoryId) {
@@ -2800,50 +2775,48 @@ async function saveCategory() {
 async function editCategory(categoryId) {
     editingCategoryId = categoryId;
     try {
-        let c = (currentCategories || []).find(x => String(x.id) === String(categoryId));
-        if (!c) {
-            const resp = await fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' });
-            const data = await resp.json();
-            if (!data.success) { showError('Error', 'Failed to load categories'); return; }
-            currentCategories = data.categories || [];
-            c = (currentCategories || []).find(x => String(x.id) === String(categoryId));
-            if (!c) { showError('Error', 'Category not found'); return; }
-        }
-        showAddCategoryModal();
-        setTimeout(function(){
-            const form = document.getElementById('addCategoryForm');
-            if (!form) return;
-            const nameInput = document.getElementById('categoryName');
-            const imageInput = document.getElementById('categoryImage');
-            const descInput = document.getElementById('categoryDescription');
-            if (nameInput) nameInput.value = c.name || '';
-            if (imageInput) imageInput.value = c.image_url || '';
-            if (descInput) descInput.value = c.description || '';
-            const preview = document.getElementById('categoryImagePreview');
-            if (preview) {
-                if (c.image_url) {
-                    preview.src = c.image_url;
-                    preview.style.display = 'inline-block';
-                } else {
-                    preview.style.display = 'none';
-                }
-            }
-            const modal = document.getElementById('addCategoryModal');
-            if (modal) {
-                const titleEl = modal.querySelector('.modal-header h3');
-                if (titleEl) titleEl.textContent = 'Edit Category';
-                const saveBtn = modal.querySelector('#saveCategoryBtn');
-                if (saveBtn) saveBtn.textContent = 'Update Category';
-            }
-        }, 100);
+        const resp = await fetch(`${API_BASE}/api/categories`);
+        const data = await resp.json();
+        if (!data.success) { showError('Error', 'Failed to load categories'); return; }
+        const c = data.categories.find(x => x.id === categoryId);
+        if (!c) { showError('Error', 'Category not found'); return; }
+        const form = document.getElementById('addCategoryForm');
+        form.querySelector('#categoryName').value = c.name || '';
+        form.querySelector('#categoryImage').value = c.image_url || '';
+        form.querySelector('#categoryDescription').value = c.description || '';
+        showModal('addCategoryModal');
     } catch (e) {
         console.error('Failed to load category for edit', e);
         showError('Error', 'Failed to load category for edit');
     }
 }
 
-try { window.editCategory = editCategory; } catch (e) {}
+function editCategory(categoryId) {
+    const newName = prompt('Enter new category name:');
+    if (!newName) return;
 
+    fetch(`${API_BASE}/api/categories/${categoryId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ name: newName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadCategories();
+            showSuccess('Category Updated', 'Category updated successfully!');
+        } else {
+            showError('Error', 'Failed to update category');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating category:', error);
+        showError('Error', 'Failed to update category');
+    });
+}
 
 // Riders Management Functions
 function loadRiders() {
@@ -3877,7 +3850,7 @@ function displayStores(stores) {
 }
 
 function loadCategories() {
-    fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' })
+    fetch(`${API_BASE}/api/categories`)
     .then(response => response.json())
     .then(data => {
         currentCategories = data.categories || [];

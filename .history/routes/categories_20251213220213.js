@@ -36,16 +36,6 @@ router.get('/', async (req, res) => {
 router.post('/', authenticateToken, requireAdmin, async (req, res) => {
     try {
         let { name, description, image_url } = req.body;
-        if (description === undefined) description = null;
-        if (image_url === undefined) image_url = null;
-        // if (typeof description === 'string') {
-        //     description = description.trim();
-        //     if (description.length === 0) description = null;
-        // }
-        if (typeof image_url === 'string') {
-            image_url = image_url.trim();
-            if (image_url.length === 0) image_url = null;
-        }
 
         if (!name || name.trim().length < 2) {
             return res.status(400).json({
@@ -54,36 +44,19 @@ router.post('/', authenticateToken, requireAdmin, async (req, res) => {
             });
         }
 
-         if (!description || description.trim().length < 2) {
-            return res.status(400).json({
-                success: false,
-                message: 'Category name must be at least 2 characters'
-            });
-        }
-
-
+        // If image_url is a remote link, download it to uploads
         try {
-            if (image_url) {
-                const s = String(image_url);
-                if (/^https?:\/\//i.test(s)) {
-                    const dl = await downloadImageToUploads(s);
-                    if (dl && dl.publicPath) {
-                        image_url = dl.publicPath;
-                    }
-                } else if (/^data:/i.test(s)) {
-                    const saved = await saveDataUriToUploads(s);
-                    if (saved && saved.publicPath) {
-                        image_url = saved.publicPath;
-                    } else {
-                        image_url = null;
-                    }
+            if (image_url && /^https?:\/\//i.test(String(image_url))) {
+                const dl = await downloadImageToUploads(String(image_url));
+                if (dl && dl.publicPath) {
+                    image_url = dl.publicPath;
                 }
             }
         } catch (e) {}
 
         const [result] = await req.db.execute(
             'INSERT INTO categories (name, description, image_url) VALUES (?, ?, ?)',
-            [name.trim(), description.trim(), image_url]
+            [name.trim(), , image_url]
         );
 
         res.status(201).json({
@@ -121,36 +94,18 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
             updateValues.push(name.trim());
         }
         if (description !== undefined) {
-            if (typeof description === 'string') {
-                description = description.trim();
-                if (description.length === 0) description = null;
-            }
             updateFields.push('description = ?');
             updateValues.push(description);
         }
         if (image_url !== undefined) {
             try {
-                if (image_url) {
-                    const s = String(image_url);
-                    if (/^https?:\/\//i.test(s)) {
-                        const dl = await downloadImageToUploads(s);
-                        if (dl && dl.publicPath) {
-                            image_url = dl.publicPath;
-                        }
-                    } else if (/^data:/i.test(s)) {
-                        const saved = await saveDataUriToUploads(s);
-                        if (saved && saved.publicPath) {
-                            image_url = saved.publicPath;
-                        } else {
-                            image_url = null;
-                        }
+                if (image_url && /^https?:\/\//i.test(String(image_url))) {
+                    const dl = await downloadImageToUploads(String(image_url));
+                    if (dl && dl.publicPath) {
+                        image_url = dl.publicPath;
                     }
                 }
             } catch (e) {}
-            if (typeof image_url === 'string') {
-                image_url = image_url.trim();
-                if (image_url.length === 0) image_url = null;
-            }
             updateFields.push('image_url = ?');
             updateValues.push(image_url);
         }
@@ -262,39 +217,3 @@ router.post('/upload-image', authenticateToken, requireAdmin, upload.single('ima
     }
 });
 
-// Save data URI (base64) image into uploads and return public path
-async function saveDataUriToUploads(dataUri) {
-    try {
-        if (!/^data:/i.test(String(dataUri))) return null;
-        const match = String(dataUri).match(/^data:([^;]+);base64,(.+)$/i);
-        if (!match) return null;
-        const mime = match[1] || 'image/jpeg';
-        const b64 = match[2];
-        const uploadDir = path.join(__dirname, '..', 'uploads');
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-        let ext = '.jpg';
-        if (mime.includes('png')) ext = '.png';
-        else if (mime.includes('gif')) ext = '.gif';
-        else if (mime.includes('webp')) ext = '.webp';
-        else if (mime.includes('svg')) ext = '.svg';
-        else if (mime.includes('jpeg') || mime.includes('jpg')) ext = '.jpg';
-        const baseName = `category_${Date.now()}_${Math.round(Math.random()*1000)}`;
-        const outName = `${baseName}${ext}`;
-        const outPath = path.join(uploadDir, outName);
-        const buffer = Buffer.from(b64, 'base64');
-        fs.writeFileSync(outPath, buffer);
-        if (sharp) {
-            const sizes = [320, 640, 1024];
-            for (const w of sizes) {
-                try {
-                    const vname = `${baseName}_${w}${ext}`;
-                    const vpath = path.join(uploadDir, vname);
-                    await sharp(outPath).resize({ width: w }).toFile(vpath);
-                } catch (err) {}
-            }
-        }
-        return { publicPath: '/uploads/' + outName };
-    } catch (e) {
-        return null;
-    }
-}

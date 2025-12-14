@@ -1647,6 +1647,36 @@ function assignRider(orderId) {
 }
 
 // Categories Management
+function loadCategories() {
+    fetch(`${API_BASE}/api/categories`)
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.getElementById('categoriesTableBody');
+        tbody.innerHTML = '';
+
+        data.categories.forEach(category => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${category.id}</td>
+                <td>${category.name}</td>
+                <td>${category.description || ''}</td>
+                <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
+                    <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
+                        ${category.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    })
+    .catch(error => console.error('Error loading categories:', error));
+}
+
+function editCategory(categoryId) {
+    showInfo('Coming Soon', 'Edit category functionality will be implemented soon');
+}
 
 function toggleCategoryStatus(categoryId, currentStatus) {
     fetch(`${API_BASE}/api/categories/${categoryId}`, {
@@ -2693,106 +2723,103 @@ async function editProduct(productId) {
 }
 
 function showAddCategoryModal() {
+    editingCategoryId = null;
     showModal('addCategoryModal');
-    try {
-        const pasteBtn = document.getElementById('pasteCategoryImageUrlBtn');
-        const urlInput = document.getElementById('categoryImage');
-        const fileInput = document.getElementById('categoryImageFile');
-        const preview = document.getElementById('categoryImagePreview');
-        if (pasteBtn) {
-            pasteBtn.onclick = () => {
-                const url = prompt('Paste image URL (http(s)://)');
-                if (url) {
-                    if (urlInput) urlInput.value = url;
-                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
-                }
-            };
-        }
-        if (urlInput) {
-            urlInput.oninput = () => {
-                if (urlInput.value) {
-                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
-                } else if (preview) {
-                    preview.style.display = 'none';
-                }
-            };
-        }
-        if (fileInput) {
-            fileInput.onchange = (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (file && preview) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        preview.src = ev.target.result;
-                        preview.style.display = 'inline-block';
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-        }
-    } catch (e) {}
+    const modal = document.getElementById('addCategoryModal');
+    if (modal) {
+        const titleEl = modal.querySelector('.modal-header h3');
+        if (titleEl) titleEl.textContent = 'Add New Category';
+        const saveBtn = modal.querySelector('#saveCategoryBtn');
+        if (saveBtn) saveBtn.textContent = 'Save Category';
+    }
+    const form = document.getElementById('addCategoryForm');
+    if (form) {
+        const nameInput = form.querySelector('#categoryName'); if (nameInput) nameInput.value = '';
+        const imageInput = form.querySelector('#categoryImage'); if (imageInput) imageInput.value = '';
+        const descInput = form.querySelector('#categoryDescription'); if (descInput) descInput.value = '';
+    }
+    const preview = document.getElementById('categoryImagePreview');
+    if (preview) { preview.src = ''; preview.style.display = 'none'; }
+    const pasteBtn = document.getElementById('pasteCategoryImageUrlBtn');
+    const urlInput = document.getElementById('categoryImage');
+    const fileInput = document.getElementById('categoryImageFile');
+    if (pasteBtn) {
+        pasteBtn.onclick = () => {
+            const url = prompt('Paste image URL (http(s)://)');
+            if (url) {
+                if (urlInput) urlInput.value = url;
+                if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
+            }
+        };
+    }
+    if (urlInput) {
+        urlInput.oninput = () => {
+            if (urlInput.value) {
+                if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
+            } else if (preview) {
+                preview.style.display = 'none';
+            }
+        };
+    }
+    if (fileInput) {
+        fileInput.onchange = (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file && preview) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    preview.src = ev.target.result;
+                    preview.style.display = 'inline-block';
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+    }
 }
 
 async function saveCategory() {
-    const formData = new FormData(document.getElementById('addCategoryForm'));
-    const name = String(formData.get('name') || '').trim();
-    const description = String(formData.get('description') || '').trim();
-    const image_url = String(formData.get('image_url') || '').trim();
-    if (name.length < 2) {
-        showError('Validation Error', 'Category name must be at least 2 characters');
-        return;
-    }
-    const categoryData = { name, description, image_url };
-    const catFileInput = document.getElementById('categoryImageFile');
-    if (catFileInput && catFileInput.files && catFileInput.files.length > 0) {
-        try {
-            const fd = new FormData();
-            fd.append('image', catFileInput.files[0]);
-            const upRes = await fetch(`${API_BASE}/api/categories/upload-image`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${authToken}` },
-                body: fd
-            });
-            const upJson = await upRes.json();
-            if (upJson.success && upJson.image_url) {
-                categoryData.image_url = upJson.image_url;
-            }
-        } catch (e) {}
-    }
-
+    const form = document.getElementById('addCategoryForm');
+    const nameEl = form ? form.querySelector('#categoryName') : null;
+    const descEl = form ? form.querySelector('#categoryDescription') : null;
+    const imgEl = form ? form.querySelector('#categoryImage') : null;
+    const name = nameEl ? String(nameEl.value || '').trim() : '';
+    const description = descEl ? String(descEl.value || '').trim() : '';
+    const image_url = imgEl ? String(imgEl.value || '').trim() : '';
+    if (!name || name.length < 2) { showError('Validation', 'Category name must be at least 2 characters'); return; }
+    const categoryData = { name, description: (description !== undefined ? description : '') };
     try {
         if (editingCategoryId) {
-            const response = await fetch(`${API_BASE}/api/categories/${editingCategoryId}`, {
+            if (image_url) categoryData.image_url = image_url;
+            const r = await fetch(`${API_BASE}/api/categories/${editingCategoryId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                 body: JSON.stringify(categoryData)
             });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('Category Updated', 'Category updated successfully!');
+            const d = await r.json();
+            if (d && d.success) {
+                showSuccess('Updated', 'Category updated');
                 hideModal('addCategoryModal');
                 editingCategoryId = null;
                 loadCategories();
             } else {
-                showError('Error', data.message || 'Failed to update category');
+                showError('Error', (d && d.message) || 'Failed to update category');
             }
         } else {
-            const response = await fetch(`${API_BASE}/api/categories`, {
+            categoryData.image_url = image_url || '';
+            const r = await fetch(`${API_BASE}/api/categories`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
                 body: JSON.stringify(categoryData)
             });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('Category Created', 'Category created successfully!');
+            const d = await r.json();
+            if (d && d.success) {
+                showSuccess('Created', 'Category created');
                 hideModal('addCategoryModal');
                 loadCategories();
             } else {
-                showError('Error', data.message || 'Failed to create category');
+                showError('Error', (d && d.message) || 'Failed to create category');
             }
         }
-    } catch (error) {
-        console.error('Error creating/updating category:', error);
+    } catch (e) {
         showError('Error', 'Failed to save category');
     }
 }
@@ -2802,7 +2829,7 @@ async function editCategory(categoryId) {
     try {
         let c = (currentCategories || []).find(x => String(x.id) === String(categoryId));
         if (!c) {
-            const resp = await fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' });
+            const resp = await fetch(`${API_BASE}/api/categories`);
             const data = await resp.json();
             if (!data.success) { showError('Error', 'Failed to load categories'); return; }
             currentCategories = data.categories || [];
@@ -2813,36 +2840,27 @@ async function editCategory(categoryId) {
         setTimeout(function(){
             const form = document.getElementById('addCategoryForm');
             if (!form) return;
-            const nameInput = document.getElementById('categoryName');
-            const imageInput = document.getElementById('categoryImage');
-            const descInput = document.getElementById('categoryDescription');
-            if (nameInput) nameInput.value = c.name || '';
-            if (imageInput) imageInput.value = c.image_url || '';
-            if (descInput) descInput.value = c.description || '';
+            const nameInput = form.querySelector('#categoryName'); if (nameInput) nameInput.value = c.name || '';
+            const imageInput = form.querySelector('#categoryImage'); if (imageInput) imageInput.value = c.image_url || '';
+            const descInput = form.querySelector('#categoryDescription'); if (descInput) descInput.value = c.description || '';
             const preview = document.getElementById('categoryImagePreview');
             if (preview) {
-                if (c.image_url) {
-                    preview.src = c.image_url;
-                    preview.style.display = 'inline-block';
-                } else {
-                    preview.style.display = 'none';
-                }
+                if (c.image_url) { preview.src = c.image_url; preview.style.display = 'inline-block'; }
+                else { preview.style.display = 'none'; }
             }
             const modal = document.getElementById('addCategoryModal');
             if (modal) {
-                const titleEl = modal.querySelector('.modal-header h3');
-                if (titleEl) titleEl.textContent = 'Edit Category';
-                const saveBtn = modal.querySelector('#saveCategoryBtn');
-                if (saveBtn) saveBtn.textContent = 'Update Category';
+                const titleEl = modal.querySelector('.modal-header h3'); if (titleEl) titleEl.textContent = 'Edit Category';
+                const saveBtn = modal.querySelector('#saveCategoryBtn'); if (saveBtn) saveBtn.textContent = 'Update Category';
             }
-        }, 100);
+        }, 50);
     } catch (e) {
-        console.error('Failed to load category for edit', e);
         showError('Error', 'Failed to load category for edit');
     }
 }
 
 try { window.editCategory = editCategory; } catch (e) {}
+try { window.showAddCategoryModal = showAddCategoryModal; } catch (e) {}
 
 
 // Riders Management Functions
@@ -3877,7 +3895,7 @@ function displayStores(stores) {
 }
 
 function loadCategories() {
-    fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' })
+    fetch(`${API_BASE}/api/categories`)
     .then(response => response.json())
     .then(data => {
         currentCategories = data.categories || [];
