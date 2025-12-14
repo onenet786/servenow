@@ -163,7 +163,7 @@ function initializeAdmin() {
             const modal = document.createElement('div');
             modal.id = id;
             modal.className = 'modal';
-            modal.innerHTML = `\n                <div class="modal-content">\n                    <span class="close" data-modal="${id}">&times;</span>\n                    <h3>${title}</h3>\n                    <form id="${formId}">\n                        ${fieldsHtml}\n                        <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">\n                            <button type="button" class="btn btn-primary" id="${saveBtnId}">Save</button>\n                            <button type="button" class="btn btn-secondary" data-modal="${id}">Cancel</button>\n                        </div>\n                    </form>\n                </div>\n            `;
+            modal.innerHTML = `\n                <div class="modal-content">\n                    <span class="close" data-modal="${id}">&times;</span>\n                    <h3>${title}</h3>\n                    <form id="${formId}">\n                        ${fieldsHtml}\n                        <div class="modal-footer">\n                            <div class="action-buttons">\n                                <button type="button" class="btn btn-small btn-primary" id="${saveBtnId}"><i class="fas fa-check"></i> Save</button>\n                                <button type="button" class="btn btn-small btn-secondary" data-modal="${id}"><i class="fas fa-ban"></i> Cancel</button>\n                            </div>\n                        </div>\n                    </form>\n                </div>\n            `;
             document.body.appendChild(modal);
         };
 
@@ -1461,7 +1461,11 @@ function displayOrders(orders) {
             <td>${order.rider_location || 'N/A'}</td>
             <td>${new Date(order.created_at).toLocaleDateString()}</td>
             <td>
-                <button class="btn btn-small btn-edit" onclick="editOrder(${order.id})">Edit Order</button>
+                <div class="action-buttons">
+                    <button class="btn-small btn-edit" onclick="editOrder(${order.id})">
+                        <i class="fas fa-edit"></i> Edit Order
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
@@ -1699,8 +1703,14 @@ async function loadUnits() {
                 <td>${u.abbreviation || ''}</td>
                 <td>${typeof u.multiplier !== 'undefined' ? parseFloat(u.multiplier).toFixed(4) : ''}</td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editUnit(${u.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="deleteUnit(${u.id})">Delete</button>
+                    <div class="action-buttons">
+                        <button class="btn-small btn-edit" onclick="editUnit(${u.id})">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn-small btn-secondary" onclick="deleteUnit(${u.id})">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(row);
@@ -1739,9 +1749,11 @@ function showAddUnitModal() {
                         <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" autocomplete="off" />
                     </div>
                 </div>
-                <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
-                    <button type="submit" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
-                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                <div class="modal-footer">
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-small btn-primary" id="saveUnitBtn"><i class="fas fa-check"></i> Save Unit</button>
+                        <button type="button" class="btn btn-small btn-secondary" data-modal="addUnitModal"><i class="fas fa-ban"></i> Cancel</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -1901,9 +1913,11 @@ async function editUnit(unitId) {
                         <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="${multPrefill}" autocomplete="off" />
                     </div>
                 </div>
-                <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
-                    <button type="submit" class="btn btn-primary" id="saveUnitBtn">Update Unit</button>
-                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                <div class="modal-footer">
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-small btn-primary" id="saveUnitBtn"><i class="fas fa-check"></i> Update Unit</button>
+                        <button type="button" class="btn btn-small btn-secondary" data-modal="addUnitModal"><i class="fas fa-ban"></i> Cancel</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -1952,8 +1966,14 @@ async function loadSizes() {
                 <td>${s.label}</td>
                 <td>${s.description || ''}</td>
                 <td>
-                    <button class="btn btn-small btn-edit" onclick="editSize(${s.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="deleteSize(${s.id})">Delete</button>
+                    <div class="action-buttons">
+                        <button class="btn-small btn-edit" onclick="editSize(${s.id})">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn-small btn-secondary" onclick="deleteSize(${s.id})">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(row);
@@ -3073,9 +3093,11 @@ function showAddUnitModal() {
                         <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" autocomplete="off" />
                     </div>
                 </div>
-                <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
-                    <button type="submit" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
-                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                <div class="modal-footer">
+                    <div class="action-buttons">
+                        <button type="submit" class="btn btn-small btn-primary" id="saveUnitBtn"><i class="fas fa-check"></i> Save Unit</button>
+                        <button type="button" class="btn btn-small btn-secondary" data-modal="addUnitModal"><i class="fas fa-ban"></i> Cancel</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -3747,10 +3769,14 @@ function displayUsers(users) {
             <td>${user.user_type}</td>
             <td><span class="status-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <button class="btn btn-small btn-edit" onclick="editUser(${user.id})">Edit</button>
-                <button class="btn btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
-                    ${user.is_active ? 'Deactivate' : 'Activate'}
-                </button>
+                <div class="action-buttons">
+                    <button class="btn-small btn-edit" onclick="editUser(${user.id})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
+                        <i class="fas fa-${user.is_active ? 'ban' : 'check'}"></i> ${user.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
@@ -3782,10 +3808,14 @@ function displayStores(stores) {
             <td>${store.rating} ⭐</td>
             <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <button class="btn btn-small btn-edit" onclick="editStore(${store.id})">Edit</button>
-                <button class="btn btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
-                    ${store.is_active ? 'Deactivate' : 'Activate'}
-                </button>
+                <div class="action-buttons">
+                    <button class="btn-small btn-edit" onclick="editStore(${store.id})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-small btn-secondary" onclick="toggleStoreStatus(${store.id}, ${store.is_active})">
+                        <i class="fas fa-${store.is_active ? 'ban' : 'check'}"></i> ${store.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </div>
             </td>
         `;
         const ensureHoverCard = () => {
@@ -3899,10 +3929,14 @@ function displayCategories(categories) {
             <td>${category.description || ''}</td>
             <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
-                <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
-                    ${category.is_active ? 'Deactivate' : 'Activate'}
-                </button>
+                <div class="action-buttons">
+                    <button class="btn-small btn-edit" onclick="editCategory(${category.id})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
+                        <i class="fas fa-${category.is_active ? 'ban' : 'check'}"></i> ${category.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
@@ -3938,11 +3972,15 @@ function displayRiders(riders) {
             <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
             <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
-                <button class="btn btn-small btn-edit" onclick="editRider(${rider.id})">Edit</button>
-                <button class="btn btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
-                    ${rider.is_active ? 'Deactivate' : 'Activate'}
-                </button>
-                <button class="btn btn-small btn-secondary" onclick="openFuelForRider(${rider.id})">Fuel</button>
+                <div class="action-buttons">
+                    <button class="btn-small btn-edit" onclick="editRider(${rider.id})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
+                        <i class="fas fa-${rider.is_active ? 'ban' : 'check'}"></i> ${rider.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button class="btn-small btn-secondary" onclick="openFuelForRider(${rider.id})">Fuel</button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
