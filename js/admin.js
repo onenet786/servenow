@@ -167,7 +167,7 @@ function initializeAdmin() {
             document.body.appendChild(modal);
         };
 
-        ensureModal('addUnitModal', 'addUnitForm', `\n            <label for="unitName">Name</label>\n            <input id="unitName" name="name" required />\n            <label for="unitAbbrev">Abbreviation</label>\n            <input id="unitAbbrev" name="abbreviation" />\n            <label for="unitMultiplier">Multiplier</label>\n            <input id="unitMultiplier" name="multiplier" type="number" step="0.0001" value="1.0000" />\n        `, 'saveUnitBtn', 'Add / Edit Unit');
+        ensureModal('addUnitModal', 'addUnitForm', `\n            <label for="unitName">Name</label>\n            <input id="unitName" name="name" required autocomplete="off" />\n            <label for="unitAbbrev">Abbreviation</label>\n            <input id="unitAbbrev" name="abbreviation" autocomplete="off" />\n            <label for="unitMultiplier">Multiplier</label>\n            <input id="unitMultiplier" name="multiplier" type="number" step="0.0001" value="1.0000" autocomplete="off" />\n        `, 'saveUnitBtn', 'Add / Edit Unit');
 
         ensureModal('addSizeModal', 'addSizeForm', `\n            <label for="sizeLabel">Label</label>\n            <input id="sizeLabel" name="label" required />\n            <label for="sizeDescription">Description</label>\n            <textarea id="sizeDescription" name="description"></textarea>\n        `, 'saveSizeBtn', 'Add / Edit Size');
     } catch (e) { console.error('Error ensuring units/sizes DOM:', e); }
@@ -443,6 +443,21 @@ document.addEventListener('click', function(e) {
             try { showAddSizeModal(); } catch (err) { console.error('showAddSizeModal error', err); }
             return;
         }
+
+        const closeEl = t.closest ? t.closest('.close[data-modal]') : null;
+        if (closeEl) {
+            e.preventDefault();
+            const mid = closeEl.getAttribute('data-modal');
+            if (mid) hideModal(mid);
+            return;
+        }
+        const cancelEl = t.closest ? t.closest('button[data-modal]') : (t.getAttribute && t.getAttribute('data-modal') ? t : null);
+        if (cancelEl) {
+            e.preventDefault();
+            const mid = cancelEl.getAttribute('data-modal');
+            if (mid) hideModal(mid);
+            return;
+        }
     } catch (e) { /* ignore delegated handler errors */ }
 });
 
@@ -503,14 +518,14 @@ document.addEventListener('click', function(e) {
         if (!t) return;
         const saveUnitBtn = t.closest ? t.closest('#saveUnitBtn') || (t.id === 'saveUnitBtn' ? t : null) : (t.id === 'saveUnitBtn' ? t : null);
         if (saveUnitBtn) {
-            const formEl = document.getElementById('addUnitForm');
-            if (formEl && formEl.contains(saveUnitBtn)) {
-                // Let the form submit handler handle it to avoid double calls
-                return;
-            }
+            const formEl = document.getElementById('addUnitForm') || document.querySelector('#addUnitModal form');
+            if (formEl && formEl.contains(saveUnitBtn)) return;
             e.preventDefault();
-            try { console.log('Delegated click: saveUnitBtn'); } catch (e) {}
-            try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
+            if (formEl) {
+                try { formEl.dispatchEvent(new Event('submit', { cancelable: true })); } catch (err) { try { saveUnit(); } catch (_e) {} }
+            } else {
+                try { saveUnit(); } catch (err) { console.error('saveUnit error', err); }
+            }
             return;
         }
 
@@ -1632,36 +1647,6 @@ function assignRider(orderId) {
 }
 
 // Categories Management
-function loadCategories() {
-    fetch(`${API_BASE}/api/categories`)
-    .then(response => response.json())
-    .then(data => {
-        const tbody = document.getElementById('categoriesTableBody');
-        tbody.innerHTML = '';
-
-        data.categories.forEach(category => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${category.id}</td>
-                <td>${category.name}</td>
-                <td>${category.description || ''}</td>
-                <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
-                <td>
-                    <button class="btn btn-small btn-edit" onclick="editCategory(${category.id})">Edit</button>
-                    <button class="btn btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
-                        ${category.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
-    })
-    .catch(error => console.error('Error loading categories:', error));
-}
-
-function editCategory(categoryId) {
-    showInfo('Coming Soon', 'Edit category functionality will be implemented soon');
-}
 
 function toggleCategoryStatus(categoryId, currentStatus) {
     fetch(`${API_BASE}/api/categories/${categoryId}`, {
@@ -1728,57 +1713,61 @@ async function loadUnits() {
 
 function showAddUnitModal() {
     editingUnitId = null;
-    let modal = document.getElementById('addUnitModal');
-    if (!modal) {
-        const m = document.createElement('div');
-        m.id = 'addUnitModal';
-        m.className = 'modal';
-        m.innerHTML = `
-            <div class="modal-content">
-                <span class="close" data-modal="addUnitModal">&times;</span>
-                <h3>Add / Edit Unit</h3>
-                <form id="addUnitForm">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="unitName">Unit Name:</label>
-                            <input type="text" id="unitName" name="name" required />
-                        </div>
-                        <div class="form-group">
-                            <label for="unitAbbrev">Abbreviation:</label>
-                            <input type="text" id="unitAbbrev" name="abbreviation" />
-                        </div>
+    const existing = document.getElementById('addUnitModal');
+    if (existing) try { existing.remove(); } catch (e) {}
+    const m = document.createElement('div');
+    m.id = 'addUnitModal';
+    m.className = 'modal';
+    m.innerHTML = `
+        <div class="modal-content">
+            <span class="close" data-modal="addUnitModal">&times;</span>
+            <h3>Add Unit</h3>
+            <form id="addUnitForm" autocomplete="off">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="unitName">Unit Name:</label>
+                        <input type="text" id="unitName" name="name" required autocomplete="off" />
                     </div>
-                    <div class="form-row-full">
-                        <div class="form-group">
-                            <label for="unitMultiplier">Multiplier (relative):</label>
-                            <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" />
-                        </div>
+                    <div class="form-group">
+                        <label for="unitAbbrev">Abbreviation:</label>
+                        <input type="text" id="unitAbbrev" name="abbreviation" autocomplete="off" />
                     </div>
-                    <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
-                        <button type="submit" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
-                        <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                </div>
+                <div class="form-row-full">
+                    <div class="form-group">
+                        <label for="unitMultiplier">Multiplier (relative):</label>
+                        <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" autocomplete="off" />
                     </div>
-                </form>
-            </div>
-        `;
-        document.body.appendChild(m);
-        modal = m;
-    }
+                </div>
+                <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+                    <button type="submit" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
+                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(m);
     const form = document.getElementById('addUnitForm');
-    if (form) {
-        try { form.reset(); } catch (e) {}
-        if (!form.dataset.boundSubmit) {
-            form.addEventListener('submit', function(e){ e.preventDefault(); try { saveUnit(); } catch (err) { console.error('saveUnit submit error', err); } });
-            form.dataset.boundSubmit = '1';
-        }
-    }
+    form.addEventListener('submit', function(e){ e.preventDefault(); saveUnit(); });
     showModal('addUnitModal');
 }
 
+function resetUnitForm() {
+    const form = document.getElementById('addUnitForm') || document.querySelector('#addUnitModal form');
+    if (!form) return;
+    try { form.reset(); } catch (e) {}
+    const nameInput = form.querySelector('#unitName') || document.getElementById('unitName');
+    const abbrInput = form.querySelector('#unitAbbrev') || document.getElementById('unitAbbrev');
+    const multInput = form.querySelector('#unitMultiplier') || document.getElementById('unitMultiplier');
+    if (nameInput) { nameInput.value = ''; try { nameInput.defaultValue = ''; nameInput.setAttribute('value', ''); } catch (e) {} }
+    if (abbrInput) { abbrInput.value = ''; try { abbrInput.defaultValue = ''; abbrInput.setAttribute('value', ''); } catch (e) {} }
+    if (multInput) { multInput.value = '1.0000'; try { multInput.defaultValue = '1.0000'; multInput.setAttribute('value', '1.0000'); } catch (e) {} }
+    try { setTimeout(function(){ if (nameInput) nameInput.value = ''; if (abbrInput) abbrInput.value = ''; if (multInput) multInput.value = '1.0000'; }, 0); } catch (e) {}
+}
+
 async function saveUnit() {
-    const form = document.getElementById('addUnitForm');
+    const form = document.getElementById('addUnitForm') || document.querySelector('#addUnitModal form') || (document.forms && document.forms['addUnitForm']) || null;
     if (!form) {
-        try { console.error('saveUnit: addUnitForm not found'); } catch (e) {}
         const nameEl = document.getElementById('unitName');
         const abbrevEl = document.getElementById('unitAbbrev');
         const multEl = document.getElementById('unitMultiplier');
@@ -1809,6 +1798,7 @@ async function saveUnit() {
                 console.debug('saveUnit: response', resp.status, data);
                 if (resp.ok && data && data.success) {
                     showSuccess('Saved', 'Unit saved successfully');
+                    resetUnitForm();
                     hideModal('addUnitModal');
                     editingUnitId = null;
                     await loadUnits();
@@ -1852,6 +1842,7 @@ async function saveUnit() {
         console.debug('saveUnit: response', resp.status, data);
         if (resp.ok && data && data.success) {
             showSuccess('Saved', 'Unit saved successfully');
+            resetUnitForm();
             hideModal('addUnitModal');
             editingUnitId = null;
             await loadUnits();
@@ -1870,29 +1861,59 @@ try { window.saveUnit = saveUnit; } catch (e) {}
 
 async function editUnit(unitId) {
     editingUnitId = unitId;
-    // try find in currentUnits
-    const unit = (currentUnits || []).find(u => u.id === unitId);
+    let unit = (currentUnits || []).find(u => String(u.id) === String(unitId));
     if (!unit) {
-        // fallback: fetch single unit from API if available
         try {
             const resp = await fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' });
             const data = await resp.json();
-            if (data.success) {
-                currentUnits = data.units || [];
+            if (data && data.success && Array.isArray(data.units)) {
+                currentUnits = data.units;
+                unit = (currentUnits || []).find(u => String(u.id) === String(unitId));
             }
-        } catch (e) { /* ignore */ }
+        } catch (e) {}
     }
-    const u = (currentUnits || []).find(x => x.id === unitId);
-    if (u) {
-        const form = document.getElementById('addUnitForm');
-        form.querySelector('#unitName').value = u.name || '';
-        form.querySelector('#unitAbbrev').value = u.abbreviation || '';
-        form.querySelector('#unitMultiplier').value = typeof u.multiplier !== 'undefined' ? parseFloat(u.multiplier).toFixed(4) : '1.0000';
-        showModal('addUnitModal');
-    } else {
-        showError('Not Found', 'Unit not found');
-    }
+    const existing = document.getElementById('addUnitModal');
+    if (existing) try { existing.remove(); } catch (e) {}
+    const m = document.createElement('div');
+    m.id = 'addUnitModal';
+    m.className = 'modal';
+    const namePrefill = unit && unit.name ? String(unit.name) : '';
+    const abbrPrefill = unit && unit.abbreviation ? String(unit.abbreviation) : '';
+    const multPrefill = typeof (unit && unit.multiplier) !== 'undefined' ? parseFloat(unit.multiplier).toFixed(4) : '1.0000';
+    m.innerHTML = `
+        <div class="modal-content">
+            <span class="close" data-modal="addUnitModal">&times;</span>
+            <h3>Edit Unit</h3>
+            <form id="addUnitForm" autocomplete="off">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="unitName">Unit Name:</label>
+                        <input type="text" id="unitName" name="name" required autocomplete="off" value="${namePrefill}" />
+                    </div>
+                    <div class="form-group">
+                        <label for="unitAbbrev">Abbreviation:</label>
+                        <input type="text" id="unitAbbrev" name="abbreviation" autocomplete="off" value="${abbrPrefill}" />
+                    </div>
+                </div>
+                <div class="form-row-full">
+                    <div class="form-group">
+                        <label for="unitMultiplier">Multiplier (relative):</label>
+                        <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="${multPrefill}" autocomplete="off" />
+                    </div>
+                </div>
+                <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+                    <button type="submit" class="btn btn-primary" id="saveUnitBtn">Update Unit</button>
+                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(m);
+    const form = document.getElementById('addUnitForm');
+    form.addEventListener('submit', function(e){ e.preventDefault(); saveUnit(); });
+    showModal('addUnitModal');
 }
+window.editUnit = editUnit;
 
 async function deleteUnit(unitId) {
     if (!confirm('Delete this unit? This cannot be undone.')) return;
@@ -2098,6 +2119,9 @@ function hideModal(modalId) {
     // Reset form
     const form = document.querySelector(`#${modalId} form`);
     if (form) form.reset();
+    if (modalId === 'addUnitModal') {
+        try { el.remove(); } catch (e) {}
+    }
     try {
         const overlay = document.querySelector('.nav-overlay');
         if (overlay) {
@@ -2668,18 +2692,73 @@ async function editProduct(productId) {
     }
 }
 
-// Category Management Functions
 function showAddCategoryModal() {
     showModal('addCategoryModal');
+    try {
+        const pasteBtn = document.getElementById('pasteCategoryImageUrlBtn');
+        const urlInput = document.getElementById('categoryImage');
+        const fileInput = document.getElementById('categoryImageFile');
+        const preview = document.getElementById('categoryImagePreview');
+        if (pasteBtn) {
+            pasteBtn.onclick = () => {
+                const url = prompt('Paste image URL (http(s)://)');
+                if (url) {
+                    if (urlInput) urlInput.value = url;
+                    if (preview) { preview.src = url; preview.style.display = 'inline-block'; }
+                }
+            };
+        }
+        if (urlInput) {
+            urlInput.oninput = () => {
+                if (urlInput.value) {
+                    if (preview) { preview.src = urlInput.value; preview.style.display = 'inline-block'; }
+                } else if (preview) {
+                    preview.style.display = 'none';
+                }
+            };
+        }
+        if (fileInput) {
+            fileInput.onchange = (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (file && preview) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        preview.src = ev.target.result;
+                        preview.style.display = 'inline-block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        }
+    } catch (e) {}
 }
 
 async function saveCategory() {
     const formData = new FormData(document.getElementById('addCategoryForm'));
-    const categoryData = {
-        name: formData.get('name'),
-        description: formData.get('description'),
-        image_url: formData.get('image_url')
-    };
+    const name = String(formData.get('name') || '').trim();
+    const description = String(formData.get('description') || '').trim();
+    const image_url = String(formData.get('image_url') || '').trim();
+    if (name.length < 2) {
+        showError('Validation Error', 'Category name must be at least 2 characters');
+        return;
+    }
+    const categoryData = { name, description, image_url };
+    const catFileInput = document.getElementById('categoryImageFile');
+    if (catFileInput && catFileInput.files && catFileInput.files.length > 0) {
+        try {
+            const fd = new FormData();
+            fd.append('image', catFileInput.files[0]);
+            const upRes = await fetch(`${API_BASE}/api/categories/upload-image`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${authToken}` },
+                body: fd
+            });
+            const upJson = await upRes.json();
+            if (upJson.success && upJson.image_url) {
+                categoryData.image_url = upJson.image_url;
+            }
+        } catch (e) {}
+    }
 
     try {
         if (editingCategoryId) {
@@ -2721,48 +2800,50 @@ async function saveCategory() {
 async function editCategory(categoryId) {
     editingCategoryId = categoryId;
     try {
-        const resp = await fetch(`${API_BASE}/api/categories`);
-        const data = await resp.json();
-        if (!data.success) { showError('Error', 'Failed to load categories'); return; }
-        const c = data.categories.find(x => x.id === categoryId);
-        if (!c) { showError('Error', 'Category not found'); return; }
-        const form = document.getElementById('addCategoryForm');
-        form.querySelector('#categoryName').value = c.name || '';
-        form.querySelector('#categoryImage').value = c.image_url || '';
-        form.querySelector('#categoryDescription').value = c.description || '';
-        showModal('addCategoryModal');
+        let c = (currentCategories || []).find(x => String(x.id) === String(categoryId));
+        if (!c) {
+            const resp = await fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' });
+            const data = await resp.json();
+            if (!data.success) { showError('Error', 'Failed to load categories'); return; }
+            currentCategories = data.categories || [];
+            c = (currentCategories || []).find(x => String(x.id) === String(categoryId));
+            if (!c) { showError('Error', 'Category not found'); return; }
+        }
+        showAddCategoryModal();
+        setTimeout(function(){
+            const form = document.getElementById('addCategoryForm');
+            if (!form) return;
+            const nameInput = document.getElementById('categoryName');
+            const imageInput = document.getElementById('categoryImage');
+            const descInput = document.getElementById('categoryDescription');
+            if (nameInput) nameInput.value = c.name || '';
+            if (imageInput) imageInput.value = c.image_url || '';
+            if (descInput) descInput.value = c.description || '';
+            const preview = document.getElementById('categoryImagePreview');
+            if (preview) {
+                if (c.image_url) {
+                    preview.src = c.image_url;
+                    preview.style.display = 'inline-block';
+                } else {
+                    preview.style.display = 'none';
+                }
+            }
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) {
+                const titleEl = modal.querySelector('.modal-header h3');
+                if (titleEl) titleEl.textContent = 'Edit Category';
+                const saveBtn = modal.querySelector('#saveCategoryBtn');
+                if (saveBtn) saveBtn.textContent = 'Update Category';
+            }
+        }, 100);
     } catch (e) {
         console.error('Failed to load category for edit', e);
         showError('Error', 'Failed to load category for edit');
     }
 }
 
-function editCategory(categoryId) {
-    const newName = prompt('Enter new category name:');
-    if (!newName) return;
+try { window.editCategory = editCategory; } catch (e) {}
 
-    fetch(`${API_BASE}/api/categories/${categoryId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ name: newName })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            loadCategories();
-            showSuccess('Category Updated', 'Category updated successfully!');
-        } else {
-            showError('Error', 'Failed to update category');
-        }
-    })
-    .catch(error => {
-        console.error('Error updating category:', error);
-        showError('Error', 'Failed to update category');
-    });
-}
 
 // Riders Management Functions
 function loadRiders() {
@@ -2966,10 +3047,45 @@ function deleteFuelEntry(entryId, riderId) {
 
 function showAddUnitModal() {
     editingUnitId = null;
+    const existing = document.getElementById('addUnitModal');
+    if (existing) try { existing.remove(); } catch (e) {}
+    const m = document.createElement('div');
+    m.id = 'addUnitModal';
+    m.className = 'modal';
+    m.innerHTML = `
+        <div class="modal-content">
+            <span class="close" data-modal="addUnitModal">&times;</span>
+            <h3>Add Unit</h3>
+            <form id="addUnitForm" autocomplete="off">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="unitName">Unit Name:</label>
+                        <input type="text" id="unitName" name="name" required autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="unitAbbrev">Abbreviation:</label>
+                        <input type="text" id="unitAbbrev" name="abbreviation" autocomplete="off" />
+                    </div>
+                </div>
+                <div class="form-row-full">
+                    <div class="form-group">
+                        <label for="unitMultiplier">Multiplier (relative):</label>
+                        <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" autocomplete="off" />
+                    </div>
+                </div>
+                <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+                    <button type="submit" class="btn btn-primary" id="saveUnitBtn">Save Unit</button>
+                    <button type="button" class="btn btn-secondary" data-modal="addUnitModal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(m);
     const form = document.getElementById('addUnitForm');
-    if (form) form.reset();
-    showModal('addUnitModal');
+    form.addEventListener('submit', function(e){ e.preventDefault(); saveUnit(); });
+    setTimeout(function(){ showModal('addUnitModal'); }, 0);
 }
+window.showAddUnitModal = showAddUnitModal;
 
 function showAddSizeModal() {
     editingSizeId = null;
@@ -3761,7 +3877,7 @@ function displayStores(stores) {
 }
 
 function loadCategories() {
-    fetch(`${API_BASE}/api/categories`)
+    fetch(`${API_BASE}/api/categories?ts=${Date.now()}`, { cache: 'no-store' })
     .then(response => response.json())
     .then(data => {
         currentCategories = data.categories || [];
