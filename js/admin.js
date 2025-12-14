@@ -2485,13 +2485,15 @@ async function populateStoreCategorySelect(selectedId = null) {
 async function showAddProductModal() {
     // Load stores and categories for dropdowns
     try {
-        const [storesResponse, categoriesResponse] = await Promise.all([
+        const [storesResponse, categoriesResponse, itemsResponse] = await Promise.all([
             fetch(`${API_BASE}/api/stores`),
-            fetch(`${API_BASE}/api/categories`)
+            fetch(`${API_BASE}/api/categories`),
+            fetch(`${API_BASE}/api/products/items`, { headers: { 'Authorization': `Bearer ${authToken}` } })
         ]);
 
         const storesData = await storesResponse.json();
         const categoriesData = await categoriesResponse.json();
+        const itemsData = await itemsResponse.json();
 
         // Populate store dropdown
         const storeSelect = document.getElementById('productStore');
@@ -2510,6 +2512,48 @@ async function showAddProductModal() {
                 categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
             });
         }
+
+        // Populate items dropdown and wire selection behavior
+        const itemSelect = document.getElementById('productItem');
+        if (itemSelect) {
+            // build map for quick lookup
+            const itemsById = {};
+            if (itemsData && itemsData.success && Array.isArray(itemsData.items)) {
+                itemSelect.innerHTML = '<option value="">None</option>';
+                itemsData.items.forEach(it => {
+                    itemsById[it.id] = it;
+                    const label = it.category_name ? `${it.name} — ${it.category_name}` : it.name;
+                    itemSelect.innerHTML += `<option value="${it.id}">${label}</option>`;
+                });
+            }
+            const nameEl = document.getElementById('productName');
+            const descEl = document.getElementById('productDescription');
+            const imgUrlEl = document.getElementById('productImage');
+            const fileEl = document.getElementById('productImageFile');
+            const unitSel = document.getElementById('productUnit');
+            const sizeSel = document.getElementById('productSize');
+            const catSel = document.getElementById('productCategory');
+
+            const applyItemSelection = (val) => {
+                const usingItem = !!val;
+                if (nameEl) { nameEl.disabled = usingItem; nameEl.required = !usingItem; if (usingItem) nameEl.value = ''; }
+                if (descEl) { descEl.disabled = usingItem; if (usingItem) descEl.value = ''; }
+                if (imgUrlEl) { imgUrlEl.disabled = usingItem; if (usingItem) imgUrlEl.value = ''; }
+                if (fileEl) { fileEl.disabled = usingItem; if (usingItem) { try { fileEl.value = ''; } catch(e){} } }
+
+                if (usingItem && itemsById[val]) {
+                    const it = itemsById[val];
+                    if (catSel && it.category_id) catSel.value = it.category_id;
+                    if (unitSel && it.unit_id) unitSel.value = it.unit_id;
+                    if (sizeSel && it.size_id) sizeSel.value = it.size_id;
+                }
+            };
+
+            itemSelect.addEventListener('change', (e) => applyItemSelection(e.target.value));
+            applyItemSelection(itemSelect.value);
+        }
+
+        
 
         // Populate units and sizes
         try {
@@ -2590,17 +2634,40 @@ async function showAddProductModal() {
 async function saveProduct() {
     const formEl = document.getElementById('addProductForm');
     const formData = new FormData(formEl);
+    const rawStoreId = formData.get('store_id');
+    const rawPrice = formData.get('price');
+    const rawName = (formData.get('name') || '').trim();
+    const rawItemId = formData.get('item_id') || '';
+    const storeId = parseInt(rawStoreId, 10);
+    const priceVal = parseFloat(rawPrice);
+    const usingItem = !!rawItemId;
+
+    if (!Number.isInteger(storeId) || storeId <= 0) {
+        showError('Invalid Input', 'Please select a store');
+        return;
+    }
+    if (!Number.isFinite(priceVal) || priceVal < 0) {
+        showError('Invalid Input', 'Please enter a valid price');
+        return;
+    }
+    if (!usingItem && rawName.length < 2) {
+        showError('Invalid Input', 'Please enter a product name or choose an existing item');
+        return;
+    }
+
     const productData = {
-        name: formData.get('name'),
-        description: formData.get('description'),
-        price: parseFloat(formData.get('price')),
-        image_url: formData.get('image_url'),
+        name: usingItem ? null : rawName,
+        description: usingItem ? null : formData.get('description'),
+        price: priceVal,
+        image_url: usingItem ? null : formData.get('image_url'),
         category_id: formData.get('category_id') || null,
-        store_id: parseInt(formData.get('store_id')),
-        stock_quantity: parseInt(formData.get('stock_quantity')) || 0,
+        store_id: storeId,
+        stock_quantity: parseInt(formData.get('stock_quantity'), 10) || 0,
         unit_id: formData.get('unit_id') || null,
-        size_id: formData.get('size_id') || null
+        size_id: formData.get('size_id') || null,
+        item_id: usingItem ? rawItemId : null
     };
+    if (!usingItem) { delete productData.item_id; }
 
     // If a file was selected, upload it first to server to get back a public URL and variants
     const fileInput = document.getElementById('productImageFile');
@@ -2668,7 +2735,8 @@ async function saveProduct() {
             editingProductId = null;
             loadProducts();
         } else {
-            showError('Error', data.message || 'Failed to create product');
+            const msg = data.message || (data.errors ? data.errors.map(e => e.msg).join(', ') : 'Failed to create product');
+            showError('Error', msg);
         }
     } catch (error) {
         console.error('Error creating product:', error);
@@ -2703,6 +2771,23 @@ async function editProduct(productId) {
         if (p.category_id) form.querySelector('#productCategory').value = p.category_id;
         if (p.unit_id && form.querySelector('#productUnit')) form.querySelector('#productUnit').value = p.unit_id;
         if (p.size_id && form.querySelector('#productSize')) form.querySelector('#productSize').value = p.size_id;
+        const itemSelect = document.getElementById('productItem');
+        if (itemSelect) {
+            if (p.item_id) {
+                itemSelect.value = p.item_id;
+                const useItem = true;
+                const nameEl = document.getElementById('productName');
+                const descEl = document.getElementById('productDescription');
+                const imgUrlEl = document.getElementById('productImage');
+                const fileEl = document.getElementById('productImageFile');
+                if (nameEl) nameEl.disabled = useItem;
+                if (descEl) descEl.disabled = useItem;
+                if (imgUrlEl) imgUrlEl.disabled = useItem;
+                if (fileEl) fileEl.disabled = useItem;
+            } else {
+                itemSelect.value = '';
+            }
+        }
 
         // Show modal
         showModal('addProductModal');
