@@ -164,7 +164,7 @@ async function loadHomeCategories() {
                 <img src="${imageSrc}" alt="${name}">
                 <div class="category-card-content">
                     <h4>${name}</h4>
-                    <a href="products.html?category=${encodeURIComponent(slug)}&category_id=${encodeURIComponent(cat.id)}">Shop Now</a>
+                    <a href="stores.html?category=${encodeURIComponent(slug)}&category_id=${encodeURIComponent(cat.id)}">Shop Now</a>
                 </div>
             `;
             grid.appendChild(card);

@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - ServeNow</title>
+    <link rel="stylesheet" href="style/main.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <link rel="icon" type="image/png" href="images/servenow.png">
+
+</head>
+<body>
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    
+    <header>
+        <nav class="admin-nav sidebar-left">
+            <div class="logo">
+                <img src="images/servenow.png" alt="ServeNow Admin">
+            </div>
+            
+            <!-- Hamburger Menu Button -->
+            <button class="hamburger-menu" id="hamburgerMenu" aria-label="Toggle navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            
+            <!-- Navigation Menu -->
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="#" class="tab-link active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="#" class="tab-link" data-tab="users"><i class="fas fa-users"></i> Users</a></li>
+                <li><a href="#" class="tab-link" data-tab="stores"><i class="fas fa-store"></i> Stores</a></li>
+                <li><a href="#" class="tab-link" data-tab="products"><i class="fas fa-box"></i> Products</a></li>
+                <li><a href="#" class="tab-link" data-tab="orders"><i class="fas fa-shopping-cart"></i> Orders</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-chart-bar"></i> Reports <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" class="tab-link" data-tab="order-reports"><i class="fas fa-chart-line"></i> Order Reports</a></li>
+                    </ul>
+                </li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-layer-group"></i> Catalog <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" class="tab-link" data-tab="categories"><i class="fas fa-tags"></i> Categories</a></li>
+                        <li><a href="#" class="tab-link" data-tab="units"><i class="fas fa-balance-scale"></i> Units</a></li>
+                        <li><a href="#" class="tab-link" data-tab="sizes"><i class="fas fa-ruler-horizontal"></i> Sizes</a></li>
+                    </ul>
+                </li>
+                <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
+                <li><a href="#" class="tab-link" data-tab="db-backup"><i class="fas fa-database"></i> Utilities</a></li>
+                <li><a href="#" id="logoutBtn">Logout</a></li>
+            </ul>
+        </nav>
+        <div class="nav-overlay"></div>
+    </header>
+
+
+            <main>
+
+
+                <div class="admin-container">
+
+
+                    <section class="admin-content">
+
+
+                        <!-- Dashboard Tab -->
+
+
+                        <div id="dashboard" class="tab-content active">
+                            <h2>Dashboard Overview</h2>
+                            <div class="stats-grid" style="grid-template-columns: 1fr;">
+                                <div>
+                                    <h3>Today's Orders</h3>
+                                    <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                                        <div class="stat-card">
+                                            <h3 id="todayTotalOrders">-</h3>
+                                            <p>Total Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="todayDelivered">-</h3>
+                                            <p>Total Delivered</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="todayPending">-</h3>
+                                            <p>Pending Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="todayCancelled">-</h3>
+                                            <p>Cancelled</p>
+                                        </div>
+                                    </div>
+                                    <h3 style="margin-top:1.5rem;">All Orders</h3>
+                                    <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                                        <div class="stat-card">
+                                            <h3 id="allTotalOrders">-</h3>
+                                            <p>Total Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="allDelivered">-</h3>
+                                            <p>Total Delivered</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="allPending">-</h3>
+                                            <p>Pending Orders</p>
+                                        </div>
+                                        <div class="stat-card">
+                                            <h3 id="allCancelled">-</h3>
+                                            <p>Cancelled</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rider Fuel panel moved inside Riders management as a sub-panel -->
+
+
+        
+
+
+                        <!-- Users Tab -->
+
+
+                        <div id="users" class="tab-content">
+
+
+                            <h2>Users Management</h2>
+
+
+                            <button class="btn btn-primary" id="addUserBtn">Add New User</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="usersTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Email</th>
+
+
+                                            <th>Type</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="usersTableBody">
+
+
+                                        <!-- Users will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+
+        
+                        <!-- Database Backup Tab -->
+
+                        <div id="db-backup" class="tab-content">
+
+                            <h2>Utilities</h2>
+
+                            <p>Create and download backups of the application database. Backups are stored on the server in <code>database/backups/</code>.</p>
+
+                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
+                                <button class="btn btn-primary" id="createBackupBtn">Create Backup</button>
+                                <button class="btn btn-secondary" id="refreshBackupsBtn">Refresh List</button>
+                                <button class="btn btn-warning" id="restoreBackupBtn">Restore Selected</button>
+                                <button class="btn btn-danger" id="clearDatabaseBtn">Clear DB (Keep Admin)</button>
+                                <button class="btn btn-danger" id="clearDatabaseKeepOneBtn">Clear DB (Keep One+Admin)</button>
+                                <span id="backupStatus" style="font-size:0.95rem;color:#666;margin-left:0.5rem;"></span>
+                            </div>
+
+                            <div class="table-container">
+                                <table id="backupsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Select</th>
+                                            <th>Filename</th>
+                                            <th>Size</th>
+                                            <th>Modified</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="backupsTableBody">
+                                        <!-- backup files will be listed here -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                        </div>
+
+
+
+                        <!-- Stores Tab -->
+
+
+                        <div id="stores" class="tab-content">
+
+
+                            <h2>Stores Management</h2>
+
+
+                            <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="storesTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Location</th>
+
+
+                                            <th>Owner</th>
+
+
+                                            <th>Rating</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="storesTableBody">
+
+
+                                        <!-- Stores will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+
+        
+
+
+                        <!-- Products Tab -->
+
+
+                        <div id="products" class="tab-content">
+
+
+                            <h2>Products Management</h2>
+
+
+                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
+                                <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
+                                <button class="btn btn-secondary" id="exportImagesBtn" title="Export base64 product images to /uploads">Export Base64 Images</button>
+                                <span id="exportImagesStatus" style="font-size:0.9rem;color:#666;margin-left:0.5rem;"></span>
+                                <label for="imageFitSelect" style="margin-left:0.75rem;font-size:0.95rem;color:#333;">Image Fit:</label>
+                                <select id="imageFitSelect" class="btn-small" style="margin-left:0.5rem;padding:0.35rem 0.6rem;">
+                                    <option value="cover">Cover (crop)</option>
+                                    <option value="fill">Fill (stretch)</option>
+                                </select>
+                            </div>
+
+
+                            <div class="table-container">
+
+
+                                <table id="productsTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Price</th>
+
+
+                                            <th>Category</th>
+
+
+                                            <th>Store</th>
+
+
+                                            <th>Stock</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="productsTableBody">
+
+
+                                        <!-- Products will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+
+        
+
+
+                        <!-- Orders Tab -->
+
+
+                        <div id="orders" class="tab-content">
+
+
+                            <h2>Orders Management</h2>
+
+                            
+                            
+                            <!-- Filters -->
+                            <div class="filter-controls">
+                                <div class="filter-group">
+                                    <label for="filterDate">Filter by Date:</label>
+                                    <input type="date" id="filterDate">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="filterRider">Filter by Rider:</label>
+                                    <select id="filterRider">
+                                        <option value="">All Riders</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" id="clearFiltersBtn">Clear Filters</button>
+                            </div>
+
+                            <div class="table-container">
+
+
+                                <table id="ordersTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>Order #</th>
+
+
+                                            <th>Customer</th>
+
+
+                                            <th>Store</th>
+
+
+                                            <th>Total</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Assigned Rider</th>
+
+
+                                            <th>Rider Location</th>
+
+
+                                            <th>Date</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="ordersTableBody">
+
+
+                                        <!-- Orders will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+                        <!-- Order Reports Tab -->
+                        <div id="order-reports" class="tab-content">
+                            <h2>Order Reports</h2>
+
+                            <!-- Report Filters -->
+                            <div class="filter-controls">
+                                <div class="filter-group">
+                                    <label for="reportStartDate">Start Date:</label>
+                                    <input type="date" id="reportStartDate">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="reportEndDate">End Date:</label>
+                                    <input type="date" id="reportEndDate">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="reportRiderFilter">Filter by Rider:</label>
+                                    <select id="reportRiderFilter">
+                                        <option value="">All Riders</option>
+                                        <!-- Riders will be loaded dynamically -->
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" id="generateReportBtn">Generate Report</button>
+                                <button class="btn btn-primary" id="printReportBtn" style="display: none;">Print Report</button>
+                            </div>
+
+                            <!-- Report Summary Cards -->
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <h3 id="totalRevenue">-</h3>
+                                    <p>Total Revenue</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="totalOrdersCount">-</h3>
+                                    <p>Total Orders</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="avgOrderValue">-</h3>
+                                    <p>Average Order Value</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="completedOrders">-</h3>
+                                    <p>Completed Orders</p>
+                                </div>
+                            </div>
+
+                            <!-- Charts Container -->
+                            <div class="reports-charts" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem;">
+                                <div class="chart-container">
+                                    <h3>Orders by Status</h3>
+                                    <canvas id="statusChart" width="400" height="300"></canvas>
+                                </div>
+                                <div class="chart-container">
+                                    <h3>Revenue Trend (Last 30 Days)</h3>
+                                    <canvas id="revenueChart" width="400" height="300"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Detailed Report Table -->
+                            <div class="table-container" style="margin-top: 2rem;">
+                                <table id="reportsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Total Orders</th>
+                                            <th>Total Revenue</th>
+                                            <th>Average Order Value</th>
+                                            <th>Most Popular Store</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reportsTableBody">
+                                        <!-- Report data will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Categories Tab -->
+
+
+                        <div id="categories" class="tab-content">
+
+
+                            <h2>Categories Management</h2>
+
+
+                            <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
+
+
+                            <div class="table-container">
+
+
+                                <table id="categoriesTable">
+
+
+                                    <thead>
+
+
+                                        <tr>
+
+
+                                            <th>ID</th>
+
+
+                                            <th>Name</th>
+
+
+                                            <th>Description</th>
+
+
+                                            <th>Status</th>
+
+
+                                            <th>Actions</th>
+
+
+                                        </tr>
+
+
+                                    </thead>
+
+
+                                    <tbody id="categoriesTableBody">
+
+
+                                        <!-- Categories will be loaded here -->
+
+
+                                    </tbody>
+
+
+                                </table>
+
+
+                            </div>
+
+
+                        </div>
+
+                        <!-- Units Tab -->
+                        <div id="units" class="tab-content">
+                            <h2>Units Management</h2>
+                            <button class="btn btn-primary" id="addUnitBtn">Add New Unit</button>
+                            <div class="table-container" style="margin-top:0.75rem;">
+                                <table id="unitsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Name</th>
+                                            <th>Abbreviation</th>
+                                            <th>Multiplier</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="unitsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Sizes Tab -->
+                        <div id="sizes" class="tab-content">
+                            <h2>Sizes Management</h2>
+                            <button class="btn btn-primary" id="addSizeBtn">Add New Size</button>
+                            <div class="table-container" style="margin-top:0.75rem;">
+                                <table id="sizesTable">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Label</th>
+                                            <th>Description</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sizesTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+
+        
+
+
+                        <!-- Riders Tab -->
+
+
+                        <div id="riders" class="tab-content">
+
+                            <h2>Riders Management</h2>
+
+                            <div class="rider-subtabs" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
+                                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                                    <button class="btn btn-primary" id="addRiderBtn">Add New Rider</button>
+                                    <button class="btn btn-secondary rider-subtab-link active" data-rider-subtab="list" id="riderListTabBtn">Riders</button>
+                                    <button class="btn btn-secondary rider-subtab-link" data-rider-subtab="fuel" id="riderFuelTabBtn">Fuel</button>
+                                </div>
+                            </div>
+
+                            <div id="rider-list-panel" class="rider-subpanel">
+                                <div class="table-container">
+                                    <table id="ridersTable">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Name</th>
+                                                <th>Email</th>
+                                                <th>Phone</th>
+                                                <th>Vehicle Type</th>
+                                                <th>License</th>
+                                                <th>Available</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="ridersTableBody">
+                                            <!-- Riders will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div id="rider-fuel-panel" class="rider-subpanel" style="display:none;margin-top:1rem;">
+                                <h3>Fuel Management</h3>
+                                <div class="tab-actions" style="align-items:center;margin-bottom:0.5rem;">
+                                    <label for="fuelRiderSelect" style="font-weight:600;margin-right:0.5rem;">Select Rider:</label>
+                                    <select id="fuelRiderSelect" style="padding:0.35rem 0.5rem;"><option value="">-- Select Rider --</option></select>
+                                    <button class="btn btn-secondary" id="refreshFuelBtn">Refresh</button>
+                                </div>
+
+                                <div style="margin-top:0.75rem;">
+                                    <h4>Add Fuel Entry</h4>
+                                    <form id="addFuelForm" class="compact-form">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="entryDate">Entry Date</label>
+                                                <input type="datetime-local" id="entryDate" required />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="startMeter">Start Meter</label>
+                                                <input type="number" id="startMeter" placeholder="e.g. 12345" min="0" step="1" required />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="endMeter">End Meter</label>
+                                                <input type="number" id="endMeter" placeholder="e.g. 12380" min="0" step="1" required />
+                                            </div>
+                                        </div>
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="distance">Distance</label>
+                                                <input type="number" id="distance" step="0.01" placeholder="Auto-calculated" readonly />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="petrolRate">Petrol Rate</label>
+                                                <input type="number" id="petrolRate" step="0.01" placeholder="per unit" />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="fuelCost">Fuel Cost</label>
+                                                <input type="number" id="fuelCost" step="0.01" placeholder="Auto-calculated" readonly />
+                                            </div>
+                                        </div>
+                                        <div class="form-row-full">
+                                            <div class="form-group" style="flex:1;">
+                                                <label for="fuelNotes">Notes</label>
+                                                <textarea id="fuelNotes" rows="2" placeholder="Optional notes"></textarea>
+                                            </div>
+                                            <div class="form-group" style="align-self:flex-end;">
+                                                <button type="button" class="btn btn-primary" id="saveFuelBtn">Save Entry</button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div class="table-container">
+                                    <table id="fuelHistoryTable">
+                                        <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Entry Date</th>
+                                                        <th>Recorded</th>
+                                                        <th>Start Meter</th>
+                                                        <th>End Meter</th>
+                                                        <th>Distance</th>
+                                                        <th>Petrol Rate</th>
+                                                        <th>Fuel Cost</th>
+                                                        <th>Notes</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                        </thead>
+                                        <tbody id="fuelHistoryTableBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                        </div>
+
+
+                    </section>
+
+
+                </div>
+
+
+            </main>
+
+
+        
+
+
+            <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New User</h3>
+                <span class="close" data-modal="addUserModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userFirstName">First Name:</label>
+                            <input type="text" id="userFirstName" name="firstName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="userLastName">Last Name:</label>
+                            <input type="text" id="userLastName" name="lastName" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userEmail">Email:</label>
+                            <input type="email" id="userEmail" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="userPhone">Phone:</label>
+                            <input type="tel" id="userPhone" name="phone">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userPassword">Password:</label>
+                            <input type="password" id="userPassword" name="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="userType">User Type:</label>
+                            <select id="userType" name="userType" required>
+                                <option value="customer">Customer</option>
+                                <option value="store_owner">Store Owner</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userStatus">Status:</label>
+                            <select id="userStatus" name="is_active">
+                                <option value="1">Active</option>
+                                <option value="0">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="userAddress">Address:</label>
+                            <textarea id="userAddress" name="address" rows="2"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="addUserModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveUserBtn"><i class="fas fa-check"></i> Save User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Store Modal -->
+    <div id="addStoreModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Store</h3>
+                <span class="close" data-modal="addStoreModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addStoreForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storeName">Store Name:</label>
+                            <input type="text" id="storeName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeOwner">Owner:</label>
+                            <input type="text" id="storeOwner" name="owner_name" placeholder="Owner name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeLocation">Location:</label>
+                            <input type="text" id="storeLocation" name="location" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storePhone">Phone:</label>
+                            <input type="tel" id="storePhone" name="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="storeEmail">Email:</label>
+                            <input type="email" id="storeEmail" name="email">
+                        </div>
+                        <div class="form-group">
+                            <label for="storeRating">Rating:</label>
+                            <input type="number" id="storeRating" name="rating" step="0.1" min="0" max="5" value="0">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storeDeliveryTime">Delivery Time:</label>
+                            <input type="text" id="storeDeliveryTime" name="delivery_time" placeholder="e.g., 30-45 mins">
+                        </div>
+                        <div class="form-group">
+                            <label for="storeStatus">Status:</label>
+                            <select id="storeStatus" name="status">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeOpeningTime">Opening Time:</label>
+                            <input type="time" id="storeOpeningTime" name="opening_time">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storeClosingTime">Closing Time:</label>
+                            <input type="time" id="storeClosingTime" name="closing_time">
+                        </div>
+                        <div class="form-group">
+                            <label for="storeCategory">Category:</label>
+                            <select id="storeCategory" name="category_id">
+                                <!-- Categories will be loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeImageFile">Image Upload:</label>
+                            <div class="file-and-preview">
+                                <input type="file" id="storeImageFile" accept="image/*">
+                                <img id="storeImagePreview" alt="Store Image Preview" style="display:none; max-width:120px; max-height:120px; border-radius:6px; object-fit:cover;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="storeAddress">Address:</label>
+                            <textarea id="storeAddress" name="address" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="storeDescription">Description:</label>
+                            <textarea id="storeDescription" name="description" rows="3"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="addStoreModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveStoreBtn"><i class="fas fa-check"></i> Save Store</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="addProductModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Product</h3>
+                <span class="close" data-modal="addProductModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addProductForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productName">Product Name:</label>
+                            <input type="text" id="productName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="productPrice">Price (PKR):</label>
+                            <input type="number" id="productPrice" name="price" step="0.01" min="0" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productItem">Use Existing Item:</label>
+                            <select id="productItem" name="item_id">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productStore">Store:</label>
+                            <select id="productStore" name="store_id" required>
+                                <!-- Stores will be loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="productCategory">Category:</label>
+                            <select id="productCategory" name="category_id">
+                                <!-- Categories will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productUnit">Unit:</label>
+                            <select id="productUnit" name="unit_id">
+                                <option value="">Select Unit (Optional)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="productSize">Size:</label>
+                            <select id="productSize" name="size_id">
+                                <option value="">Select Size (Optional)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productStock">Stock Quantity:</label>
+                            <input type="number" id="productStock" name="stock_quantity" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="productImageFile">Image Upload:</label>
+                            <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+                                <input type="file" id="productImageFile" name="image_file" accept="image/*">
+                                <img id="productImagePreview" src="" alt="Preview" style="max-height:48px; border-radius:6px; display:none;" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="productDescription">Description:</label>
+                            <textarea id="productDescription" name="description"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="addProductModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveProductBtn"><i class="fas fa-check"></i> Save Product</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div id="addCategoryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Category</h3>
+                <span class="close" data-modal="addCategoryModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addCategoryForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="categoryName">Category Name:</label>
+                            <input type="text" id="categoryName" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="categoryImageFile">Image Upload:</label>
+                            <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;">
+                                <input type="file" id="categoryImageFile" name="image_file" accept="image/*">
+                                <img id="categoryImagePreview" src="" alt="Preview" style="max-height:48px; border-radius:6px; display:none;" />
+                            </div>
+                        </div>
+                    </div>
+
+                        
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="categoryDescription">Description:</label>
+                            <textarea id="categoryDescription" name="description"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="addCategoryModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveCategoryBtn"><i class="fas fa-check"></i> Save Category</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Unit Modal (moved outside of addCategoryForm to avoid nested forms) -->
+    <div id="addUnitModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add / Edit Unit</h3>
+                <span class="close" data-modal="addUnitModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addUnitForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="unitName">Unit Name:</label>
+                            <input type="text" id="unitName" name="name" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="unitAbbrev">Abbreviation:</label>
+                            <input type="text" id="unitAbbrev" name="abbreviation" />
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="unitMultiplier">Multiplier (relative):</label>
+                            <input type="number" id="unitMultiplier" name="multiplier" step="0.0001" value="1.0000" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="addUnitModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="submit" form="addUnitForm" class="btn btn-small btn-primary" id="saveUnitBtn"><i class="fas fa-check"></i> Save Unit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Size Modal (moved outside of addCategoryForm to avoid nested forms) -->
+    <div id="addSizeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add / Edit Size</h3>
+                <span class="close" data-modal="addSizeModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addSizeForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sizeLabel">Label:</label>
+                            <input type="text" id="sizeLabel" name="label" required />
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="sizeDescription">Description:</label>
+                            <textarea id="sizeDescription" name="description"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="addSizeModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveSizeBtn"><i class="fas fa-check"></i> Save Size</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Add Rider Modal -->
+    <div id="addRiderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Rider</h3>
+                <span class="close" data-modal="addRiderModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="addRiderForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="riderFullName">Full Name:</label>
+                            <input type="text" id="riderFullName" name="fullName" placeholder="Full Name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="riderFatherName">Father Name:</label>
+                            <input type="text" id="riderFatherName" name="fatherName" placeholder="Father's Name">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="riderEmail">Email:</label>
+                            <input type="email" id="riderEmail" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="riderPhone">Phone:</label>
+                            <input type="tel" id="riderPhone" name="phone" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="riderPassword">Password:</label>
+                            <input type="password" id="riderPassword" name="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="riderVehicleType">Vehicle Type:</label>
+                            <select id="riderVehicleType" name="vehicleType" required>
+                                <option value="">Select Vehicle Type</option>
+                                <!-- Vehicle types will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="riderLicenseNumber">License Number:</label>
+                            <input type="text" id="riderLicenseNumber" name="licenseNumber" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="riderIdCardNum">ID Card Number:</label>
+                            <input type="text" id="riderIdCardNum" name="idCardNum" placeholder="xxxxx-xxxxxxx-x" inputmode="numeric" pattern="\\d{5}-\\d{7}-\\d" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="riderImageFile">Rider Image:</label>
+                            <input type="file" id="riderImageFile" name="image_file" accept="image/*">
+                            <img id="riderImagePreview" alt="Preview" style="display:none; max-height:64px; border-radius:6px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="riderIdCardFile">ID Card Image:</label>
+                            <input type="file" id="riderIdCardFile" name="id_card_file" accept="image/*">
+                            <img id="riderIdCardPreview" alt="Preview" style="display:none; max-height:64px; border-radius:6px;">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="addRiderModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveRiderBtn"><i class="fas fa-check"></i> Save Rider</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Order Modal -->
+    <div id="editOrderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Order</h3>
+                <span class="close" data-modal="editOrderModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editOrderForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="orderStatus">Order Status:</label>
+                            <select id="orderStatus" name="status">
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="preparing">Preparing</option>
+                                <option value="ready">Ready</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="orderRider">Assign Rider:</label>
+                            <select id="orderRider" name="rider_id">
+                                <option value="">Select Rider</option>
+                                <!-- Riders will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label for="riderLocation">Rider Current Location:</label>
+                            <input type="text" id="riderLocation" name="rider_location" placeholder="Enter current location">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="editOrderModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveOrderBtn"><i class="fas fa-check"></i> Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/admin.js?v=10"></script>
+    <script>
+        const hamburgerMenu = document.getElementById('hamburgerMenu');
+        const navMenu = document.getElementById('navMenu');
+        if (hamburgerMenu && navMenu) {
+            hamburgerMenu.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isOpen = document.body.classList.toggle('left-open');
+                hamburgerMenu.classList.toggle('active', isOpen);
+            });
+            const navLinks = navMenu.querySelectorAll('a');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    document.body.classList.remove('left-open');
+                    hamburgerMenu.classList.remove('active');
+                });
+            });
+            document.addEventListener('click', function(event) {
+                if (!navMenu.contains(event.target) && !hamburgerMenu.contains(event.target)) {
+                    document.body.classList.remove('left-open');
+                    hamburgerMenu.classList.remove('active');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

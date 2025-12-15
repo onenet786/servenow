@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - ServeNow</title>
+    <link rel="stylesheet" href="style/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="images/servenow.png">
+    <style>
+        body {
+            background: linear-gradient(to right, #74ebd5, #acb6e5);
+            background-size: cover;
+            background-position: center;
+            height: 70vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background-color: rgba(255, 255, 255, 0.9);
+            /* padding: 2px; */
+            border-radius: 40px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+            width: 350px;
+            text-align: center;
+            max-height: 7vh
+            /* removed scroll constraint */
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .login-form .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px auto;
+            text-align: center;
+        }
+        .login-form .logo img {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .logo img {
+            width: 72px;
+            height: 72px;
+            object-fit: contain;
+            margin-bottom: 8px;
+        }
+
+        .logo h1 {
+            margin: 0;
+            color: #007bff;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-form h2 {
+            margin-bottom: 10px;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            color: #fff;
+            padding: 8px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 14px;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+        p {
+            margin-top: 12px;
+            color: #555;
+        }
+
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* ===== MODERN TOAST NOTIFICATIONS ===== */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            background: white;
+            min-width: 300px;
+            max-width: 500px;
+            pointer-events: auto;
+            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .toast::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 4px;
+        }
+
+        .toast-icon {
+            font-size: 24px;
+            min-width: 24px;
+            animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .toast-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .toast-message {
+            font-size: 0.85rem;
+            margin: 0;
+            opacity: 0.8;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            opacity: 0.5;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+
+        .toast-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            animation: progressBar 3s linear forwards;
+        }
+
+        .toast.success { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 4px solid #10b981; }
+        .toast.success .toast-icon { color: #10b981; }
+        .toast.success .toast-title { color: #065f46; }
+        .toast.success .toast-message { color: #047857; }
+        .toast.success .toast-progress { background: #10b981; }
+
+        .toast.error { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-left: 4px solid #ef4444; }
+        .toast.error .toast-icon { color: #ef4444; }
+        .toast.error .toast-title { color: #7f1d1d; }
+        .toast.error .toast-message { color: #b91c1c; }
+        .toast.error .toast-progress { background: #ef4444; }
+
+        .toast.warning { background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-left: 4px solid #f59e0b; }
+        .toast.warning .toast-icon { color: #f59e0b; }
+        .toast.warning .toast-title { color: #78350f; }
+        .toast.warning .toast-message { color: #b45309; }
+        .toast.warning .toast-progress { background: #f59e0b; }
+
+        .toast.info { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; }
+        .toast.info .toast-icon { color: #0ea5e9; }
+        .toast.info .toast-title { color: #0c2d5f; }
+        .toast.info .toast-message { color: #0369a1; }
+        .toast.info .toast-progress { background: #0ea5e9; }
+
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        @keyframes popIn { 0% { transform: scale(0); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        @keyframes progressBar { from { width: 100%; } to { width: 0%; } }
+
+        .toast.removing { animation: slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+        /* Mobile Landscape - Fit entire form in single screen */
+        @media (max-height: 550px) and (orientation: landscape) {
+            body {
+                height: 100vh;
+                padding: 0;
+                margin: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .login-container {
+                border-radius: 6px;
+                width: 92vw;
+                max-width: 600px;
+                height: auto;
+                max-height: 88vh;
+                overflow: hidden;
+                padding: 0.25rem 0.45rem;
+                background-color: rgba(255, 255, 255, 0.95);
+                box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                gap: 0.5rem;
+            }
+
+            .logo {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-width: 80px;
+                margin: 0;
+            }
+
+            .logo img {
+                width: 70px;
+                height: 70px;
+                object-fit: contain;
+                margin-bottom: 0;
+            }
+
+            .logo h1 {
+                font-size: 0.9rem;
+                margin: 0;
+                color: #007bff;
+                font-weight: 700;
+                text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            }
+
+            .login-form {
+                display: flex;
+                flex-direction: column;
+                gap: 0;
+                margin: 0;
+                width: calc(100% - 85px);
+                text-align: center;
+                flex-shrink: 1;
+            }
+
+            .login-form h2 {
+                margin: 0 0 0.08rem 0;
+                font-size: 0.82rem;
+                color: #333;
+            }
+
+            .form-group {
+                margin: 0 0 0.18rem 0;
+                text-align: left;
+            }
+
+            .form-group label {
+                display: none;
+            }
+
+            .form-group input {
+                width: 100%;
+                padding: 0.3rem 0.38rem;
+                font-size: 0.76rem;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                box-sizing: border-box;
+                margin: 0;
+            }
+
+            .btn-primary {
+                background-color: #007bff;
+                color: #fff;
+                padding: 0.38rem;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                width: 100%;
+                font-size: 0.78rem;
+                margin: 0.1rem 0 0.05rem 0;
+            }
+
+            .btn-primary:hover {
+                background-color: #0056b3;
+            }
+
+            p {
+                margin: 0.08rem 0 0;
+                color: #555;
+                font-size: 0.66rem;
+            }
+
+            a {
+                color: #007bff;
+                text-decoration: none;
+                font-size: 0.66rem;
+            }
+
+            a:hover {
+                text-decoration: underline;
+            }
+        }
+
+        /* Portrait view - show logo on top */
+        @media (max-height: 550px) and (orientation: portrait) {
+            .logo {
+                display: block;
+            }
+        }
+
+        /* Default - show logo on top */
+        @media (min-height: 551px) {
+            .logo {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+    
+    <div class="login-container">
+        <section class="login-form">
+            <div class="logo">
+                <img src="images/servenow.png" alt="ServeNow Logo">
+            </div>
+            <h2>Login to ServeNow</h2>
+            <form id="loginForm" action="#" method="post">
+                <div class="form-group">
+                    <label for="email">Email Address:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+
+            <p>Don't have an account? <a href="register.html">Register here</a></p>
+        </section>
+    </div>
+
+    <script src="js/app.js?v=7"></script>
+    <script>
+        // Mobile menu toggle functionality
+        const menuToggle = document.getElementById('menuToggle');
+        const navMenu = document.getElementById('navMenu');
+
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', function() {
+                navMenu.classList.toggle('active');
+                menuToggle.classList.toggle('active');
+            });
+
+            // Close mobile menu when clicking on a link
+            const navLinks = navMenu.querySelectorAll('a');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    navMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
+                });
+            });
+
+            // Close mobile menu when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
+                    navMenu.classList.remove('active');
+                    menuToggle.classList.remove('active');
+                }
+            });
+        }
+
+        // ===== MODERN TOAST NOTIFICATION SYSTEM =====
+        function showToast(title, message, type = 'info', duration = 3000) {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: '✓',
+                error: '✕',
+                warning: '⚠',
+                info: 'ℹ'
+            };
+            
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type] || '•'}</div>
+                <div class="toast-content">
+                    <h4 class="toast-title">${title}</h4>
+                    <p class="toast-message">${message}</p>
+                </div>
+                <button class="toast-close" onclick="this.closest('.toast').remove()">✕</button>
+                <div class="toast-progress"></div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.classList.add('removing');
+                    setTimeout(() => {
+                        if (toast.parentElement) {
+                            toast.remove();
+                        }
+                    }, 300);
+                }
+            }, duration);
+        }
+
+        function showSuccess(title, message, duration = 3000) {
+            showToast(title, message, 'success', duration);
+        }
+
+        function showError(title, message, duration = 3000) {
+            showToast(title, message, 'error', duration);
+        }
+
+        function showWarning(title, message, duration = 3000) {
+            showToast(title, message, 'warning', duration);
+        }
+
+        function showInfo(title, message, duration = 3000) {
+            showToast(title, message, 'info', duration);
+        }
+    </script>
+</body>
+</html>
