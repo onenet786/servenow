@@ -199,24 +199,7 @@ function initializeAdmin() {
     document.getElementById('addUserBtn').addEventListener('click', () => showAddUserModal());
     document.getElementById('addStoreBtn').addEventListener('click', () => showAddStoreModal());
     document.getElementById('addProductBtn').addEventListener('click', () => showAddProductModal());
-    const exportBtn = document.getElementById('exportImagesBtn');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', exportBase64Images);
-    }
-    // Image fit toggle (preview cover vs fill)
-    const imageFitSelect = document.getElementById('imageFitSelect');
-    if (imageFitSelect) {
-        // initialize from localStorage (default: cover)
-        const saved = localStorage.getItem('productImageFit') || 'cover';
-        imageFitSelect.value = saved;
-        applyImageFitClass(saved);
-        imageFitSelect.addEventListener('change', function() {
-            const val = this.value === 'fill' ? 'fill' : 'cover';
-            localStorage.setItem('productImageFit', val);
-            applyImageFitClass(val);
-            showSuccess('Image Fit Updated', `Image fit set to ${val}`);
-        });
-    }
+    // Removed Export Base64 Images and Image Fit controls
     // Apply matching background color for any product-image previews already on the page
     try {
         const imgs = document.querySelectorAll('.product-image img');
@@ -319,6 +302,12 @@ function initializeAdmin() {
     if (createBackupBtn) createBackupBtn.addEventListener('click', createBackup);
     const refreshBackupsBtn = document.getElementById('refreshBackupsBtn');
     if (refreshBackupsBtn) refreshBackupsBtn.addEventListener('click', loadBackups);
+    const restoreBackupBtn = document.getElementById('restoreBackupBtn');
+    if (restoreBackupBtn) restoreBackupBtn.addEventListener('click', restoreSelectedBackup);
+    const clearDatabaseBtn = document.getElementById('clearDatabaseBtn');
+    if (clearDatabaseBtn) clearDatabaseBtn.addEventListener('click', clearDatabaseWithBackup);
+    const clearDatabaseKeepOneBtn = document.getElementById('clearDatabaseKeepOneBtn');
+    if (clearDatabaseKeepOneBtn) clearDatabaseKeepOneBtn.addEventListener('click', clearDatabaseKeepOne);
 
     // Add filter event listeners
     const filterDate = document.getElementById('filterDate');
@@ -334,6 +323,74 @@ function initializeAdmin() {
     if (clearFiltersBtn) {
         clearFiltersBtn.addEventListener('click', clearFilters);
     }
+
+    // Users filters
+    const userSearch = document.getElementById('userSearch');
+    const userTypeFilter = document.getElementById('userTypeFilter');
+    const userStatusFilter = document.getElementById('userStatusFilter');
+    const userClearFiltersBtn = document.getElementById('userClearFiltersBtn');
+    if (userSearch) userSearch.addEventListener('input', filterUsers);
+    if (userTypeFilter) userTypeFilter.addEventListener('change', filterUsers);
+    if (userStatusFilter) userStatusFilter.addEventListener('change', filterUsers);
+    if (userClearFiltersBtn) userClearFiltersBtn.addEventListener('click', clearUserFilters);
+
+    // Stores filters
+    const storeSearch = document.getElementById('storeSearch');
+    const storeStatusFilter = document.getElementById('storeStatusFilter');
+    const storeClearFiltersBtn = document.getElementById('storeClearFiltersBtn');
+    if (storeSearch) storeSearch.addEventListener('input', filterStores);
+    if (storeStatusFilter) storeStatusFilter.addEventListener('change', filterStores);
+    if (storeClearFiltersBtn) storeClearFiltersBtn.addEventListener('click', clearStoreFilters);
+
+    // Products filters
+    const productSearch = document.getElementById('productSearch');
+    const productCategoryFilter = document.getElementById('productCategoryFilter');
+    const productStoreFilter = document.getElementById('productStoreFilter');
+    const productStatusFilter = document.getElementById('productStatusFilter');
+    const productClearFiltersBtn = document.getElementById('productClearFiltersBtn');
+    if (productSearch) productSearch.addEventListener('input', filterProducts);
+    if (productCategoryFilter) productCategoryFilter.addEventListener('change', filterProducts);
+    if (productStoreFilter) productStoreFilter.addEventListener('change', filterProducts);
+    if (productStatusFilter) productStatusFilter.addEventListener('change', filterProducts);
+    if (productClearFiltersBtn) productClearFiltersBtn.addEventListener('click', clearProductFilters);
+
+    // Categories filters
+    const categorySearch = document.getElementById('categorySearch');
+    const categoryStatusFilter = document.getElementById('categoryStatusFilter');
+    const categoryClearFiltersBtn = document.getElementById('categoryClearFiltersBtn');
+    if (categorySearch) categorySearch.addEventListener('input', filterCategories);
+    if (categoryStatusFilter) categoryStatusFilter.addEventListener('change', filterCategories);
+    if (categoryClearFiltersBtn) categoryClearFiltersBtn.addEventListener('click', clearCategoryFilters);
+
+    // Riders filters
+    const riderSearch = document.getElementById('riderSearch');
+    const riderAvailabilityFilter = document.getElementById('riderAvailabilityFilter');
+    const riderStatusFilter = document.getElementById('riderStatusFilter');
+    const riderClearFiltersBtn = document.getElementById('riderClearFiltersBtn');
+    if (riderSearch) riderSearch.addEventListener('input', filterRiders);
+    if (riderAvailabilityFilter) riderAvailabilityFilter.addEventListener('change', filterRiders);
+    if (riderStatusFilter) riderStatusFilter.addEventListener('change', filterRiders);
+    if (riderClearFiltersBtn) riderClearFiltersBtn.addEventListener('click', clearRiderFilters);
+
+    try {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const y = now.getFullYear();
+        const m = pad(now.getMonth() + 1);
+        const d = pad(now.getDate());
+        const hh = pad(now.getHours());
+        const mm = pad(now.getMinutes());
+        const todayDate = `${y}-${m}-${d}`;
+        const todayDateTime = `${y}-${m}-${d}T${hh}:${mm}`;
+        const fd = document.getElementById('filterDate');
+        if (fd && !fd.value) fd.value = todayDate;
+        const rsd = document.getElementById('reportStartDate');
+        if (rsd && !rsd.value) rsd.value = todayDate;
+        const red = document.getElementById('reportEndDate');
+        if (red && !red.value) red.value = todayDate;
+        const ed = document.getElementById('entryDate');
+        if (ed && !ed.value) ed.value = todayDateTime;
+    } catch (e) {}
 
     // Add report event listeners
     const generateReportBtn = document.getElementById('generateReportBtn');
@@ -375,6 +432,7 @@ function initializeAdmin() {
         const r = document.getElementById('petrolRate');
         const c = document.getElementById('fuelCost');
         if (d) { try { d.readOnly = true; } catch(_) {} }
+        if (c) { try { c.readOnly = true; } catch(_) {} }
         if (!s || !e) return;
         const recalc = () => {
             const sv = parseFloat(String(s.value || '').replace(/[^\d.]/g, ''));
@@ -563,25 +621,70 @@ try {
             document.querySelectorAll('.nav-menu .dropdown').forEach(d => {
                 if (d !== li) d.classList.remove('open');
             });
+            const menu = li.querySelector('.dropdown-menu');
+            if (menu) {
+                if (nowOpen) {
+                    const rect = this.getBoundingClientRect();
+                    menu.style.position = 'fixed';
+                    menu.style.left = Math.round(rect.left) + 'px';
+                    menu.style.top = Math.round(rect.bottom) + 'px';
+                    menu.style.zIndex = '5000';
+                    menu.style.maxHeight = 'none';
+                    menu.style.overflow = 'visible';
+                } else {
+                    menu.style.position = '';
+                    menu.style.left = '';
+                    menu.style.top = '';
+                    menu.style.zIndex = '';
+                    menu.style.maxHeight = '';
+                    menu.style.overflow = '';
+                }
+            }
         });
     });
     // Close dropdowns when clicking outside nav
     document.addEventListener('click', function(e) {
         const nav = document.getElementById('navMenu');
         if (nav && !nav.contains(e.target)) {
-            document.querySelectorAll('.nav-menu .dropdown').forEach(d => d.classList.remove('open'));
+            document.querySelectorAll('.nav-menu .dropdown').forEach(d => {
+                d.classList.remove('open');
+                const m = d.querySelector('.dropdown-menu');
+                if (m) {
+                    m.style.position = '';
+                    m.style.left = '';
+                    m.style.top = '';
+                    m.style.zIndex = '';
+                    m.style.maxHeight = '';
+                    m.style.overflow = '';
+                }
+            });
         }
     });
+    if (!window._dropdownPositionBound) {
+        window._dropdownPositionBound = true;
+        const reposition = () => {
+            const openToggle = document.querySelector('.nav-menu .dropdown.open > .dropdown-toggle');
+            if (!openToggle) return;
+            const li = openToggle.closest('.dropdown');
+            if (!li) return;
+            const menu = li.querySelector('.dropdown-menu');
+            if (!menu) return;
+            const rect = openToggle.getBoundingClientRect();
+            menu.style.position = 'fixed';
+            menu.style.left = Math.round(rect.left) + 'px';
+            menu.style.top = Math.round(rect.bottom) + 'px';
+            menu.style.zIndex = '5000';
+            menu.style.maxHeight = 'none';
+            menu.style.overflow = 'visible';
+        };
+        window.addEventListener('resize', reposition);
+        window.addEventListener('scroll', reposition, true);
+    }
 } catch (e) { /* ignore */ }
 
 }
 
-// Apply image fit mode by toggling a class on <body>
-function applyImageFitClass(mode) {
-    document.body.classList.remove('image-fit-cover', 'image-fit-fill');
-    if (mode === 'fill') document.body.classList.add('image-fit-fill');
-    else document.body.classList.add('image-fit-cover');
-}
+// Image Fit removed
 
 // Global helper: apply orientation-based object-fit to any img preview
 function applyOrientationFitAdmin(img) {
@@ -976,11 +1079,13 @@ async function loadBackups() {
             const tr = document.createElement('tr');
             const mtime = new Date(b.mtime).toLocaleString();
             tr.innerHTML = `
+                <td><input type="radio" name="selBackup" value="${b.filename}" /></td>
                 <td>${b.filename}</td>
                 <td>${humanFileSize(b.size)}</td>
                 <td>${mtime}</td>
                 <td>
                     <button class="btn btn-small" onclick="downloadBackup('${encodeURIComponent(b.filename)}')">Download</button>
+                    <button class="btn btn-small btn-warning" onclick="restoreBackup('${b.filename}')">Restore</button>
                 </td>
             `;
             body.appendChild(tr);
@@ -1025,7 +1130,122 @@ async function downloadBackup(encodedFilename) {
     }
 }
 
+async function restoreBackup(filename) {
+    const uEl = document.getElementById('utilUsername');
+    const pEl = document.getElementById('utilPassword');
+    const u = uEl ? String(uEl.value || '') : '';
+    const p = pEl ? String(pEl.value || '') : '';
+    if (!u || !p) { showError('Restore', 'Enter super admin username and password'); return; }
+    showInfo('Restore', `Restoring from ${filename}...`);
+    try {
+        const resp = await fetch(`${API_BASE}/api/admin/restore-db`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ filename, username: u, password: p })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess('Restore Complete', data.message || 'Database restored');
+            await loadBackups();
+        } else {
+            showError('Restore Failed', data.message || 'Unknown error');
+        }
+    } catch (err) {
+        console.error('restoreBackup error:', err);
+        showError('Restore Error', err.message || err);
+    }
+}
 
+async function restoreSelectedBackup() {
+    const selected = document.querySelector('input[name="selBackup"]:checked');
+    if (!selected) { showError('Restore', 'Please select a backup to restore'); return; }
+    await restoreBackup(selected.value);
+}
+
+async function clearDatabaseWithBackup() {
+    if (!confirm('Clear database and keep only admin user and categories? A backup will be created first.')) return;
+    const uEl = document.getElementById('utilUsername');
+    const pEl = document.getElementById('utilPassword');
+    const u = uEl ? String(uEl.value || '') : '';
+    const p = pEl ? String(pEl.value || '') : '';
+    if (!u || !p) { showError('Clear Database', 'Enter super admin username and password'); return; }
+    showInfo('Clear Database', 'Clearing database...');
+    try {
+        const resp = await fetch(`${API_BASE}/api/admin/clear-db?backup=1`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ backup: 1, username: u, password: p })
+        });
+        const ct = resp.headers.get('content-type') || '';
+        let data = null;
+        if (ct.includes('application/json')) {
+            data = await resp.json();
+        }
+        if (resp.ok && data && data.success) {
+            showSuccess('Database Cleared', data.message || 'Cleared successfully');
+            await loadBackups();
+            loadDashboardStats();
+        } else {
+            const text = (!data && !resp.ok) ? await resp.text() : '';
+            showError('Clear Failed', (data && data.message) || (text ? `HTTP ${resp.status}` : 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('clearDatabaseWithBackup error:', err);
+        showError('Clear Error', err.message || err);
+    }
+}
+
+async function clearDatabaseKeepOne() {
+    if (!confirm('Clear database and keep one record in each table (and admin user)? A backup will be created first.')) return;
+    const uEl = document.getElementById('utilUsername');
+    const pEl = document.getElementById('utilPassword');
+    const u = uEl ? String(uEl.value || '') : '';
+    const p = pEl ? String(pEl.value || '') : '';
+    if (!u || !p) { showError('Clear Database', 'Enter super admin username and password'); return; }
+    showInfo('Clear Database (Keep One)', 'Clearing database...');
+    try {
+        const resp = await fetch(`${API_BASE}/api/admin/clear-db-keep-one?backup=1`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ backup: 1, username: u, password: p })
+        });
+        const ct = resp.headers.get('content-type') || '';
+        let data = null;
+        if (ct.includes('application/json')) {
+            data = await resp.json();
+        }
+        if (resp.ok && data && data.success) {
+            showSuccess('Database Cleared', data.message || 'Cleared successfully');
+            await loadBackups();
+            loadDashboardStats();
+        } else {
+            if (resp.status === 404) {
+                const fallback = await fetch(`${API_BASE}/api/admin/clear-db?backup=1`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ backup: 1, username: u, password: p })
+                });
+                const ct2 = fallback.headers.get('content-type') || '';
+                let d2 = null;
+                if (ct2.includes('application/json')) d2 = await fallback.json();
+                if (fallback.ok && d2 && d2.success) {
+                    showSuccess('Database Cleared', 'Keep-one endpoint not found; performed Keep Admin clear');
+                    await loadBackups();
+                    loadDashboardStats();
+                } else {
+                    const t2 = (!d2 && !fallback.ok) ? await fallback.text() : '';
+                    showError('Clear Failed', (d2 && d2.message) || (t2 ? `HTTP ${fallback.status}` : 'Unknown error'));
+                }
+            } else {
+                const text = (!data && !resp.ok) ? await resp.text() : '';
+                showError('Clear Failed', (data && data.message) || (text ? `HTTP ${resp.status}` : 'Unknown error'));
+            }
+        }
+    } catch (err) {
+        console.error('clearDatabaseKeepOne error:', err);
+        showError('Clear Error', err.message || err);
+    }
+}
 function loadDashboardStats() {
     Promise.all([
         fetch(`${API_BASE}/api/orders`, { headers: { 'Authorization': `Bearer ${authToken}` } })
@@ -1144,7 +1364,9 @@ function toggleUserStatus(userId, currentStatus) {
 }
 
 function loadStores() {
-    fetch(`${API_BASE}/api/stores`)
+    fetch(`${API_BASE}/api/stores?admin=1`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
     .then(response => response.json())
     .then(data => {
         currentStores = data.stores || [];
@@ -1188,6 +1410,7 @@ function loadProducts() {
         console.log('Products API response:', data);
         currentProducts = data.products || [];
         console.log('Current products array:', currentProducts);
+        try { populateProductFilters(); } catch (e) { console.warn('populateProductFilters error', e); }
         displayProducts(currentProducts);
         initializeTableSorting('products');
     })
@@ -1292,12 +1515,22 @@ function displayProducts(products) {
             if (rect.right > ww) card.style.left = Math.max(8, x - (rect.right - ww) - 24) + 'px';
             if (rect.bottom > wh) card.style.top = Math.max(8, y - (rect.bottom - wh) - 24) + 'px';
         };
+        const isOverActions = (evt) => {
+            const el = document.elementFromPoint(evt.clientX, evt.clientY);
+            return !!(el && (el.closest('.action-buttons') || (el.closest('td') && el.closest('td').querySelector('.action-buttons'))));
+        };
         const showCard = (evt) => {
+            if (isOverActions(evt)) return;
             const card = ensureHoverCard();
             card.innerHTML = renderCard(product);
             positionCard(card, evt);
         };
         const moveCard = (evt) => {
+            if (isOverActions(evt)) {
+                const card = document.getElementById('productHoverCard');
+                if (card) card.style.display = 'none';
+                return;
+            }
             const card = document.getElementById('productHoverCard');
             if (card && card.style.display !== 'none') positionCard(card, evt);
         };
@@ -1312,42 +1545,7 @@ function displayProducts(products) {
     });
 }
 
-// Export base64 images to uploads via server endpoint
-function exportBase64Images() {
-    if (!confirm('Export all base64 product images to server /uploads and update product records?')) return;
-    const statusEl = document.getElementById('exportImagesStatus');
-    const btn = document.getElementById('exportImagesBtn');
-    if (statusEl) statusEl.textContent = 'Exporting...';
-    if (btn) btn.disabled = true;
-
-    fetch(`${API_BASE}/api/products/export-base64-images`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            const converted = data.converted || 0;
-            showSuccess('Export Complete', `${converted} images converted and updated.`);
-            if (statusEl) statusEl.textContent = `Converted: ${converted}`;
-            // Refresh product list to show updated image paths
-            loadProducts();
-        } else {
-            showError('Export Failed', data.message || 'Export failed');
-            if (statusEl) statusEl.textContent = 'Export failed';
-        }
-        if (btn) btn.disabled = false;
-    })
-    .catch(err => {
-        console.error('Export error:', err);
-        showError('Error', 'Failed to export images. See console for details.');
-        if (statusEl) statusEl.textContent = 'Error';
-        if (btn) btn.disabled = false;
-    });
-}
+// Export Base64 Images removed
 
 async function editProduct(productId) {
     showInfo('Coming Soon', 'Edit product functionality is being implemented.');
@@ -1503,6 +1701,148 @@ function clearFilters() {
     document.getElementById('filterDate').value = '';
     document.getElementById('filterRider').value = '';
     displayOrders(currentOrders);
+}
+
+function filterUsers() {
+    try {
+        const q = (document.getElementById('userSearch')?.value || '').trim().toLowerCase();
+        const type = document.getElementById('userTypeFilter')?.value || '';
+        const status = document.getElementById('userStatusFilter')?.value || '';
+        let filtered = currentUsers || [];
+        if (q) {
+            filtered = filtered.filter(u => {
+                const name = `${u.first_name || ''} ${u.last_name || ''}`.toLowerCase();
+                const email = (u.email || '').toLowerCase();
+                return name.includes(q) || email.includes(q);
+            });
+        }
+        if (type) filtered = filtered.filter(u => String(u.user_type || '').toLowerCase() === type);
+        if (status) filtered = filtered.filter(u => (u.is_active ? 'active' : 'inactive') === status);
+        displayUsers(filtered);
+    } catch (e) { console.warn('filterUsers error', e); }
+}
+
+function clearUserFilters() {
+    const ids = ['userSearch', 'userTypeFilter', 'userStatusFilter'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    displayUsers(currentUsers);
+}
+
+function filterStores() {
+    try {
+        const q = (document.getElementById('storeSearch')?.value || '').trim().toLowerCase();
+        const status = document.getElementById('storeStatusFilter')?.value || '';
+        let filtered = currentStores || [];
+        if (q) {
+            filtered = filtered.filter(s => {
+                const name = (s.name || '').toLowerCase();
+                const loc = (s.location || '').toLowerCase();
+                return name.includes(q) || loc.includes(q);
+            });
+        }
+        if (status) filtered = filtered.filter(s => (s.is_active ? 'active' : 'inactive') === status);
+        displayStores(filtered);
+    } catch (e) { console.warn('filterStores error', e); }
+}
+
+function clearStoreFilters() {
+    const ids = ['storeSearch', 'storeStatusFilter'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    displayStores(currentStores);
+}
+
+function populateProductFilters() {
+    const catSel = document.getElementById('productCategoryFilter');
+    const storeSel = document.getElementById('productStoreFilter');
+    if (!catSel && !storeSel) return;
+    const cats = new Set();
+    const stores = new Set();
+    (currentProducts || []).forEach(p => {
+        if (p.category_name) cats.add(String(p.category_name));
+        if (p.store_name) stores.add(String(p.store_name));
+    });
+    if (catSel) {
+        const prev = catSel.value;
+        catSel.innerHTML = '<option value="">All</option>' + Array.from(cats).sort().map(c => `<option value="${c}">${c}</option>`).join('');
+        catSel.value = prev;
+    }
+    if (storeSel) {
+        const prev2 = storeSel.value;
+        storeSel.innerHTML = '<option value="">All</option>' + Array.from(stores).sort().map(s => `<option value="${s}">${s}</option>`).join('');
+        storeSel.value = prev2;
+    }
+}
+
+function filterProducts() {
+    try {
+        const q = (document.getElementById('productSearch')?.value || '').trim().toLowerCase();
+        const cat = document.getElementById('productCategoryFilter')?.value || '';
+        const store = document.getElementById('productStoreFilter')?.value || '';
+        const status = document.getElementById('productStatusFilter')?.value || '';
+        let filtered = currentProducts || [];
+        if (q) {
+            filtered = filtered.filter(p => (String(p.name || '').toLowerCase().includes(q)));
+        }
+        if (cat) filtered = filtered.filter(p => String(p.category_name || '') === cat);
+        if (store) filtered = filtered.filter(p => String(p.store_name || '') === store);
+        if (status) filtered = filtered.filter(p => ((p.is_available ? 'available' : 'unavailable') === status));
+        displayProducts(filtered);
+    } catch (e) { console.warn('filterProducts error', e); }
+}
+
+function clearProductFilters() {
+    const ids = ['productSearch', 'productCategoryFilter', 'productStoreFilter', 'productStatusFilter'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    displayProducts(currentProducts);
+}
+
+function filterCategories() {
+    try {
+        const q = (document.getElementById('categorySearch')?.value || '').trim().toLowerCase();
+        const status = document.getElementById('categoryStatusFilter')?.value || '';
+        let filtered = currentCategories || [];
+        if (q) {
+            filtered = filtered.filter(c => {
+                const name = (c.name || '').toLowerCase();
+                const desc = (c.description || '').toLowerCase();
+                return name.includes(q) || desc.includes(q);
+            });
+        }
+        if (status) filtered = filtered.filter(c => (c.is_active ? 'active' : 'inactive') === status);
+        displayCategories(filtered);
+    } catch (e) { console.warn('filterCategories error', e); }
+}
+
+function clearCategoryFilters() {
+    const ids = ['categorySearch', 'categoryStatusFilter'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    displayCategories(currentCategories);
+}
+
+function filterRiders() {
+    try {
+        const q = (document.getElementById('riderSearch')?.value || '').trim().toLowerCase();
+        const avail = document.getElementById('riderAvailabilityFilter')?.value || '';
+        const status = document.getElementById('riderStatusFilter')?.value || '';
+        let filtered = currentRiders || [];
+        if (q) {
+            filtered = filtered.filter(r => {
+                const name = (r.full_name || [r.first_name || '', r.last_name || ''].filter(Boolean).join(' ')).toLowerCase();
+                const email = (r.email || '').toLowerCase();
+                const phone = (r.phone || '').toLowerCase();
+                return name.includes(q) || email.includes(q) || phone.includes(q);
+            });
+        }
+        if (avail) filtered = filtered.filter(r => ((r.is_available ? 'available' : 'unavailable') === avail));
+        if (status) filtered = filtered.filter(r => ((r.is_active ? 'active' : 'inactive') === status));
+        displayRiders(filtered);
+    } catch (e) { console.warn('filterRiders error', e); }
+}
+
+function clearRiderFilters() {
+    const ids = ['riderSearch', 'riderAvailabilityFilter', 'riderStatusFilter'];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    displayRiders(currentRiders);
 }
 
 function updateOrderStatus(orderId, currentStatus) {
@@ -2305,6 +2645,7 @@ async function saveStore() {
         delivery_time: formData.get('delivery_time'),
         opening_time: formData.get('opening_time') || null,
         closing_time: formData.get('closing_time') || null,
+        payment_term: formData.get('payment_term') || null,
         address: formData.get('address'),
         status: formData.get('status') || 'active',
         category_id: formData.get('category_id') || null,
@@ -2423,6 +2764,7 @@ async function editStore(storeId) {
         form.querySelector('#storeDeliveryTime').value = s.delivery_time || '';
         if (s.opening_time) form.querySelector('#storeOpeningTime').value = s.opening_time;
         if (s.closing_time) form.querySelector('#storeClosingTime').value = s.closing_time;
+        if (form.querySelector('#storePaymentTerm')) form.querySelector('#storePaymentTerm').value = s.payment_term || '';
         form.querySelector('#storeDescription').value = s.description || '';
         form.querySelector('#storeAddress').value = s.address || '';
         // category dropdown may be populated; attempt to set value
@@ -2558,6 +2900,15 @@ async function showAddProductModal() {
             console.warn('Failed to load units/sizes for product form', e);
         }
 
+        try {
+            const modal = document.getElementById('addProductModal');
+            if (modal) {
+                const titleEl = modal.querySelector('.modal-header h3');
+                if (titleEl) titleEl.textContent = 'Add New Product';
+                const saveBtn = modal.querySelector('#saveProductBtn');
+                if (saveBtn) saveBtn.textContent = 'Save Product';
+            }
+        } catch (e) {}
         showModal('addProductModal');
         const fileInput = document.getElementById('productImageFile');
         const preview = document.getElementById('productImagePreview');
@@ -2706,22 +3057,79 @@ async function editProduct(productId) {
             return;
         }
         const p = data.product;
-        // populate form
+        const [storesResponse, categoriesResponse, itemsResponse, unitsResp, sizesResp] = await Promise.all([
+            fetch(`${API_BASE}/api/stores`),
+            fetch(`${API_BASE}/api/categories`),
+            fetch(`${API_BASE}/api/products/items`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' }),
+            fetch(`${API_BASE}/api/sizes?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' })
+        ]);
+        const storesData = await storesResponse.json();
+        const categoriesData = await categoriesResponse.json();
+        const itemsData = await itemsResponse.json();
+        const unitsJson = await unitsResp.json();
+        const sizesJson = await sizesResp.json();
         const form = document.getElementById('addProductForm');
+        const storeSelect = document.getElementById('productStore');
+        const categorySelect = document.getElementById('productCategory');
+        const unitSelect = document.getElementById('productUnit');
+        const sizeSelect = document.getElementById('productSize');
+        const itemSelect = document.getElementById('productItem');
+        if (storeSelect) {
+            storeSelect.innerHTML = '<option value="">Select Store</option>';
+            if (storesData && storesData.success && Array.isArray(storesData.stores)) {
+                storesData.stores.forEach(store => {
+                    storeSelect.innerHTML += `<option value="${store.id}">${store.name}</option>`;
+                });
+            }
+        }
+        if (categorySelect) {
+            categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
+            if (categoriesData && categoriesData.success && Array.isArray(categoriesData.categories)) {
+                categoriesData.categories.forEach(category => {
+                    categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+                });
+            }
+        }
+        if (unitSelect) {
+            unitSelect.innerHTML = '<option value="">Select Unit (Optional)</option>';
+            if (unitsJson && unitsJson.success && Array.isArray(unitsJson.units)) {
+                unitsJson.units.forEach(u => {
+                    unitSelect.innerHTML += `<option value="${u.id}">${u.name}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`;
+                });
+            }
+        }
+        if (sizeSelect) {
+            sizeSelect.innerHTML = '<option value="">Select Size (Optional)</option>';
+            if (sizesJson && sizesJson.success && Array.isArray(sizesJson.sizes)) {
+                sizesJson.sizes.forEach(s => {
+                    sizeSelect.innerHTML += `<option value="${s.id}">${s.label}</option>`;
+                });
+            }
+        }
+        let itemsById = {};
+        if (itemSelect) {
+            if (itemsData && itemsData.success && Array.isArray(itemsData.items)) {
+                itemSelect.innerHTML = '<option value="">None</option>';
+                itemsData.items.forEach(it => {
+                    itemsById[it.id] = it;
+                    const label = it.category_name ? `${it.name} — ${it.category_name}` : it.name;
+                    itemSelect.innerHTML += `<option value="${it.id}">${label}</option>`;
+                });
+            }
+        }
         form.querySelector('#productName').value = p.name || '';
         form.querySelector('#productPrice').value = p.price || '';
         form.querySelector('#productDescription').value = p.description || '';
         form.querySelector('#productStock').value = p.stock_quantity || 0;
         if (form.querySelector('#productImagePreview') && p.image_url) {
             const prev = form.querySelector('#productImagePreview'); prev.src = p.image_url; prev.style.display = 'inline-block';
-            try { applyOrientationFitAdmin(prev); } catch (e) { /* no-op */ }
+            try { applyOrientationFitAdmin(prev); } catch (e) {}
         }
-        // set selects (store/category/unit/size)
-        if (p.store_id) form.querySelector('#productStore').value = p.store_id;
-        if (p.category_id) form.querySelector('#productCategory').value = p.category_id;
-        if (p.unit_id && form.querySelector('#productUnit')) form.querySelector('#productUnit').value = p.unit_id;
-        if (p.size_id && form.querySelector('#productSize')) form.querySelector('#productSize').value = p.size_id;
-        const itemSelect = document.getElementById('productItem');
+        if (p.store_id && storeSelect) storeSelect.value = p.store_id;
+        if (p.category_id && categorySelect) categorySelect.value = p.category_id;
+        if (p.unit_id && unitSelect) unitSelect.value = p.unit_id;
+        if (p.size_id && sizeSelect) sizeSelect.value = p.size_id;
         if (itemSelect) {
             if (p.item_id) {
                 itemSelect.value = p.item_id;
@@ -2730,12 +3138,27 @@ async function editProduct(productId) {
                 const descEl = document.getElementById('productDescription');
                 if (nameEl) nameEl.disabled = useItem;
                 if (descEl) descEl.disabled = useItem;
+                const it = itemsById[p.item_id];
+                if (it) {
+                    if (categorySelect && it.category_id) categorySelect.value = it.category_id;
+                    if (unitSelect && it.unit_id) unitSelect.value = it.unit_id;
+                    if (sizeSelect && it.size_id) sizeSelect.value = it.size_id;
+                }
             } else {
                 itemSelect.value = '';
             }
         }
 
         // Show modal
+        try {
+            const modal = document.getElementById('addProductModal');
+            if (modal) {
+                const titleEl = modal.querySelector('.modal-header h3');
+                if (titleEl) titleEl.textContent = 'Edit Product';
+                const saveBtn = modal.querySelector('#saveProductBtn');
+                if (saveBtn) saveBtn.textContent = 'Update Product';
+            }
+        } catch (e) {}
         showModal('addProductModal');
     } catch (e) {
         console.error('Failed to load product for edit', e);
@@ -2887,7 +3310,7 @@ function loadRiders() {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${rider.id}</td>
-                <td>${rider.first_name} ${rider.last_name}</td>
+                <td>${rider.full_name || [rider.first_name || '', rider.last_name || ''].filter(Boolean).join(' ')}</td>
                 <td>${rider.email}</td>
                 <td>${rider.phone}</td>
                 <td>${rider.vehicle_type}</td>
@@ -3202,20 +3625,107 @@ async function showAddRiderModal() {
         const saveBtn = modal.querySelector('#saveRiderBtn');
         if (saveBtn) saveBtn.textContent = 'Save Rider';
     }
+    try {
+        const imgInput = document.getElementById('riderImageFile');
+        const imgPrev = document.getElementById('riderImagePreview');
+        if (imgInput) imgInput.value = '';
+        if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+        const idInput = document.getElementById('riderIdCardFile');
+        const idPrev = document.getElementById('riderIdCardPreview');
+        if (idInput) idInput.value = '';
+        if (idPrev) { idPrev.src = ''; idPrev.style.display = 'none'; }
+    } catch (e) {}
+    try {
+        const imgInput = document.getElementById('riderImageFile');
+        const imgPrev = document.getElementById('riderImagePreview');
+        if (imgInput && imgPrev) {
+            imgInput.onchange = (e) => {
+                const f = e.target.files && e.target.files[0];
+                if (f) {
+                    const r = new FileReader();
+                    r.onload = (ev) => { imgPrev.src = ev.target.result; imgPrev.style.display = 'inline-block'; };
+                    r.readAsDataURL(f);
+                } else { imgPrev.style.display = 'none'; }
+            };
+        }
+        const idInput = document.getElementById('riderIdCardFile');
+        const idPrev = document.getElementById('riderIdCardPreview');
+        if (idInput && idPrev) {
+            idInput.onchange = (e) => {
+                const f = e.target.files && e.target.files[0];
+                if (f) {
+                    const r = new FileReader();
+                    r.onload = (ev) => { idPrev.src = ev.target.result; idPrev.style.display = 'inline-block'; };
+                    r.readAsDataURL(f);
+                } else { idPrev.style.display = 'none'; }
+            };
+        }
+        const cnic = document.getElementById('riderIdCardNum');
+        if (cnic) {
+            cnic.addEventListener('input', function() {
+                const digits = String(this.value).replace(/\D/g, '').slice(0, 13);
+                let out = '';
+                if (digits.length > 0) out += digits.slice(0, 5);
+                if (digits.length > 5) out += '-' + digits.slice(5, 12);
+                if (digits.length > 12) out += '-' + digits.slice(12);
+                this.value = out;
+            });
+        }
+    } catch (e) {}
     showModal('addRiderModal');
 }
 
 async function saveRider() {
     const formData = new FormData(document.getElementById('addRiderForm'));
+    const fullName = String(formData.get('fullName') || '').trim();
     const riderData = {
-        firstName: formData.get('firstName'),
-        lastName: formData.get('lastName'),
+        fullName,
         email: formData.get('email'),
         phone: formData.get('phone'),
         password: formData.get('password'),
         vehicleType: formData.get('vehicleType'),
-        licenseNumber: formData.get('licenseNumber')
+        licenseNumber: formData.get('licenseNumber'),
+        fatherName: String(formData.get('fatherName') || '').trim() || null,
+        idCardNum: String(formData.get('idCardNum') || '').trim() || null
     };
+
+    const idPattern = /^\d{5}-\d{7}-\d$/;
+    if (riderData.idCardNum && !idPattern.test(riderData.idCardNum)) {
+        showError('Invalid ID Card', 'Use format xxxxx-xxxxxxx-x');
+        return;
+    }
+
+    try {
+        const uploadImage = async (file) => {
+            const fd = new FormData();
+            fd.append('image', file);
+            const tryUpload = async (url) => {
+                const resp = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}` }, body: fd });
+                if (!resp.ok) return null;
+                const ct = resp.headers.get('content-type') || '';
+                if (!ct.includes('application/json')) return null;
+                const j = await resp.json();
+                return (j && j.success && j.image_url) ? j.image_url : null;
+            };
+            // Use product/store style endpoints, then fallback to categories
+            const p1 = await tryUpload(`${API_BASE}/api/products/upload-image`);
+            if (p1) return p1;
+            const p2 = await tryUpload(`${API_BASE}/api/stores/upload-image`);
+            if (p2) return p2;
+            const p3 = await tryUpload(`${API_BASE}/api/categories/upload-image`);
+            return p3;
+        };
+        const imgFile = document.getElementById('riderImageFile')?.files?.[0] || null;
+        if (imgFile) {
+            const url = await uploadImage(imgFile);
+            if (url) riderData.image_url = url;
+        }
+        const idFile = document.getElementById('riderIdCardFile')?.files?.[0] || null;
+        if (idFile) {
+            const idUrl = await uploadImage(idFile);
+            if (idUrl) riderData.id_card_url = idUrl;
+        }
+    } catch (e) { console.warn('Rider uploads failed', e); }
 
     try {
         if (editingRiderId) {
@@ -3227,6 +3737,16 @@ async function saveRider() {
             const data = await response.json();
             if (data.success) {
                 showSuccess('Rider Updated', 'Rider updated successfully!');
+                try {
+                    const imgInput = document.getElementById('riderImageFile');
+                    const imgPrev = document.getElementById('riderImagePreview');
+                    if (imgInput) imgInput.value = '';
+                    if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+                    const idInput = document.getElementById('riderIdCardFile');
+                    const idPrev = document.getElementById('riderIdCardPreview');
+                    if (idInput) idInput.value = '';
+                    if (idPrev) { idPrev.src = ''; idPrev.style.display = 'none'; }
+                } catch (e) {}
                 hideModal('addRiderModal');
                 editingRiderId = null;
                 loadRiders();
@@ -3247,6 +3767,16 @@ async function saveRider() {
 
             if (data.success) {
                 showSuccess('Rider Created', 'Rider created successfully!');
+                try {
+                    const imgInput = document.getElementById('riderImageFile');
+                    const imgPrev = document.getElementById('riderImagePreview');
+                    if (imgInput) imgInput.value = '';
+                    if (imgPrev) { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+                    const idInput = document.getElementById('riderIdCardFile');
+                    const idPrev = document.getElementById('riderIdCardPreview');
+                    if (idInput) idInput.value = '';
+                    if (idPrev) { idPrev.src = ''; idPrev.style.display = 'none'; }
+                } catch (e) {}
                 hideModal('addRiderModal');
                 loadRiders();
             } else {
@@ -3269,11 +3799,25 @@ async function editRider(riderId) {
         const vehicleTypeSelect = document.getElementById('riderVehicleType');
         await populateVehicleTypeSelect(vehicleTypeSelect, r.vehicle_type || null);
         const form = document.getElementById('addRiderForm');
-        form.querySelector('#riderFirstName').value = r.first_name || '';
-        form.querySelector('#riderLastName').value = r.last_name || '';
+        const full = (r.full_name) ? r.full_name : [r.first_name || '', r.last_name || ''].filter(Boolean).join(' ');
+        if (form.querySelector('#riderFullName')) form.querySelector('#riderFullName').value = full;
+        if (form.querySelector('#riderFatherName')) form.querySelector('#riderFatherName').value = r.father_name || '';
         form.querySelector('#riderEmail').value = r.email || '';
         form.querySelector('#riderPhone').value = r.phone || '';
         form.querySelector('#riderLicenseNumber').value = r.license_number || '';
+        if (form.querySelector('#riderIdCardNum')) form.querySelector('#riderIdCardNum').value = r.id_card_num || '';
+        try {
+            const imgPrev = document.getElementById('riderImagePreview');
+            if (imgPrev) {
+                if (r.image_url) { imgPrev.src = r.image_url; imgPrev.style.display = 'inline-block'; }
+                else { imgPrev.src = ''; imgPrev.style.display = 'none'; }
+            }
+            const idPrev = document.getElementById('riderIdCardPreview');
+            if (idPrev) {
+                if (r.id_card_url) { idPrev.src = r.id_card_url; idPrev.style.display = 'inline-block'; }
+                else { idPrev.src = ''; idPrev.style.display = 'none'; }
+            }
+        } catch (e) {}
         const modal = document.getElementById('addRiderModal');
         if (modal) {
             const titleEl = modal.querySelector('.modal-header h3');
@@ -3787,6 +4331,88 @@ function displayUsers(users) {
                 </div>
             </td>
         `;
+        const ensureHoverCard = () => {
+            let card = document.getElementById('userHoverCard');
+            if (!card) {
+                card = document.createElement('div');
+                card.id = 'userHoverCard';
+                card.style.position = 'absolute';
+                card.style.zIndex = '10000';
+                card.style.display = 'none';
+                card.style.minWidth = '260px';
+                card.style.maxWidth = '320px';
+                card.style.padding = '10px';
+                card.style.borderRadius = '10px';
+                card.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
+                card.style.background = 'linear-gradient(180deg, #fff 0%, #f6f7fb 100%)';
+                document.body.appendChild(card);
+            }
+            return card;
+        };
+        const renderCard = (u) => {
+            const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User';
+            const statusColor = u.is_active ? '#166534' : '#991b1b';
+            const statusBg = u.is_active ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
+            const avatar = `<div style="width:56px;height:56px;border-radius:28px;background:#e5e7eb;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;color:#6b7280;font-weight:700;">${(u.first_name || 'U').slice(0,1).toUpperCase()}</div>`;
+            const pill = `<span style="padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block;background:${statusBg};color:${statusColor};">${u.is_active ? 'Active' : 'Inactive'}</span>`;
+            const label = (lbl, val) => `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="width:88px;color:#9ca3af;font-size:12px;">${lbl}</div><div style="flex:1;color:#374151;font-size:13px;word-break:break-word;">${val || '-'}</div></div>`;
+            return `
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                    ${avatar}
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <div style="font-weight:800;color:#1f2937;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${name}</div>
+                            ${pill}
+                        </div>
+                        <div style="color:#64748b;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${u.user_type || ''}</div>
+                    </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    ${label('Email', u.email || '')}
+                    ${label('Phone', u.phone || '')}
+                    ${label('Address', u.address || '')}
+                    ${label('Type', u.user_type || '')}
+                </div>
+            `;
+        };
+        const positionCard = (card, evt) => {
+            const x = (evt.clientX || 0) + 16 + (window.scrollX || 0);
+            const y = (evt.clientY || 0) + 16 + (window.scrollY || 0);
+            const ww = window.innerWidth || document.documentElement.clientWidth || 800;
+            const wh = window.innerHeight || document.documentElement.clientHeight || 600;
+            card.style.display = 'block';
+            card.style.left = x + 'px';
+            card.style.top = y + 'px';
+            const rect = card.getBoundingClientRect();
+            if (rect.right > ww) card.style.left = Math.max(8, x - (rect.right - ww) - 24) + 'px';
+            if (rect.bottom > wh) card.style.top = Math.max(8, y - (rect.bottom - wh) - 24) + 'px';
+        };
+        const isOverActions = (evt) => {
+            const el = document.elementFromPoint(evt.clientX, evt.clientY);
+            return !!(el && (el.closest('.action-buttons') || (el.closest('td') && el.closest('td').querySelector('.action-buttons'))));
+        };
+        const showCard = (evt) => {
+            if (isOverActions(evt)) return;
+            const card = ensureHoverCard();
+            card.innerHTML = renderCard(user);
+            positionCard(card, evt);
+        };
+        const moveCard = (evt) => {
+            if (isOverActions(evt)) {
+                const card = document.getElementById('userHoverCard');
+                if (card) card.style.display = 'none';
+                return;
+            }
+            const card = document.getElementById('userHoverCard');
+            if (card && card.style.display !== 'none') positionCard(card, evt);
+        };
+        const hideCard = () => {
+            const card = document.getElementById('userHoverCard');
+            if (card) card.style.display = 'none';
+        };
+        row.addEventListener('mouseenter', showCard);
+        row.addEventListener('mousemove', moveCard);
+        row.addEventListener('mouseleave', hideCard);
         tbody.appendChild(row);
     });
 }
@@ -3894,12 +4520,22 @@ function displayStores(stores) {
             if (rect.right > ww) card.style.left = Math.max(8, x - (rect.right - ww) - 24) + 'px';
             if (rect.bottom > wh) card.style.top = Math.max(8, y - (rect.bottom - wh) - 24) + 'px';
         };
+        const isOverActions = (evt) => {
+            const el = document.elementFromPoint(evt.clientX, evt.clientY);
+            return !!(el && (el.closest('.action-buttons') || (el.closest('td') && el.closest('td').querySelector('.action-buttons'))));
+        };
         const showCard = (evt) => {
+            if (isOverActions(evt)) return;
             const card = ensureHoverCard();
             card.innerHTML = renderCard(store);
             positionCard(card, evt);
         };
         const moveCard = (evt) => {
+            if (isOverActions(evt)) {
+                const card = document.getElementById('storeHoverCard');
+                if (card) card.style.display = 'none';
+                return;
+            }
             const card = document.getElementById('storeHoverCard');
             if (card && card.style.display !== 'none') positionCard(card, evt);
         };
@@ -3972,7 +4608,7 @@ function displayRiders(riders) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${rider.id}</td>
-            <td>${rider.first_name} ${rider.last_name}</td>
+            <td>${rider.full_name || [rider.first_name || '', rider.last_name || ''].filter(Boolean).join(' ')}</td>
             <td>${rider.email}</td>
             <td>${rider.phone}</td>
             <td>${rider.vehicle_type}</td>
@@ -3991,6 +4627,98 @@ function displayRiders(riders) {
                 </div>
             </td>
         `;
+        const ensureHoverCard = () => {
+            let card = document.getElementById('riderHoverCard');
+            if (!card) {
+                card = document.createElement('div');
+                card.id = 'riderHoverCard';
+                card.style.position = 'absolute';
+                card.style.zIndex = '10000';
+                card.style.display = 'none';
+                card.style.minWidth = '260px';
+                card.style.maxWidth = '340px';
+                card.style.padding = '10px';
+                card.style.borderRadius = '10px';
+                card.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
+                card.style.background = 'linear-gradient(180deg, #fff 0%, #f6f7fb 100%)';
+                document.body.appendChild(card);
+            }
+            return card;
+        };
+        const renderCard = (r) => {
+            const name = r.full_name || [r.first_name || '', r.last_name || ''].filter(Boolean).join(' ') || 'Rider';
+            const statusColor = r.is_available ? '#166534' : '#991b1b';
+            const statusBg = r.is_available ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
+            let imgSrc = r.image_url ? String(r.image_url).trim().replace(/\\/g, '/') : '';
+            if (imgSrc) {
+                if (!(imgSrc.startsWith('http') || imgSrc.startsWith('data:'))) {
+                    imgSrc = API_BASE.replace(/\/$/, '') + '/' + imgSrc.replace(/^\/+/, '');
+                }
+            }
+            const avatar = imgSrc ? `<img src="${imgSrc}" alt="${name}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb;">` : `<div style="width:56px;height:56px;border-radius:8px;background:#e5e7eb;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;color:#6b7280;font-weight:700;">${(name||'R').slice(0,1).toUpperCase()}</div>`;
+            const pill = `<span style="padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block;background:${statusBg};color:${statusColor};">${r.is_available ? 'Available' : 'Unavailable'}</span>`;
+            const label = (lbl, val) => `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="width:88px;color:#9ca3af;font-size:12px;">${lbl}</div><div style="flex:1;color:#374151;font-size:13px;word-break:break-word;">${val || '-'}</div></div>`;
+            const idImg = r.id_card_url ? `<img src="${(r.id_card_url.startsWith('http')||r.id_card_url.startsWith('data:'))?r.id_card_url:(API_BASE.replace(/\/$/,'')+'/'+r.id_card_url.replace(/^\/+/,''))}" alt="ID" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb;">` : '';
+            return `
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                    ${avatar}
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <div style="font-weight:800;color:#1f2937;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${name}</div>
+                            ${pill}
+                        </div>
+                        <div style="color:#64748b;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${r.vehicle_type || ''}</div>
+                    </div>
+                    ${idImg}
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                    ${label('Email', r.email || '')}
+                    ${label('Phone', r.phone || '')}
+                    ${label('License', r.license_number || '')}
+                    ${label('Father', r.father_name || '')}
+                    ${label('ID Card', r.id_card_num || '')}
+                    ${label('Active', r.is_active ? 'Yes' : 'No')}
+                </div>
+            `;
+        };
+        const positionCard = (card, evt) => {
+            const x = (evt.clientX || 0) + 16 + (window.scrollX || 0);
+            const y = (evt.clientY || 0) + 16 + (window.scrollY || 0);
+            const ww = window.innerWidth || document.documentElement.clientWidth || 800;
+            const wh = window.innerHeight || document.documentElement.clientHeight || 600;
+            card.style.display = 'block';
+            card.style.left = x + 'px';
+            card.style.top = y + 'px';
+            const rect = card.getBoundingClientRect();
+            if (rect.right > ww) card.style.left = Math.max(8, x - (rect.right - ww) - 24) + 'px';
+            if (rect.bottom > wh) card.style.top = Math.max(8, y - (rect.bottom - wh) - 24) + 'px';
+        };
+        const isOverActions = (evt) => {
+            const el = document.elementFromPoint(evt.clientX, evt.clientY);
+            return !!(el && (el.closest('.action-buttons') || (el.closest('td') && el.closest('td').querySelector('.action-buttons'))));
+        };
+        const showCard = (evt) => {
+            if (isOverActions(evt)) return;
+            const card = ensureHoverCard();
+            card.innerHTML = renderCard(rider);
+            positionCard(card, evt);
+        };
+        const moveCard = (evt) => {
+            if (isOverActions(evt)) {
+                const card = document.getElementById('riderHoverCard');
+                if (card) card.style.display = 'none';
+                return;
+            }
+            const card = document.getElementById('riderHoverCard');
+            if (card && card.style.display !== 'none') positionCard(card, evt);
+        };
+        const hideCard = () => {
+            const card = document.getElementById('riderHoverCard');
+            if (card) card.style.display = 'none';
+        };
+        row.addEventListener('mouseenter', showCard);
+        row.addEventListener('mousemove', moveCard);
+        row.addEventListener('mouseleave', hideCard);
         tbody.appendChild(row);
     });
 }

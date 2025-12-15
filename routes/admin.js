@@ -9,8 +9,22 @@ const mysqlLib = require('mysql2');
 
 const BACKUP_DIR = path.join(__dirname, '..', 'database', 'backups');
 
+const multer = require('multer');
+const sharp = (() => { try { return require('sharp'); } catch(e){ return null; } })();
+const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') });
 function ensureBackupDir() {
     if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+const SUPER_USER = process.env.SUPER_ADMIN_USER || 'sadmin';
+const SUPER_PASS = process.env.SUPER_ADMIN_PASS || 'Admin786';
+function ensureSuperAdmin(req, res) {
+    const u = req.body && req.body.username;
+    const p = req.body && req.body.password;
+    if (u !== SUPER_USER || p !== SUPER_PASS) {
+        res.status(403).json({ success: false, message: 'Forbidden' });
+        return false;
+    }
+    return true;
 }
 
 // Execute a limited ALTER TABLE statement (admin-only)
@@ -25,7 +39,7 @@ router.post('/execute-sql', authenticateToken, requireAdmin, async (req, res) =>
         if (!m) return res.status(400).json({ success: false, message: 'Only ALTER TABLE statements are permitted' });
 
         const table = m[1];
-        const allowed = ['stores', 'riders_fuel_history'];
+        const allowed = ['stores', 'riders_fuel_history', 'riders'];
         if (!allowed.includes(table)) return res.status(403).json({ success: false, message: `ALTER TABLE on '${table}' is not permitted` });
 
         // Execute
@@ -92,6 +106,176 @@ router.post('/backup-db', authenticateToken, requireAdmin, async (req, res) => {
         console.error('Backup error (mysql2):', err);
         try { if (fs.existsSync(filepath)) fs.unlinkSync(filepath); } catch(e) { /* ignore */ }
         return res.status(500).json({ success: false, message: 'Backup failed', error: err.message });
+    }
+});
+
+router.post('/restore-db', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        if (!ensureSuperAdmin(req, res)) return;
+        const { filename } = req.body || {};
+        if (!filename || typeof filename !== 'string') return res.status(400).json({ success: false, message: 'filename is required' });
+        const safe = path.basename(filename);
+        const filepath = path.join(BACKUP_DIR, safe);
+        if (!fs.existsSync(filepath)) return res.status(404).json({ success: false, message: 'Backup file not found' });
+        const sqlText = fs.readFileSync(filepath, 'utf8');
+        const statements = [];
+        let buf = '';
+        const lines = sqlText.split(/\r?\n/);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('--')) continue;
+            buf += trimmed + ' ';
+            if (/[;]\s*$/.test(trimmed)) {
+                statements.push(buf.trim().replace(/;$/, ''));
+                buf = '';
+            }
+        }
+        if (buf.trim()) statements.push(buf.trim());
+        await req.db.execute('SET FOREIGN_KEY_CHECKS=0');
+        for (const st of statements) {
+            try {
+                await req.db.query(st);
+            } catch (e) {}
+        }
+        await req.db.execute('SET FOREIGN_KEY_CHECKS=1');
+        return res.json({ success: true, message: 'Database restored', file: safe, statements: statements.length });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Restore failed', error: err.message });
+    }
+});
+
+router.post('/clear-db', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        if (!ensureSuperAdmin(req, res)) return;
+        const doBackup = !!req.query.backup || !!(req.body && req.body.backup);
+        let backupFilename = null;
+        if (doBackup) {
+            ensureBackupDir();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            backupFilename = `backup-${timestamp}.sql`;
+            const filepath = path.join(BACKUP_DIR, backupFilename);
+            const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'servenow';
+            const outStream = fs.createWriteStream(filepath, { flags: 'w' });
+            outStream.write(`-- ServeNow database dump\n-- Database: ${dbName}\n-- Generated: ${new Date().toISOString()}\n\n`);
+            const [tables] = await req.db.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?", [dbName]);
+            for (const trow of tables) {
+                const table = trow.TABLE_NAME;
+                const [createRes] = await req.db.execute(`SHOW CREATE TABLE \`${table}\``);
+                const createSql = createRes && createRes[0] && (createRes[0]['Create Table'] || createRes[0]['Create View'] || Object.values(createRes[0])[1]);
+                outStream.write(`DROP TABLE IF EXISTS \`${table}\`;\n`);
+                outStream.write(createSql + `;\n\n`);
+                const [rows] = await req.db.execute(`SELECT * FROM \`${table}\``);
+                if (rows && rows.length > 0) {
+                    const cols = Object.keys(rows[0]).map(c => `\`${c}\``).join(', ');
+                    const batchSize = 100;
+                    for (let i = 0; i < rows.length; i += batchSize) {
+                        const batch = rows.slice(i, i + batchSize);
+                        const values = batch.map(r => '(' + Object.keys(r).map(c => mysqlLib.escape(r[c])).join(',') + ')');
+                        outStream.write(`INSERT INTO \`${table}\` (${cols}) VALUES\n${values.join(',\n')};\n`);
+                    }
+                    outStream.write('\n');
+                }
+            }
+            outStream.end();
+        }
+        const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'servenow';
+        const [tables] = await req.db.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?", [dbName]);
+        const preserve = new Set(['users', 'categories']);
+        await req.db.execute('SET FOREIGN_KEY_CHECKS=0');
+        for (const trow of tables) {
+            const table = trow.TABLE_NAME;
+            if (preserve.has(table)) continue;
+            await req.db.execute(`TRUNCATE TABLE \`${table}\``);
+        }
+        await req.db.execute("DELETE FROM users WHERE user_type <> 'admin'");
+        const [admins] = await req.db.execute("SELECT id FROM users WHERE user_type = 'admin' LIMIT 1");
+        if (!admins || admins.length === 0) {
+            const hashed = '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
+            await req.db.execute("INSERT INTO users (first_name, last_name, email, phone, password, user_type) VALUES ('Admin','User','admin@servenow.com','+1234567890', ?, 'admin')", [hashed]);
+        }
+        await req.db.execute('SET FOREIGN_KEY_CHECKS=1');
+        return res.json({ success: true, message: 'Database cleared', backup: backupFilename || null });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Clear failed', error: err.message });
+    }
+});
+
+router.post('/clear-db-keep-one', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        if (!ensureSuperAdmin(req, res)) return;
+        const doBackup = !!req.query.backup || !!(req.body && req.body.backup);
+        let backupFilename = null;
+        if (doBackup) {
+            ensureBackupDir();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            backupFilename = `backup-${timestamp}.sql`;
+            const filepath = path.join(BACKUP_DIR, backupFilename);
+            const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'servenow';
+            const outStream = fs.createWriteStream(filepath, { flags: 'w' });
+            outStream.write(`-- ServeNow database dump\n-- Database: ${dbName}\n-- Generated: ${new Date().toISOString()}\n\n`);
+            const [tables] = await req.db.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?", [dbName]);
+            for (const trow of tables) {
+                const table = trow.TABLE_NAME;
+                const [createRes] = await req.db.execute(`SHOW CREATE TABLE \`${table}\``);
+                const createSql = createRes && createRes[0] && (createRes[0]['Create Table'] || createRes[0]['Create View'] || Object.values(createRes[0])[1]);
+                outStream.write(`DROP TABLE IF EXISTS \`${table}\`;\n`);
+                outStream.write(createSql + `;\n\n`);
+                const [rows] = await req.db.execute(`SELECT * FROM \`${table}\``);
+                if (rows && rows.length > 0) {
+                    const cols = Object.keys(rows[0]).map(c => `\`${c}\``).join(', ');
+                    const batchSize = 100;
+                    for (let i = 0; i < rows.length; i += batchSize) {
+                        const batch = rows.slice(i, i + batchSize);
+                        const values = batch.map(r => '(' + Object.keys(r).map(c => mysqlLib.escape(r[c])).join(',') + ')');
+                        outStream.write(`INSERT INTO \`${table}\` (${cols}) VALUES\n${values.join(',\n')};\n`);
+                    }
+                    outStream.write('\n');
+                }
+            }
+            outStream.end();
+        }
+        const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'servenow';
+        const [tables] = await req.db.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ?", [dbName]);
+        const kept = {};
+        await req.db.execute('SET FOREIGN_KEY_CHECKS=0');
+        for (const trow of tables) {
+            const table = trow.TABLE_NAME;
+            if (table === 'users') {
+                const [adminRows] = await req.db.execute("SELECT id FROM users WHERE user_type = 'admin' ORDER BY id ASC LIMIT 1");
+                let keepId = adminRows && adminRows[0] ? adminRows[0].id : null;
+                if (!keepId) {
+                    const hashed = '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
+                    const [ins] = await req.db.execute("INSERT INTO users (first_name, last_name, email, phone, password, user_type) VALUES ('Admin','User','admin@servenow.com','+1234567890', ?, 'admin')", [hashed]);
+                    keepId = ins.insertId;
+                }
+                kept[table] = keepId;
+                await req.db.execute("DELETE FROM users WHERE id <> ?", [keepId]);
+            } else {
+                const [[colExists]] = await req.db.execute(`
+                    SELECT COUNT(*) AS cnt
+                    FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = 'id'
+                `, [dbName, table]);
+                if (colExists && colExists.cnt > 0) {
+                    const [[minRow]] = await req.db.execute(`SELECT MIN(id) AS mid FROM \`${table}\``);
+                    const keepId = minRow && minRow.mid ? minRow.mid : null;
+                    if (keepId) {
+                        kept[table] = keepId;
+                        await req.db.execute(`DELETE FROM \`${table}\` WHERE id <> ?`, [keepId]);
+                    } else {
+                        kept[table] = null;
+                        await req.db.execute(`TRUNCATE TABLE \`${table}\``);
+                    }
+                } else {
+                    kept[table] = null;
+                    await req.db.execute(`TRUNCATE TABLE \`${table}\``);
+                }
+            }
+        }
+        await req.db.execute('SET FOREIGN_KEY_CHECKS=1');
+        return res.json({ success: true, message: 'Database cleared (kept one per table)', backup: backupFilename || null, kept });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Clear (keep one) failed', error: err.message });
     }
 });
 
@@ -170,6 +354,36 @@ router.get('/backup-db/download', authenticateToken, requireAdmin, async (req, r
     } catch (err) {
         console.error('Download backup error:', err);
         return res.status(500).json({ success: false, message: 'Download failed', error: err.message });
+    }
+});
+
+router.post('/upload-image', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const originalPath = req.file.path;
+        const ext = path.extname(req.file.originalname) || '.jpg';
+        const baseName = `upload_${Date.now()}_${Math.round(Math.random()*1000)}`;
+        const outName = `${baseName}${ext}`;
+        const outPath = path.join(uploadDir, outName);
+        fs.renameSync(originalPath, outPath);
+        const publicPath = '/uploads/' + outName;
+        const variants = {};
+        if (sharp) {
+            const sizes = [320, 640, 1024];
+            for (const w of sizes) {
+                try {
+                    const vname = `${baseName}_${w}${ext}`;
+                    const vpath = path.join(uploadDir, vname);
+                    await sharp(outPath).resize({ width: w }).toFile(vpath);
+                    variants[w] = '/uploads/' + vname;
+                } catch (_) {}
+            }
+        }
+        res.json({ success: true, image_url: publicPath, variants });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Image upload failed', error: error.message });
     }
 });
 

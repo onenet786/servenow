@@ -3,15 +3,33 @@ const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const sharp = (() => { try { return require('sharp'); } catch(e){ return null; } })();
+const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') });
 
 const router = express.Router();
+
+async function hasColumn(db, table, column) {
+    const [rows] = await db.execute(
+        'SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        [table, column]
+    );
+    return rows && rows[0] && rows[0].cnt > 0;
+}
 
 // Get all riders (Admin only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const [riders] = await req.db.execute(
-            'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, is_active, created_at FROM riders ORDER BY first_name ASC'
-        );
+        const hasFullName = await hasColumn(req.db, 'riders', 'full_name');
+        let sql;
+        if (hasFullName) {
+            sql = 'SELECT id, full_name, email, phone, vehicle_type, license_number, image_url, id_card_url, is_available, is_active, created_at FROM riders ORDER BY full_name ASC';
+        } else {
+            sql = 'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, image_url, id_card_url, is_available, is_active, created_at FROM riders ORDER BY first_name ASC';
+        }
+        const [riders] = await req.db.execute(sql);
 
         res.json({
             success: true,
@@ -31,10 +49,14 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
 router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const [riders] = await req.db.execute(
-            'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, is_active, created_at FROM riders WHERE id = ?',
-            [id]
-        );
+        const hasFullName = await hasColumn(req.db, 'riders', 'full_name');
+        let sql;
+        if (hasFullName) {
+            sql = 'SELECT id, full_name, email, phone, vehicle_type, license_number, is_available, is_active, father_name, image_url, id_card_url, id_card_num, created_at, updated_at FROM riders WHERE id = ?';
+        } else {
+            sql = 'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, is_active, father_name, image_url, id_card_url, id_card_num, created_at, updated_at FROM riders WHERE id = ?';
+        }
+        const [riders] = await req.db.execute(sql, [id]);
 
         if (riders.length === 0) {
             return res.status(404).json({
@@ -59,13 +81,20 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
 
 // Create new rider (Admin only)
 router.post('/', authenticateToken, requireAdmin, [
-    body('firstName').notEmpty().withMessage('First name is required'),
-    body('lastName').notEmpty().withMessage('Last name is required'),
+    body('fullName').notEmpty().trim().withMessage('Full name is required'),
     body('email').isEmail().withMessage('Valid email is required'),
     body('phone').notEmpty().withMessage('Phone is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('vehicleType').notEmpty().withMessage('Vehicle type is required'),
-    body('licenseNumber').notEmpty().withMessage('License number is required')
+    body('licenseNumber').notEmpty().withMessage('License number is required'),
+    body('fatherName').optional().trim(),
+    body('image_url').optional().isString(),
+    body('id_card_url').optional().isString(),
+    body('imageUrl').optional().isString(),
+    body('idCardUrl').optional().isString(),
+    body('imageBase64').optional().isString(),
+    body('idCardBase64').optional().isString(),
+    body('idCardNum').optional().matches(/^\d{5}-\d{7}-\d$/).withMessage('Invalid idCardNum format')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -77,7 +106,35 @@ router.post('/', authenticateToken, requireAdmin, [
             });
         }
 
-        const { firstName, lastName, email, phone, password, vehicleType, licenseNumber } = req.body;
+        const {
+            firstName, lastName, fullName, email, phone, password, vehicleType, licenseNumber,
+            fatherName, image_url, id_card_url, imageUrl, idCardUrl, imageBase64, idCardBase64, idCardNum
+        } = req.body;
+        let imageUrlFinal = image_url || imageUrl || null;
+        let idCardUrlFinal = id_card_url || idCardUrl || null;
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const saveDataUrl = async (dataUrl, prefix) => {
+            const m = String(dataUrl || '').match(/^data:(image\/[^;]+);base64,(.+)$/);
+            if (!m) return null;
+            const mime = m[1];
+            const b64 = m[2];
+            const buf = Buffer.from(b64, 'base64');
+            const ext = mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : '.jpg';
+            const base = `${prefix}_${Date.now()}_${Math.round(Math.random()*1000)}`;
+            const outName = `${base}${ext}`;
+            const outPath = path.join(uploadDir, outName);
+            fs.writeFileSync(outPath, buf);
+            return '/uploads/' + outName;
+        };
+        if (!imageUrlFinal && imageBase64) imageUrlFinal = await saveDataUrl(imageBase64, 'rider');
+        if (!idCardUrlFinal && idCardBase64) idCardUrlFinal = await saveDataUrl(idCardBase64, 'rider_id');
+
+        // Ensure we have a name
+        const nameProvided = (typeof fullName === 'string' && fullName.trim().length) || (typeof firstName === 'string' && firstName.trim().length);
+        if (!nameProvided) {
+            return res.status(400).json({ success: false, message: 'Full name is required' });
+        }
 
         // Check if email already exists
         const [existingRiders] = await req.db.execute(
@@ -95,11 +152,49 @@ router.post('/', authenticateToken, requireAdmin, [
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Insert new rider
-        const [result] = await req.db.execute(
-            'INSERT INTO riders (first_name, last_name, email, phone, password, vehicle_type, license_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [firstName, lastName, email, phone, hashedPassword, vehicleType, licenseNumber]
-        );
+        // Insert dynamically: prefer full_name if column exists
+        const hasFullName = await hasColumn(req.db, 'riders', 'full_name');
+        let insertSql, params;
+        if (hasFullName) {
+            insertSql = `
+                INSERT INTO riders
+                (full_name, email, phone, password, vehicle_type, license_number, father_name, image_url, id_card_url, id_card_num)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            params = [
+                String((fullName || firstName || '') || ''),
+                String(email || ''),
+                String(phone || ''),
+                String(hashedPassword || ''),
+                String(vehicleType || ''),
+                String(licenseNumber || ''),
+                fatherName != null ? String(fatherName) : null,
+                imageUrlFinal != null ? String(imageUrlFinal) : null,
+                idCardUrlFinal != null ? String(idCardUrlFinal) : null,
+                idCardNum != null ? String(idCardNum) : null
+            ];
+        } else {
+            insertSql = `
+                INSERT INTO riders
+                (first_name, last_name, email, phone, password, vehicle_type, license_number, father_name, image_url, id_card_url, id_card_num)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            // Map fullName into first_name and leave last_name empty
+            params = [
+                String((fullName || firstName || '') || ''),
+                String((lastName || '') || ''),
+                String(email || ''),
+                String(phone || ''),
+                String(hashedPassword || ''),
+                String(vehicleType || ''),
+                String(licenseNumber || ''),
+                fatherName != null ? String(fatherName) : null,
+                imageUrlFinal != null ? String(imageUrlFinal) : null,
+                idCardUrlFinal != null ? String(idCardUrlFinal) : null,
+                idCardNum != null ? String(idCardNum) : null
+            ];
+        }
+        const [result] = await req.db.execute(insertSql, params);
 
         res.status(201).json({
             success: true,
@@ -116,16 +211,57 @@ router.post('/', authenticateToken, requireAdmin, [
     }
 });
 
+// Upload rider image (photo or ID card)
+router.post('/upload-image', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const originalPath = req.file.path;
+        const ext = path.extname(req.file.originalname) || '.jpg';
+        const baseName = `rider_${Date.now()}_${Math.round(Math.random()*1000)}`;
+        const outName = `${baseName}${ext}`;
+        const outPath = path.join(uploadDir, outName);
+        fs.renameSync(originalPath, outPath);
+        const publicPath = '/uploads/' + outName;
+        const variants = {};
+        if (sharp) {
+            const sizes = [320, 640];
+            for (const w of sizes) {
+                try {
+                    const vname = `${baseName}_${w}${ext}`;
+                    const vpath = path.join(uploadDir, vname);
+                    await sharp(outPath).resize({ width: w }).toFile(vpath);
+                    variants[w] = '/uploads/' + vname;
+                } catch (err) {}
+            }
+        }
+        res.json({ success: true, image_url: publicPath, variants });
+    } catch (error) {
+        console.error('Rider image upload failed:', error);
+        res.status(500).json({ success: false, message: 'Image upload failed', error: error.message });
+    }
+});
+
 // Update rider (Admin only)
 router.put('/:id', authenticateToken, requireAdmin, [
-    body('firstName').optional().notEmpty().withMessage('First name cannot be empty'),
-    body('lastName').optional().notEmpty().withMessage('Last name cannot be empty'),
+    body('firstName').optional().trim(),
+    body('lastName').optional().trim(),
+    body('fullName').optional().trim(),
     body('email').optional().isEmail().withMessage('Valid email is required'),
     body('phone').optional().notEmpty().withMessage('Phone cannot be empty'),
     body('vehicleType').optional().notEmpty().withMessage('Vehicle type cannot be empty'),
     body('licenseNumber').optional().notEmpty().withMessage('License number cannot be empty'),
     body('isAvailable').optional().isBoolean().withMessage('isAvailable must be boolean'),
-    body('isActive').optional().isBoolean().withMessage('isActive must be boolean')
+    body('isActive').optional().isBoolean().withMessage('isActive must be boolean'),
+    body('fatherName').optional().trim(),
+    body('image_url').optional().isString(),
+    body('id_card_url').optional().isString(),
+    body('imageUrl').optional().isString(),
+    body('idCardUrl').optional().isString(),
+    body('imageBase64').optional().isString(),
+    body('idCardBase64').optional().isString(),
+    body('idCardNum').optional().matches(/^\d{5}-\d{7}-\d$/).withMessage('Invalid idCardNum format')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -138,7 +274,29 @@ router.put('/:id', authenticateToken, requireAdmin, [
         }
 
         const { id } = req.params;
-        const { firstName, lastName, email, phone, vehicleType, licenseNumber, isAvailable, isActive } = req.body;
+        const {
+            firstName, lastName, fullName, email, phone, vehicleType, licenseNumber,
+            isAvailable, isActive, fatherName, image_url, id_card_url, imageUrl, idCardUrl, imageBase64, idCardBase64, idCardNum
+        } = req.body;
+        let imageUrlFinal = image_url || imageUrl || null;
+        let idCardUrlFinal = id_card_url || idCardUrl || null;
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const saveDataUrl = async (dataUrl, prefix) => {
+            const m = String(dataUrl || '').match(/^data:(image\/[^;]+);base64,(.+)$/);
+            if (!m) return null;
+            const mime = m[1];
+            const b64 = m[2];
+            const buf = Buffer.from(b64, 'base64');
+            const ext = mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : '.jpg';
+            const base = `${prefix}_${Date.now()}_${Math.round(Math.random()*1000)}`;
+            const outName = `${base}${ext}`;
+            const outPath = path.join(uploadDir, outName);
+            fs.writeFileSync(outPath, buf);
+            return '/uploads/' + outName;
+        };
+        if (!imageUrlFinal && imageBase64) imageUrlFinal = await saveDataUrl(imageBase64, 'rider');
+        if (!idCardUrlFinal && idCardBase64) idCardUrlFinal = await saveDataUrl(idCardBase64, 'rider_id');
 
         // Check if rider exists
         const [existingRiders] = await req.db.execute(
@@ -172,44 +330,65 @@ router.put('/:id', authenticateToken, requireAdmin, [
         const updateFields = [];
         const updateValues = [];
 
-        if (firstName !== undefined) {
-            updateFields.push('first_name = ?');
-            updateValues.push(firstName);
-        }
-        if (lastName !== undefined) {
-            updateFields.push('last_name = ?');
-            updateValues.push(lastName);
+        const hasFullName = await hasColumn(req.db, 'riders', 'full_name');
+        if (hasFullName) {
+            if (fullName !== undefined || firstName !== undefined) {
+                updateFields.push('full_name = ?');
+                updateValues.push(String(fullName !== undefined ? fullName : firstName));
+            }
+        } else {
+            if (firstName !== undefined) {
+                updateFields.push('first_name = ?');
+                updateValues.push(String(firstName));
+            }
+            if (lastName !== undefined) {
+                updateFields.push('last_name = ?');
+                updateValues.push(String(lastName));
+            }
         }
         if (email !== undefined) {
             updateFields.push('email = ?');
-            updateValues.push(email);
+            updateValues.push(String(email));
         }
         if (phone !== undefined) {
             updateFields.push('phone = ?');
-            updateValues.push(phone);
+            updateValues.push(String(phone));
         }
         if (vehicleType !== undefined) {
             updateFields.push('vehicle_type = ?');
-            updateValues.push(vehicleType);
+            updateValues.push(String(vehicleType));
         }
         if (licenseNumber !== undefined) {
             updateFields.push('license_number = ?');
-            updateValues.push(licenseNumber);
+            updateValues.push(String(licenseNumber));
         }
         if (isAvailable !== undefined) {
             updateFields.push('is_available = ?');
-            updateValues.push(isAvailable);
+            updateValues.push(isAvailable ? 1 : 0);
         }
         if (isActive !== undefined) {
             updateFields.push('is_active = ?');
-            updateValues.push(isActive);
+            updateValues.push(isActive ? 1 : 0);
+        }
+        if (fatherName !== undefined) {
+            updateFields.push('father_name = ?');
+            updateValues.push(fatherName != null ? String(fatherName) : null);
+        }
+        if (image_url !== undefined) {
+            updateFields.push('image_url = ?');
+            updateValues.push(imageUrlFinal != null ? String(imageUrlFinal) : null);
+        }
+        if (id_card_url !== undefined) {
+            updateFields.push('id_card_url = ?');
+            updateValues.push(idCardUrlFinal != null ? String(idCardUrlFinal) : null);
+        }
+        if (idCardNum !== undefined) {
+            updateFields.push('id_card_num = ?');
+            updateValues.push(idCardNum != null ? String(idCardNum) : null);
         }
 
         if (updateFields.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'No fields to update'
-            });
+            return res.json({ success: true, message: 'No changes' });
         }
 
         updateFields.push('updated_at = CURRENT_TIMESTAMP');

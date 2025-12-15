@@ -1727,6 +1727,27 @@ footer {
     }
 }
 
+@media (max-width: 767px) and (orientation: portrait) {
+    .menu-toggle {
+        display: flex !important;
+    }
+    nav ul {
+        display: none;
+    }
+    nav ul.active {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem 0;
+        gap: 0;
+        z-index: 2000;
+    }
+}
+
 /* Center form headings */
 .checkout-form h3,
 .order-summary h3,

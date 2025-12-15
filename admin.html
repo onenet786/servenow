@@ -41,11 +41,16 @@
                         <li><a href="#" class="tab-link" data-tab="order-reports"><i class="fas fa-chart-line"></i> Order Reports</a></li>
                     </ul>
                 </li>
-                <li><a href="#" class="tab-link" data-tab="categories"><i class="fas fa-tags"></i> Categories</a></li>
-                <li><a href="#" class="tab-link" data-tab="units"><i class="fas fa-balance-scale"></i> Units</a></li>
-                <li><a href="#" class="tab-link" data-tab="sizes"><i class="fas fa-ruler-horizontal"></i> Sizes</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-layer-group"></i> Catalog <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" class="tab-link" data-tab="categories"><i class="fas fa-tags"></i> Categories</a></li>
+                        <li><a href="#" class="tab-link" data-tab="units"><i class="fas fa-balance-scale"></i> Units</a></li>
+                        <li><a href="#" class="tab-link" data-tab="sizes"><i class="fas fa-ruler-horizontal"></i> Sizes</a></li>
+                    </ul>
+                </li>
                 <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
-                <li><a href="#" class="tab-link" data-tab="db-backup"><i class="fas fa-database"></i> Backup</a></li>
+                <li><a href="#" class="tab-link" data-tab="db-backup"><i class="fas fa-database"></i> Utilities</a></li>
                 <li><a href="#" id="logoutBtn">Logout</a></li>
             </ul>
         </nav>
@@ -125,6 +130,30 @@
 
                             <h2>Users Management</h2>
 
+                            <div class="filter-controls" style="margin-bottom:0.75rem;">
+                                <div class="filter-group">
+                                    <label for="userSearch">Search:</label>
+                                    <input type="text" id="userSearch" placeholder="Name or email">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="userTypeFilter">Type:</label>
+                                    <select id="userTypeFilter">
+                                        <option value="">All</option>
+                                        <option value="customer">Customer</option>
+                                        <option value="store_owner">Store Owner</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="userStatusFilter">Status:</label>
+                                    <select id="userStatusFilter">
+                                        <option value="">All</option>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" id="userClearFiltersBtn">Clear Filters</button>
+                            </div>
 
                             <button class="btn btn-primary" id="addUserBtn">Add New User</button>
 
@@ -188,13 +217,18 @@
 
                         <div id="db-backup" class="tab-content">
 
-                            <h2>Database Backup</h2>
+                            <h2>Utilities</h2>
 
                             <p>Create and download backups of the application database. Backups are stored on the server in <code>database/backups/</code>.</p>
 
-                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
+                            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;">
+                                <input type="text" id="utilUsername" placeholder="Super Admin Username" style="min-width:180px">
+                                <input type="password" id="utilPassword" placeholder="Super Admin Password" style="min-width:180px">
                                 <button class="btn btn-primary" id="createBackupBtn">Create Backup</button>
                                 <button class="btn btn-secondary" id="refreshBackupsBtn">Refresh List</button>
+                                <button class="btn btn-warning" id="restoreBackupBtn">Restore Selected</button>
+                                <button class="btn btn-danger" id="clearDatabaseBtn">Clear DB (Keep Admin)</button>
+                                <button class="btn btn-danger" id="clearDatabaseKeepOneBtn">Clear DB (Keep One+Admin)</button>
                                 <span id="backupStatus" style="font-size:0.95rem;color:#666;margin-left:0.5rem;"></span>
                             </div>
 
@@ -202,6 +236,7 @@
                                 <table id="backupsTable">
                                     <thead>
                                         <tr>
+                                            <th>Select</th>
                                             <th>Filename</th>
                                             <th>Size</th>
                                             <th>Modified</th>
@@ -226,6 +261,21 @@
 
                             <h2>Stores Management</h2>
 
+                            <div class="filter-controls" style="margin-bottom:0.75rem;">
+                                <div class="filter-group">
+                                    <label for="storeSearch">Search:</label>
+                                    <input type="text" id="storeSearch" placeholder="Name or location">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="storeStatusFilter">Status:</label>
+                                    <select id="storeStatusFilter">
+                                        <option value="">All</option>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" id="storeClearFiltersBtn">Clear Filters</button>
+                            </div>
 
                             <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
 
@@ -298,18 +348,37 @@
 
                             <h2>Products Management</h2>
 
-
                             <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
                                 <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
-                                <button class="btn btn-secondary" id="exportImagesBtn" title="Export base64 product images to /uploads">Export Base64 Images</button>
-                                <span id="exportImagesStatus" style="font-size:0.9rem;color:#666;margin-left:0.5rem;"></span>
-                                <label for="imageFitSelect" style="margin-left:0.75rem;font-size:0.95rem;color:#333;">Image Fit:</label>
-                                <select id="imageFitSelect" class="btn-small" style="margin-left:0.5rem;padding:0.35rem 0.6rem;">
-                                    <option value="cover">Cover (crop)</option>
-                                    <option value="fill">Fill (stretch)</option>
-                                </select>
                             </div>
 
+                            <div class="filter-controls" style="margin-bottom:0.75rem;">
+                                <div class="filter-group">
+                                    <label for="productSearch">Search:</label>
+                                    <input type="text" id="productSearch" placeholder="Product name">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="productCategoryFilter">Category:</label>
+                                    <select id="productCategoryFilter">
+                                        <option value="">All</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="productStoreFilter">Store:</label>
+                                    <select id="productStoreFilter">
+                                        <option value="">All</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="productStatusFilter">Status:</label>
+                                    <select id="productStatusFilter">
+                                        <option value="">All</option>
+                                        <option value="available">Available</option>
+                                        <option value="unavailable">Unavailable</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" id="productClearFiltersBtn">Clear Filters</button>
+                            </div>
 
                             <div class="table-container">
 
@@ -545,6 +614,21 @@
 
                             <h2>Categories Management</h2>
 
+                            <div class="filter-controls" style="margin-bottom:0.75rem;">
+                                <div class="filter-group">
+                                    <label for="categorySearch">Search:</label>
+                                    <input type="text" id="categorySearch" placeholder="Name or description">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="categoryStatusFilter">Status:</label>
+                                    <select id="categoryStatusFilter">
+                                        <option value="">All</option>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" id="categoryClearFiltersBtn">Clear Filters</button>
+                            </div>
 
                             <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
 
@@ -658,6 +742,29 @@
                             </div>
 
                             <div id="rider-list-panel" class="rider-subpanel">
+                                <div class="filter-controls" style="margin-bottom:0.75rem;">
+                                    <div class="filter-group">
+                                        <label for="riderSearch">Search:</label>
+                                        <input type="text" id="riderSearch" placeholder="Name, email or phone">
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="riderAvailabilityFilter">Available:</label>
+                                        <select id="riderAvailabilityFilter">
+                                            <option value="">All</option>
+                                            <option value="available">Available</option>
+                                            <option value="unavailable">Unavailable</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="riderStatusFilter">Status:</label>
+                                        <select id="riderStatusFilter">
+                                            <option value="">All</option>
+                                            <option value="active">Active</option>
+                                            <option value="inactive">Inactive</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-secondary" id="riderClearFiltersBtn">Clear Filters</button>
+                                </div>
                                 <div class="table-container">
                                     <table id="ridersTable">
                                         <thead>
@@ -690,37 +797,43 @@
 
                                 <div style="margin-top:0.75rem;">
                                     <h4>Add Fuel Entry</h4>
-                                    <form id="addFuelForm" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;margin-bottom:0.75rem;">
-                                        <div style="display:flex;flex-direction:column;">
-                                            <label for="entryDate">Entry Date</label>
-                                            <input type="date" id="entryDate" />
+                                    <form id="addFuelForm" class="compact-form">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="entryDate">Entry Date</label>
+                                                <input type="datetime-local" id="entryDate" required />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="startMeter">Start Meter</label>
+                                                <input type="number" id="startMeter" placeholder="e.g. 12345" min="0" step="1" required />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="endMeter">End Meter</label>
+                                                <input type="number" id="endMeter" placeholder="e.g. 12380" min="0" step="1" required />
+                                            </div>
                                         </div>
-                                        <div style="display:flex;flex-direction:column;">
-                                            <label for="startMeter">Start Meter</label>
-                                            <input type="text" id="startMeter" placeholder="e.g. 12345" />
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="distance">Distance</label>
+                                                <input type="number" id="distance" step="0.01" placeholder="Auto-calculated" readonly />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="petrolRate">Petrol Rate</label>
+                                                <input type="number" id="petrolRate" step="0.01" placeholder="per unit" />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="fuelCost">Fuel Cost</label>
+                                                <input type="number" id="fuelCost" step="0.01" placeholder="Auto-calculated" readonly />
+                                            </div>
                                         </div>
-                                        <div style="display:flex;flex-direction:column;">
-                                            <label for="endMeter">End Meter</label>
-                                            <input type="text" id="endMeter" placeholder="e.g. 12380" />
-                                        </div>
-                                        <div style="display:flex;flex-direction:column;">
-                                            <label for="distance">Distance</label>
-                                            <input type="number" id="distance" step="0.01" placeholder="km or miles" />
-                                        </div>
-                                        <div style="display:flex;flex-direction:column;">
-                                            <label for="petrolRate">Petrol Rate</label>
-                                            <input type="number" id="petrolRate" step="0.01" />
-                                        </div>
-                                        <div style="display:flex;flex-direction:column;">
-                                            <label for="fuelCost">Fuel Cost</label>
-                                            <input type="number" id="fuelCost" step="0.01" placeholder="Optional override" />
-                                        </div>
-                                        <div style="display:flex;flex-direction:column;min-width:220px;">
-                                            <label for="fuelNotes">Notes</label>
-                                            <input type="text" id="fuelNotes" />
-                                        </div>
-                                        <div>
-                                            <button type="button" class="btn btn-primary" id="saveFuelBtn">Save Entry</button>
+                                        <div class="form-row-full">
+                                            <div class="form-group" style="flex:1;">
+                                                <label for="fuelNotes">Notes</label>
+                                                <textarea id="fuelNotes" rows="2" placeholder="Optional notes"></textarea>
+                                            </div>
+                                            <div class="form-group" style="align-self:flex-end;">
+                                                <button type="button" class="btn btn-primary" id="saveFuelBtn">Save Entry</button>
+                                            </div>
                                         </div>
                                     </form>
                                 </div>
@@ -892,6 +1005,16 @@
                         <div class="form-group">
                             <label for="storeClosingTime">Closing Time:</label>
                             <input type="time" id="storeClosingTime" name="closing_time">
+                        </div>
+                        <div class="form-group">
+                            <label for="storePaymentTerm">Payment Term:</label>
+                            <select id="storePaymentTerm" name="payment_term">
+                                <option value="">Select Payment Term</option>
+                                <option value="Cash Only">Cash Only</option>
+                                <option value="Cash with Discount">Cash with Discount</option>
+                                <option value="Credit">Credit</option>
+                                <option value="Credit with Discount">Credit with Discount</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="storeCategory">Category:</label>
@@ -1140,12 +1263,12 @@
                 <form id="addRiderForm">
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="riderFirstName">First Name:</label>
-                            <input type="text" id="riderFirstName" name="firstName" required>
+                            <label for="riderFullName">Full Name:</label>
+                            <input type="text" id="riderFullName" name="fullName" placeholder="Full Name" required>
                         </div>
                         <div class="form-group">
-                            <label for="riderLastName">Last Name:</label>
-                            <input type="text" id="riderLastName" name="lastName" required>
+                            <label for="riderFatherName">Father Name:</label>
+                            <input type="text" id="riderFatherName" name="fatherName" placeholder="Father's Name">
                         </div>
                     </div>
                     <div class="form-row">
@@ -1175,6 +1298,24 @@
                         <div class="form-group">
                             <label for="riderLicenseNumber">License Number:</label>
                             <input type="text" id="riderLicenseNumber" name="licenseNumber" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="riderIdCardNum">ID Card Number:</label>
+                            <input type="text" id="riderIdCardNum" name="idCardNum" placeholder="xxxxx-xxxxxxx-x" inputmode="numeric" pattern="\\d{5}-\\d{7}-\\d" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="riderImageFile">Rider Image:</label>
+                            <input type="file" id="riderImageFile" name="image_file" accept="image/*">
+                            <img id="riderImagePreview" alt="Preview" style="display:none; max-height:64px; border-radius:6px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="riderIdCardFile">ID Card Image:</label>
+                            <input type="file" id="riderIdCardFile" name="id_card_file" accept="image/*">
+                            <img id="riderIdCardPreview" alt="Preview" style="display:none; max-height:64px; border-radius:6px;">
                         </div>
                     </div>
                 </form>
@@ -1234,7 +1375,7 @@
         </div>
     </div>
 
-    <script src="js/admin.js?v=5"></script>
+    <script src="js/admin.js?v=11"></script>
     <script>
         const hamburgerMenu = document.getElementById('hamburgerMenu');
         const navMenu = document.getElementById('navMenu');

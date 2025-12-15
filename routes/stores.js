@@ -16,23 +16,38 @@ async function hasColumn(db, table, column) {
     return rows[0].cnt > 0
 }
 
-// Get all stores
-router.get('/', async (req, res) => {
+const { optionalAuth } = require('../middleware/auth')
+router.get('/', optionalAuth, async (req, res) => {
     try {
         const hasCat = await hasColumn(req.db, 'stores', 'category_id')
+        const includeAll = req.user && req.user.user_type === 'admin'
         const sql = hasCat
             ? `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, c.name as category_name
                FROM stores s
                LEFT JOIN users u ON s.owner_id = u.id
                LEFT JOIN categories c ON s.category_id = c.id
-               WHERE s.is_active = true
+               ${includeAll ? '' : 'WHERE s.is_active = true'}
                ORDER BY s.rating DESC, s.name ASC`
             : `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
                FROM stores s
                LEFT JOIN users u ON s.owner_id = u.id
-               WHERE s.is_active = true
+               ${includeAll ? '' : 'WHERE s.is_active = true'}
                ORDER BY s.rating DESC, s.name ASC`
-        const [stores] = await req.db.execute(sql)
+        let [stores] = await req.db.execute(sql)
+        if (!stores || stores.length === 0) {
+            const sqlAll = hasCat
+                ? `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, c.name as category_name
+                   FROM stores s
+                   LEFT JOIN users u ON s.owner_id = u.id
+                   LEFT JOIN categories c ON s.category_id = c.id
+                   ORDER BY s.rating DESC, s.name ASC`
+                : `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
+                   FROM stores s
+                   LEFT JOIN users u ON s.owner_id = u.id
+                   ORDER BY s.rating DESC, s.name ASC`
+            const [allStores] = await req.db.execute(sqlAll)
+            stores = allStores
+        }
 
         res.json({
             success: true,
@@ -46,6 +61,7 @@ router.get('/', async (req, res) => {
                 longitude: store.longitude,
                 rating: store.rating,
                 delivery_time: store.delivery_time,
+                payment_term: store.payment_term || null,
                 phone: store.phone,
                 email: store.email,
                 address: store.address,
@@ -121,6 +137,7 @@ router.get('/:id', async (req, res) => {
                 longitude: store.longitude,
                 rating: store.rating,
                 delivery_time: store.delivery_time,
+                payment_term: store.payment_term || null,
                 phone: store.phone,
                 email: store.email,
                 address: store.address,
@@ -192,13 +209,23 @@ router.post('/', authenticateToken, requireStoreOwner, [
 
         // Owner assignment:
         // - If owner_id provided (admin use-case), use it; otherwise assign to current user
+        // - Validate owner_id exists in users; if not, set NULL to avoid FK errors
         let ownerId = req.user.id;
         if (req.user.user_type === 'admin' && req.body.owner_id) {
             ownerId = parseInt(req.body.owner_id, 10);
         }
+        try {
+            const [userRows] = await req.db.execute('SELECT id FROM users WHERE id = ?', [ownerId]);
+            if (!ownerId || !userRows || userRows.length === 0) {
+                ownerId = null;
+            }
+        } catch (e) {
+            ownerId = null;
+        }
 
         const hasCat = await hasColumn(req.db, 'stores', 'category_id')
         const hasOwnerName = await hasColumn(req.db, 'stores', 'owner_name')
+        const hasPaymentTerm = await hasColumn(req.db, 'stores', 'payment_term')
         const fields = ['name','description','location','latitude','longitude','delivery_time','opening_time','closing_time','phone','email','address','owner_id','cover_image']
         const placeholders = Array(fields.length).fill('?')
         const values = [name, description || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, phone || null, email || null, address || null, ownerId, image_url || null]
@@ -211,6 +238,11 @@ router.post('/', authenticateToken, requireStoreOwner, [
             fields.push('category_id')
             placeholders.push('?')
             values.push(req.body.category_id || null)
+        }
+        if (hasPaymentTerm) {
+            fields.push('payment_term')
+            placeholders.push('?')
+            values.push(req.body.payment_term || null)
         }
         const [result] = await req.db.execute(`INSERT INTO stores (${fields.join(',')}) VALUES (${placeholders.join(',')})`, values)
 
@@ -297,7 +329,8 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             image_url,
             owner_id,
             category_id,
-            owner_name
+            owner_name,
+            payment_term
         } = req.body
 
         const updateFields = []
@@ -323,7 +356,29 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             const hasOwnerName = await hasColumn(req.db, 'stores', 'owner_name')
             if (hasOwnerName) { updateFields.push('owner_name = ?'); updateValues.push(owner_name) }
         }
-        if (owner_id !== undefined && req.user.user_type === 'admin') { updateFields.push('owner_id = ?'); updateValues.push(owner_id) }
+        if (owner_id !== undefined && req.user.user_type === 'admin') {
+            let newOwnerId = owner_id === null || owner_id === '' ? null : parseInt(owner_id, 10);
+            if (newOwnerId) {
+                try {
+                    const [userRows] = await req.db.execute('SELECT id FROM users WHERE id = ?', [newOwnerId]);
+                    if (!userRows || userRows.length === 0) {
+                        newOwnerId = null;
+                    }
+                } catch (e) {
+                    newOwnerId = null;
+                }
+            }
+            if (newOwnerId === null) {
+                updateFields.push('owner_id = NULL');
+            } else {
+                updateFields.push('owner_id = ?');
+                updateValues.push(newOwnerId);
+            }
+        }
+        if (payment_term !== undefined) {
+            const hasPaymentTerm = await hasColumn(req.db, 'stores', 'payment_term')
+            if (hasPaymentTerm) { updateFields.push('payment_term = ?'); updateValues.push(payment_term) }
+        }
         if (is_active !== undefined && req.user.user_type === 'admin') { updateFields.push('is_active = ?'); updateValues.push(is_active) }
 
         if (updateFields.length === 0) {

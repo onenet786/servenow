@@ -28,10 +28,25 @@ const mysql = require('mysql2/promise');
       }
       const full = path.join(migDir, file);
       const sql = fs.readFileSync(full, 'utf8');
-      const statements = sql.split(';').map(s => s.trim()).filter(Boolean);
+      // Strip single-line comments before splitting into statements
+      const sqlNoComments = sql
+        .split('\n')
+        .filter(line => !line.trim().startsWith('--'))
+        .join('\n');
+      const statements = sqlNoComments.split(';').map(s => s.trim()).filter(Boolean);
       console.log('Applying:', file, `(${statements.length} statements)`);
       for (let stmt of statements) {
         try {
+          // Strip single-line comments starting with --
+          stmt = stmt
+            .split('\n')
+            .filter(line => !line.trim().startsWith('--'))
+            .join('\n')
+            .trim();
+          if (!stmt) {
+            console.warn('Skip (empty statement)');
+            continue;
+          }
           // Handle "ADD COLUMN IF NOT EXISTS" for MariaDB/MySQL versions that don't support it
           const addColMatch = stmt.match(/ALTER\s+TABLE\s+`?(\w+)`?\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+`?(\w+)`?/i);
           if (addColMatch) {
@@ -56,10 +71,13 @@ const mysql = require('mysql2/promise');
           // Allow duplicate column / index / constraint errors to pass
           if (/Duplicate column name/i.test(msg) ||
               /Duplicate key name/i.test(msg) ||
+              /Duplicate key on write or update/i.test(msg) ||
               /Constraint.*already exists/i.test(msg) ||
               /errno: 1061/i.test(msg) || // duplicate key
               /errno: 1060/i.test(msg) || // duplicate column
-              /errno: 1826/i.test(msg)) { // foreign key exists
+              /errno: 1826/i.test(msg) || // foreign key exists
+              /errno:\s*121/i.test(msg)   // duplicate key (InnoDB)
+             ) {
             console.warn('Skip (already applied):', msg);
             continue;
           }

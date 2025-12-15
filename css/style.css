@@ -701,8 +701,7 @@ main {
 }
 
 /* Image-fit mode overrides — toggle by adding class to <body> */
-body.image-fit-cover .product-image img { object-fit: cover !important; }
-body.image-fit-fill .product-image img { object-fit: fill !important; }
+/* Image Fit removed */
 
 /* Orientation-aware fit classes applied per-image by JS */
 .product-image img.fit-contain { object-fit: contain !important; }

@@ -78,6 +78,21 @@ async function displayAllStores(filteredStores = null) {
             }
         }
         storesToDisplay = allStores;
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const catId = params.get('category_id');
+            const catSlug = params.get('category');
+            if (catId) {
+                const idNum = parseInt(catId, 10);
+                if (!Number.isNaN(idNum)) {
+                    storesToDisplay = storesToDisplay.filter(s => String(s.category_id || '') === String(idNum));
+                }
+            } else if (catSlug) {
+                const normalize = (t) => String(t || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                const want = normalize(catSlug);
+                storesToDisplay = storesToDisplay.filter(s => normalize(s.category_name) === want);
+            }
+        } catch (e) { /* ignore */ }
     }
 
     storeGrid.innerHTML = '';
