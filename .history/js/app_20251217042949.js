@@ -515,20 +515,20 @@ function initScrollControls(container) {
 async function handleStoreSearch(filters = {}) {
     const searchResultsSection = document.getElementById('searchResultsSection');
     const categoriesSection = document.getElementById('categoriesSection');
-    const allStoresSection = document.getElementById('allStoresSection');
+    const featuredStoresSection = document.querySelector('.featured-stores');
     const searchResultsGrid = document.getElementById('searchResultsGrid');
     
-    // If no filters active, show categories and all stores, hide search results
+    // If no filters active, show categories and featured stores, hide search results
     if (!filters.search && !filters.category) {
         if (categoriesSection) categoriesSection.classList.remove('hidden');
-        if (allStoresSection) allStoresSection.style.display = 'block';
+        if (featuredStoresSection) featuredStoresSection.style.display = 'block';
         if (searchResultsSection) searchResultsSection.classList.add('hidden');
         return;
     }
 
-    // Filters active: Hide categories and all stores, show search results
+    // Filters active: Hide categories and featured stores, show search results
     if (categoriesSection) categoriesSection.classList.add('hidden');
-    if (allStoresSection) allStoresSection.style.display = 'none';
+    if (featuredStoresSection) featuredStoresSection.style.display = 'none';
     if (searchResultsSection) searchResultsSection.classList.remove('hidden');
 
     if (!searchResultsGrid) return;

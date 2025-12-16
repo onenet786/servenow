@@ -203,7 +203,7 @@ async function fetchProductStock(productId) {
     return null;
 }
 
-async function addToCart(productId, productName, price, stockQty, unitName, unitId) {
+async function addToCart(productId, productName, price, stockQty) {
     const existingItem = cart.find(item => item.id === productId);
     let maxQty = Number.isFinite(parseFloat(stockQty)) ? Math.max(0, parseInt(stockQty, 10)) : null;
     if (maxQty === null) {
@@ -229,8 +229,7 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
             name: productName,
             price: price,
             quantity: 1,
-            unitName: unitName || null,
-            unitId: unitId || null
+            unitName: null
         };
         if (maxQty !== null) item.maxQty = maxQty;
         cart.push(item);
@@ -247,32 +246,9 @@ function removeFromCart(productId) {
     displayCart();
 }
 
-function isFractionalUnit(name, id) {
-    if (id) {
-        const uid = parseInt(id, 10);
-        if (uid === 1 || uid === 32) return true;
-    }
-    const n = String(name || '').toLowerCase().trim().replace(/\./g, '');
-    if (!n) return false;
-    const singular = n.replace(/s$/, '');
-    if (singular === 'kilogram' || singular === 'kiligram' || singular === 'kg') return true;
-    if (singular === 'liter' || singular === 'litre' || singular === 'ltr' || singular === 'l') return true;
-    if (singular.includes('kilo')) return true;
-    if (singular.includes('lit')) return true;
-    return false;
-}
-
-function qtyStepForUnit(name, id) {
-    return isFractionalUnit(name, id) ? 0.25 : 1;
-}
-
 function setCartItemQuantity(productId, quantity) {
+    const q = Math.max(1, parseInt(quantity, 10) || 1);
     const item = cart.find(i => i.id === productId);
-    const isFrac = item ? isFractionalUnit(item.unitName, item.unitId) : false;
-    const qRaw = isFrac ? parseFloat(quantity) : parseInt(quantity, 10);
-    const base = Number.isFinite(qRaw) ? qRaw : 1;
-    const minQ = qtyStepForUnit(item?.unitName, item?.unitId);
-    const q = Math.max(minQ, base);
     if (item) {
         let finalQ = q;
         if (Number.isFinite(item.maxQty)) {
@@ -303,8 +279,7 @@ async function ensureItemMaxQty(productId) {
 async function incrementQty(productId) {
     const item = cart.find(i => i.id === productId);
     const max = await ensureItemMaxQty(productId);
-    const step = qtyStepForUnit(item?.unitName, item?.unitId);
-    const next = item ? (item.quantity + step) : step;
+    const next = item ? (item.quantity + 1) : 1;
     if (item && Number.isFinite(max) && next > max) {
         showWarning('Limited Stock', `Only ${max} available for ${item.name}.`);
         return;
@@ -314,20 +289,14 @@ async function incrementQty(productId) {
 
 function decrementQty(productId) {
     const item = cart.find(i => i.id === productId);
-    const step = qtyStepForUnit(item?.unitName, item?.unitId);
-    const minQ = step;
-    const next = item ? Math.max(minQ, item.quantity - step) : minQ;
+    const next = item ? Math.max(1, item.quantity - 1) : 1;
     setCartItemQuantity(productId, next);
 }
 
 async function changeQty(productId, value) {
     const item = cart.find(i => i.id === productId);
     const max = await ensureItemMaxQty(productId);
-    const isFrac = item ? isFractionalUnit(item.unitName, item.unitId) : false;
-    const qRaw = isFrac ? parseFloat(value) : parseInt(value, 10);
-    const base = Number.isFinite(qRaw) ? qRaw : 1;
-    const minQ = qtyStepForUnit(item?.unitName, item?.unitId);
-    let q = Math.max(minQ, base);
+    let q = Math.max(1, parseInt(value, 10) || 1);
     if (item && Number.isFinite(max) && q > max) {
         q = max;
         showWarning('Limited Stock', `Only ${max} available for ${item.name}.`);
@@ -347,8 +316,6 @@ function displayCart() {
     cart.forEach(item => {
         const itemTotal = item.price * item.quantity;
         total += itemTotal;
-        const step = qtyStepForUnit(item.unitName, item.unitId);
-        const isFrac = isFractionalUnit(item.unitName, item.unitId);
 
         const itemElement = document.createElement('div');
         itemElement.className = 'cart-item';
@@ -357,8 +324,8 @@ function displayCart() {
                 <h4>${item.name}</h4>
                 <div class="cart-qty">
                     <button class="qty-btn" onclick="decrementQty(${item.id})">−</button>
-                    <input type="range" class="qty-slider" min="${step}" max="${Number.isFinite(item.maxQty) ? item.maxQty : 20}" step="${step}" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)">
-                    ${isFrac ? `<input type="text" class="qty-value-input" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)" inputmode="decimal">` : `<span class="qty-value">${item.quantity}</span>`}
+                    <input type="range" class="qty-slider" min="1" max="${Number.isFinite(item.maxQty) ? item.maxQty : 20}" step="1" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)">
+                    <span class="qty-value">${item.quantity}</span>
                     <button class="qty-btn" onclick="incrementQty(${item.id})">+</button>
                 </div>
             </div>
@@ -445,20 +412,18 @@ function showError(error) {
     showError('Error', errorMessage);
 }
 
-    // Display all stores in horizontal scroll (bottom section)
-async function displayAllStoresHorizontal() {
-    const storeContainer = document.getElementById('allStoresHorizontal');
-    if (!storeContainer) return;
+async function displayNearbyStores() {
+    const storeGrid = document.getElementById('featuredStores');
+    if (!storeGrid) return;
 
     try {
         const response = await fetch(`${API_BASE}/api/stores`);
         const data = await response.json();
 
         if (data.success) {
-            storeContainer.innerHTML = '';
-            
-            // Show ALL stores (no slice)
-            data.stores.forEach(store => {
+            storeGrid.innerHTML = '';
+
+            data.stores.slice(0, 3).forEach(store => {
                 const storeCard = document.createElement('div');
                 storeCard.className = 'store-card';
                 storeCard.innerHTML = `
@@ -468,116 +433,12 @@ async function displayAllStoresHorizontal() {
                     <p>Delivery: ${store.delivery_time}</p>
                     <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
                 `;
-                storeContainer.appendChild(storeCard);
+                storeGrid.appendChild(storeCard);
             });
-
-            // Initialize scroll controls
-            initScrollControls(storeContainer);
         }
     } catch (error) {
         console.error('Error loading stores:', error);
-        storeContainer.innerHTML = '<p>Unable to load stores at this time.</p>';
-    }
-}
-
-function initScrollControls(container) {
-    const leftBtn = document.getElementById('scrollLeftBtn');
-    const rightBtn = document.getElementById('scrollRightBtn');
-    
-    if (!leftBtn || !rightBtn) return;
-
-    const scrollAmount = 350; // Width of card + gap approx
-
-    leftBtn.addEventListener('click', () => {
-        container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-    });
-
-    rightBtn.addEventListener('click', () => {
-        container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    });
-
-    // Handle button visibility based on scroll position
-    const updateButtons = () => {
-        const isAtStart = container.scrollLeft <= 0;
-        const isAtEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 1; // -1 for rounding tolerance
-
-        leftBtn.style.display = isAtStart ? 'none' : 'block';
-        rightBtn.style.display = isAtEnd ? 'none' : 'block';
-    };
-
-    container.addEventListener('scroll', updateButtons);
-    // Initial check
-    setTimeout(updateButtons, 100); // Wait for layout
-    window.addEventListener('resize', updateButtons);
-}
-
-// Perform search and display results in the replacement section
-async function handleStoreSearch(filters = {}) {
-    const searchResultsSection = document.getElementById('searchResultsSection');
-    const categoriesSection = document.getElementById('categoriesSection');
-    const allStoresSection = document.getElementById('allStoresSection');
-    const searchResultsGrid = document.getElementById('searchResultsGrid');
-    
-    // If no filters active, show categories and all stores, hide search results
-    if (!filters.search && !filters.category) {
-        if (categoriesSection) categoriesSection.classList.remove('hidden');
-        if (allStoresSection) allStoresSection.style.display = 'block';
-        if (searchResultsSection) searchResultsSection.classList.add('hidden');
-        return;
-    }
-
-    // Filters active: Hide categories and all stores, show search results
-    if (categoriesSection) categoriesSection.classList.add('hidden');
-    if (allStoresSection) allStoresSection.style.display = 'none';
-    if (searchResultsSection) searchResultsSection.classList.remove('hidden');
-
-    if (!searchResultsGrid) return;
-    searchResultsGrid.innerHTML = '<p>Loading...</p>';
-
-    try {
-        let url = `${API_BASE}/api/stores`;
-        const params = new URLSearchParams();
-        
-        if (filters.category) {
-            params.append('category', filters.category);
-        }
-        if (filters.search) {
-            params.append('search', filters.search);
-        }
-        
-        const queryString = params.toString();
-        if (queryString) {
-            url += `?${queryString}`;
-        }
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.success) {
-            searchResultsGrid.innerHTML = '';
-            let stores = data.stores;
-
-            if (stores.length === 0) {
-                searchResultsGrid.innerHTML = '<p>No stores found matching your criteria.</p>';
-                return;
-            }
-
-            stores.forEach(store => {
-                const storeCard = document.createElement('div');
-                storeCard.className = 'store-card';
-                storeCard.innerHTML = `
-                    <h4>${store.name}</h4>
-                    <p>Location: ${store.location}</p>
-                    <p>Rating: ${store.rating} ⭐</p>
-                    <p>Delivery: ${store.delivery_time}</p>
-                    <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
-                `;
-                searchResultsGrid.appendChild(storeCard);
-            });
-        }
-    } catch (error) {
-        console.error('Error searching stores:', error);
-        searchResultsGrid.innerHTML = '<p>Error searching stores.</p>';
+        storeGrid.innerHTML = '<p>Unable to load stores at this time.</p>';
     }
 }
 
@@ -634,7 +495,7 @@ async function loadProducts(category) {
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>
-                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id})">Add to Cart</button>
+                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'})">Add to Cart</button>
                     </div>
                 `;
                 productGrid.appendChild(productCard);
@@ -1075,52 +936,9 @@ document.addEventListener('DOMContentLoaded', function() {
         displayCart();
     }
 
-    // Display featured stores on homepage (Bottom Section, Horizontal Scroll)
-    if (document.getElementById('allStoresHorizontal')) {
-        displayAllStoresHorizontal();
-
-        // Populate Store Category Filter
-        const storeCategoryFilter = document.getElementById('storeCategoryFilter');
-        if (storeCategoryFilter) {
-            fetch(`${API_BASE}/api/categories`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        data.categories.forEach(cat => {
-                            const opt = document.createElement('option');
-                            opt.value = cat.slug;
-                            opt.textContent = cat.name;
-                            storeCategoryFilter.appendChild(opt);
-                        });
-                    }
-                })
-                .catch(e => console.error('Error loading filter categories:', e));
-        }
-
-        // Filter Event Listeners
-        const storeSearch = document.getElementById('storeSearch');
-        const clearStoreFiltersBtn = document.getElementById('clearStoreFiltersBtn');
-
-        function applyStoreFilters() {
-            const search = storeSearch ? storeSearch.value : '';
-            const category = storeCategoryFilter ? storeCategoryFilter.value : '';
-            // Use the new handleStoreSearch function
-            handleStoreSearch({ search, category });
-        }
-
-        if (storeSearch) {
-            storeSearch.addEventListener('input', applyStoreFilters);
-        }
-        if (storeCategoryFilter) {
-            storeCategoryFilter.addEventListener('change', applyStoreFilters);
-        }
-        if (clearStoreFiltersBtn) {
-            clearStoreFiltersBtn.addEventListener('click', () => {
-                if (storeSearch) storeSearch.value = '';
-                if (storeCategoryFilter) storeCategoryFilter.value = '';
-                applyStoreFilters();
-            });
-        }
+    // Display featured stores on homepage
+    if (document.getElementById('featuredStores')) {
+        displayNearbyStores();
     }
 
     // Form submission

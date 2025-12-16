@@ -14,22 +14,9 @@ const router = express.Router()
 // Get all stores (optionally filter by category via products)
 router.get('/', async (req, res) => {
     try {
-        const { category, category_id, search } = req.query
+        const { category, category_id } = req.query
         const whereClauses = ['s.is_active = true']
         const params = []
-
-        if (search) {
-            const searchTerm = `%${search}%`
-            whereClauses.push(`(
-                EXISTS (
-                    SELECT 1 FROM products p 
-                    WHERE p.store_id = s.id 
-                    AND p.is_available = true 
-                    AND p.name LIKE ?
-                )
-            )`)
-            params.push(searchTerm)
-        }
 
         if (category_id || category) {
             if (category_id && /^\d+$/.test(String(category_id))) {

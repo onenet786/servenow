@@ -11,9 +11,8 @@ if (dotenvResult.parsed) {
     console.log(`Loaded ${Object.keys(dotenvResult.parsed).length} variables from .env (overrode existing env vars).`);
 }
 
-// Force the PORT value to the one declared in .env (or fallback to 3002)
-// This makes sure development runs consistently use the configured .env PORT
-const forcedPort = (dotenvResult.parsed && dotenvResult.parsed.PORT) ? dotenvResult.parsed.PORT : '3002';
+// Force the PORT value to the one declared in .env (or fallback to 3002), unless already set
+const forcedPort = process.env.PORT || ((dotenvResult.parsed && dotenvResult.parsed.PORT) ? dotenvResult.parsed.PORT : '3002');
 process.env.PORT = forcedPort;
 console.log(`Force-set process.env.PORT => ${process.env.PORT}`);
 

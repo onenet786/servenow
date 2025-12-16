@@ -445,7 +445,7 @@ function showError(error) {
     showError('Error', errorMessage);
 }
 
-    // Display all stores in horizontal scroll (bottom section)
+// Display all stores in horizontal scroll (bottom section)
 async function displayAllStoresHorizontal() {
     const storeContainer = document.getElementById('allStoresHorizontal');
     if (!storeContainer) return;
@@ -470,9 +470,6 @@ async function displayAllStoresHorizontal() {
                 `;
                 storeContainer.appendChild(storeCard);
             });
-
-            // Initialize scroll controls
-            initScrollControls(storeContainer);
         }
     } catch (error) {
         console.error('Error loading stores:', error);
@@ -480,55 +477,21 @@ async function displayAllStoresHorizontal() {
     }
 }
 
-function initScrollControls(container) {
-    const leftBtn = document.getElementById('scrollLeftBtn');
-    const rightBtn = document.getElementById('scrollRightBtn');
-    
-    if (!leftBtn || !rightBtn) return;
-
-    const scrollAmount = 350; // Width of card + gap approx
-
-    leftBtn.addEventListener('click', () => {
-        container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-    });
-
-    rightBtn.addEventListener('click', () => {
-        container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    });
-
-    // Handle button visibility based on scroll position
-    const updateButtons = () => {
-        const isAtStart = container.scrollLeft <= 0;
-        const isAtEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 1; // -1 for rounding tolerance
-
-        leftBtn.style.display = isAtStart ? 'none' : 'block';
-        rightBtn.style.display = isAtEnd ? 'none' : 'block';
-    };
-
-    container.addEventListener('scroll', updateButtons);
-    // Initial check
-    setTimeout(updateButtons, 100); // Wait for layout
-    window.addEventListener('resize', updateButtons);
-}
-
 // Perform search and display results in the replacement section
 async function handleStoreSearch(filters = {}) {
     const searchResultsSection = document.getElementById('searchResultsSection');
     const categoriesSection = document.getElementById('categoriesSection');
-    const allStoresSection = document.getElementById('allStoresSection');
     const searchResultsGrid = document.getElementById('searchResultsGrid');
     
-    // If no filters active, show categories and all stores, hide search results
+    // If no filters active, show categories and hide search results
     if (!filters.search && !filters.category) {
         if (categoriesSection) categoriesSection.classList.remove('hidden');
-        if (allStoresSection) allStoresSection.style.display = 'block';
         if (searchResultsSection) searchResultsSection.classList.add('hidden');
         return;
     }
 
-    // Filters active: Hide categories and all stores, show search results
+    // Filters active: Hide categories, show search results
     if (categoriesSection) categoriesSection.classList.add('hidden');
-    if (allStoresSection) allStoresSection.style.display = 'none';
     if (searchResultsSection) searchResultsSection.classList.remove('hidden');
 
     if (!searchResultsGrid) return;
@@ -536,18 +499,8 @@ async function handleStoreSearch(filters = {}) {
 
     try {
         let url = `${API_BASE}/api/stores`;
-        const params = new URLSearchParams();
-        
         if (filters.category) {
-            params.append('category', filters.category);
-        }
-        if (filters.search) {
-            params.append('search', filters.search);
-        }
-        
-        const queryString = params.toString();
-        if (queryString) {
-            url += `?${queryString}`;
+            url += `?category=${encodeURIComponent(filters.category)}`;
         }
 
         const response = await fetch(url);
@@ -556,6 +509,15 @@ async function handleStoreSearch(filters = {}) {
         if (data.success) {
             searchResultsGrid.innerHTML = '';
             let stores = data.stores;
+
+            // Client-side text search
+            if (filters.search) {
+                const term = filters.search.toLowerCase();
+                stores = stores.filter(s => 
+                    s.name.toLowerCase().includes(term) || 
+                    s.location.toLowerCase().includes(term)
+                );
+            }
 
             if (stores.length === 0) {
                 searchResultsGrid.innerHTML = '<p>No stores found matching your criteria.</p>';

@@ -21,6 +21,8 @@ router.get('/', async (req, res) => {
         if (search) {
             const searchTerm = `%${search}%`
             whereClauses.push(`(
+                s.name LIKE ? OR 
+                s.location LIKE ? OR 
                 EXISTS (
                     SELECT 1 FROM products p 
                     WHERE p.store_id = s.id 
@@ -28,7 +30,7 @@ router.get('/', async (req, res) => {
                     AND p.name LIKE ?
                 )
             )`)
-            params.push(searchTerm)
+            params.push(searchTerm, searchTerm, searchTerm)
         }
 
         if (category_id || category) {

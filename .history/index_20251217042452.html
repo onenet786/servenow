@@ -59,23 +59,20 @@
                 <button id="getLocation">Find Stores Near Me</button>
             </section>
 
-            <section class="store-filters-section">
-                <div class="search-container">
-                    <div class="search-input-wrapper">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text" id="storeSearch" class="search-input" placeholder="Search products (e.g., Pizza, Milk)">
+            <section class="store-filters-section" style="margin-top: 20px; margin-bottom: 20px;">
+                <div class="filter-controls" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #f8f9fa; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <div class="filter-group">
+                        <label for="storeSearch" style="margin-right: 5px; font-weight: bold;">Search Products:</label>
+                        <input type="text" id="storeSearch" placeholder="Search by product name (e.g. Pizza, Milk)" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 250px;">
                     </div>
-                    <div class="search-select-wrapper">
-                        <i class="fas fa-filter select-icon"></i>
-                        <select id="storeCategoryFilter" class="search-select">
+                    <div class="filter-group">
+                        <label for="storeCategoryFilter" style="margin-right: 5px; font-weight: bold;">Category:</label>
+                        <select id="storeCategoryFilter" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                             <option value="">All Categories</option>
                             <!-- Populated dynamically -->
                         </select>
-                        <i class="fas fa-chevron-down dropdown-icon"></i>
                     </div>
-                    <button class="btn btn-secondary search-clear-btn" id="clearStoreFiltersBtn">
-                        <i class="fas fa-times"></i> Clear
-                    </button>
+                    <button class="btn btn-secondary" id="clearStoreFiltersBtn" style="padding: 8px 15px;">Clear Filters</button>
                 </div>
             </section>
 
@@ -124,7 +121,7 @@
                 </section>
             </div>
 
-            <section class="featured-stores" id="allStoresSection">
+            <section class="featured-stores">
                 <h3>All Stores</h3>
                 <div class="scroll-wrapper">
                     <button id="scrollLeftBtn" class="scroll-arrow left-arrow" style="display: none;"><i class="fas fa-chevron-left"></i></button>

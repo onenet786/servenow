@@ -445,20 +445,18 @@ function showError(error) {
     showError('Error', errorMessage);
 }
 
-    // Display all stores in horizontal scroll (bottom section)
-async function displayAllStoresHorizontal() {
-    const storeContainer = document.getElementById('allStoresHorizontal');
-    if (!storeContainer) return;
+async function displayNearbyStores() {
+    const storeGrid = document.getElementById('featuredStores');
+    if (!storeGrid) return;
 
     try {
         const response = await fetch(`${API_BASE}/api/stores`);
         const data = await response.json();
 
         if (data.success) {
-            storeContainer.innerHTML = '';
-            
-            // Show ALL stores (no slice)
-            data.stores.forEach(store => {
+            storeGrid.innerHTML = '';
+
+            data.stores.slice(0, 3).forEach(store => {
                 const storeCard = document.createElement('div');
                 storeCard.className = 'store-card';
                 storeCard.innerHTML = `
@@ -468,116 +466,12 @@ async function displayAllStoresHorizontal() {
                     <p>Delivery: ${store.delivery_time}</p>
                     <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
                 `;
-                storeContainer.appendChild(storeCard);
+                storeGrid.appendChild(storeCard);
             });
-
-            // Initialize scroll controls
-            initScrollControls(storeContainer);
         }
     } catch (error) {
         console.error('Error loading stores:', error);
-        storeContainer.innerHTML = '<p>Unable to load stores at this time.</p>';
-    }
-}
-
-function initScrollControls(container) {
-    const leftBtn = document.getElementById('scrollLeftBtn');
-    const rightBtn = document.getElementById('scrollRightBtn');
-    
-    if (!leftBtn || !rightBtn) return;
-
-    const scrollAmount = 350; // Width of card + gap approx
-
-    leftBtn.addEventListener('click', () => {
-        container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-    });
-
-    rightBtn.addEventListener('click', () => {
-        container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-    });
-
-    // Handle button visibility based on scroll position
-    const updateButtons = () => {
-        const isAtStart = container.scrollLeft <= 0;
-        const isAtEnd = container.scrollLeft + container.clientWidth >= container.scrollWidth - 1; // -1 for rounding tolerance
-
-        leftBtn.style.display = isAtStart ? 'none' : 'block';
-        rightBtn.style.display = isAtEnd ? 'none' : 'block';
-    };
-
-    container.addEventListener('scroll', updateButtons);
-    // Initial check
-    setTimeout(updateButtons, 100); // Wait for layout
-    window.addEventListener('resize', updateButtons);
-}
-
-// Perform search and display results in the replacement section
-async function handleStoreSearch(filters = {}) {
-    const searchResultsSection = document.getElementById('searchResultsSection');
-    const categoriesSection = document.getElementById('categoriesSection');
-    const allStoresSection = document.getElementById('allStoresSection');
-    const searchResultsGrid = document.getElementById('searchResultsGrid');
-    
-    // If no filters active, show categories and all stores, hide search results
-    if (!filters.search && !filters.category) {
-        if (categoriesSection) categoriesSection.classList.remove('hidden');
-        if (allStoresSection) allStoresSection.style.display = 'block';
-        if (searchResultsSection) searchResultsSection.classList.add('hidden');
-        return;
-    }
-
-    // Filters active: Hide categories and all stores, show search results
-    if (categoriesSection) categoriesSection.classList.add('hidden');
-    if (allStoresSection) allStoresSection.style.display = 'none';
-    if (searchResultsSection) searchResultsSection.classList.remove('hidden');
-
-    if (!searchResultsGrid) return;
-    searchResultsGrid.innerHTML = '<p>Loading...</p>';
-
-    try {
-        let url = `${API_BASE}/api/stores`;
-        const params = new URLSearchParams();
-        
-        if (filters.category) {
-            params.append('category', filters.category);
-        }
-        if (filters.search) {
-            params.append('search', filters.search);
-        }
-        
-        const queryString = params.toString();
-        if (queryString) {
-            url += `?${queryString}`;
-        }
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.success) {
-            searchResultsGrid.innerHTML = '';
-            let stores = data.stores;
-
-            if (stores.length === 0) {
-                searchResultsGrid.innerHTML = '<p>No stores found matching your criteria.</p>';
-                return;
-            }
-
-            stores.forEach(store => {
-                const storeCard = document.createElement('div');
-                storeCard.className = 'store-card';
-                storeCard.innerHTML = `
-                    <h4>${store.name}</h4>
-                    <p>Location: ${store.location}</p>
-                    <p>Rating: ${store.rating} ⭐</p>
-                    <p>Delivery: ${store.delivery_time}</p>
-                    <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
-                `;
-                searchResultsGrid.appendChild(storeCard);
-            });
-        }
-    } catch (error) {
-        console.error('Error searching stores:', error);
-        searchResultsGrid.innerHTML = '<p>Error searching stores.</p>';
+        storeGrid.innerHTML = '<p>Unable to load stores at this time.</p>';
     }
 }
 
@@ -1075,52 +969,9 @@ document.addEventListener('DOMContentLoaded', function() {
         displayCart();
     }
 
-    // Display featured stores on homepage (Bottom Section, Horizontal Scroll)
-    if (document.getElementById('allStoresHorizontal')) {
-        displayAllStoresHorizontal();
-
-        // Populate Store Category Filter
-        const storeCategoryFilter = document.getElementById('storeCategoryFilter');
-        if (storeCategoryFilter) {
-            fetch(`${API_BASE}/api/categories`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        data.categories.forEach(cat => {
-                            const opt = document.createElement('option');
-                            opt.value = cat.slug;
-                            opt.textContent = cat.name;
-                            storeCategoryFilter.appendChild(opt);
-                        });
-                    }
-                })
-                .catch(e => console.error('Error loading filter categories:', e));
-        }
-
-        // Filter Event Listeners
-        const storeSearch = document.getElementById('storeSearch');
-        const clearStoreFiltersBtn = document.getElementById('clearStoreFiltersBtn');
-
-        function applyStoreFilters() {
-            const search = storeSearch ? storeSearch.value : '';
-            const category = storeCategoryFilter ? storeCategoryFilter.value : '';
-            // Use the new handleStoreSearch function
-            handleStoreSearch({ search, category });
-        }
-
-        if (storeSearch) {
-            storeSearch.addEventListener('input', applyStoreFilters);
-        }
-        if (storeCategoryFilter) {
-            storeCategoryFilter.addEventListener('change', applyStoreFilters);
-        }
-        if (clearStoreFiltersBtn) {
-            clearStoreFiltersBtn.addEventListener('click', () => {
-                if (storeSearch) storeSearch.value = '';
-                if (storeCategoryFilter) storeCategoryFilter.value = '';
-                applyStoreFilters();
-            });
-        }
+    // Display featured stores on homepage
+    if (document.getElementById('featuredStores')) {
+        displayNearbyStores();
     }
 
     // Form submission
