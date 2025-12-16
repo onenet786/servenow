@@ -1,7 +1,7 @@
-// Local API base to avoid colliding with global const in app.js
-const STORE_API_BASE = window.location.protocol + '//' + window.location.host;
+function getApiBase() {
+    try { return API_BASE; } catch (e) { return window.location.protocol + '//' + window.location.host; }
+}
 
-// Get store ID from URL
 function getStoreId() {
     const urlParams = new URLSearchParams(window.location.search);
     return parseInt(urlParams.get('id'));
@@ -27,16 +27,13 @@ function displayStoreInfoData(store) {
 function displayStoreProductsData(storeProducts) {
     const productGrid = document.getElementById('storeProducts');
     productGrid.innerHTML = '';
-
-    if (storeProducts.length === 0) {
+    if (!Array.isArray(storeProducts) || storeProducts.length === 0) {
         productGrid.innerHTML = '<p>No products available from this store.</p>';
         return;
     }
-
     storeProducts.forEach(product => {
         const productCard = document.createElement('div');
         productCard.className = 'product-card';
-
         let imageSrc = 'https://via.placeholder.com/200x150/E0E0E0/666666?text=No+Image';
         let variants = null;
         if (product.image_url || product.image) {
@@ -44,13 +41,12 @@ function displayStoreProductsData(storeProducts) {
             if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) {
                 imageSrc = url;
             } else if (url.startsWith('/')) {
-                imageSrc = STORE_API_BASE.replace(/\/$/, '') + url;
+                imageSrc = getApiBase().replace(/\/$/, '') + url;
             } else {
-                imageSrc = STORE_API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
+                imageSrc = getApiBase().replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
             }
             variants = product.image_variants || product.variants || null;
         }
-
         productCard.innerHTML = `
                 <div class="product-image">
                     ${buildImgTagForStore(imageSrc, variants, product.name, product.id, {
@@ -64,7 +60,7 @@ function displayStoreProductsData(storeProducts) {
             <div class="product-card-content">
                 <h4>${product.name}</h4>
                 <p class="price">PKR ${Number.isFinite(parseFloat(product.price)) ? parseFloat(product.price).toFixed(2) : product.price}</p>
-                <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price})">Add to Cart</button>
+                <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'})">Add to Cart</button>
             </div>
         `;
         productGrid.appendChild(productCard);
@@ -74,71 +70,43 @@ function displayStoreProductsData(storeProducts) {
                     if (img.dataset && (img.dataset.bgR || img.dataset.bgR === '0')) window.applyImageBgFromMeta(img);
                     else applyOrientationFitStore(img);
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) {}
         });
     });
 }
 
-// Initialize store page
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     const storeId = getStoreId();
-    if (storeId) {
-        loadStore(storeId);
-    } else {
+    if (!storeId) {
         document.getElementById('storeInfo').innerHTML = '<h2>Invalid store ID</h2>';
+        return;
+    }
+    try {
+        const resp = await fetch(`${getApiBase()}/api/stores/${encodeURIComponent(storeId)}`);
+        const data = await resp.json();
+        if (data && data.success) {
+            displayStoreInfoData(data.store);
+            let list = Array.isArray(data.products) ? data.products : [];
+            if (!list.length) {
+                try {
+                    const resp2 = await fetch(`${getApiBase()}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
+                    const data2 = await resp2.json();
+                    if (data2 && data2.success && Array.isArray(data2.products)) {
+                        const onlyAvailable = data2.products.filter(p => p.is_available);
+                        list = onlyAvailable.length ? onlyAvailable : data2.products;
+                    }
+                } catch (_) { /* ignore */ }
+            }
+            displayStoreProductsData(list);
+        } else {
+            document.getElementById('storeInfo').innerHTML = '<h2>Store not found</h2>';
+            displayStoreProductsData([]);
+        }
+    } catch (_) {
+        document.getElementById('storeInfo').innerHTML = '<h2>Store not found</h2>';
+        displayStoreProductsData([]);
     }
 });
-
-async function loadStore(storeId) {
-    try {
-        const resp = await fetch(`${STORE_API_BASE}/api/stores/${storeId}`);
-        const data = await resp.json();
-        if (!data || !data.success || !data.store) {
-            const title = document.getElementById('storeTitle');
-            if (title) title.textContent = `Store #${storeId} - ServeNow`;
-            document.getElementById('storeInfo').innerHTML = `<h2>Store #${storeId}</h2>`;
-            let list = [];
-            try {
-                const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
-                const data2 = await resp2.json();
-                if (data2 && data2.success && Array.isArray(data2.products)) {
-                    const onlyAvailable = data2.products.filter(p => p.is_available);
-                    list = onlyAvailable.length ? onlyAvailable : data2.products;
-                }
-            } catch (_) { /* ignore */ }
-            displayStoreProductsData(list || []);
-            return;
-        }
-        displayStoreInfoData(data.store);
-        let list = Array.isArray(data.products) ? data.products : [];
-        if (!list || list.length === 0) {
-            try {
-                const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}`);
-                const data2 = await resp2.json();
-                if (data2 && data2.success && Array.isArray(data2.products)) {
-                    // Prefer available products for store page
-                    const onlyAvailable = data2.products.filter(p => p.is_available);
-                    list = onlyAvailable.length ? onlyAvailable : data2.products;
-                }
-            } catch (_) { /* ignore */ }
-        }
-        displayStoreProductsData(list || []);
-    } catch (e) {
-        const title = document.getElementById('storeTitle');
-        if (title) title.textContent = `Store #${storeId} - ServeNow`;
-        document.getElementById('storeInfo').innerHTML = `<h2>Store #${storeId}</h2>`;
-        let list = [];
-        try {
-            const resp2 = await fetch(`${STORE_API_BASE}/api/products?store=${encodeURIComponent(storeId)}&admin=1`);
-            const data2 = await resp2.json();
-            if (data2 && data2.success && Array.isArray(data2.products)) {
-                const onlyAvailable = data2.products.filter(p => p.is_available);
-                list = onlyAvailable.length ? onlyAvailable : data2.products;
-            }
-        } catch (_) { /* ignore */ }
-        displayStoreProductsData(list || []);
-    }
-}
 
 // Helper to build img tag with srcset for store page
 function buildImgTagForStore(src, variants, alt, pid, meta) {

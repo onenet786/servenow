@@ -11,43 +11,47 @@ const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') })
 
 const router = express.Router()
 
-async function hasColumn(db, table, column) {
-    const [rows] = await db.execute('SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [table, column])
-    return rows[0].cnt > 0
-}
-
-const { optionalAuth } = require('../middleware/auth')
-router.get('/', optionalAuth, async (req, res) => {
+// Get all stores (optionally filter by category via products)
+router.get('/', async (req, res) => {
     try {
-        const hasCat = await hasColumn(req.db, 'stores', 'category_id')
-        const includeAll = req.user && req.user.user_type === 'admin'
-        const sql = hasCat
-            ? `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, c.name as category_name
-               FROM stores s
-               LEFT JOIN users u ON s.owner_id = u.id
-               LEFT JOIN categories c ON s.category_id = c.id
-               ${includeAll ? '' : 'WHERE s.is_active = true'}
-               ORDER BY s.rating DESC, s.name ASC`
-            : `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
-               FROM stores s
-               LEFT JOIN users u ON s.owner_id = u.id
-               ${includeAll ? '' : 'WHERE s.is_active = true'}
-               ORDER BY s.rating DESC, s.name ASC`
-        let [stores] = await req.db.execute(sql)
-        if (!stores || stores.length === 0) {
-            const sqlAll = hasCat
-                ? `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, c.name as category_name
-                   FROM stores s
-                   LEFT JOIN users u ON s.owner_id = u.id
-                   LEFT JOIN categories c ON s.category_id = c.id
-                   ORDER BY s.rating DESC, s.name ASC`
-                : `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
-                   FROM stores s
-                   LEFT JOIN users u ON s.owner_id = u.id
-                   ORDER BY s.rating DESC, s.name ASC`
-            const [allStores] = await req.db.execute(sqlAll)
-            stores = allStores
+        const { category, category_id } = req.query
+        const whereClauses = ['s.is_active = true']
+        const params = []
+
+        if (category_id || category) {
+            if (category_id && /^\d+$/.test(String(category_id))) {
+                whereClauses.push(`
+                    EXISTS (
+                        SELECT 1
+                        FROM products p
+                        WHERE p.store_id = s.id
+                          AND p.is_available = true
+                          AND p.category_id = ?
+                    )
+                `)
+                params.push(parseInt(category_id, 10))
+            } else if (category) {
+                whereClauses.push(`
+                    EXISTS (
+                        SELECT 1
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        WHERE p.store_id = s.id
+                          AND p.is_available = true
+                          AND LOWER(c.name) = LOWER(REPLACE(?, "-", " "))
+                    )
+                `)
+                params.push(String(category))
+            }
         }
+
+        const [stores] = await req.db.execute(`
+            SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
+            FROM stores s
+            LEFT JOIN users u ON s.owner_id = u.id
+            WHERE ${whereClauses.join(' AND ')}
+            ORDER BY s.rating DESC, s.name ASC
+        `, params)
 
         res.json({
             success: true,
@@ -61,21 +65,14 @@ router.get('/', optionalAuth, async (req, res) => {
                 longitude: store.longitude,
                 rating: store.rating,
                 delivery_time: store.delivery_time,
-                payment_term: store.payment_term || null,
                 phone: store.phone,
                 email: store.email,
                 address: store.address,
                 description: store.description,
-                owner_id: store.owner_id || null,
-                category_id: store.category_id || null,
-                category_name: store.category_name || null,
                 image_url: store.cover_image || null,
                 is_active: store.is_active,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             }))
         })
 
@@ -94,18 +91,12 @@ router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params
 
-        const hasCat = await hasColumn(req.db, 'stores', 'category_id')
-        const sql = hasCat
-            ? `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, c.name as category_name
-               FROM stores s
-               LEFT JOIN users u ON s.owner_id = u.id
-               LEFT JOIN categories c ON s.category_id = c.id
-               WHERE s.id = ? AND s.is_active = true`
-            : `SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
-               FROM stores s
-               LEFT JOIN users u ON s.owner_id = u.id
-               WHERE s.id = ? AND s.is_active = true`
-        const [stores] = await req.db.execute(sql, [id])
+        const [stores] = await req.db.execute(`
+            SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
+            FROM stores s
+            LEFT JOIN users u ON s.owner_id = u.id
+            WHERE s.id = ? AND s.is_active = true
+        `, [id])
 
         if (stores.length === 0) {
             return res.status(404).json({
@@ -137,20 +128,14 @@ router.get('/:id', async (req, res) => {
                 longitude: store.longitude,
                 rating: store.rating,
                 delivery_time: store.delivery_time,
-                payment_term: store.payment_term || null,
                 phone: store.phone,
                 email: store.email,
                 address: store.address,
                 description: store.description,
                 owner_id: store.owner_id,
-                category_id: store.category_id || null,
-                category_name: store.category_name || null,
                 image_url: store.cover_image || null,
-                owner_name: (store.owner_name && store.owner_name.trim().length > 0)
-                    ? store.owner_name
-                    : (store.owner_first_name && store.owner_last_name
-                        ? `${store.owner_first_name} ${store.owner_last_name}`
-                        : null)
+                owner_name: store.owner_first_name && store.owner_last_name ?
+                    `${store.owner_first_name} ${store.owner_last_name}` : null
             },
             products: products.map(product => ({
                 id: product.id,
@@ -178,10 +163,8 @@ router.get('/:id', async (req, res) => {
 router.post('/', authenticateToken, requireStoreOwner, [
     body('name').trim().isLength({ min: 2 }).withMessage('Store name must be at least 2 characters'),
     body('location').trim().notEmpty().withMessage('Location is required'),
-    body('phone').optional().isString().withMessage('Please provide a valid phone'),
-    body('email').optional().isEmail().withMessage('Please provide a valid email'),
-    body('owner_id').optional().isInt().withMessage('owner_id must be a valid user id'),
-    body('owner_name').optional().isString().isLength({ min: 1 }).withMessage('owner_name must be text')
+    body('phone').optional().isMobilePhone().withMessage('Please provide a valid phone number'),
+    body('email').optional().isEmail().withMessage('Please provide a valid email')
 ], async (req, res) => {
     try {
         const errors = validationResult(req)
@@ -207,44 +190,15 @@ router.post('/', authenticateToken, requireStoreOwner, [
             image_url
         } = req.body
 
-        // Owner assignment:
-        // - If owner_id provided (admin use-case), use it; otherwise assign to current user
-        // - Validate owner_id exists in users; if not, set NULL to avoid FK errors
-        let ownerId = req.user.id;
-        if (req.user.user_type === 'admin' && req.body.owner_id) {
-            ownerId = parseInt(req.body.owner_id, 10);
-        }
-        try {
-            const [userRows] = await req.db.execute('SELECT id FROM users WHERE id = ?', [ownerId]);
-            if (!ownerId || !userRows || userRows.length === 0) {
-                ownerId = null;
-            }
-        } catch (e) {
-            ownerId = null;
-        }
+        // If user is store owner, they can only create stores for themselves
+        // If user is admin, they can create stores for any owner
+        const ownerId = req.user.user_type === 'admin' ? req.body.owner_id || req.user.id : req.user.id
 
-        const hasCat = await hasColumn(req.db, 'stores', 'category_id')
-        const hasOwnerName = await hasColumn(req.db, 'stores', 'owner_name')
-        const hasPaymentTerm = await hasColumn(req.db, 'stores', 'payment_term')
-        const fields = ['name','description','location','latitude','longitude','delivery_time','opening_time','closing_time','phone','email','address','owner_id','cover_image']
-        const placeholders = Array(fields.length).fill('?')
-        const values = [name, description || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, phone || null, email || null, address || null, ownerId, image_url || null]
-        if (hasOwnerName) {
-            fields.push('owner_name')
-            placeholders.push('?')
-            values.push(req.body.owner_name || null)
-        }
-        if (hasCat) {
-            fields.push('category_id')
-            placeholders.push('?')
-            values.push(req.body.category_id || null)
-        }
-        if (hasPaymentTerm) {
-            fields.push('payment_term')
-            placeholders.push('?')
-            values.push(req.body.payment_term || null)
-        }
-        const [result] = await req.db.execute(`INSERT INTO stores (${fields.join(',')}) VALUES (${placeholders.join(',')})`, values)
+        const [result] = await req.db.execute(
+            `INSERT INTO stores (name, description, location, latitude, longitude, delivery_time, opening_time, closing_time, phone, email, address, owner_id, cover_image)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [name, description || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, phone || null, email || null, address || null, ownerId, image_url || null]
+        )
 
         res.status(201).json({
             success: true,
@@ -254,8 +208,6 @@ router.post('/', authenticateToken, requireStoreOwner, [
                 name,
                 location,
                 owner_id: ownerId,
-                owner_name: req.body.owner_name || null,
-                category_id: req.body.category_id || null,
                 image_url: image_url || null
             }
         })
@@ -274,9 +226,8 @@ router.post('/', authenticateToken, requireStoreOwner, [
 router.put('/:id', authenticateToken, requireStoreOwner, [
     body('name').optional().trim().isLength({ min: 2 }).withMessage('Store name must be at least 2 characters'),
     body('location').optional().trim().notEmpty().withMessage('Location is required'),
-    body('phone').optional().isString().withMessage('Please provide a valid phone'),
-    body('email').optional().isEmail().withMessage('Please provide a valid email'),
-    body('owner_name').optional().isString().isLength({ min: 1 }).withMessage('owner_name must be text')
+    body('phone').optional().isMobilePhone().withMessage('Please provide a valid phone number'),
+    body('email').optional().isEmail().withMessage('Please provide a valid email')
 ], async (req, res) => {
     try {
         const errors = validationResult(req)
@@ -326,11 +277,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             is_active,
             opening_time,
             closing_time,
-            image_url,
-            owner_id,
-            category_id,
-            owner_name,
-            payment_term
+            image_url
         } = req.body
 
         const updateFields = []
@@ -348,37 +295,6 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (email !== undefined) { updateFields.push('email = ?'); updateValues.push(email) }
         if (address !== undefined) { updateFields.push('address = ?'); updateValues.push(address) }
         if (image_url !== undefined) { updateFields.push('cover_image = ?'); updateValues.push(image_url) }
-        if (category_id !== undefined) {
-            const hasCat = await hasColumn(req.db, 'stores', 'category_id')
-            if (hasCat) { updateFields.push('category_id = ?'); updateValues.push(category_id) }
-        }
-        if (owner_name !== undefined) {
-            const hasOwnerName = await hasColumn(req.db, 'stores', 'owner_name')
-            if (hasOwnerName) { updateFields.push('owner_name = ?'); updateValues.push(owner_name) }
-        }
-        if (owner_id !== undefined && req.user.user_type === 'admin') {
-            let newOwnerId = owner_id === null || owner_id === '' ? null : parseInt(owner_id, 10);
-            if (newOwnerId) {
-                try {
-                    const [userRows] = await req.db.execute('SELECT id FROM users WHERE id = ?', [newOwnerId]);
-                    if (!userRows || userRows.length === 0) {
-                        newOwnerId = null;
-                    }
-                } catch (e) {
-                    newOwnerId = null;
-                }
-            }
-            if (newOwnerId === null) {
-                updateFields.push('owner_id = NULL');
-            } else {
-                updateFields.push('owner_id = ?');
-                updateValues.push(newOwnerId);
-            }
-        }
-        if (payment_term !== undefined) {
-            const hasPaymentTerm = await hasColumn(req.db, 'stores', 'payment_term')
-            if (hasPaymentTerm) { updateFields.push('payment_term = ?'); updateValues.push(payment_term) }
-        }
         if (is_active !== undefined && req.user.user_type === 'admin') { updateFields.push('is_active = ?'); updateValues.push(is_active) }
 
         if (updateFields.length === 0) {

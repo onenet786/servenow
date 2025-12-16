@@ -2802,15 +2802,15 @@ async function populateStoreCategorySelect(selectedId = null) {
 async function showAddProductModal() {
     // Load stores and categories for dropdowns
     try {
-        const [storesResponse, categoriesResponse, itemsResponse] = await Promise.all([
+        const [storesResponse, categoriesResponse, productsResponse] = await Promise.all([
             fetch(`${API_BASE}/api/stores`),
             fetch(`${API_BASE}/api/categories`),
-            fetch(`${API_BASE}/api/products/items`, { headers: { 'Authorization': `Bearer ${authToken}` } })
+            fetch(`${API_BASE}/api/products?admin=1`, { headers: { 'Authorization': `Bearer ${authToken}` } })
         ]);
 
         const storesData = await storesResponse.json();
         const categoriesData = await categoriesResponse.json();
-        const itemsData = await itemsResponse.json();
+        const productsData = await productsResponse.json();
 
         // Populate store dropdown
         const storeSelect = document.getElementById('productStore');
@@ -2830,17 +2830,16 @@ async function showAddProductModal() {
             });
         }
 
-        // Populate items dropdown and wire selection behavior
         const itemSelect = document.getElementById('productItem');
         if (itemSelect) {
             // build map for quick lookup
-            const itemsById = {};
-            if (itemsData && itemsData.success && Array.isArray(itemsData.items)) {
+            const productsById = {};
+            if (productsData && productsData.success && Array.isArray(productsData.products)) {
                 itemSelect.innerHTML = '<option value="">None</option>';
-                itemsData.items.forEach(it => {
-                    itemsById[it.id] = it;
-                    const label = it.category_name ? `${it.name} — ${it.category_name}` : it.name;
-                    itemSelect.innerHTML += `<option value="${it.id}">${label}</option>`;
+                productsData.products.forEach(p => {
+                    productsById[p.id] = p;
+                    const label = p.category_name ? `${p.name} — ${p.category_name}` : p.name;
+                    itemSelect.innerHTML += `<option value="${p.id}">${label}</option>`;
                 });
             }
             const nameEl = document.getElementById('productName');
@@ -2849,20 +2848,27 @@ async function showAddProductModal() {
             const unitSel = document.getElementById('productUnit');
             const sizeSel = document.getElementById('productSize');
             const catSel = document.getElementById('productCategory');
+            const priceEl = document.getElementById('productPrice');
 
             const applyItemSelection = (val) => {
                 const usingItem = !!val;
-                if (nameEl) { nameEl.disabled = usingItem; nameEl.required = !usingItem; if (usingItem) nameEl.value = ''; }
-                if (descEl) { descEl.disabled = usingItem; if (usingItem) descEl.value = ''; }
+                if (nameEl) { nameEl.readOnly = usingItem; nameEl.required = !usingItem; }
+                if (descEl) { descEl.readOnly = usingItem; }
                 // Keep image fields enabled to allow store-specific overrides even when using catalog item
                 // if (imgUrlEl) { imgUrlEl.disabled = usingItem; if (usingItem) imgUrlEl.value = ''; }
                 // if (fileEl) { fileEl.disabled = usingItem; if (usingItem) { try { fileEl.value = ''; } catch(e){} } }
 
-                if (usingItem && itemsById[val]) {
-                    const it = itemsById[val];
-                    if (catSel && it.category_id) catSel.value = it.category_id;
-                    if (unitSel && it.unit_id) unitSel.value = it.unit_id;
-                    if (sizeSel && it.size_id) sizeSel.value = it.size_id;
+                if (usingItem && productsById[val]) {
+                    const p = productsById[val];
+                    if (nameEl) nameEl.value = p.name || '';
+                    if (descEl) descEl.value = p.description || '';
+                    if (catSel && p.category_id) catSel.value = p.category_id;
+                    if (unitSel && p.unit_id) unitSel.value = p.unit_id;
+                    if (sizeSel && p.size_id) sizeSel.value = p.size_id;
+                    if (priceEl && p.price !== undefined && p.price !== null) priceEl.value = p.price;
+                } else {
+                    if (nameEl) nameEl.value = nameEl.value || '';
+                    if (descEl) descEl.value = descEl.value || '';
                 }
             };
 
@@ -2943,7 +2949,7 @@ async function saveProduct() {
     const rawItemId = formData.get('item_id') || '';
     const storeId = parseInt(rawStoreId, 10);
     const priceVal = parseFloat(rawPrice);
-    const usingItem = !!rawItemId;
+    const usingTemplate = !!rawItemId;
 
     if (!Number.isInteger(storeId) || storeId <= 0) {
         showError('Invalid Input', 'Please select a store');
@@ -2953,23 +2959,21 @@ async function saveProduct() {
         showError('Invalid Input', 'Please enter a valid price');
         return;
     }
-    if (!usingItem && rawName.length < 2) {
-        showError('Invalid Input', 'Please enter a product name or choose an existing item');
+    if (!usingTemplate && rawName.length < 2) {
+        showError('Invalid Input', 'Please enter a product name or choose an existing product');
         return;
     }
 
     const productData = {
-        name: usingItem ? null : rawName,
-        description: usingItem ? null : formData.get('description'),
+        name: rawName,
+        description: formData.get('description'),
         price: priceVal,
         category_id: formData.get('category_id') || null,
         store_id: storeId,
         stock_quantity: parseInt(formData.get('stock_quantity'), 10) || 0,
         unit_id: formData.get('unit_id') || null,
-        size_id: formData.get('size_id') || null,
-        item_id: usingItem ? rawItemId : null
+        size_id: formData.get('size_id') || null
     };
-    if (!usingItem) { delete productData.item_id; }
 
     // If a file was selected, upload it first to server to get back a public URL and variants
     const fileInput = document.getElementById('productImageFile');

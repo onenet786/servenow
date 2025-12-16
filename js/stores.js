@@ -63,7 +63,13 @@ async function displayAllStores(filteredStores = null) {
     if (!storesToDisplay) {
         if (allStores.length === 0) {
             try {
-                const response = await fetch(`${API_BASE}/api/stores`);
+                const params = new URLSearchParams(window.location.search);
+                const catId = params.get('category_id');
+                const catSlug = params.get('category');
+                const query = new URLSearchParams();
+                if (catId) query.set('category_id', catId);
+                else if (catSlug) query.set('category', catSlug);
+                const response = await fetch(`${API_BASE}/api/stores${query.toString() ? ('?' + query.toString()) : ''}`);
                 const data = await response.json();
                 if (data.success) {
                     allStores = data.stores;
@@ -78,21 +84,6 @@ async function displayAllStores(filteredStores = null) {
             }
         }
         storesToDisplay = allStores;
-        try {
-            const params = new URLSearchParams(window.location.search);
-            const catId = params.get('category_id');
-            const catSlug = params.get('category');
-            if (catId) {
-                const idNum = parseInt(catId, 10);
-                if (!Number.isNaN(idNum)) {
-                    storesToDisplay = storesToDisplay.filter(s => String(s.category_id || '') === String(idNum));
-                }
-            } else if (catSlug) {
-                const normalize = (t) => String(t || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-                const want = normalize(catSlug);
-                storesToDisplay = storesToDisplay.filter(s => normalize(s.category_name) === want);
-            }
-        } catch (e) { /* ignore */ }
     }
 
     storeGrid.innerHTML = '';

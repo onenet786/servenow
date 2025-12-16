@@ -25,9 +25,9 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
         const hasFullName = await hasColumn(req.db, 'riders', 'full_name');
         let sql;
         if (hasFullName) {
-            sql = 'SELECT id, full_name, email, phone, vehicle_type, license_number, image_url, id_card_url, is_available, is_active, created_at FROM riders ORDER BY full_name ASC';
+            sql = 'SELECT id, full_name, email, phone, vehicle_type, license_number, is_available, is_active, created_at FROM riders ORDER BY full_name ASC';
         } else {
-            sql = 'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, image_url, id_card_url, is_available, is_active, created_at FROM riders ORDER BY first_name ASC';
+            sql = 'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, is_active, created_at FROM riders ORDER BY first_name ASC';
         }
         const [riders] = await req.db.execute(sql);
 
@@ -334,61 +334,64 @@ router.put('/:id', authenticateToken, requireAdmin, [
         if (hasFullName) {
             if (fullName !== undefined || firstName !== undefined) {
                 updateFields.push('full_name = ?');
-                updateValues.push(String(fullName !== undefined ? fullName : firstName));
+                updateValues.push(fullName !== undefined ? fullName : firstName);
             }
         } else {
             if (firstName !== undefined) {
                 updateFields.push('first_name = ?');
-                updateValues.push(String(firstName));
+                updateValues.push(firstName);
             }
             if (lastName !== undefined) {
                 updateFields.push('last_name = ?');
-                updateValues.push(String(lastName));
+                updateValues.push(lastName);
             }
         }
         if (email !== undefined) {
             updateFields.push('email = ?');
-            updateValues.push(String(email));
+            updateValues.push(email);
         }
         if (phone !== undefined) {
             updateFields.push('phone = ?');
-            updateValues.push(String(phone));
+            updateValues.push(phone);
         }
         if (vehicleType !== undefined) {
             updateFields.push('vehicle_type = ?');
-            updateValues.push(String(vehicleType));
+            updateValues.push(vehicleType);
         }
         if (licenseNumber !== undefined) {
             updateFields.push('license_number = ?');
-            updateValues.push(String(licenseNumber));
+            updateValues.push(licenseNumber);
         }
         if (isAvailable !== undefined) {
             updateFields.push('is_available = ?');
-            updateValues.push(isAvailable ? 1 : 0);
+            updateValues.push(isAvailable);
         }
         if (isActive !== undefined) {
             updateFields.push('is_active = ?');
-            updateValues.push(isActive ? 1 : 0);
+            updateValues.push(isActive);
         }
         if (fatherName !== undefined) {
             updateFields.push('father_name = ?');
-            updateValues.push(fatherName != null ? String(fatherName) : null);
+            updateValues.push(fatherName);
         }
         if (image_url !== undefined) {
             updateFields.push('image_url = ?');
-            updateValues.push(imageUrlFinal != null ? String(imageUrlFinal) : null);
+            updateValues.push(imageUrlFinal);
         }
         if (id_card_url !== undefined) {
             updateFields.push('id_card_url = ?');
-            updateValues.push(idCardUrlFinal != null ? String(idCardUrlFinal) : null);
+            updateValues.push(idCardUrlFinal);
         }
         if (idCardNum !== undefined) {
             updateFields.push('id_card_num = ?');
-            updateValues.push(idCardNum != null ? String(idCardNum) : null);
+            updateValues.push(idCardNum);
         }
 
         if (updateFields.length === 0) {
-            return res.json({ success: true, message: 'No changes' });
+            return res.status(400).json({
+                success: false,
+                message: 'No fields to update'
+            });
         }
 
         updateFields.push('updated_at = CURRENT_TIMESTAMP');

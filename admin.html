@@ -130,30 +130,6 @@
 
                             <h2>Users Management</h2>
 
-                            <div class="filter-controls" style="margin-bottom:0.75rem;">
-                                <div class="filter-group">
-                                    <label for="userSearch">Search:</label>
-                                    <input type="text" id="userSearch" placeholder="Name or email">
-                                </div>
-                                <div class="filter-group">
-                                    <label for="userTypeFilter">Type:</label>
-                                    <select id="userTypeFilter">
-                                        <option value="">All</option>
-                                        <option value="customer">Customer</option>
-                                        <option value="store_owner">Store Owner</option>
-                                        <option value="admin">Admin</option>
-                                    </select>
-                                </div>
-                                <div class="filter-group">
-                                    <label for="userStatusFilter">Status:</label>
-                                    <select id="userStatusFilter">
-                                        <option value="">All</option>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                    </select>
-                                </div>
-                                <button class="btn btn-secondary" id="userClearFiltersBtn">Clear Filters</button>
-                            </div>
 
                             <button class="btn btn-primary" id="addUserBtn">Add New User</button>
 
@@ -261,21 +237,6 @@
 
                             <h2>Stores Management</h2>
 
-                            <div class="filter-controls" style="margin-bottom:0.75rem;">
-                                <div class="filter-group">
-                                    <label for="storeSearch">Search:</label>
-                                    <input type="text" id="storeSearch" placeholder="Name or location">
-                                </div>
-                                <div class="filter-group">
-                                    <label for="storeStatusFilter">Status:</label>
-                                    <select id="storeStatusFilter">
-                                        <option value="">All</option>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                    </select>
-                                </div>
-                                <button class="btn btn-secondary" id="storeClearFiltersBtn">Clear Filters</button>
-                            </div>
 
                             <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
 
@@ -348,37 +309,11 @@
 
                             <h2>Products Management</h2>
 
+
                             <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
                                 <button class="btn btn-primary" id="addProductBtn">Add New Product</button>
                             </div>
 
-                            <div class="filter-controls" style="margin-bottom:0.75rem;">
-                                <div class="filter-group">
-                                    <label for="productSearch">Search:</label>
-                                    <input type="text" id="productSearch" placeholder="Product name">
-                                </div>
-                                <div class="filter-group">
-                                    <label for="productCategoryFilter">Category:</label>
-                                    <select id="productCategoryFilter">
-                                        <option value="">All</option>
-                                    </select>
-                                </div>
-                                <div class="filter-group">
-                                    <label for="productStoreFilter">Store:</label>
-                                    <select id="productStoreFilter">
-                                        <option value="">All</option>
-                                    </select>
-                                </div>
-                                <div class="filter-group">
-                                    <label for="productStatusFilter">Status:</label>
-                                    <select id="productStatusFilter">
-                                        <option value="">All</option>
-                                        <option value="available">Available</option>
-                                        <option value="unavailable">Unavailable</option>
-                                    </select>
-                                </div>
-                                <button class="btn btn-secondary" id="productClearFiltersBtn">Clear Filters</button>
-                            </div>
 
                             <div class="table-container">
 
@@ -614,21 +549,6 @@
 
                             <h2>Categories Management</h2>
 
-                            <div class="filter-controls" style="margin-bottom:0.75rem;">
-                                <div class="filter-group">
-                                    <label for="categorySearch">Search:</label>
-                                    <input type="text" id="categorySearch" placeholder="Name or description">
-                                </div>
-                                <div class="filter-group">
-                                    <label for="categoryStatusFilter">Status:</label>
-                                    <select id="categoryStatusFilter">
-                                        <option value="">All</option>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                    </select>
-                                </div>
-                                <button class="btn btn-secondary" id="categoryClearFiltersBtn">Clear Filters</button>
-                            </div>
 
                             <button class="btn btn-primary" id="addCategoryBtn">Add New Category</button>
 
@@ -742,29 +662,6 @@
                             </div>
 
                             <div id="rider-list-panel" class="rider-subpanel">
-                                <div class="filter-controls" style="margin-bottom:0.75rem;">
-                                    <div class="filter-group">
-                                        <label for="riderSearch">Search:</label>
-                                        <input type="text" id="riderSearch" placeholder="Name, email or phone">
-                                    </div>
-                                    <div class="filter-group">
-                                        <label for="riderAvailabilityFilter">Available:</label>
-                                        <select id="riderAvailabilityFilter">
-                                            <option value="">All</option>
-                                            <option value="available">Available</option>
-                                            <option value="unavailable">Unavailable</option>
-                                        </select>
-                                    </div>
-                                    <div class="filter-group">
-                                        <label for="riderStatusFilter">Status:</label>
-                                        <select id="riderStatusFilter">
-                                            <option value="">All</option>
-                                            <option value="active">Active</option>
-                                            <option value="inactive">Inactive</option>
-                                        </select>
-                                    </div>
-                                    <button class="btn btn-secondary" id="riderClearFiltersBtn">Clear Filters</button>
-                                </div>
                                 <div class="table-container">
                                     <table id="ridersTable">
                                         <thead>

@@ -191,17 +191,47 @@ function updateCartCount() {
     }
 }
 
-function addToCart(productId, productName, price) {
+async function fetchProductStock(productId) {
+    try {
+        const resp = await fetch(`${API_BASE}/api/products/${encodeURIComponent(productId)}`);
+        const data = await resp.json();
+        if (data && data.success && data.product) {
+            const sq = parseInt(data.product.stock_quantity, 10);
+            return Number.isFinite(sq) ? Math.max(0, sq) : null;
+        }
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+async function addToCart(productId, productName, price, stockQty) {
     const existingItem = cart.find(item => item.id === productId);
+    let maxQty = Number.isFinite(parseFloat(stockQty)) ? Math.max(0, parseInt(stockQty, 10)) : null;
+    if (maxQty === null) {
+        maxQty = await fetchProductStock(productId);
+    }
     if (existingItem) {
-        existingItem.quantity += 1;
+        if (maxQty !== null) existingItem.maxQty = maxQty;
+        const next = (existingItem.quantity || 1) + 1;
+        if (maxQty !== null && next > maxQty) {
+            showWarning('Limited Stock', `Only ${maxQty} available for ${productName}.`);
+        } else {
+            existingItem.quantity = next;
+        }
     } else {
-        cart.push({
+        if (maxQty !== null && maxQty <= 0) {
+            showWarning('Out of Stock', `${productName} is currently unavailable.`);
+            localStorage.setItem('serveNowCart', JSON.stringify(cart));
+            updateCartCount();
+            return;
+        }
+        const item = {
             id: productId,
             name: productName,
             price: price,
             quantity: 1
-        });
+        };
+        if (maxQty !== null) item.maxQty = maxQty;
+        cart.push(item);
     }
     localStorage.setItem('serveNowCart', JSON.stringify(cart));
     updateCartCount();
@@ -213,6 +243,64 @@ function removeFromCart(productId) {
     localStorage.setItem('serveNowCart', JSON.stringify(cart));
     updateCartCount();
     displayCart();
+}
+
+function setCartItemQuantity(productId, quantity) {
+    const q = Math.max(1, parseInt(quantity, 10) || 1);
+    const item = cart.find(i => i.id === productId);
+    if (item) {
+        let finalQ = q;
+        if (Number.isFinite(item.maxQty)) {
+            if (q > item.maxQty) {
+                finalQ = item.maxQty;
+                showWarning('Limited Stock', `Only ${item.maxQty} available for ${item.name}.`);
+            }
+        }
+        item.quantity = finalQ;
+        localStorage.setItem('serveNowCart', JSON.stringify(cart));
+        updateCartCount();
+        displayCart();
+    }
+}
+
+async function ensureItemMaxQty(productId) {
+    const item = cart.find(i => i.id === productId);
+    if (!item) return null;
+    if (Number.isFinite(item.maxQty)) return item.maxQty;
+    const maxQty = await fetchProductStock(productId);
+    if (maxQty !== null) {
+        item.maxQty = maxQty;
+        localStorage.setItem('serveNowCart', JSON.stringify(cart));
+    }
+    return item.maxQty || null;
+}
+
+async function incrementQty(productId) {
+    const item = cart.find(i => i.id === productId);
+    const max = await ensureItemMaxQty(productId);
+    const next = item ? (item.quantity + 1) : 1;
+    if (item && Number.isFinite(max) && next > max) {
+        showWarning('Limited Stock', `Only ${max} available for ${item.name}.`);
+        return;
+    }
+    setCartItemQuantity(productId, next);
+}
+
+function decrementQty(productId) {
+    const item = cart.find(i => i.id === productId);
+    const next = item ? Math.max(1, item.quantity - 1) : 1;
+    setCartItemQuantity(productId, next);
+}
+
+async function changeQty(productId, value) {
+    const item = cart.find(i => i.id === productId);
+    const max = await ensureItemMaxQty(productId);
+    let q = Math.max(1, parseInt(value, 10) || 1);
+    if (item && Number.isFinite(max) && q > max) {
+        q = max;
+        showWarning('Limited Stock', `Only ${max} available for ${item.name}.`);
+    }
+    setCartItemQuantity(productId, q);
 }
 
 function displayCart() {
@@ -233,7 +321,12 @@ function displayCart() {
         itemElement.innerHTML = `
             <div class="cart-item-info">
                 <h4>${item.name}</h4>
-                <p>Quantity: ${item.quantity}</p>
+                <div class="cart-qty">
+                    <button class="qty-btn" onclick="decrementQty(${item.id})">−</button>
+                    <input type="range" class="qty-slider" min="1" max="${Number.isFinite(item.maxQty) ? item.maxQty : 20}" step="1" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)">
+                    <span class="qty-value">${item.quantity}</span>
+                    <button class="qty-btn" onclick="incrementQty(${item.id})">+</button>
+                </div>
             </div>
                         <span class="cart-item-price">PKR ${itemTotal.toFixed(2)}</span>
             <button class="cart-item-remove" onclick="removeFromCart(${item.id})">Remove</button>
@@ -401,7 +494,7 @@ async function loadProducts(category) {
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>
-                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price})">Add to Cart</button>
+                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'})">Add to Cart</button>
                     </div>
                 `;
                 productGrid.appendChild(productCard);

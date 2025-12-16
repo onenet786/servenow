@@ -120,18 +120,6 @@ router.get('/', optionalAuth, async (req, res) => {
         const { category, store, admin } = req.query;
         const isAdminUser = req.user && req.user.user_type === 'admin';
 
-        let itemsExists = false;
-        try {
-            const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE;
-            if (dbName) {
-                const [[row]] = await req.db.execute(
-                    'SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "items"',
-                    [dbName]
-                );
-                itemsExists = !!(row && row.cnt);
-            }
-        } catch (e) { /* ignore existence check errors */ }
-
         let query = `
             SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location,
                    u.id as unit_id, u.name as unit_name, sz.id as size_id, sz.label as size_label
@@ -141,12 +129,6 @@ router.get('/', optionalAuth, async (req, res) => {
             LEFT JOIN units u ON p.unit_id = u.id
             LEFT JOIN sizes sz ON p.size_id = sz.id
         `;
-        if (itemsExists) {
-            query = query.replace('FROM products p', `
-            FROM products p
-            LEFT JOIN items i ON p.item_id = i.id`);
-        }
-        const useItemFields = itemsExists;
         const queryParams = [];
         const whereClauses = [];
 
@@ -185,11 +167,11 @@ router.get('/', optionalAuth, async (req, res) => {
             success: true,
             products: products.map(product => ({
                 id: product.id,
-                name: useItemFields ? (product.item_name || product.name) : product.name,
-                description: useItemFields ? (product.item_description || product.description) : product.description,
+                name: product.name,
+                description: product.description,
                 price: product.price,
-                image_url: useItemFields ? (product.item_image_url || product.image_url) : product.image_url,
-                image_variants: getImageVariants(useItemFields ? (product.item_image_url || product.image_url) : product.image_url),
+                image_url: product.image_url,
+                image_variants: getImageVariants(product.image_url),
                 image_bg_r: product.image_bg_r,
                 image_bg_g: product.image_bg_g,
                 image_bg_b: product.image_bg_b,
@@ -289,23 +271,11 @@ router.post('/upload-image', authenticateToken, requireStoreOwner, upload.single
 });
 
 // Get product by ID
-router.get('/:id(\\d+)', optionalAuth, async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
     try {
         const { id } = req.params;
         const { admin } = req.query;
         const isAdminUser = req.user && req.user.user_type === 'admin';
-
-        let itemsExists = false;
-        try {
-            const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE;
-            if (dbName) {
-                const [[row]] = await req.db.execute(
-                    'SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = "items"',
-                    [dbName]
-                );
-                itemsExists = !!(row && row.cnt);
-            }
-        } catch (e) { /* ignore existence check errors */ }
 
         let detailQuery = `
             SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location,
@@ -316,12 +286,6 @@ router.get('/:id(\\d+)', optionalAuth, async (req, res) => {
             LEFT JOIN units u ON p.unit_id = u.id
             LEFT JOIN sizes sz ON p.size_id = sz.id
         `;
-        if (itemsExists) {
-            detailQuery = detailQuery.replace('FROM products p', `
-            FROM products p
-            LEFT JOIN items i ON p.item_id = i.id`);
-        }
-        const useItemFields = itemsExists;
         const detailParams = [id];
         const detailWhere = ['p.id = ?'];
 
@@ -347,11 +311,11 @@ router.get('/:id(\\d+)', optionalAuth, async (req, res) => {
             success: true,
                 product: {
                 id: product.id,
-                name: useItemFields ? (product.item_name || product.name) : product.name,
-                description: useItemFields ? (product.item_description || product.description) : product.description,
+                name: product.name,
+                description: product.description,
                 price: product.price,
-                image_url: useItemFields ? (product.item_image_url || product.image_url) : product.image_url,
-                image_variants: getImageVariants(useItemFields ? (product.item_image_url || product.image_url) : product.image_url),
+                image_url: product.image_url,
+                image_variants: getImageVariants(product.image_url),
                 image_bg_r: product.image_bg_r,
                 image_bg_g: product.image_bg_g,
                 image_bg_b: product.image_bg_b,
@@ -381,18 +345,88 @@ router.get('/:id(\\d+)', optionalAuth, async (req, res) => {
     }
 });
 
-// Removed export-base64-images endpoint
+// Export base64 images to files under /uploads and update DB image_url
+router.post('/export-base64-images', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const [rows] = await req.db.execute("SELECT id, image_url FROM products WHERE image_url LIKE 'data:%'");
+
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const results = [];
+
+        for (const row of rows) {
+            const id = row.id;
+            const dataUri = row.image_url || '';
+            const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/.exec(dataUri);
+            if (!match) {
+                results.push({ id, success: false, error: 'Invalid data URI' });
+                continue;
+            }
+
+            const mime = match[1];
+            const base64 = match[2];
+            let ext = 'jpg';
+            if (mime === 'image/png') ext = 'png';
+            else if (mime === 'image/gif') ext = 'gif';
+            else if (mime === 'image/webp') ext = 'webp';
+            else if (mime === 'image/svg+xml') ext = 'svg';
+            else if (/jpeg/i.test(mime)) ext = 'jpg';
+
+            const filename = `product_${id}_${Date.now()}.${ext}`;
+            const filePath = path.join(uploadDir, filename);
+
+            try {
+                fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+                const publicPath = '/uploads/' + filename;
+
+                // If sharp is available, generate resized variants
+                if (sharp) {
+                    const sizes = [320, 640, 1024];
+                    for (const w of sizes) {
+                        try {
+                            const vname = `product_${id}_${Date.now()}_${w}${path.extname(filename)}`;
+                            const vpath = path.join(uploadDir, vname);
+                            await sharp(filePath).resize({ width: w }).toFile(vpath);
+                        } catch (err) {
+                            console.warn('Failed to write variant for product', id, err.message);
+                        }
+                    }
+                }
+
+                await req.db.execute('UPDATE products SET image_url = ? WHERE id = ?', [publicPath, id]);
+                results.push({ id, success: true, new: publicPath });
+            } catch (err) {
+                console.error('Error writing file for product', id, err);
+                results.push({ id, success: false, error: err.message });
+            }
+        }
+
+        // After exporting files, attempt to compute and persist image vars for converted products
+        for (const r of results.filter(x => x.success)) {
+            try {
+                const meta = await extractImageVarsFromPath(r.new);
+                if (meta) {
+                    await req.db.execute(
+                        `UPDATE products SET image_bg_r = ?, image_bg_g = ?, image_bg_b = ?, image_overlay_alpha = ?, image_contrast = ? WHERE id = ?`,
+                        [meta.image_bg_r, meta.image_bg_g, meta.image_bg_b, meta.image_overlay_alpha, meta.image_contrast, r.id]
+                    );
+                }
+            } catch (e) { console.warn('Failed to persist image meta for product', r.id, e.message); }
+        }
+
+        res.json({ success: true, count: rows.length, converted: results.filter(r => r.success).length, results });
+    } catch (error) {
+        console.error('Error exporting base64 images:', error);
+        res.status(500).json({ success: false, message: 'Failed to export images', error: error.message });
+    }
+});
 
 // Create new product (Admin or Store Owner)
 router.post('/', authenticateToken, requireStoreOwner, [
-    body('name').trim().optional({ checkFalsy: true }).isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
-    body('item_id').optional({ checkFalsy: true }).isInt().withMessage('Item ID must be a valid integer'),
-    body().custom((value, { req }) => {
-        if (!req.body.item_id && (!req.body.name || String(req.body.name).trim().length < 2)) {
-            throw new Error('Either item_id or a valid name is required');
-        }
-        return true;
-    }),
+    body('name').trim().isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
     body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
     body('store_id').isInt().withMessage('Store ID must be a valid integer'),
     body('stock_quantity').optional().isInt({ min: 0 }).withMessage('Stock quantity must be a non-negative integer')
@@ -416,24 +450,8 @@ router.post('/', authenticateToken, requireStoreOwner, [
             store_id,
             stock_quantity = 0,
             unit_id = null,
-            size_id = null,
-            item_id = null
+            size_id = null
         } = req.body;
-
-        let itemRow = null;
-        if (item_id) {
-            const [items] = await req.db.execute(
-                'SELECT id, name, description, image_url, category_id, unit_id, size_id FROM items WHERE id = ?',
-                [item_id]
-            );
-            if (!items || items.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid item_id'
-                });
-            }
-            itemRow = items[0];
-        }
 
         // Check if store exists and user has permission
         const [stores] = await req.db.execute(
@@ -496,19 +514,11 @@ router.post('/', authenticateToken, requireStoreOwner, [
             if (!meta) meta = await extractImageVarsFromPath(String(image_url || ''));
         } catch (e) { /* ignore */ }
 
-        const nameVal = (name !== undefined && name !== null && String(name).trim() !== '') ? name : (itemRow ? itemRow.name : null);
-        const descVal = (description !== undefined && description !== null) ? description : (itemRow ? itemRow.description : null);
-        const imgVal = (image_url !== undefined && image_url !== null && String(image_url).length > 0) ? image_url : (itemRow ? itemRow.image_url : null);
-        const categoryVal = (category_id !== undefined && category_id !== null && String(category_id).length > 0) ? category_id : (itemRow ? itemRow.category_id : null);
-        const unitVal = (unit_id !== undefined && unit_id !== null && String(unit_id).length > 0) ? unit_id : (itemRow ? itemRow.unit_id : null);
-        const sizeVal = (size_id !== undefined && size_id !== null && String(size_id).length > 0) ? size_id : (itemRow ? itemRow.size_id : null);
-
         const insertFields = ['name','description','price','image_url','category_id','store_id','stock_quantity'];
         const insertPlaceholders = ['?','?','?','?','?','?','?'];
-        const insertValues = [nameVal, descVal, price, imgVal, categoryVal || null, store_id, stock_quantity];
-        if (item_id) { insertFields.push('item_id'); insertPlaceholders.push('?'); insertValues.push(item_id); }
-        if (unitVal) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unitVal); }
-        if (sizeVal) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(sizeVal); }
+        const insertValues = [name, description, price, image_url, category_id, store_id, stock_quantity];
+        if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
+        if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
         if (meta) {
             insertFields.push('image_bg_r','image_bg_g','image_bg_b','image_overlay_alpha','image_contrast');
             insertPlaceholders.push('?,?,?,?,?');
@@ -589,8 +599,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             image_url,
             category_id,
             stock_quantity,
-            is_available,
-            item_id
+            is_available
         } = req.body;
 
         const updateFields = [];
@@ -636,7 +645,6 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (is_available !== undefined) { updateFields.push('is_available = ?'); updateValues.push(is_available); }
         if (req.body.unit_id !== undefined) { updateFields.push('unit_id = ?'); updateValues.push(req.body.unit_id); }
         if (req.body.size_id !== undefined) { updateFields.push('size_id = ?'); updateValues.push(req.body.size_id); }
-        if (item_id !== undefined) { updateFields.push('item_id = ?'); updateValues.push(item_id || null); }
 
         if (updateFields.length === 0) {
             return res.status(400).json({
@@ -714,21 +722,6 @@ router.delete('/:id', authenticateToken, requireStoreOwner, async (req, res) => 
             message: 'Failed to delete product',
             error: error.message
         });
-    }
-});
-
-router.get('/items', authenticateToken, requireStoreOwner, async (req, res) => {
-    try {
-        const [rows] = await req.db.execute(`
-            SELECT i.id, i.name, i.description, i.image_url, i.category_id, c.name AS category_name
-            FROM items i
-            LEFT JOIN categories c ON i.category_id = c.id
-            ORDER BY i.name ASC
-        `);
-        return res.json({ success: true, items: rows });
-    } catch (err) {
-        console.error('List items failed:', err);
-        return res.status(500).json({ success: false, message: 'Failed to list items', error: err.message });
     }
 });
 
