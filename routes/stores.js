@@ -14,9 +14,22 @@ const router = express.Router()
 // Get all stores (optionally filter by category via products)
 router.get('/', async (req, res) => {
     try {
-        const { category, category_id } = req.query
+        const { category, category_id, search } = req.query
         const whereClauses = ['s.is_active = true']
         const params = []
+
+        if (search) {
+            const searchTerm = `%${search}%`
+            whereClauses.push(`(
+                EXISTS (
+                    SELECT 1 FROM products p 
+                    WHERE p.store_id = s.id 
+                    AND p.is_available = true 
+                    AND p.name LIKE ?
+                )
+            )`)
+            params.push(searchTerm)
+        }
 
         if (category_id || category) {
             if (category_id && /^\d+$/.test(String(category_id))) {
@@ -109,9 +122,10 @@ router.get('/:id', async (req, res) => {
 
         // Get products for this store
         const [products] = await req.db.execute(`
-            SELECT p.*, c.name as category_name
+            SELECT p.*, c.name as category_name, u.name as unit_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN units u ON p.unit_id = u.id
             WHERE p.store_id = ? AND p.is_available = true
             ORDER BY p.name ASC
         `, [id])
@@ -145,7 +159,9 @@ router.get('/:id', async (req, res) => {
                 image_url: product.image_url,
                 category_name: product.category_name,
                 stock_quantity: product.stock_quantity,
-                is_available: product.is_available
+                is_available: product.is_available,
+                unit_id: product.unit_id,
+                unit_name: product.unit_name
             }))
         })
 
