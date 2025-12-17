@@ -427,8 +427,8 @@ main {
     z-index: -1;
     /* Create V-shape string using gradients */
     background: 
-        linear-gradient(to bottom right, transparent 49.5%, #666 49.5%, #666 50.5%, transparent 50.5%) 0 0 / 50% 100% no-repeat,
-        linear-gradient(to bottom left, transparent 49.5%, #666 49.5%, #666 50.5%, transparent 50.5%) 100% 0 / 50% 100% no-repeat;
+        linear-gradient(to top right, transparent 49.5%, #666 49.5%, #666 50.5%, transparent 50.5%) 0 0 / 50% 100% no-repeat,
+        linear-gradient(to top left, transparent 49.5%, #666 49.5%, #666 50.5%, transparent 50.5%) 100% 0 / 50% 100% no-repeat;
 }
 
 /* Add to Cart Button Styling */

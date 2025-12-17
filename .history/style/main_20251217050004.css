@@ -347,158 +347,56 @@ main {
     margin-top: 2rem;
 }
 
-/* -----------------------------------------------------------------------------
-   CREATIVE "HANGING" CARD STYLES
-   ----------------------------------------------------------------------------- */
-
-@keyframes swing {
-    0% { transform: rotate(0deg); }
-    25% { transform: rotate(0.5deg); }
-    50% { transform: rotate(0deg); }
-    75% { transform: rotate(-0.5deg); }
-    100% { transform: rotate(0deg); }
-}
-
-/* Fixed Dimensions & Hanging Base */
+/* Fixed Dimensions for Cards */
 .store-card,
 .category-card,
 .product-card {
     width: 300px;
     height: 420px;
     flex-shrink: 0;
-    margin-top: 60px !important; /* Space for the hanging string */
-    margin-bottom: 20px;
-    position: relative;
-    overflow: visible !important; /* Allow string/nail to show outside */
-    transform-origin: top center;
+}
+
+.category-card {
     background: white;
-    border-radius: 12px;
-    box-shadow: 
-        0 1px 2px rgba(0,0,0,0.1), 
-        0 20px 40px rgba(0,0,0,0.15),
-        0 10px 10px rgba(0,0,0,0.05); /* Deep shadow for "off-wall" depth */
-    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border: none;
+    position: relative;
     display: flex;
     flex-direction: column;
-    border: 8px solid white; /* Frame effect */
-    outline: 1px solid #e2e8f0; /* Subtle outer border definition */
 }
 
-/* Hover Effect: Gentle Swing */
-.store-card:hover,
-.category-card:hover,
-.product-card:hover {
-    animation: swing 2s ease-in-out infinite;
-    box-shadow: 
-        0 1px 2px rgba(0,0,0,0.1), 
-        0 25px 50px rgba(0,0,0,0.2),
-        0 15px 15px rgba(0,0,0,0.05);
-    z-index: 10;
+.category-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
-/* The "Nail" (Top Center) */
-.store-card::before,
-.category-card::before,
-.product-card::before {
-    content: '';
-    position: absolute;
-    top: -60px; /* Position of the nail */
-    left: 50%;
-    transform: translateX(-50%);
-    width: 14px;
-    height: 14px;
-    background: radial-gradient(circle at 30% 30%, #555, #222);
-    border-radius: 50%;
-    box-shadow: 0 3px 5px rgba(0,0,0,0.3);
-    z-index: 5;
-    border: 2px solid #e2e8f0;
-}
-
-/* The "String" (Triangle Hanger) */
-.store-card::after,
-.category-card::after,
-.product-card::after {
-    content: '';
-    position: absolute;
-    top: -60px; /* Starts at nail center */
-    left: 10%; /* Attach to corners of card roughly */
-    right: 10%;
-    height: 60px;
-    z-index: -1;
-    /* Create V-shape string using gradients */
-    background: 
-        linear-gradient(to bottom right, transparent 49.5%, #666 49.5%, #666 50.5%, transparent 50.5%) 0 0 / 50% 100% no-repeat,
-        linear-gradient(to bottom left, transparent 49.5%, #666 49.5%, #666 50.5%, transparent 50.5%) 100% 0 / 50% 100% no-repeat;
-}
-
-/* Add to Cart Button Styling */
-.add-to-cart {
-    width: 100%;
-    border: none;
-    border-radius: 50px;
-    padding: 0.8rem 1.5rem;
-    background: var(--primary-gradient);
-    color: white;
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 0.9rem;
-    letter-spacing: 1px;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-}
-
-.add-to-cart:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
-    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); /* Reverse gradient on hover */
-}
-
-.add-to-cart:active {
-    transform: translateY(1px);
-    box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
-}
-
-.add-to-cart i {
-    font-size: 1.1rem;
-}
-
-/* -----------------------------------------------------------------------------
-   INTERNAL CARD STYLING
-   ----------------------------------------------------------------------------- */
-
-/* Category Card Internals */
 .category-card img {
     width: 100%;
     height: 200px;
     object-fit: cover;
-    border-radius: 4px 4px 0 0;
     transition: transform 0.5s ease;
 }
 
 .category-card:hover img {
-    transform: scale(1.05);
+    transform: scale(1.1);
 }
 
 .category-card-content {
-    padding: 1rem;
-    background: #fafafa;
+    padding: 1.5rem;
+    background: white;
     text-align: center;
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     overflow: hidden;
-    border-top: 1px solid #eee;
 }
 
 .category-card h4 {
-    font-family: 'Playfair Display', serif; /* Elegant font if avail, fallback serif */
-    font-size: 1.4rem;
+    font-size: 1.25rem;
     font-weight: 700;
     margin-bottom: 0.5rem;
     color: #2d3748;
@@ -509,47 +407,62 @@ main {
 
 .category-card a {
     display: inline-block;
-    padding: 0.8rem 1rem;
+    padding: 0.75rem 1rem;
     background: var(--primary-gradient);
     color: white;
     text-decoration: none;
-    border-radius: 4px; /* Less rounded for frame look */
+    border-radius: 50px;
     font-weight: 600;
     font-size: 0.9rem;
-    letter-spacing: 1px;
-    text-transform: uppercase;
+    letter-spacing: 0.5px;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    text-align: center;
     width: 100%;
 }
 
 .category-card a:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
-/* Product Card Internals */
+/* Product Cards */
+.product-card {
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+}
+
+.product-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
 .product-image {
     height: 200px;
     overflow: hidden;
     position: relative;
-    background: white;
+    background: #f8f9fa;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-bottom: 1px dashed #e2e8f0;
 }
 
 .product-image img {
     width: 100%;
     height: 100%;
     object-fit: contain;
-    padding: 1rem;
     transition: transform 0.5s ease;
+    padding: 1rem;
 }
 
 .product-card:hover .product-image img {
-    transform: scale(1.1) rotate(2deg);
+    transform: scale(1.08);
 }
 
 .product-card-content {
@@ -558,7 +471,7 @@ main {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    background: #fff;
+    background: white;
     overflow: hidden;
 }
 
@@ -566,7 +479,7 @@ main {
     font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 0.5rem;
-    color: #1a202c;
+    color: #2d3748;
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -575,66 +488,82 @@ main {
 }
 
 .product-card-content .price {
-    font-family: 'Courier New', monospace; /* Receipt style */
-    font-size: 1.4rem;
+    font-size: 1.25rem;
     font-weight: 800;
-    color: #2d3748;
+    color: #667eea;
     margin-bottom: 0.5rem;
-    background: #f7fafc;
-    padding: 5px 10px;
-    border-radius: 4px;
-    display: inline-block;
-    border: 1px solid #edf2f7;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .product-card-content .btn {
     width: 100%;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-size: 0.8rem;
+    border-radius: 50px;
 }
 
-/* Store Card Internals - Signboard Style */
+/* Featured stores */
+.featured-stores {
+    margin-bottom: 3rem;
+}
+
+.store-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 300px); /* Fixed width columns */
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+/* Modern Store Cards */
+.store-card {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.store-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
 .store-card-header {
     background: var(--primary-gradient);
-    padding: 1rem;
-    height: 90px;
+    padding: 1.25rem;
+    height: 80px; /* Fixed header height */
     position: relative;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: center; /* Center title */
     text-align: center;
-    border-bottom: 4px solid #fff; /* Separation line */
 }
 
-/* Decorative screws on header */
-.store-card-header::before,
 .store-card-header::after {
     content: '';
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 8px;
-    height: 8px;
-    background: rgba(255,255,255,0.3);
-    border-radius: 50%;
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0));
+    pointer-events: none;
 }
-.store-card-header::before { left: 10px; }
-.store-card-header::after { right: 10px; }
 
 .store-card-header h4 {
     color: white;
     margin: 0;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 1.3rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    letter-spacing: 0.5px;
     line-height: 1.2;
-    max-height: 2.4em;
+    max-height: 2.4em; /* Limit to 2 lines */
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -646,10 +575,9 @@ main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    background: #fff;
-    background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-    background-size: 20px 20px; /* Dot grid pattern */
+    justify-content: space-between; /* Space out content */
+    background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+    overflow: hidden;
 }
 
 .store-card-body p {
@@ -658,14 +586,10 @@ main {
     font-size: 0.9rem;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    background: white; /* Legibility over pattern */
-    padding: 4px 8px;
-    border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .store-card-body p i {
@@ -677,14 +601,12 @@ main {
 }
 
 .store-card .btn {
-    margin-top: auto;
+    margin-top: auto; /* Push to bottom */
     width: 100%;
-    border-radius: 4px;
-    padding: 0.9rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+    border-radius: 50px;
+    padding: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 1px;
 }
 
 /* Forms */
