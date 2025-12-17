@@ -462,11 +462,15 @@ async function displayAllStoresHorizontal() {
                 const storeCard = document.createElement('div');
                 storeCard.className = 'store-card';
                 storeCard.innerHTML = `
-                    <h4>${store.name}</h4>
-                    <p>Location: ${store.location}</p>
-                    <p>Rating: ${store.rating} ⭐</p>
-                    <p>Delivery: ${store.delivery_time}</p>
-                    <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
+                    <div class="store-card-header">
+                        <h4>${store.name}</h4>
+                    </div>
+                    <div class="store-card-body">
+                        <p><i class="fas fa-map-marker-alt"></i> ${store.location}</p>
+                        <p><i class="fas fa-star" style="color: #f59e0b;"></i> ${store.rating}</p>
+                        <p><i class="fas fa-clock"></i> ${store.delivery_time}</p>
+                        <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
+                    </div>
                 `;
                 storeContainer.appendChild(storeCard);
             });
@@ -566,11 +570,15 @@ async function handleStoreSearch(filters = {}) {
                 const storeCard = document.createElement('div');
                 storeCard.className = 'store-card';
                 storeCard.innerHTML = `
-                    <h4>${store.name}</h4>
-                    <p>Location: ${store.location}</p>
-                    <p>Rating: ${store.rating} ⭐</p>
-                    <p>Delivery: ${store.delivery_time}</p>
-                    <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
+                    <div class="store-card-header">
+                        <h4>${store.name}</h4>
+                    </div>
+                    <div class="store-card-body">
+                        <p><i class="fas fa-map-marker-alt"></i> ${store.location}</p>
+                        <p><i class="fas fa-star" style="color: #f59e0b;"></i> ${store.rating}</p>
+                        <p><i class="fas fa-clock"></i> ${store.delivery_time}</p>
+                        <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
+                    </div>
                 `;
                 searchResultsGrid.appendChild(storeCard);
             });
@@ -634,7 +642,7 @@ async function loadProducts(category) {
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>
-                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id})">Add to Cart</button>
+                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id})"><i class="fas fa-cart-plus"></i> Add to Cart</button>
                     </div>
                 `;
                 productGrid.appendChild(productCard);
