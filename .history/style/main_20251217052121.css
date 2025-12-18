@@ -1,0 +1,10 @@
+
+/* Store Grid Layout for stores.html */
+.store-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px; /* Generous gap for hanging strings */
+    justify-content: center;
+    padding: 20px;
+    margin-top: 20px;
+}
