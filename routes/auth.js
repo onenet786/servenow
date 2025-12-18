@@ -2,6 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const crypto = require('crypto');
+const { sendVerificationEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -290,7 +292,8 @@ router.post('/login', [
                 email: user.email,
                 user_type: user.user_type,
                 first_name: user.first_name,
-                last_name: user.last_name
+                last_name: user.last_name,
+                is_verified: user.is_verified
             },
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRE }

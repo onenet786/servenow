@@ -3,14 +3,22 @@ const nodemailer = require('nodemailer');
 // Create transporter only if credentials exist
 let transporter = null;
 
-if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-        service: 'gmail', // Or use generic SMTP
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        }
-    });
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS && process.env.EMAIL_PASS.trim().length > 0) {
+    // Check if password is just the placeholder comment
+    if (!process.env.EMAIL_PASS.trim().startsWith('#')) {
+        transporter = nodemailer.createTransport({
+            service: 'gmail', // Or use generic SMTP
+            auth: {
+                user: process.env.EMAIL_USER.trim(),
+                pass: process.env.EMAIL_PASS.trim()
+            }
+        });
+        console.log('Email service configured for:', process.env.EMAIL_USER);
+    } else {
+        console.warn('Email password appears to be a placeholder/comment. Email service disabled.');
+    }
+} else {
+    console.warn('Email credentials missing. Email service disabled.');
 }
 
 /**

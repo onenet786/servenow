@@ -24,18 +24,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      await Provider.of<AuthProvider>(context, listen: false).register(
-        firstName: _firstNameController.text,
-        lastName: _lastNameController.text,
-        email: _emailController.text,
-        password: _passwordController.text,
-        phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
-        address: _addressController.text.isNotEmpty
-            ? _addressController.text
-            : null,
-      );
+      final needsVerification =
+          await Provider.of<AuthProvider>(context, listen: false).register(
+            firstName: _firstNameController.text,
+            lastName: _lastNameController.text,
+            email: _emailController.text,
+            password: _passwordController.text,
+            phone: _phoneController.text.isNotEmpty
+                ? _phoneController.text
+                : null,
+            address: _addressController.text.isNotEmpty
+                ? _addressController.text
+                : null,
+          );
 
       if (!mounted) return;
+
+      if (needsVerification) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                VerificationScreen(email: _emailController.text),
+          ),
+        );
+        return;
+      }
 
       // Navigate to home or show success
       final auth = Provider.of<AuthProvider>(context, listen: false);
