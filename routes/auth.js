@@ -26,7 +26,7 @@ router.post('/register', [
         }
 
         const { firstName, lastName, email, phone, address, password, userType = 'customer' } = req.body;
-
+// double check
         // Check if user already exists
         const [existingUser] = await req.db.execute(
             'SELECT id FROM users WHERE email = ?',
