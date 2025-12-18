@@ -234,7 +234,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  '\$${product.price}',
+                  'PKR ${product.price}',
                   style: const TextStyle(color: Colors.green),
                 ),
                 const SizedBox(height: 8),
@@ -244,6 +244,8 @@ class _StoreScreenState extends State<StoreScreen> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       minimumSize: const Size(0, 30),
+                      backgroundColor: Colors.red[900],
+                      foregroundColor: Colors.white,
                     ),
                     onPressed: product.isAvailable
                         ? () {

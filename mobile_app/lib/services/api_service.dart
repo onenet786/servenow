@@ -83,6 +83,33 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> verifyEmail(
+    String email,
+    String code,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/auth/verify-email');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'code': code}),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> resendVerificationCode(
+    String email,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/auth/resend-code');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> getProfile(String token) async {
     final uri = Uri.parse('$baseUrl/api/auth/me');
     _logger.d('ApiService: GET $uri');

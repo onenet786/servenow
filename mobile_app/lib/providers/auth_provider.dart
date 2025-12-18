@@ -47,7 +47,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> register({
+  Future<bool> register({
     required String firstName,
     required String lastName,
     required String email,
@@ -68,6 +68,10 @@ class AuthProvider with ChangeNotifier {
         address: address,
       );
 
+      if (response['requires_verification'] == true) {
+        return true;
+      }
+
       if (response['success'] == true || response['token'] != null) {
         _token = response['token'];
         if (response['user'] != null) {
@@ -82,8 +86,41 @@ class AuthProvider with ChangeNotifier {
         if (_user != null) {
           await prefs.setString('user', jsonEncode(_user!.toJson()));
         }
+        return false;
       } else {
         throw Exception(response['message'] ?? 'Registration failed');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> verifyEmail(String email, String code) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final response = await ApiService.verifyEmail(email, code);
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Verification failed');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> resendCode(String email) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final response = await ApiService.resendVerificationCode(email);
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Failed to resend code');
       }
     } catch (e) {
       rethrow;
