@@ -165,6 +165,23 @@ console.log(`Configured PORT: ${PORT}`);
 async function startServer() {
     console.log('Starting server initialization...');
     await connectDB();
+    
+    // Create login_logs table if not exists
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS login_logs (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL,
+                user_type VARCHAR(20) NOT NULL,
+                login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ip_address VARCHAR(45)
+            )
+        `);
+        console.log('Verified login_logs table exists');
+    } catch (err) {
+        console.error('Error creating login_logs table:', err);
+    }
+
     console.log('Database connected. Starting HTTP server...');
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on port ${PORT}`);

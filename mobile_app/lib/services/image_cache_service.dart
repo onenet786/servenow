@@ -1,42 +1,21 @@
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:logging/logging.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
+import 'dart:convert';
 
 class ImageCacheService {
-  static final Logger _logger = Logger('ImageCacheService');
-
-  static Future<String?> getLocalImagePath(String imageUrl, String fileName) async {
+  static String getFileNameFromUrl(String url) {
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      final localPath = path.join(directory.path, 'images', fileName);
-
-      // Check if file exists
-      final file = File(localPath);
-      if (await file.exists()) {
-        return localPath;
-      }
-
-      // Download and save
-      final response = await http.get(Uri.parse(imageUrl));
-      if (response.statusCode == 200) {
-        // Ensure directory exists
-        final imageDir = Directory(path.dirname(localPath));
-        if (!await imageDir.exists()) {
-          await imageDir.create(recursive: true);
-        }
-
-        await file.writeAsBytes(response.bodyBytes);
-        return localPath;
-      }
-    } catch (e) {
-      _logger.severe('Error downloading image: $e');
+      final uri = Uri.parse(url);
+      final lastSegment = uri.pathSegments.isNotEmpty
+          ? uri.pathSegments.last
+          : 'image';
+      return lastSegment.isEmpty
+          ? base64Url.encode(utf8.encode(url))
+          : lastSegment;
+    } catch (_) {
+      return base64Url.encode(utf8.encode(url));
     }
-    return null;
   }
 
-  static String getFileNameFromUrl(String url) {
-    return path.basename(url);
+  static Future<String?> getLocalImagePath(String url, String fileName) async {
+    return null;
   }
 }
