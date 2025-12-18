@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../providers/auth_provider.dart';
+import 'store_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
