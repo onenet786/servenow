@@ -1,15 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
-import '../providers/cart_provider.dart';
 import '../services/api_service.dart';
-import '../models/product.dart';
-import '../widgets/product_card.dart';
-import '../widgets/category_card.dart';
-import '../widgets/cart_badge.dart';
-import 'cart_screen.dart';
-import 'orders_screen.dart';
-import 'profile_screen.dart';
+import '../providers/auth_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,77 +10,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late TabController _tabController;
-  List<Product> _products = [];
-  List<dynamic> _categories = [];
-  List<dynamic> _stores = [];
-  bool _isLoading = true;
-  String _selectedCategory = '';
-  int _cartItemCount = 0;
+class _HomeScreenState extends State<HomeScreen> {
+  final ApiService _apiService = ApiService();
+  late Future<List<dynamic>> _storesFuture;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    _loadData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final categories = await ApiService.getCategories();
-      final products = await ApiService.getProducts();
-      final stores = await ApiService.getStores();
-
-      setState(() {
-        _categories = categories;
-        _products = products;
-        _stores = stores;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load data: $e')),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadProductsByCategory(String category) async {
-    setState(() => _isLoading = true);
-
-    try {
-      final products = await ApiService.getProducts(category: category);
-      setState(() {
-        _products = products;
-        _selectedCategory = category;
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load products: $e')),
-        );
-      }
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _updateCartBadge() {
-    final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    setState(() {
-      _cartItemCount = cartProvider.itemCount;
-    });
+    _storesFuture = _apiService.getStores();
   }
 
   @override
@@ -96,212 +25,153 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ServeNow'),
-        backgroundColor: Colors.green,
         actions: [
           IconButton(
-            icon: CartBadge(
-              count: _cartItemCount,
-              child: const Icon(Icons.shopping_cart),
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CartScreen()),
-              ).then((_) => _updateCartBadge());
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
-              await authProvider.logout();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
-              }
+            onPressed: () {
+              Provider.of<AuthProvider>(context, listen: false).logout();
+              Navigator.of(context).pushReplacementNamed('/login');
             },
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.home), text: 'Home'),
-            Tab(icon: Icon(Icons.store), text: 'Stores'),
-            Tab(icon: Icon(Icons.receipt), text: 'Orders'),
-            Tab(icon: Icon(Icons.person), text: 'Profile'),
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero Section (Simple banner for now)
+            Container(
+              height: 200,
+              width: double.infinity,
+              color: Colors.grey[300],
+              child: Image.asset(
+                'assets/images/pizza.jpg',
+                fit: BoxFit.cover,
+                errorBuilder: (c, o, s) => const Center(child: Icon(Icons.image, size: 50)),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                'Browse Stores',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+            ),
+            // Horizontal Store List
+            SizedBox(
+              height: 280,
+              child: FutureBuilder<List<dynamic>>(
+                future: _storesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('No stores found'));
+                  }
+
+                  return ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: snapshot.data!.length,
+                    itemBuilder: (context, index) {
+                      final store = snapshot.data![index];
+                      return _buildStoreCard(store);
+                    },
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildHomeTab(),
-          _buildStoresTab(),
-          const OrdersScreen(),
-          const ProfileScreen(),
+    );
+  }
+
+  Widget _buildStoreCard(dynamic store) {
+    return Container(
+      width: 250,
+      margin: const EdgeInsets.only(right: 16, bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildHomeTab() {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Hero section
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text(
-                          'Welcome to ServeNow',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Get fresh groceries, cooked food, and household items delivered to your doorstep from registered stores near you.',
-                          style: TextStyle(fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            // Find stores near me functionality
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Finding stores near you...')),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          ),
-                          child: const Text('Find Stores Near Me'),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-                  // Categories
-                  const Text(
-                    'Shop by Category',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 100,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _categories.length,
-                      itemBuilder: (context, index) {
-                        final category = _categories[index];
-                        return CategoryCard(
-                          category: category,
-                          isSelected: _selectedCategory == category['name'],
-                          onTap: () => _loadProductsByCategory(category['name']),
-                        );
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Products
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _selectedCategory.isEmpty
-                            ? 'All Products'
-                            : '$_selectedCategory Products',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      if (_selectedCategory.isNotEmpty)
-                        TextButton(
-                          onPressed: () {
-                            setState(() => _selectedCategory = '');
-                            _loadData();
-                          },
-                          child: const Text('Show All'),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.75,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    itemCount: _products.length,
-                    itemBuilder: (context, index) {
-                      final product = _products[index];
-                      return ProductCard(
-                        product: product,
-                        onAddToCart: () {
-                          final cartProvider = Provider.of<CartProvider>(context, listen: false);
-                          cartProvider.addItem(product);
-                          _updateCartBadge();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('${product.name} added to cart')),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Container(
+              height: 120,
+              width: double.infinity,
+              color: Colors.grey[200],
+              child: Image.network(
+                store['image_url'] ?? '',
+                fit: BoxFit.cover,
+                errorBuilder: (c, o, s) => const Icon(Icons.store, size: 50, color: Colors.grey),
               ),
             ),
-    );
-  }
-
-  Widget _buildStoresTab() {
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _stores.isEmpty
-              ? const Center(child: Text('No stores available'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _stores.length,
-                  itemBuilder: (context, index) {
-                    final store = _stores[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      child: ListTile(
-                        leading: const Icon(Icons.store, color: Colors.green),
-                        title: Text(store['name'] ?? 'Unknown Store'),
-                        subtitle: Text(store['location'] ?? 'Location not available'),
-                        trailing: const Icon(Icons.arrow_forward_ios),
-                        onTap: () {
-                          // Navigate to store products
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Store: ${store['name']}')),
-                          );
-                        },
-                      ),
-                    );
-                  },
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  store['name'] ?? 'Unknown Store',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.amber, size: 16),
+                    const SizedBox(width: 4),
+                    Text(store['rating']?.toString() ?? 'N/A'),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      store['delivery_time'] ?? '30 min',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  store['location'] ?? '',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Navigate to store details
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('View Store', style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
