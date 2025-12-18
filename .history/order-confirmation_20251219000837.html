@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation - ServeNow</title>
+    <link rel="stylesheet" href="style/main.css">
+    <link rel="stylesheet" href="style/responsive.css">
+    <style>
+        body {
+            background: linear-gradient(to right, #74ebd5, #acb6e5);
+            background-size: cover;
+            background-position: center;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .main-container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+            flex-grow: 1;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>ServeNow</h1>
+            </div>
+            <button class="menu-toggle" aria-label="Toggle navigation menu" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="stores.html">Stores</a></li>
+                <li><a href="cart.html">Cart <span id="cartCount">0</span></a></li>
+                <li><a href="login.html">Login</a></li>
+                <li><a href="register.html">Register</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="main-container">
+        <main>
+            <section class="confirmation-section">
+                <div class="confirmation-container">
+                    <div class="confirmation-icon">
+                        ✅
+                    </div>
+                    <h2>Order Confirmed!</h2>
+                    <p class="order-number">Order #<span id="orderNumber">12345</span></p>
+                    <p>Thank you for your order. Your food will be delivered to your doorstep soon.</p>
+
+                    <div class="order-details">
+                        <h3>Order Details</h3>
+                        <div id="orderItems">
+                            <!-- Order items will be displayed here -->
+                        </div>
+                        <div class="order-total" id="orderTotal">
+                            Total: PKR 0
+                        </div>
+                    </div>
+
+                    <div class="delivery-info">
+                        <h3>Delivery Information</h3>
+                        <p><strong>Estimated Delivery:</strong> <span id="deliveryTime">30-45 minutes</span></p>
+                        <p><strong>Delivery Address:</strong> <span id="deliveryAddress">Your address will be shown here</span></p>
+                    </div>
+
+                    <div class="confirmation-actions">
+                        <a href="index.html" class="btn btn-primary">Continue Shopping</a>
+                        <a href="#" class="btn btn-secondary" onclick="window.print()">Print Receipt</a>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <footer>
+        <p>@ 2025 SERVENOW. All Rights Reserved. Powered by: OneNet Solutions Pakistan</p>
+    </footer>
+
+    <script src="js/app.js?v=7"></script>
+    <script src="js/confirmation.js"></script>
+</body>
+</html>

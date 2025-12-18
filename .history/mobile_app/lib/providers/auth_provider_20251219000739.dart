@@ -1,0 +1,141 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import '../models/user.dart';
+import '../services/api_service.dart';
+
+class AuthProvider with ChangeNotifier {
+  User? _user;
+  String? _token;
+  bool _isLoading = false;
+
+  User? get user => _user;
+  String? get token => _token;
+  bool get isLoading => _isLoading;
+  bool get isAuthenticated => _token != null;
+  bool get isAdmin => _user?.userType == 'admin';
+  bool get isRider => _user?.userType == 'rider';
+
+  Future<void> login(String email, String password) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final data = await ApiService.login(email, password);
+      if (data['success'] == true || data['token'] != null) {
+        _token = data['token'];
+        if (data['user'] != null) {
+          _user = User.fromJson(data['user']);
+        }
+
+        // Save to prefs
+        final prefs = await SharedPreferences.getInstance();
+        if (_token != null) {
+          await prefs.setString('token', _token!);
+        }
+        if (_user != null) {
+          await prefs.setString('user', jsonEncode(_user!.toJson()));
+        }
+      } else {
+        throw Exception(data['message'] ?? 'Login failed');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> register({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+    String? phone,
+    String? address,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await ApiService.register(
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        password: password,
+        phone: phone,
+        address: address,
+      );
+
+      if (response['success'] == true || response['token'] != null) {
+        _token = response['token'];
+        if (response['user'] != null) {
+          _user = User.fromJson(response['user']);
+        }
+
+        // Save to prefs
+        final prefs = await SharedPreferences.getInstance();
+        if (_token != null) {
+          await prefs.setString('token', _token!);
+        }
+        if (_user != null) {
+          await prefs.setString('user', jsonEncode(_user!.toJson()));
+        }
+      } else {
+        throw Exception(response['message'] ?? 'Registration failed');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> logout() async {
+    _token = null;
+    _user = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    await prefs.remove('user');
+    notifyListeners();
+  }
+
+  Future<void> tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('token')) return;
+
+    final storedToken = prefs.getString('token');
+    if (storedToken == null) return;
+
+    try {
+      // Try to validate token with server
+      final response = await ApiService.getProfile(storedToken);
+      if (response['success'] == true || response['user'] != null) {
+        _token = storedToken;
+        _user = User.fromJson(response['user']);
+
+        // Update prefs
+        await prefs.setString('user', jsonEncode(_user!.toJson()));
+        notifyListeners();
+      } else {
+        await logout();
+      }
+    } catch (e) {
+      // If network fails, try to load user from prefs as fallback
+      if (prefs.containsKey('user')) {
+        try {
+          final userData = jsonDecode(prefs.getString('user')!);
+          _user = User.fromJson(userData);
+          _token = storedToken;
+          notifyListeners();
+        } catch (e) {
+          await logout();
+        }
+      } else {
+        await logout();
+      }
+    }
+  }
+}
