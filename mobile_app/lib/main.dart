@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/cart_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'screens/rider_dashboard_screen.dart';
+import 'screens/cart_screen.dart';
+import 'screens/checkout_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,7 +19,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => CartProvider()),
+      ],
       child: MaterialApp(
         title: 'ServeNow',
         debugShowCheckedModeBanner: false,
@@ -32,6 +38,8 @@ class MyApp extends StatelessWidget {
           '/home': (context) => const HomeScreen(),
           '/admin': (context) => const AdminDashboardScreen(),
           '/rider': (context) => const RiderDashboardScreen(),
+          '/cart': (context) => const CartScreen(),
+          '/checkout': (context) => const CheckoutScreen(),
         },
       ),
     );

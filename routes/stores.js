@@ -161,7 +161,8 @@ router.get('/:id', async (req, res) => {
                 stock_quantity: product.stock_quantity,
                 is_available: product.is_available,
                 unit_id: product.unit_id,
-                unit_name: product.unit_name
+                unit_name: product.unit_name,
+                store_id: product.store_id
             }))
         })
 

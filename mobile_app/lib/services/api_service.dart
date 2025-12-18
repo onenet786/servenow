@@ -95,6 +95,13 @@ class ApiService {
     return data['stores'] ?? [];
   }
 
+  static Future<Map<String, dynamic>> getStoreDetails(int id) async {
+    final uri = Uri.parse('$baseUrl/api/stores/$id');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(uri);
+    return _handleResponse(response);
+  }
+
   static Future<List<dynamic>> getOrders(String token) async {
     final uri = Uri.parse('$baseUrl/api/orders');
     _logger.d('ApiService: GET $uri');
@@ -104,6 +111,35 @@ class ApiService {
     );
     final data = _handleResponse(response);
     return data['orders'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> createOrder(
+    String token, {
+    required int storeId,
+    required List<Map<String, dynamic>> items,
+    required String deliveryAddress,
+    required String paymentMethod,
+    String? deliveryTime,
+    String? specialInstructions,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/orders');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'store_id': storeId,
+        'items': items,
+        'delivery_address': deliveryAddress,
+        'payment_method': paymentMethod,
+        'delivery_time': deliveryTime,
+        'special_instructions': specialInstructions,
+      }),
+    );
+    return _handleResponse(response);
   }
 
   static Future<Map<String, dynamic>> getVisitorStats(String token) async {

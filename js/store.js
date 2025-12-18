@@ -26,6 +26,7 @@ function displayStoreInfo(store) {
 function displayStoreProducts(storeProducts) {
     const productGrid = document.getElementById('storeProducts');
     productGrid.innerHTML = '';
+    const currentStoreId = getStoreId();
 
     if (!storeProducts || storeProducts.length === 0) {
         productGrid.innerHTML = '<p>No products available from this store.</p>';
@@ -69,7 +70,7 @@ function displayStoreProducts(storeProducts) {
             <div class="product-card-content">
                 <h4>${product.name}</h4>
                 <p class="price">PKR ${parseFloat(product.price).toFixed(2)}</p>
-                <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id || 'null'}, '${imageSrc.replace(/'/g, "\\'")}')">Add to Cart</button>
+                <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id || 'null'}, '${imageSrc.replace(/'/g, "\\'")}', ${currentStoreId})">Add to Cart</button>
             </div>
         `;
         productGrid.appendChild(productCard);

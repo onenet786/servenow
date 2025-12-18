@@ -211,7 +211,21 @@ async function fetchProductStock(productId) {
     return null;
 }
 
-async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc) {
+async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc, storeId) {
+    // Check for multiple stores
+    if (cart.length > 0 && storeId) {
+        const currentStoreId = cart[0].storeId;
+        if (currentStoreId && currentStoreId != storeId) {
+            if (confirm('You can only order from one store at a time. Clear your current cart and start a new order from this store?')) {
+                cart = [];
+                localStorage.setItem('serveNowCart', JSON.stringify(cart));
+                updateCartCount();
+            } else {
+                return;
+            }
+        }
+    }
+
     const existingItem = cart.find(item => item.id === productId);
     let maxQty = Number.isFinite(parseFloat(stockQty)) ? Math.max(0, parseInt(stockQty, 10)) : null;
     if (maxQty === null) {
@@ -220,6 +234,9 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
     if (existingItem) {
         if (imageSrc) existingItem.image = imageSrc;
         if (maxQty !== null) existingItem.maxQty = maxQty;
+        // Update storeId if missing
+        if (storeId && !existingItem.storeId) existingItem.storeId = storeId;
+        
         const next = (existingItem.quantity || 1) + 1;
         if (maxQty !== null && next > maxQty) {
             showWarning('Limited Stock', `Only ${maxQty} available for ${productName}.`);
@@ -237,6 +254,7 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
             id: productId,
             name: productName,
             price: price,
+            storeId: storeId,
             quantity: 1,
             unitName: unitName || null,
             unitId: unitId || null,
@@ -672,7 +690,7 @@ async function loadProducts(category) {
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>
-                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id}, '${imageSrc.replace(/'/g, "\\'")}')">Add to Cart</button>
+                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id}, '${imageSrc.replace(/'/g, "\\'")}', ${product.store_id || 'null'})">Add to Cart</button>
                     </div>
                 `;
                 productGrid.appendChild(productCard);
