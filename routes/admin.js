@@ -46,21 +46,21 @@ router.post('/execute-sql', authenticateToken, requireAdmin, async (req, res) =>
 router.get('/visitor-stats', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
-        // Count total logins today
+        // Count total logins today (customers only)
         const [todayLogins] = await req.db.execute(
-            'SELECT COUNT(*) as count FROM login_logs WHERE DATE(login_time) = ?',
+            'SELECT COUNT(*) as count FROM login_logs WHERE DATE(login_time) = ? AND user_type = \'customer\'',
             [today]
         );
         
-        // Count distinct visitors today
+        // Count distinct visitors today (customers only)
         const [todayVisitors] = await req.db.execute(
-            'SELECT COUNT(DISTINCT user_id, user_type) as count FROM login_logs WHERE DATE(login_time) = ?',
+            'SELECT COUNT(DISTINCT user_id) as count FROM login_logs WHERE DATE(login_time) = ? AND user_type = \'customer\'',
             [today]
         );
         
-        // Count active users (last 30 minutes)
+        // Count active users (last 30 minutes) (customers only)
         const [activeUsers] = await req.db.execute(
-            'SELECT COUNT(DISTINCT user_id, user_type) as count FROM login_logs WHERE login_time >= NOW() - INTERVAL 30 MINUTE'
+            'SELECT COUNT(DISTINCT user_id) as count FROM login_logs WHERE login_time >= NOW() - INTERVAL 30 MINUTE AND user_type = \'customer\''
         );
         
         return res.json({
