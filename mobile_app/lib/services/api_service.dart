@@ -2,8 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:logger/logger.dart';
 
 class ApiService {
+  static final Logger _logger = Logger();
+
   static String get baseUrl {
     if (kIsWeb) {
       return 'http://23.137.84.249:3002';
@@ -39,9 +42,7 @@ class ApiService {
     String password,
   ) async {
     final uri = Uri.parse('$baseUrl/api/auth/login');
-    if (kDebugMode) {
-      print('ApiService: POST $uri');
-    }
+    _logger.d('ApiService: POST $uri');
     final response = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
@@ -59,9 +60,7 @@ class ApiService {
     String? address,
   }) async {
     final uri = Uri.parse('$baseUrl/api/auth/register');
-    if (kDebugMode) {
-      print('ApiService: POST $uri');
-    }
+    _logger.d('ApiService: POST $uri');
     final response = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
@@ -80,9 +79,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getProfile(String token) async {
     final uri = Uri.parse('$baseUrl/api/auth/me');
-    if (kDebugMode) {
-      print('ApiService: GET $uri');
-    }
+    _logger.d('ApiService: GET $uri');
     final response = await http.get(
       uri,
       headers: {'Authorization': 'Bearer $token'},
@@ -92,9 +89,7 @@ class ApiService {
 
   static Future<List<dynamic>> getStores() async {
     final uri = Uri.parse('$baseUrl/api/stores');
-    if (kDebugMode) {
-      print('ApiService: GET $uri');
-    }
+    _logger.d('ApiService: GET $uri');
     final response = await http.get(uri);
     final data = _handleResponse(response);
     return data['stores'] ?? [];
@@ -102,9 +97,7 @@ class ApiService {
 
   static Future<List<dynamic>> getOrders(String token) async {
     final uri = Uri.parse('$baseUrl/api/orders');
-    if (kDebugMode) {
-      print('ApiService: GET $uri');
-    }
+    _logger.d('ApiService: GET $uri');
     final response = await http.get(
       uri,
       headers: {'Authorization': 'Bearer $token'},
@@ -115,9 +108,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getVisitorStats(String token) async {
     final uri = Uri.parse('$baseUrl/api/admin/visitor-stats');
-    if (kDebugMode) {
-      print('ApiService: GET $uri');
-    }
+    _logger.d('ApiService: GET $uri');
     final response = await http.get(
       uri,
       headers: {'Authorization': 'Bearer $token'},

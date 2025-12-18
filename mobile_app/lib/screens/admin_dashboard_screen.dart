@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
@@ -11,6 +12,7 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final Logger _logger = Logger();
   bool _isLoading = true;
 
   // Today's Orders Stats
@@ -96,7 +98,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading stats: $e');
+      _logger.e('Error loading stats: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -140,71 +142,84 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       drawer: _buildDrawer(context, authProvider),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Dashboard Overview',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+          : RefreshIndicator(
+              onRefresh: _loadStats,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Dashboard Overview',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 12),
 
-                  // Today's Orders Section
-                  const Text(
-                    "Today's Orders",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildStatGrid(
-                    total: _todayTotal,
-                    delivered: _todayDelivered,
-                    pending: _todayPending,
-                    cancelled: _todayCancelled,
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // All Orders Section
-                  const Text(
-                    "All Orders",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildStatGrid(
-                    total: _allTotal,
-                    delivered: _allDelivered,
-                    pending: _allPending,
-                    cancelled: _allCancelled,
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Today's Visitors Section (Mocked for now as per request)
-                  const Text(
-                    "Today's Visitors",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildVisitorsGrid(),
-
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Recent Activity',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                    // Today's Orders Section
+                    const Text(
+                      "Today's Orders",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildRecentActivityList(),
-                ],
+                    const SizedBox(height: 4),
+                    _buildStatGrid(
+                      total: _todayTotal,
+                      delivered: _todayDelivered,
+                      pending: _todayPending,
+                      cancelled: _todayCancelled,
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    // All Orders Section
+                    const Text(
+                      "All Orders",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildStatGrid(
+                      total: _allTotal,
+                      delivered: _allDelivered,
+                      pending: _allPending,
+                      cancelled: _allCancelled,
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    // Today's Visitors Section (Mocked for now as per request)
+                    const Text(
+                      "Today's Visitors",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildVisitorsGrid(),
+
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Recent Activity',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildRecentActivityList(),
+                  ],
+                ),
               ),
             ),
     );
@@ -282,67 +297,84 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     required int pending,
     required int cancelled,
   }) {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+    return Column(
       children: [
-        _buildStatCard(
-          title: 'Total Orders',
-          value: total.toString(),
-          icon: Icons.shopping_cart,
-          color: Colors.blue,
-          gradient: [Colors.blue.shade400, Colors.blue.shade700],
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                title: 'Total Orders',
+                value: total.toString(),
+                icon: Icons.shopping_cart,
+                color: Colors.blue,
+                gradient: [Colors.blue.shade400, Colors.blue.shade700],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Total Delivered',
+                value: delivered.toString(),
+                icon: Icons.check_circle,
+                color: Colors.green,
+                gradient: [Colors.green.shade400, Colors.green.shade700],
+              ),
+            ),
+          ],
         ),
-        _buildStatCard(
-          title: 'Total Delivered',
-          value: delivered.toString(),
-          icon: Icons.check_circle,
-          color: Colors.green,
-          gradient: [Colors.green.shade400, Colors.green.shade700],
-        ),
-        _buildStatCard(
-          title: 'Pending Orders',
-          value: pending.toString(),
-          icon: Icons.pending_actions,
-          color: Colors.orange,
-          gradient: [Colors.orange.shade400, Colors.orange.shade700],
-        ),
-        _buildStatCard(
-          title: 'Cancelled',
-          value: cancelled.toString(),
-          icon: Icons.cancel,
-          color: Colors.red,
-          gradient: [Colors.red.shade400, Colors.red.shade700],
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                title: 'Pending Orders',
+                value: pending.toString(),
+                icon: Icons.pending_actions,
+                color: Colors.orange,
+                gradient: [Colors.orange.shade400, Colors.orange.shade700],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Cancelled',
+                value: cancelled.toString(),
+                icon: Icons.cancel,
+                color: Colors.red,
+                gradient: [Colors.red.shade400, Colors.red.shade700],
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
   Widget _buildVisitorsGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.5, // Make cards shorter since we have less info
+    return Column(
       children: [
-        _buildStatCard(
-          title: 'Currently Login',
-          value: _activeUsers.toString(),
-          icon: Icons.person,
-          color: Colors.purple,
-          gradient: [Colors.purple.shade400, Colors.purple.shade700],
-        ),
-        _buildStatCard(
-          title: "Today's Total Logins/Visitors",
-          value: _todayLogins.toString(),
-          icon: Icons.people_alt,
-          color: Colors.teal,
-          gradient: [Colors.teal.shade400, Colors.teal.shade700],
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                title: 'Currently Login',
+                value: _activeUsers.toString(),
+                icon: Icons.person,
+                color: Colors.purple,
+                gradient: [Colors.purple.shade400, Colors.purple.shade700],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildStatCard(
+                title: "Today's Total Logins/Visitors",
+                value: _todayLogins.toString(),
+                icon: Icons.people_alt,
+                color: Colors.teal,
+                gradient: [Colors.teal.shade400, Colors.teal.shade700],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -362,38 +394,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12), // Smaller radius
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, color: Colors.white, size: 30),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20, // Smaller font
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-            ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                  ), // Smaller font
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 18),
           ),
         ],
       ),
