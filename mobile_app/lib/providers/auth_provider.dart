@@ -14,6 +14,7 @@ class AuthProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _token != null;
   bool get isAdmin => _user?.userType == 'admin';
+  bool get isRider => _user?.userType == 'rider';
 
   Future<void> login(String email, String password) async {
     _isLoading = true;

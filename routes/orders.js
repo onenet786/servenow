@@ -510,7 +510,7 @@ router.get('/rider/deliveries', authenticateToken, async (req, res) => {
         }
 
         const [deliveries] = await req.db.execute(`
-            SELECT o.*, u.first_name, u.last_name, u.phone, s.name as store_name
+            SELECT o.*, u.first_name, u.last_name, u.phone, s.name as store_name, s.location as store_location
             FROM orders o
             JOIN users u ON o.user_id = u.id
             JOIN stores s ON o.store_id = s.id

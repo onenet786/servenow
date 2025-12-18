@@ -115,4 +115,67 @@ class ApiService {
     );
     return _handleResponse(response);
   }
+
+  // Rider APIs
+  static Future<Map<String, dynamic>> getRiderProfile(String token) async {
+    final uri = Uri.parse('$baseUrl/api/orders/rider/profile');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<List<dynamic>> getRiderDeliveries(
+    String token,
+    String status,
+  ) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/orders/rider/deliveries?status=$status',
+    );
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['deliveries'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> updateOrderStatus(
+    String token,
+    int orderId,
+    String status,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/orders/$orderId/status');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'status': status}),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> updatePaymentStatus(
+    String token,
+    int orderId,
+    String status,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/orders/$orderId/payment-status');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'paymentStatus': status}),
+    );
+    return _handleResponse(response);
+  }
 }
