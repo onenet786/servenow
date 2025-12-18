@@ -61,7 +61,7 @@ class _StoreScreenState extends State<StoreScreen> {
                         ),
                       ),
                     ),
-                  )
+                  ),
               ],
             ),
           ),
@@ -80,7 +80,9 @@ class _StoreScreenState extends State<StoreScreen> {
 
           final store = snapshot.data!['store'];
           final productsList = snapshot.data!['products'] as List<dynamic>;
-          final products = productsList.map((json) => Product.fromJson(json)).toList();
+          final products = productsList
+              .map((json) => Product.fromJson(json))
+              .toList();
 
           return CustomScrollView(
             slivers: [
@@ -88,16 +90,20 @@ class _StoreScreenState extends State<StoreScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (store['image_url'] != null)
+                    if (ApiService.getImageUrl(store['image_url']).isNotEmpty)
                       Image.network(
-                        store['image_url'],
+                        ApiService.getImageUrl(store['image_url']),
                         height: 200,
                         width: double.infinity,
                         fit: BoxFit.cover,
                         errorBuilder: (ctx, err, _) => Container(
                           height: 200,
                           color: Colors.grey[300],
-                          child: const Icon(Icons.store, size: 80, color: Colors.grey),
+                          child: const Icon(
+                            Icons.store,
+                            size: 80,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
                     Padding(
@@ -115,7 +121,11 @@ class _StoreScreenState extends State<StoreScreen> {
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                              const Icon(
+                                Icons.location_on,
+                                size: 16,
+                                color: Colors.grey,
+                              ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
@@ -129,11 +139,17 @@ class _StoreScreenState extends State<StoreScreen> {
                           if (store['rating'] != null)
                             Row(
                               children: [
-                                const Icon(Icons.star, size: 16, color: Colors.amber),
+                                const Icon(
+                                  Icons.star,
+                                  size: 16,
+                                  color: Colors.amber,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '${store['rating']}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
@@ -160,13 +176,10 @@ class _StoreScreenState extends State<StoreScreen> {
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final product = products[index];
-                      return _buildProductCard(context, product);
-                    },
-                    childCount: products.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final product = products[index];
+                    return _buildProductCard(context, product);
+                  }, childCount: products.length),
                 ),
               ),
               const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
@@ -186,10 +199,12 @@ class _StoreScreenState extends State<StoreScreen> {
         children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-              child: product.imageUrl != null
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10),
+              ),
+              child: ApiService.getImageUrl(product.imageUrl).isNotEmpty
                   ? Image.network(
-                      product.imageUrl!,
+                      ApiService.getImageUrl(product.imageUrl),
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (ctx, err, _) =>
@@ -198,7 +213,11 @@ class _StoreScreenState extends State<StoreScreen> {
                   : Container(
                       color: Colors.grey[200],
                       child: const Center(
-                        child: Icon(Icons.fastfood, size: 40, color: Colors.grey),
+                        child: Icon(
+                          Icons.fastfood,
+                          size: 40,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
             ),
@@ -229,8 +248,10 @@ class _StoreScreenState extends State<StoreScreen> {
                     onPressed: product.isAvailable
                         ? () {
                             try {
-                              Provider.of<CartProvider>(context, listen: false)
-                                  .addItem(product, 1);
+                              Provider.of<CartProvider>(
+                                context,
+                                listen: false,
+                              ).addItem(product, 1);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Added to cart'),

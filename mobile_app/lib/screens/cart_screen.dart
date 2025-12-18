@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/api_service.dart';
 import '../providers/cart_provider.dart';
 
 class CartScreen extends StatelessWidget {
@@ -21,7 +22,9 @@ class CartScreen extends StatelessWidget {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: const Text('Clear Cart?'),
-                    content: const Text('Are you sure you want to remove all items?'),
+                    content: const Text(
+                      'Are you sure you want to remove all items?',
+                    ),
                     actions: [
                       TextButton(
                         child: const Text('No'),
@@ -75,9 +78,14 @@ class CartScreen extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: ListTile(
-                              leading: item.product.imageUrl != null
+                              leading:
+                                  ApiService.getImageUrl(
+                                    item.product.imageUrl,
+                                  ).isNotEmpty
                                   ? Image.network(
-                                      item.product.imageUrl!,
+                                      ApiService.getImageUrl(
+                                        item.product.imageUrl,
+                                      ),
                                       width: 50,
                                       height: 50,
                                       fit: BoxFit.cover,
