@@ -3,29 +3,29 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static final Logger _logger = Logger();
 
   static String get baseUrl {
     if (kIsWeb) {
-      return 'http://23.137.84.249:3002';
+      return 'http://localhost:3002';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://23.137.84.249:3002';
+        return 'http://10.0.2.2:3002';
       }
     } catch (e) {
       // Platform check failed (likely on web if kIsWeb check missed somehow), fallback to default
     }
-    return 'http://23.137.84.249:3002';
+    return 'http://localhost:3002';
   }
 
   static Map<String, dynamic> _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
     } else {
-      // Try to parse error message from body
       try {
         final errorData = jsonDecode(response.body);
         throw Exception(
