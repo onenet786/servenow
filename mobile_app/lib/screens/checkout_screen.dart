@@ -224,33 +224,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       'Payment Method',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: RadioListTile<String>(
-                            title: const Text('Cash on Delivery'),
-                            value: 'cash',
-                            groupValue: _paymentMethod,
-                            onChanged: (value) {
-                              setState(() {
-                                _paymentMethod = value!;
-                              });
-                            },
+                    RadioGroup<String>(
+                      groupValue: _paymentMethod,
+                      onChanged: (value) {
+                        setState(() {
+                          _paymentMethod = value!;
+                        });
+                      },
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<String>(
+                              title: const Text('Cash on Delivery'),
+                              value: 'cash',
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: RadioListTile<String>(
-                            title: const Text('Credit Card'),
-                            value: 'card',
-                            groupValue: _paymentMethod,
-                            onChanged: (value) {
-                              setState(() {
-                                _paymentMethod = value!;
-                              });
-                            },
+                          Expanded(
+                            child: RadioListTile<String>(
+                              title: const Text('Credit Card'),
+                              value: 'card',
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 30),
                     SizedBox(

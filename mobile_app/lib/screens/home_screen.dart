@@ -54,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.3),
+                      color: Colors.grey.withValues(alpha: 0.3),
                       blurRadius: 10,
                       offset: const Offset(0, 5),
                     ),
@@ -73,9 +73,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? user.firstName.substring(0, 1).toUpperCase()
                                 : 'U',
                             style: const TextStyle(
-                                fontSize: 24,
-                                color: Colors.blueAccent,
-                                fontWeight: FontWeight.bold),
+                              fontSize: 24,
+                              color: Colors.blueAccent,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -94,9 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               const SizedBox(height: 4),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
+                                  color: Colors.white.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Text(
@@ -212,10 +215,12 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Store Image
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: store['image_url'] != null
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+              child: ApiService.getImageUrl(store['image_url']).isNotEmpty
                   ? Image.network(
-                      store['image_url'],
+                      ApiService.getImageUrl(store['image_url']),
                       height: 140,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -223,14 +228,22 @@ class _HomeScreenState extends State<HomeScreen> {
                         return Container(
                           height: 140,
                           color: Colors.grey[300],
-                          child: const Icon(Icons.store, size: 50, color: Colors.grey),
+                          child: const Icon(
+                            Icons.store,
+                            size: 50,
+                            color: Colors.grey,
+                          ),
                         );
                       },
                     )
                   : Container(
                       height: 140,
                       color: Colors.grey[300],
-                      child: const Icon(Icons.store, size: 50, color: Colors.grey),
+                      child: const Icon(
+                        Icons.store,
+                        size: 50,
+                        color: Colors.grey,
+                      ),
                     ),
             ),
             // Store Info
@@ -252,7 +265,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                      const Icon(
+                        Icons.location_on,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -274,7 +291,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (store['rating'] != null)
                         Row(
                           children: [
-                            const Icon(Icons.star, size: 14, color: Colors.amber),
+                            const Icon(
+                              Icons.star,
+                              size: 14,
+                              color: Colors.amber,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '${store['rating']}',
@@ -286,10 +307,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: Colors.blueAccent.withOpacity(0.1),
+                          color: Colors.blueAccent.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(

@@ -3,23 +3,29 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static final Logger _logger = Logger();
 
   static String get baseUrl {
     if (kIsWeb) {
-      return 'http://localhost:3002';
+      return 'http://23.137.84.249:3002';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2:3002';
+        return 'http://23.137.84.249:3002';
       }
     } catch (e) {
       // Platform check failed (likely on web if kIsWeb check missed somehow), fallback to default
     }
-    return 'http://localhost:3002';
+    return 'http://23.137.84.249:3002';
+  }
+
+  static String getImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/')) return '$baseUrl$url';
+    return '$baseUrl/$url';
   }
 
   static Map<String, dynamic> _handleResponse(http.Response response) {

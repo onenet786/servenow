@@ -3,29 +3,40 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      await Provider.of<AuthProvider>(
-        context,
-        listen: false,
-      ).login(_emailController.text, _passwordController.text);
+      await Provider.of<AuthProvider>(context, listen: false).register(
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
+        email: _emailController.text,
+        password: _passwordController.text,
+        phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
+        address: _addressController.text.isNotEmpty
+            ? _addressController.text
+            : null,
+      );
 
       if (!mounted) return;
 
+      // Navigate to home or show success
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (auth.isAdmin) {
         Navigator.of(context).pushReplacementNamed('/admin');
@@ -35,9 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Login failed: ${e.toString()}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Registration failed: ${e.toString()}')),
+      );
     }
   }
 
@@ -48,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: BoxDecoration(
           image: DecorationImage(
             image: const AssetImage('assets/images/login.png'),
-            fit: BoxFit.cover,
+            fit: BoxFit.fill,
             colorFilter: ColorFilter.mode(
               Colors.black.withValues(alpha: 0.3),
               BlendMode.darken,
@@ -60,7 +71,9 @@ class _LoginScreenState extends State<LoginScreen> {
           child: SingleChildScrollView(
             child: Padding(
               padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).size.height * 0.2,
+                bottom:
+                    MediaQuery.of(context).size.height *
+                    0.1, // Slightly less bottom padding for taller form
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(40),
@@ -86,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text(
-                            'Login to ServeNow',
+                            'Register for ServeNow',
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -94,57 +107,76 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
+                          // First Name & Last Name Row
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _firstNameController,
+                                  style: const TextStyle(color: Colors.black87),
+                                  decoration: _buildInputDecoration(
+                                    'First Name',
+                                    Icons.person,
+                                  ),
+                                  validator: (value) =>
+                                      value!.isEmpty ? 'Required' : null,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _lastNameController,
+                                  style: const TextStyle(color: Colors.black87),
+                                  decoration: _buildInputDecoration(
+                                    'Last Name',
+                                    Icons.person_outline,
+                                  ),
+                                  validator: (value) =>
+                                      value!.isEmpty ? 'Required' : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
                           TextFormField(
                             controller: _emailController,
                             style: const TextStyle(color: Colors.black87),
-                            decoration: const InputDecoration(
-                              labelText: 'Email Address',
-                              labelStyle: TextStyle(color: Colors.black54),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black26),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black26),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.blueAccent,
-                                ),
-                              ),
-                              prefixIcon: Icon(
-                                Icons.email,
-                                color: Colors.black54,
-                              ),
+                            decoration: _buildInputDecoration(
+                              'Email Address',
+                              Icons.email,
                             ),
                             validator: (value) =>
                                 value!.isEmpty ? 'Please enter email' : null,
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 12),
                           TextFormField(
                             controller: _passwordController,
                             style: const TextStyle(color: Colors.black87),
-                            decoration: const InputDecoration(
-                              labelText: 'Password',
-                              labelStyle: TextStyle(color: Colors.black54),
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black26),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: Colors.black26),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: Colors.blueAccent,
-                                ),
-                              ),
-                              prefixIcon: Icon(
-                                Icons.lock,
-                                color: Colors.black54,
-                              ),
+                            decoration: _buildInputDecoration(
+                              'Password',
+                              Icons.lock,
                             ),
                             obscureText: true,
                             validator: (value) =>
                                 value!.isEmpty ? 'Please enter password' : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _phoneController,
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: _buildInputDecoration(
+                              'Phone (Optional)',
+                              Icons.phone,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _addressController,
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: _buildInputDecoration(
+                              'Address (Optional)',
+                              Icons.location_on,
+                            ),
                           ),
                           const SizedBox(height: 24),
                           SizedBox(
@@ -167,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       color: Colors.white,
                                     )
                                   : const Text(
-                                      'Login',
+                                      'Register',
                                       style: TextStyle(
                                         fontSize: 18,
                                         color: Colors.white,
@@ -178,10 +210,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 16),
                           TextButton(
                             onPressed: () {
-                              Navigator.of(context).pushNamed('/register');
+                              Navigator.of(context).pop(); // Go back to login
                             },
                             child: const Text(
-                              'Don\'t have an account? Register here',
+                              'Already have an account? Login here',
                               style: TextStyle(color: Colors.blueAccent),
                             ),
                           ),
@@ -195,6 +227,25 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  InputDecoration _buildInputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.black54),
+      border: const OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.black26),
+      ),
+      enabledBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.black26),
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: Colors.blueAccent),
+      ),
+      prefixIcon: Icon(icon, color: Colors.black54),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      isDense: true,
     );
   }
 }
