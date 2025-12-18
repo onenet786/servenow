@@ -38,6 +38,8 @@ dependencies:
   http: ^1.6.0
   shared_preferences: ^2.5.4
   logger: ^2.6.2
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
 
 dev_dependencies:
   flutter_test:

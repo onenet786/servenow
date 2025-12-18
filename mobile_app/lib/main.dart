@@ -4,6 +4,7 @@ import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
+import 'screens/rider_dashboard_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,9 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-      ],
+      providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
       child: MaterialApp(
         title: 'ServeNow',
         debugShowCheckedModeBanner: false,
@@ -32,6 +31,7 @@ class MyApp extends StatelessWidget {
           '/login': (context) => const LoginScreen(),
           '/home': (context) => const HomeScreen(),
           '/admin': (context) => const AdminDashboardScreen(),
+          '/rider': (context) => const RiderDashboardScreen(),
         },
       ),
     );
@@ -55,12 +55,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<void> _checkAuth() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.tryAutoLogin();
-    
+
     if (!mounted) return;
-    
+
     if (auth.isAuthenticated) {
       if (auth.isAdmin) {
         Navigator.of(context).pushReplacementNamed('/admin');
+      } else if (auth.isRider) {
+        Navigator.of(context).pushReplacementNamed('/rider');
       } else {
         Navigator.of(context).pushReplacementNamed('/home');
       }
@@ -71,8 +73,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

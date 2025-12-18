@@ -28,6 +28,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (auth.isAdmin) {
         Navigator.of(context).pushReplacementNamed('/admin');
+      } else if (auth.isRider) {
+        Navigator.of(context).pushReplacementNamed('/rider');
       } else {
         Navigator.of(context).pushReplacementNamed('/home');
       }
