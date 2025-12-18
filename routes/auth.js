@@ -1,7 +1,9 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const { sendVerificationEmail } = require('../services/emailService');
 
 const router = express.Router();
 

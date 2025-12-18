@@ -24,7 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     try {
-      await Provider.of<AuthProvider>(context, listen: false).register(
+      final requiresVerification = await Provider.of<AuthProvider>(context, listen: false).register(
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
         email: _emailController.text,
@@ -37,14 +37,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
-      // Navigate to home or show success
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-      if (auth.isAdmin) {
-        Navigator.of(context).pushReplacementNamed('/admin');
-      } else if (auth.isRider) {
-        Navigator.of(context).pushReplacementNamed('/rider');
+      if (requiresVerification) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (ctx) => VerificationScreen(email: _emailController.text),
+          ),
+        );
       } else {
-        Navigator.of(context).pushReplacementNamed('/home');
+        // Navigate to home or show success
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        if (auth.isAdmin) {
+          Navigator.of(context).pushReplacementNamed('/admin');
+        } else if (auth.isRider) {
+          Navigator.of(context).pushReplacementNamed('/rider');
+        } else {
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
