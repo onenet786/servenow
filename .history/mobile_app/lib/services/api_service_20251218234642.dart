@@ -95,13 +95,6 @@ class ApiService {
     return data['stores'] ?? [];
   }
 
-  static Future<Map<String, dynamic>> getStoreDetails(int id) async {
-    final uri = Uri.parse('$baseUrl/api/stores/$id');
-    _logger.d('ApiService: GET $uri');
-    final response = await http.get(uri);
-    return _handleResponse(response);
-  }
-
   static Future<List<dynamic>> getOrders(String token) async {
     final uri = Uri.parse('$baseUrl/api/orders');
     _logger.d('ApiService: GET $uri');

@@ -184,129 +184,96 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildStoreCard(dynamic store) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (ctx) => StoreScreen(storeId: store['id']),
+    return Container(
+      width: 250,
+      margin: const EdgeInsets.only(right: 16, bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
-        );
-      },
-      child: Container(
-        width: 250,
-        margin: const EdgeInsets.only(right: 16, bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Store Image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: store['image_url'] != null
-                  ? Image.network(
-                      store['image_url'],
-                      height: 140,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 140,
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.store, size: 50, color: Colors.grey),
-                        );
-                      },
-                    )
-                  : Container(
-                      height: 140,
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.store, size: 50, color: Colors.grey),
-                    ),
-            ),
-            // Store Info
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    store['name'] ?? 'Store Name',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          store['location'] ?? 'Location',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      if (store['rating'] != null)
-                        Row(
-                          children: [
-                            const Icon(Icons.star, size: 14, color: Colors.amber),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${store['rating']}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.blueAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Visit',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.blueAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Container(
+              height: 120,
+              width: double.infinity,
+              color: Colors.grey[200],
+              child: Image.network(
+                store['image_url'] ?? '',
+                fit: BoxFit.cover,
+                errorBuilder: (c, o, s) =>
+                    const Icon(Icons.store, size: 50, color: Colors.grey),
               ),
             ),
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  store['name'] ?? 'Unknown Store',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.amber, size: 16),
+                    const SizedBox(width: 4),
+                    Text(store['rating']?.toString() ?? 'N/A'),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      store['delivery_time'] ?? '30 min',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  store['location'] ?? '',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Navigate to store details
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'View Store',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -125,8 +125,12 @@ async function handleCheckoutSubmit(e) {
     }
 
     const formData = new FormData(e.target);
+    // Get store_id from cart items (assuming all items are from same store due to add-to-cart check)
+    // Fallback to 1 for legacy items or testing
+    const storeId = (cart.length > 0 && cart[0].storeId) ? cart[0].storeId : 1;
+    
     const orderData = {
-        store_id: 1, // For demo, using store_id 1
+        store_id: storeId,
         items: cart.map(item => ({
             product_id: item.id,
             quantity: item.quantity

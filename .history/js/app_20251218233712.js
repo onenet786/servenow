@@ -690,7 +690,7 @@ async function loadProducts(category) {
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>
-                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id}, '${imageSrc.replace(/'/g, "\\'")}', ${product.store_id || 'null'})">Add to Cart</button>
+                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id}, '${imageSrc.replace(/'/g, "\\'")}')">Add to Cart</button>
                     </div>
                 `;
                 productGrid.appendChild(productCard);
