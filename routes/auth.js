@@ -3,10 +3,11 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-<<<<<<< HEAD
+
 const crypto = require('crypto');
-=======
->>>>>>> 2455947c071b9af577875a4a5142cc4128f6b3e5
+
+
+const crypto = require('crypto');
 const { sendVerificationEmail } = require('../services/emailService');
 
 const router = express.Router();
