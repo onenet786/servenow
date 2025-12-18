@@ -54,6 +54,14 @@ const API_BASE = window.location.protocol + '//' + window.location.host;
     };
 })();
 
+// Toggle Mobile Menu
+function toggleMobileMenu() {
+    const navUl = document.querySelector('nav ul');
+    const menuToggle = document.querySelector('.menu-toggle');
+    navUl.classList.toggle('active');
+    menuToggle.classList.toggle('active');
+}
+
 // Toast Notification System
 function showToast(title, message, type = 'info', duration = 3000) {
     let container = document.getElementById('toastContainer');
@@ -203,13 +211,14 @@ async function fetchProductStock(productId) {
     return null;
 }
 
-async function addToCart(productId, productName, price, stockQty, unitName, unitId) {
+async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc) {
     const existingItem = cart.find(item => item.id === productId);
     let maxQty = Number.isFinite(parseFloat(stockQty)) ? Math.max(0, parseInt(stockQty, 10)) : null;
     if (maxQty === null) {
         maxQty = await fetchProductStock(productId);
     }
     if (existingItem) {
+        if (imageSrc) existingItem.image = imageSrc;
         if (maxQty !== null) existingItem.maxQty = maxQty;
         const next = (existingItem.quantity || 1) + 1;
         if (maxQty !== null && next > maxQty) {
@@ -230,7 +239,8 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
             price: price,
             quantity: 1,
             unitName: unitName || null,
-            unitId: unitId || null
+            unitId: unitId || null,
+            image: imageSrc || null
         };
         if (maxQty !== null) item.maxQty = maxQty;
         cart.push(item);
@@ -350,20 +360,32 @@ function displayCart() {
         const step = qtyStepForUnit(item.unitName, item.unitId);
         const isFrac = isFractionalUnit(item.unitName, item.unitId);
 
+        const imgSrc = item.image || "https://via.placeholder.com/150?text=No+Image";
+
         const itemElement = document.createElement('div');
-        itemElement.className = 'cart-item';
+        itemElement.className = 'cart-item serving-card';
         itemElement.innerHTML = `
-            <div class="cart-item-info">
-                <h4>${item.name}</h4>
-                <div class="cart-qty">
-                    <button class="qty-btn" onclick="decrementQty(${item.id})">−</button>
-                    <input type="range" class="qty-slider" min="${step}" max="${Number.isFinite(item.maxQty) ? item.maxQty : 20}" step="${step}" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)">
-                    ${isFrac ? `<input type="text" class="qty-value-input" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)" inputmode="decimal">` : `<span class="qty-value">${item.quantity}</span>`}
-                    <button class="qty-btn" onclick="incrementQty(${item.id})">+</button>
+            <div class="serving-dish">
+                <div class="dish-shadow"></div>
+                <img src="${imgSrc}" alt="${item.name}" class="dish-image">
+            </div>
+            <div class="serving-content">
+                <div class="serving-header">
+                    <h4>${item.name}</h4>
+                    <button class="serving-remove" onclick="removeFromCart(${item.id})" title="Remove Item">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="serving-details">
+                    <div class="cart-qty">
+                        <button class="qty-btn" onclick="decrementQty(${item.id})">−</button>
+                        <input type="range" class="qty-slider" min="${step}" max="${Number.isFinite(item.maxQty) ? item.maxQty : 20}" step="${step}" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)">
+                        ${isFrac ? `<input type="text" class="qty-value-input" value="${item.quantity}" oninput="changeQty(${item.id}, this.value)" inputmode="decimal">` : `<span class="qty-value">${item.quantity}</span>`}
+                        <button class="qty-btn" onclick="incrementQty(${item.id})">+</button>
+                    </div>
+                    <span class="serving-price">PKR ${itemTotal.toFixed(2)}</span>
                 </div>
             </div>
-                        <span class="cart-item-price">PKR ${itemTotal.toFixed(2)}</span>
-            <button class="cart-item-remove" onclick="removeFromCart(${item.id})">Remove</button>
         `;
         cartContainer.appendChild(itemElement);
     });
@@ -445,6 +467,14 @@ function showError(error) {
     showError('Error', errorMessage);
 }
 
+function displayNearbyStores() {
+    const allStoresSection = document.getElementById('allStoresSection');
+    if (allStoresSection) {
+        allStoresSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    displayAllStoresHorizontal();
+}
+
     // Display all stores in horizontal scroll (bottom section)
 async function displayAllStoresHorizontal() {
     const storeContainer = document.getElementById('allStoresHorizontal');
@@ -519,20 +549,20 @@ function initScrollControls(container) {
 async function handleStoreSearch(filters = {}) {
     const searchResultsSection = document.getElementById('searchResultsSection');
     const categoriesSection = document.getElementById('categoriesSection');
-    const allStoresSection = document.getElementById('allStoresSection');
+    const featuredStoresSection = document.querySelector('.featured-stores');
     const searchResultsGrid = document.getElementById('searchResultsGrid');
     
-    // If no filters active, show categories and all stores, hide search results
+    // If no filters active, show categories and featured stores, hide search results
     if (!filters.search && !filters.category) {
         if (categoriesSection) categoriesSection.classList.remove('hidden');
-        if (allStoresSection) allStoresSection.style.display = 'block';
+        if (featuredStoresSection) featuredStoresSection.style.display = 'block';
         if (searchResultsSection) searchResultsSection.classList.add('hidden');
         return;
     }
 
-    // Filters active: Hide categories and all stores, show search results
+    // Filters active: Hide categories and featured stores, show search results
     if (categoriesSection) categoriesSection.classList.add('hidden');
-    if (allStoresSection) allStoresSection.style.display = 'none';
+    if (featuredStoresSection) featuredStoresSection.style.display = 'none';
     if (searchResultsSection) searchResultsSection.classList.remove('hidden');
 
     if (!searchResultsGrid) return;
@@ -642,7 +672,7 @@ async function loadProducts(category) {
                     <div class="product-card-content">
                         <h4>${product.name}</h4>
                         <p class="price">PKR ${product.price}</p>
-                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id})"><i class="fas fa-cart-plus"></i> Add to Cart</button>
+                        <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id}, '${imageSrc.replace(/'/g, "\\'")}')">Add to Cart</button>
                     </div>
                 `;
                 productGrid.appendChild(productCard);

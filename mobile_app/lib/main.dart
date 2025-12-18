@@ -1,47 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
-import 'providers/cart_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/splash_screen.dart';
+import 'screens/admin_dashboard_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  runApp(MyApp(prefs: prefs));
+void main() {
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final SharedPreferences prefs;
-
-  const MyApp({super.key, required this.prefs});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (context) => AuthProvider(prefs),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => CartProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
       ],
       child: MaterialApp(
         title: 'ServeNow',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.green,
+          primarySwatch: Colors.blue,
           fontFamily: 'Roboto',
           scaffoldBackgroundColor: Colors.grey[50],
+          useMaterial3: true,
         ),
-        home: const SplashScreen(),
+        home: const AuthWrapper(),
         routes: {
           '/login': (context) => const LoginScreen(),
           '/home': (context) => const HomeScreen(),
+          '/admin': (context) => const AdminDashboardScreen(),
         },
       ),
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    await auth.tryAutoLogin();
+    
+    if (!mounted) return;
+    
+    if (auth.isAuthenticated) {
+      if (auth.isAdmin) {
+        Navigator.of(context).pushReplacementNamed('/admin');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } else {
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }

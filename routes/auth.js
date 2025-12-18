@@ -117,6 +117,11 @@ router.post('/login', [
                 { expiresIn: process.env.JWT_EXPIRE }
             );
 
+            try {
+                const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+                await req.db.execute('INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)', [0, 'admin', ip]);
+            } catch (e) { console.error('Login log error:', e); }
+
             return res.json({
                 success: true,
                 message: 'Dev admin login',
@@ -162,6 +167,11 @@ router.post('/login', [
                         process.env.JWT_SECRET,
                         { expiresIn: process.env.JWT_EXPIRE }
                     );
+
+                    try {
+                        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+                        await req.db.execute('INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)', [rider.id, 'rider', ip]);
+                    } catch (e) { console.error('Login log error:', e); }
 
                     return res.json({
                         success: true,
@@ -225,6 +235,11 @@ router.post('/login', [
                         { expiresIn: process.env.JWT_EXPIRE }
                     );
 
+                    try {
+                        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+                        await req.db.execute('INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)', [rider.id, 'rider', ip]);
+                    } catch (e) { console.error('Login log error:', e); }
+
                     return res.json({
                         success: true,
                         message: 'Rider login successful',
@@ -259,6 +274,11 @@ router.post('/login', [
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRE }
         );
+
+        try {
+            const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+            await req.db.execute('INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)', [user.id, user.user_type, ip]);
+        } catch (e) { console.error('Login log error:', e); }
 
         console.log('[auth] Login successful for:', email, 'user_type=', user.user_type);
         res.json({

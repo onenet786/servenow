@@ -43,6 +43,38 @@ router.post('/execute-sql', authenticateToken, requireAdmin, async (req, res) =>
     }
 });
 
+router.get('/visitor-stats', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        // Count total logins today
+        const [todayLogins] = await req.db.execute(
+            'SELECT COUNT(*) as count FROM login_logs WHERE DATE(login_time) = ?',
+            [today]
+        );
+        
+        // Count distinct visitors today
+        const [todayVisitors] = await req.db.execute(
+            'SELECT COUNT(DISTINCT user_id, user_type) as count FROM login_logs WHERE DATE(login_time) = ?',
+            [today]
+        );
+        
+        // Count active users (last 30 minutes)
+        const [activeUsers] = await req.db.execute(
+            'SELECT COUNT(DISTINCT user_id, user_type) as count FROM login_logs WHERE login_time >= NOW() - INTERVAL 30 MINUTE'
+        );
+        
+        return res.json({
+            success: true,
+            today_logins: todayLogins[0].count,
+            today_unique_visitors: todayVisitors[0].count,
+            active_users: activeUsers[0].count
+        });
+    } catch (err) {
+        console.error('Visitor stats error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to fetch visitor stats', error: err.message });
+    }
+});
+
 module.exports = router;
 
 // --- Database backup endpoints ---
