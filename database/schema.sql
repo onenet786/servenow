@@ -13,6 +13,9 @@ CREATE TABLE users (
     password VARCHAR(255) NOT NULL,
     address TEXT,
     user_type ENUM('customer', 'store_owner', 'admin') DEFAULT 'customer',
+    verification_code VARCHAR(6),
+    verification_expires_at TIMESTAMP,
+    is_verified BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

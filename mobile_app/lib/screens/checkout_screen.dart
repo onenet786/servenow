@@ -154,8 +154,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           final item = cart.items[index];
                           return ListTile(
                             title: Text(item.product.name),
-                            subtitle: Text('${item.quantity} x \$${item.product.price}'),
-                            trailing: Text('\$${item.total.toStringAsFixed(2)}'),
+                            subtitle: Text('${item.quantity} x PKR ${item.product.price}'),
+                            trailing: Text('PKR ${item.total.toStringAsFixed(2)}'),
                           );
                         },
                       ),

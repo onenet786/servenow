@@ -150,7 +150,7 @@ class CartScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '\$${cart.totalAmount.toStringAsFixed(2)}',
+                          'PKR ${cart.totalAmount.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,

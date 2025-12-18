@@ -12,17 +12,73 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<List<dynamic>> _storesFuture;
+  List<dynamic> _allStores = [];
+  List<dynamic> _filteredStores = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _storesFuture = ApiService.getStores();
+    _fetchStores();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _filterStores(_searchController.text);
+  }
+
+  Future<void> _fetchStores() async {
+    try {
+      final stores = await ApiService.getStores();
+      if (mounted) {
+        setState(() {
+          _allStores = stores;
+          _filteredStores = stores;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _filterStores(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _filteredStores = _allStores;
+      });
+    } else {
+      setState(() {
+        _filteredStores = _allStores.where((store) {
+          final name = store['name'].toString().toLowerCase();
+          final location = store['location'].toString().toLowerCase();
+          final q = query.toLowerCase();
+          return name.contains(q) || location.contains(q);
+        }).toList();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<AuthProvider>(context).user;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    final crossAxisCount = isLandscape ? 4 : 2;
 
     return Scaffold(
       appBar: AppBar(
@@ -128,39 +184,67 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
+            // Search Section
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search stores...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[200],
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                ),
+              ),
+            ),
+
             const Padding(
-              padding: EdgeInsets.all(16.0),
+              padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Text(
                 'Browse Stores',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
             ),
-            // Horizontal Store List
-            SizedBox(
-              height: 280,
-              child: FutureBuilder<List<dynamic>>(
-                future: _storesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('No stores found'));
-                  }
 
-                  return ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: snapshot.data!.length,
-                    itemBuilder: (context, index) {
-                      final store = snapshot.data![index];
-                      return _buildStoreCard(store);
-                    },
-                  );
-                },
+            const SizedBox(height: 10),
+
+            // Store Grid
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (_errorMessage != null)
+              Center(child: Text('Error: $_errorMessage'))
+            else if (_filteredStores.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Text('No stores found'),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: 0.8, // Adjusted for card look
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: _filteredStores.length,
+                  itemBuilder: (context, index) {
+                    final store = _filteredStores[index];
+                    return _buildStoreCard(store);
+                  },
+                ),
               ),
-            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -197,67 +281,49 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Container(
-        width: 250,
-        margin: const EdgeInsets.only(right: 16, bottom: 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: Colors.grey.withValues(alpha: 0.1),
+              spreadRadius: 1,
+              blurRadius: 5,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Store Image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
-              child: ApiService.getImageUrl(store['image_url']).isNotEmpty
-                  ? Image.network(
-                      ApiService.getImageUrl(store['image_url']),
-                      height: 140,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 140,
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.store,
-                            size: 50,
-                            color: Colors.grey,
-                          ),
-                        );
-                      },
-                    )
-                  : Container(
-                      height: 140,
-                      color: Colors.grey[300],
-                      child: const Icon(
-                        Icons.store,
-                        size: 50,
-                        color: Colors.grey,
-                      ),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(15),
+                ),
+                child: Image.network(
+                  ApiService.getImageUrl(store['image_url']),
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, _) => Container(
+                    color: Colors.grey[300],
+                    child: const Center(
+                      child: Icon(Icons.store, size: 40, color: Colors.grey),
                     ),
+                  ),
+                ),
+              ),
             ),
-            // Store Info
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    store['name'] ?? 'Store Name',
+                    store['name'],
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -273,55 +339,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          store['location'] ?? 'Location',
+                          store['location'],
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      if (store['rating'] != null)
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 14,
-                              color: Colors.amber,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${store['rating']}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blueAccent.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Visit',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.blueAccent,
-                            fontWeight: FontWeight.bold,
-                          ),
                         ),
                       ),
                     ],
