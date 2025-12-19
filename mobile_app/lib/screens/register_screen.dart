@@ -12,10 +12,10 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -24,10 +24,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     try {
+      final fullName = _fullNameController.text.trim();
+      final nameParts = fullName.split(' ');
+      final firstName = nameParts.first;
+      final lastName = nameParts.length > 1
+          ? nameParts.sublist(1).join(' ')
+          : '';
+
       final needsVerification =
           await Provider.of<AuthProvider>(context, listen: false).register(
-            firstName: _firstNameController.text,
-            lastName: _lastNameController.text,
+            firstName: firstName,
+            lastName: lastName,
             email: _emailController.text,
             password: _passwordController.text,
             phone: _phoneController.text.isNotEmpty
@@ -121,35 +128,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          // First Name & Last Name Row
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _firstNameController,
-                                  style: const TextStyle(color: Colors.black87),
-                                  decoration: _buildInputDecoration(
-                                    'First Name',
-                                    Icons.person,
-                                  ),
-                                  validator: (value) =>
-                                      value!.isEmpty ? 'Required' : null,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _lastNameController,
-                                  style: const TextStyle(color: Colors.black87),
-                                  decoration: _buildInputDecoration(
-                                    'Last Name',
-                                    Icons.person_outline,
-                                  ),
-                                  validator: (value) =>
-                                      value!.isEmpty ? 'Required' : null,
-                                ),
-                              ),
-                            ],
+                          // Full Name
+                          TextFormField(
+                            controller: _fullNameController,
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: _buildInputDecoration(
+                              'Full Name',
+                              Icons.person,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Required';
+                              }
+                              if (value.trim().split(' ').length < 2) {
+                                return 'Please enter first and last name';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -173,6 +168,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             obscureText: true,
                             validator: (value) =>
                                 value!.isEmpty ? 'Please enter password' : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _confirmPasswordController,
+                            style: const TextStyle(color: Colors.black87),
+                            decoration: _buildInputDecoration(
+                              'Confirm Password',
+                              Icons.lock_outline,
+                            ),
+                            obscureText: true,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please confirm password';
+                              }
+                              if (value != _passwordController.text) {
+                                return 'Passwords do not match';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -226,9 +240,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             onPressed: () {
                               Navigator.of(context).pop(); // Go back to login
                             },
-                            child: const Text(
-                              'Already have an account? Login here',
-                              style: TextStyle(color: Colors.blueAccent),
+                            child: Text.rich(
+                              TextSpan(
+                                text: 'Already have an account? ',
+                                style: const TextStyle(color: Colors.black54),
+                                children: [
+                                  TextSpan(
+                                    text: 'Login here',
+                                    style: TextStyle(
+                                      color: Colors.blue[900],
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],

@@ -3,6 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import 'admin/manage_stores_screen.dart';
+import 'admin/manage_products_screen.dart';
+import 'admin/manage_users_screen.dart';
+import 'admin/manage_catalogue_screen.dart';
+import 'admin/utilities_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -260,17 +265,59 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ListTile(
             leading: const Icon(Icons.store),
             title: const Text('Manage Stores'),
-            onTap: () {},
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManageStoresScreen()),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.shopping_bag),
             title: const Text('Manage Products'),
-            onTap: () {},
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManageProductsScreen()),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.people),
             title: const Text('Manage Users'),
-            onTap: () {},
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ManageUsersScreen()),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.category),
+            title: const Text('Catalogue'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ManageCatalogueScreen(),
+                ),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Utilities'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const UtilitiesScreen()),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.delivery_dining),

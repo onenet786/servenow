@@ -51,10 +51,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     try {
       final items = cart.items
-          .map((item) => {
-                'product_id': item.product.id,
-                'quantity': item.quantity,
-              })
+          .map(
+            (item) => {
+              'product_id': item.product.id,
+              'quantity': item.quantity,
+            },
+          )
           .toList();
 
       await ApiService.createOrder(
@@ -63,7 +65,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         items: items,
         deliveryAddress: _addressController.text,
         paymentMethod: _paymentMethod,
-        deliveryTime: _timeController.text.isNotEmpty ? _timeController.text : null,
+        deliveryTime: _timeController.text.isNotEmpty
+            ? _timeController.text
+            : null,
         specialInstructions: _instructionsController.text.isNotEmpty
             ? _instructionsController.text
             : null,
@@ -86,10 +90,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: const Text('OK'),
               onPressed: () {
                 Navigator.of(ctx).pop(); // Close dialog
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/home',
-                  (route) => false,
-                );
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/home', (route) => false);
               },
             ),
           ],
@@ -124,9 +127,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Checkout'),
-      ),
+      appBar: AppBar(title: const Text('Checkout')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -138,7 +139,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   children: [
                     const Text(
                       'Order Summary',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Container(
@@ -154,8 +158,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           final item = cart.items[index];
                           return ListTile(
                             title: Text(item.product.name),
-                            subtitle: Text('${item.quantity} x PKR ${item.product.price}'),
-                            trailing: Text('PKR ${item.total.toStringAsFixed(2)}'),
+                            subtitle: Text(
+                              '${item.quantity} x PKR ${item.product.price}',
+                            ),
+                            trailing: Text(
+                              'PKR ${item.total.toStringAsFixed(2)}',
+                            ),
                           );
                         },
                       ),
@@ -166,7 +174,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       children: [
                         const Text(
                           'Total Amount:',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
                           '\$${cart.totalAmount.toStringAsFixed(2)}',
@@ -181,7 +192,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const SizedBox(height: 20),
                     const Text(
                       'Delivery Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     TextFormField(
@@ -222,7 +236,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const SizedBox(height: 20),
                     const Text(
                       'Payment Method',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     RadioGroup<String>(
                       groupValue: _paymentMethod,

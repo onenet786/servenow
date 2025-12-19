@@ -25,24 +25,23 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await Provider.of<AuthProvider>(context, listen: false).verifyEmail(
-        widget.email,
-        _codeController.text,
-      );
+      await Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).verifyEmail(widget.email, _codeController.text);
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Email verified! Please login.')),
       );
-      
+
       // Navigate to login screen or pop until root
       Navigator.of(context).popUntil((route) => route.isFirst);
       // Assuming route '/' is login or landing
-      
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -51,15 +50,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Future<void> _resend() async {
     setState(() => _isLoading = true);
     try {
-      await Provider.of<AuthProvider>(context, listen: false).resendCode(widget.email);
+      await Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).resendCode(widget.email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verification code sent!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Verification code sent!')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -131,8 +133,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text('Verify', style: TextStyle(color: Colors.white)),
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  'Verify',
+                                  style: TextStyle(color: Colors.white),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 10),

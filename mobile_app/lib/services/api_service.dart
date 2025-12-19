@@ -247,4 +247,317 @@ class ApiService {
     );
     return _handleResponse(response);
   }
+
+  // Admin - Stores Management
+  static Future<Map<String, dynamic>> createStore(
+    String token,
+    Map<String, dynamic> storeData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/stores');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(storeData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> updateStore(
+    String token,
+    int id,
+    Map<String, dynamic> storeData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/stores/$id');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(storeData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> deleteStore(String token, int id) async {
+    final uri = Uri.parse('$baseUrl/api/stores/$id');
+    _logger.d('ApiService: DELETE $uri');
+    final response = await http.delete(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  // Admin - Products Management
+  static Future<List<dynamic>> getProducts(
+    String token, {
+    bool admin = true,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/products?admin=${admin ? 1 : 0}');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['products'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> createProduct(
+    String token,
+    Map<String, dynamic> productData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/products');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(productData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> updateProduct(
+    String token,
+    int id,
+    Map<String, dynamic> productData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/products/$id');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(productData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> deleteProduct(
+    String token,
+    int id,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/products/$id');
+    _logger.d('ApiService: DELETE $uri');
+    final response = await http.delete(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  // Admin - Users Management
+  static Future<List<dynamic>> getUsers(String token) async {
+    final uri = Uri.parse('$baseUrl/api/users');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['users'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> updateUser(
+    String token,
+    int id,
+    Map<String, dynamic> userData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/users/$id');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(userData),
+    );
+    return _handleResponse(response);
+  }
+
+  // Admin - Catalogue - Units
+  static Future<List<dynamic>> getUnits() async {
+    final uri = Uri.parse('$baseUrl/api/units');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(uri);
+    final data = _handleResponse(response);
+    return data['units'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> createUnit(
+    String token,
+    Map<String, dynamic> unitData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/units');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(unitData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> updateUnit(
+    String token,
+    int id,
+    Map<String, dynamic> unitData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/units/$id');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(unitData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> deleteUnit(String token, int id) async {
+    final uri = Uri.parse('$baseUrl/api/units/$id');
+    _logger.d('ApiService: DELETE $uri');
+    final response = await http.delete(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  // Admin - Catalogue - Sizes
+  static Future<List<dynamic>> getSizes() async {
+    final uri = Uri.parse('$baseUrl/api/sizes');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(uri);
+    final data = _handleResponse(response);
+    return data['sizes'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> createSize(
+    String token,
+    Map<String, dynamic> sizeData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/sizes');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(sizeData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> updateSize(
+    String token,
+    int id,
+    Map<String, dynamic> sizeData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/sizes/$id');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(sizeData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> deleteSize(String token, int id) async {
+    final uri = Uri.parse('$baseUrl/api/sizes/$id');
+    _logger.d('ApiService: DELETE $uri');
+    final response = await http.delete(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  // Admin - Catalogue - Categories
+  static Future<List<dynamic>> getCategories() async {
+    final uri = Uri.parse('$baseUrl/api/categories');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(uri);
+    final data = _handleResponse(response);
+    return data['categories'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> createCategory(
+    String token,
+    Map<String, dynamic> categoryData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/categories');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(categoryData),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> updateCategory(
+    String token,
+    int id,
+    Map<String, dynamic> categoryData,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/categories/$id');
+    _logger.d('ApiService: PUT $uri');
+    final response = await http.put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(categoryData),
+    );
+    return _handleResponse(response);
+  }
+
+  // Admin - Utilities
+  static Future<List<String>> getBackups(String token) async {
+    final uri = Uri.parse('$baseUrl/api/admin/backup-db/list');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return List<String>.from(data['files'] ?? []);
+  }
+
+  static Future<void> createBackup(String token) async {
+    final uri = Uri.parse('$baseUrl/api/admin/backup-db');
+    _logger.d('ApiService: POST $uri');
+    final response = await http.post(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    _handleResponse(response);
+  }
 }
