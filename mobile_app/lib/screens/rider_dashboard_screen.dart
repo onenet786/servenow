@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import 'package:geolocator/geolocator.dart';
@@ -225,6 +226,97 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     }
   }
 
+  void _showOrderDetails(Map<String, dynamic> order) {
+    var itemsData = order['items'];
+    List<dynamic> items = [];
+    if (itemsData is String) {
+      try {
+        items = jsonDecode(itemsData);
+      } catch (e) {
+        _logger.e('Error parsing items: $e');
+      }
+    } else if (itemsData is List) {
+      items = itemsData;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Order #${order['id']} Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow('Store', '${order['store_name'] ?? 'N/A'}'),
+              _buildDetailRow(
+                'Store Addr',
+                '${order['store_location'] ?? 'N/A'}',
+              ),
+              const Divider(),
+              _buildDetailRow(
+                'Customer',
+                '${order['first_name']} ${order['last_name']}',
+              ),
+              _buildDetailRow('Phone', '${order['phone'] ?? 'N/A'}'),
+              _buildDetailRow(
+                'Address',
+                '${order['delivery_address'] ?? 'N/A'}',
+              ),
+              const Divider(),
+              const Text(
+                'Items:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              if (items.isEmpty)
+                const Text('No items found')
+              else
+                ...items.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text('${item['quantity']}x ${item['name']}'),
+                        ),
+                        Text('PKR ${item['price']}'),
+                      ],
+                    ),
+                  ),
+                ),
+              const Divider(),
+              _buildDetailRow(
+                'Total',
+                'PKR ${order['total_amount']}',
+                valueColor: Colors.green,
+              ),
+              _buildDetailRow(
+                'Payment',
+                '${order['payment_status']}',
+                valueColor: order['payment_status'] == 'paid'
+                    ? Colors.green
+                    : Colors.orange,
+              ),
+              _buildDetailRow(
+                'Status',
+                '${order['status']}',
+                valueColor: _getStatusColor(order['status'] ?? ''),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _logout() {
     Provider.of<AuthProvider>(context, listen: false).logout();
     Navigator.of(
@@ -445,9 +537,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Viewing details...')),
-                    );
+                    _showOrderDetails(delivery);
                   },
                   child: const Text('View Details'),
                 ),
