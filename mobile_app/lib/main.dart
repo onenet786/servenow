@@ -9,6 +9,7 @@ import 'screens/admin_dashboard_screen.dart';
 import 'screens/rider_dashboard_screen.dart';
 import 'screens/cart_screen.dart';
 import 'screens/checkout_screen.dart';
+import 'screens/customer_orders_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -42,6 +43,7 @@ class MyApp extends StatelessWidget {
           '/rider': (context) => const RiderDashboardScreen(),
           '/cart': (context) => const CartScreen(),
           '/checkout': (context) => const CheckoutScreen(),
+          '/orders': (context) => const CustomerOrdersScreen(),
         },
       ),
     );

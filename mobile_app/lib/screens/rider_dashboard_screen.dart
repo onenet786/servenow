@@ -129,7 +129,12 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition();
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
 
       try {
         List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -181,7 +186,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) return;
 
-      await ApiService.updateOrderStatus(token, orderId, 'delivered');
+      await ApiService.markOrderAsDelivered(token, orderId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Order marked as delivered!')),

@@ -22,7 +22,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-
     try {
       final fullName = _fullNameController.text.trim();
       final nameParts = fullName.split(' ');

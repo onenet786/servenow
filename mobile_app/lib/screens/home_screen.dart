@@ -85,6 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('ServeNow'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'My Orders',
+            onPressed: () {
+              Navigator.of(context).pushNamed('/orders');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
               Provider.of<AuthProvider>(context, listen: false).logout();
