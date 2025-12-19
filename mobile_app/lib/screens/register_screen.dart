@@ -24,7 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     try {
       final fullName = _fullNameController.text.trim();
-      final nameParts = fullName.split(' ');
+      final nameParts = fullName.split(RegExp(r'\s+'));
       final firstName = nameParts.first;
       final lastName = nameParts.length > 1
           ? nameParts.sublist(1).join(' ')
@@ -59,13 +59,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // Navigate to home or show success
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (auth.isAdmin) {
-        Navigator.of(context).pushReplacementNamed('/admin');
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/admin', (route) => false);
       } else if (auth.isRider) {
-        Navigator.of(context).pushReplacementNamed('/rider');
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/rider', (route) => false);
       } else {
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/home', (route) => false);
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Registration failed: ${e.toString()}')),
       );

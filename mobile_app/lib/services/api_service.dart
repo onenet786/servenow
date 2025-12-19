@@ -146,6 +146,27 @@ class ApiService {
     return data['orders'] ?? [];
   }
 
+  static Future<List<dynamic>> getAllOrders(
+    String token, {
+    String? status,
+    int? storeId,
+  }) async {
+    String queryString = '';
+    List<String> params = [];
+    if (status != null) params.add('status=$status');
+    if (storeId != null) params.add('store_id=$storeId');
+    if (params.isNotEmpty) queryString = '?${params.join('&')}';
+
+    final uri = Uri.parse('$baseUrl/api/orders$queryString');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['orders'] ?? [];
+  }
+
   static Future<Map<String, dynamic>> createOrder(
     String token, {
     required int storeId,

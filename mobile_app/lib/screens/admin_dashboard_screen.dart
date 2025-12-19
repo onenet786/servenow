@@ -8,6 +8,8 @@ import 'admin/manage_products_screen.dart';
 import 'admin/manage_users_screen.dart';
 import 'admin/manage_catalogue_screen.dart';
 import 'admin/utilities_screen.dart';
+import 'admin/orders_report_screen.dart';
+import 'admin/stores_report_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -261,6 +263,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             title: const Text('Dashboard'),
             selected: true,
             onTap: () {},
+          ),
+          ExpansionTile(
+            leading: const Icon(Icons.analytics),
+            title: const Text('Reports'),
+            children: [
+              ListTile(
+                contentPadding: const EdgeInsets.only(left: 72),
+                title: const Text('Orders Details'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminOrdersReportScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                contentPadding: const EdgeInsets.only(left: 72),
+                title: const Text('Stores Details'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AdminStoresReportScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
           ListTile(
             leading: const Icon(Icons.store),

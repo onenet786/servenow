@@ -146,11 +146,21 @@ router.post('/', authenticateToken, async (req, res) => {
 // Get all orders (Admin only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const { status } = req.query;
-        let whereClause = '';
+        const { status, store_id } = req.query;
+        let whereClauses = [];
+        let params = [];
+
         if (status && status !== 'all') {
-            whereClause = `WHERE o.status = '${status}'`;
+            whereClauses.push('o.status = ?');
+            params.push(status);
         }
+
+        if (store_id) {
+            whereClauses.push('o.store_id = ?');
+            params.push(store_id);
+        }
+
+        const whereClause = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
         const [orders] = await req.db.execute(`
             SELECT o.*, u.first_name, u.last_name, u.email, s.name as store_name,
@@ -162,7 +172,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
             LEFT JOIN riders r ON o.rider_id = r.id
             ${whereClause}
             ORDER BY o.created_at DESC
-        `);
+        `, params);
 
         res.json({
             success: true,
