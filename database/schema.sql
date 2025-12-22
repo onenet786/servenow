@@ -33,6 +33,7 @@ CREATE TABLE stores (
     delivery_time VARCHAR(50),
     opening_time TIME DEFAULT NULL,
     closing_time TIME DEFAULT NULL,
+    payment_term ENUM('Cash Only','Cash with Discount','Credit','Credit with Discount') DEFAULT NULL,
     phone VARCHAR(20),
     email VARCHAR(100),
     address TEXT,
@@ -58,6 +59,7 @@ CREATE TABLE products (
     id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     description TEXT,
+    cost_price DECIMAL(10, 2) DEFAULT NULL,
     price DECIMAL(10, 2) NOT NULL,
     image_url VARCHAR(255),
     -- Image color metadata for client-side rendering without canvas
