@@ -59,7 +59,7 @@ router.get('/', async (req, res) => {
         }
 
         const [stores] = await req.db.execute(`
-            SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
+            SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, u.email as owner_email
             FROM stores s
             LEFT JOIN users u ON s.owner_id = u.id
             WHERE ${whereClauses.join(' AND ')}
@@ -74,6 +74,7 @@ router.get('/', async (req, res) => {
                 location: store.location,
                 opening_time: store.opening_time || null,
                 closing_time: store.closing_time || null,
+                payment_term: store.payment_term || null,
                 latitude: store.latitude,
                 longitude: store.longitude,
                 rating: store.rating,
@@ -84,8 +85,9 @@ router.get('/', async (req, res) => {
                 description: store.description,
                 image_url: store.cover_image || null,
                 is_active: store.is_active,
-                owner_name: store.owner_first_name && store.owner_last_name ?
-                    `${store.owner_first_name} ${store.owner_last_name}` : null
+                owner_id: store.owner_id || null,
+                owner_email: store.owner_email || null,
+                owner_name: store.owner_name || null
             }))
         })
 
@@ -105,7 +107,7 @@ router.get('/:id', async (req, res) => {
         const { id } = req.params
 
         const [stores] = await req.db.execute(`
-            SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name
+            SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, u.email as owner_email
             FROM stores s
             LEFT JOIN users u ON s.owner_id = u.id
             WHERE s.id = ? AND s.is_active = true
@@ -138,6 +140,7 @@ router.get('/:id', async (req, res) => {
                 location: store.location,
                 opening_time: store.opening_time || null,
                 closing_time: store.closing_time || null,
+                payment_term: store.payment_term || null,
                 latitude: store.latitude,
                 longitude: store.longitude,
                 rating: store.rating,
@@ -148,8 +151,8 @@ router.get('/:id', async (req, res) => {
                 description: store.description,
                 owner_id: store.owner_id,
                 image_url: store.cover_image || null,
-                owner_name: store.owner_first_name && store.owner_last_name ?
-                    `${store.owner_first_name} ${store.owner_last_name}` : null
+                owner_email: store.owner_email || null,
+                owner_name: store.owner_name || null
             },
             products: products.map(product => ({
                 id: product.id,
@@ -196,6 +199,7 @@ router.post('/', authenticateToken, requireStoreOwner, [
         const {
             name,
             description,
+            owner_name,
             location,
             latitude,
             longitude,
@@ -204,17 +208,20 @@ router.post('/', authenticateToken, requireStoreOwner, [
             email,
             address,
             opening_time, closing_time,
+            payment_term,
             image_url
         } = req.body
 
         // If user is store owner, they can only create stores for themselves
         // If user is admin, they can create stores for any owner
-        const ownerId = req.user.user_type === 'admin' ? req.body.owner_id || req.user.id : req.user.id
+        const rawOwnerId = req.user.user_type === 'admin' ? (req.body.owner_id ?? req.user.id) : req.user.id
+        const parsedOwnerId = rawOwnerId === null || rawOwnerId === undefined ? null : parseInt(String(rawOwnerId), 10)
+        const ownerId = Number.isFinite(parsedOwnerId) && parsedOwnerId > 0 ? parsedOwnerId : null
 
         const [result] = await req.db.execute(
-            `INSERT INTO stores (name, description, location, latitude, longitude, delivery_time, opening_time, closing_time, phone, email, address, owner_id, cover_image)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name, description || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, phone || null, email || null, address || null, ownerId, image_url || null]
+            `INSERT INTO stores (name, description, owner_name, location, latitude, longitude, delivery_time, opening_time, closing_time, payment_term, phone, email, address, owner_id, cover_image)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [name, description || null, owner_name || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, payment_term || null, phone || null, email || null, address || null, ownerId, image_url || null]
         )
 
         res.status(201).json({
@@ -225,6 +232,7 @@ router.post('/', authenticateToken, requireStoreOwner, [
                 name,
                 location,
                 owner_id: ownerId,
+                owner_name: owner_name || null,
                 image_url: image_url || null
             }
         })
@@ -284,6 +292,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         const {
             name,
             description,
+            owner_name,
             location,
             latitude,
             longitude,
@@ -294,6 +303,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             is_active,
             opening_time,
             closing_time,
+            payment_term,
             image_url
         } = req.body
 
@@ -302,12 +312,14 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
 
         if (name !== undefined) { updateFields.push('name = ?'); updateValues.push(name) }
         if (description !== undefined) { updateFields.push('description = ?'); updateValues.push(description) }
+        if (owner_name !== undefined) { updateFields.push('owner_name = ?'); updateValues.push(owner_name) }
         if (location !== undefined) { updateFields.push('location = ?'); updateValues.push(location) }
         if (latitude !== undefined) { updateFields.push('latitude = ?'); updateValues.push(latitude) }
         if (longitude !== undefined) { updateFields.push('longitude = ?'); updateValues.push(longitude) }
         if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateValues.push(delivery_time) }
         if (opening_time !== undefined) { updateFields.push('opening_time = ?'); updateValues.push(opening_time) }
         if (closing_time !== undefined) { updateFields.push('closing_time = ?'); updateValues.push(closing_time) }
+        if (payment_term !== undefined) { updateFields.push('payment_term = ?'); updateValues.push(payment_term) }
         if (phone !== undefined) { updateFields.push('phone = ?'); updateValues.push(phone) }
         if (email !== undefined) { updateFields.push('email = ?'); updateValues.push(email) }
         if (address !== undefined) { updateFields.push('address = ?'); updateValues.push(address) }

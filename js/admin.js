@@ -21,6 +21,7 @@ let currentUnits = [];
 let currentSizes = [];
 let editingUnitId = null;
 let editingSizeId = null;
+let productStoreTermsById = {};
 
 // Sorting state for each table
 let sortState = {
@@ -229,7 +230,6 @@ function initializeAdmin() {
                 const tableContainer = unitsTab.querySelector('.table-container');
                 if (tableContainer) unitsTab.insertBefore(btn, tableContainer);
                 else unitsTab.appendChild(btn);
-                console.debug('admin:init created fallback addUnitBtn');
                 addUnitBtn = btn;
             }
         } catch (e) { console.error('Error creating fallback addUnitBtn', e); }
@@ -237,7 +237,6 @@ function initializeAdmin() {
     if (addUnitBtn) addUnitBtn.addEventListener('click', () => showAddUnitModal());
 
     let addSizeBtn = document.getElementById('addSizeBtn');
-    console.debug('admin:init addSizeBtn present:', !!addSizeBtn);
     if (!addSizeBtn) {
         // Create a fallback Add Size button if missing in the DOM
         try {
@@ -251,7 +250,6 @@ function initializeAdmin() {
                 const tableContainer2 = sizesTab.querySelector('.table-container');
                 if (tableContainer2) sizesTab.insertBefore(btn2, tableContainer2);
                 else sizesTab.appendChild(btn2);
-                console.debug('admin:init created fallback addSizeBtn');
                 addSizeBtn = btn2;
             }
         } catch (e) { console.error('Error creating fallback addSizeBtn', e); }
@@ -478,9 +476,6 @@ function initializeAdmin() {
     try { loadSizes(); } catch(e) { /* ignore */ }
 
 
-// Fallback delegated click handlers: ensure Add buttons always work even if
-// their direct listeners weren't attached (helps diagnose missing bindings).
-console.debug('admin: registering delegated click handlers');
 document.addEventListener('click', function(e) {
     try {
         const t = e.target;
@@ -489,7 +484,6 @@ document.addEventListener('click', function(e) {
         const btn = t.closest ? t.closest('#addUnitBtn') || (t.id === 'addUnitBtn' ? t : null) : (t.id === 'addUnitBtn' ? t : null);
         if (btn) {
             e.preventDefault();
-            console.debug('Delegated click: addUnitBtn');
             try { showAddUnitModal(); } catch (err) { console.error('showAddUnitModal error', err); }
             return;
         }
@@ -497,7 +491,6 @@ document.addEventListener('click', function(e) {
         const btn2 = t.closest ? t.closest('#addSizeBtn') || (t.id === 'addSizeBtn' ? t : null) : (t.id === 'addSizeBtn' ? t : null);
         if (btn2) {
             e.preventDefault();
-            console.debug('Delegated click: addSizeBtn');
             try { showAddSizeModal(); } catch (err) { console.error('showAddSizeModal error', err); }
             return;
         }
@@ -518,56 +511,6 @@ document.addEventListener('click', function(e) {
         }
     } catch (e) { /* ignore delegated handler errors */ }
 });
-
-// Capture-phase listeners to help trace pointer and click events before any
-// other handlers may stopPropagation. These log minimal info to avoid spam.
-document.addEventListener('pointerdown', function(e) {
-    try {
-        const t = e.target;
-        const path = (e.composedPath && e.composedPath().slice(0,5)) || [t, t.parentNode, t.parentElement];
-        if (t && (t.id === 'addUnitBtn' || t.closest && t.closest('#addUnitBtn'))) {
-            console.debug('capture:pointerdown on addUnitBtn, path:', path.map(p => p && p.id).slice(0,5));
-        }
-        if (t && (t.id === 'addSizeBtn' || t.closest && t.closest('#addSizeBtn'))) {
-            console.debug('capture:pointerdown on addSizeBtn, path:', path.map(p => p && p.id).slice(0,5));
-        }
-    } catch (e) { /* ignore */ }
-}, true);
-
-document.addEventListener('click', function(e) {
-    try {
-        const t = e.target;
-        if (t && (t.id === 'addUnitBtn' || (t.closest && t.closest('#addUnitBtn')))) {
-            console.debug('capture:click reached addUnitBtn (bubble phase handler)');
-        }
-        if (t && (t.id === 'addSizeBtn' || (t.closest && t.closest('#addSizeBtn')))) {
-            console.debug('capture:click reached addSizeBtn (bubble phase handler)');
-        }
-    } catch (e) { /* ignore */ }
-}, true);
-
-// Temporary keyboard shortcut and diagnostic helper:
-// Press 'u' to open the Units modal (works even if the button is missing).
-document.addEventListener('keydown', function(e) {
-    // ignore when focused on input/textarea to avoid interfering with typing
-    const tag = (document.activeElement && document.activeElement.tagName) || '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement && document.activeElement.isContentEditable) return;
-    if (e.key === 'u' || e.key === 'U') {
-        console.debug('keyboard: open Units modal (shortcut)');
-        try { showAddUnitModal(); } catch (err) { console.error('keyboard showAddUnitModal error', err); }
-    }
-});
-
-// Diagnostic helper exposed under window for quick checks from console
-window._adminDiag = window._adminDiag || {};
-window._adminDiag.checkAddUnitPresence = function() {
-    const byId = document.getElementById('addUnitBtn');
-    const qs = document.querySelectorAll('#addUnitBtn');
-    console.log('getElementById:', byId, 'querySelectorAll length:', qs.length);
-    if (byId) console.log('addUnitBtn parent:', byId.parentElement && byId.parentElement.id, 'outerHTML snippet:', byId.outerHTML.slice(0,200));
-    console.log('document contains "addUnitBtn" string?', document.body.innerHTML.indexOf('addUnitBtn') !== -1);
-    return { byId: !!byId, foundCount: qs.length };
-};
 
 // Delegated handlers for Save buttons (in case direct listeners didn't attach)
 document.addEventListener('click', function(e) {
@@ -590,7 +533,6 @@ document.addEventListener('click', function(e) {
         const saveSizeBtn = t.closest ? t.closest('#saveSizeBtn') || (t.id === 'saveSizeBtn' ? t : null) : (t.id === 'saveSizeBtn' ? t : null);
         if (saveSizeBtn) {
             e.preventDefault();
-            console.debug('Delegated click: saveSizeBtn');
             try { saveSize(); } catch (err) { console.error('saveSize error', err); }
             return;
         }
@@ -737,12 +679,6 @@ function loadReportRiders() {
         showError('Error', 'Failed to load rider list for filtering');
     });
 
-    // Close modal when clicking outside of it
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('modal')) {
-            hideModal(e.target.id);
-        }
-    });
     attachPhoneFormatHandlers();
 }
 
@@ -2410,15 +2346,12 @@ async function deleteSize(sizeId) {
 
 // Modal functions
 function showModal(modalId) {
-    // Hide any other open modals first so only one modal is visible at a time
-    document.querySelectorAll('.modal').forEach(m => {
-        try { m.style.display = 'none'; } catch (e) { /* ignore */ }
-    });
     const el = document.getElementById(modalId);
     if (!el) {
         console.warn('showModal: modal not found', modalId);
         return;
     }
+    let content = null;
     // If the modal is nested inside another hidden container, move it to
     // `document.body` so it's not affected by ancestor visibility/display.
     try {
@@ -2429,13 +2362,20 @@ function showModal(modalId) {
 
     // Ensure modal is visible and on top; apply robust visibility fixes
     try {
+        const all = Array.from(document.querySelectorAll('.modal'));
+        let maxZ = 9999;
+        all.forEach(m => {
+            const z = parseInt((m && m.style && m.style.zIndex) ? String(m.style.zIndex) : '0', 10);
+            if (Number.isFinite(z) && z > maxZ) maxZ = z;
+        });
+        const nextZ = maxZ + 2;
         el.classList.add('show');
         el.style.display = 'block';
         el.style.visibility = 'visible';
         el.style.pointerEvents = 'auto';
-        el.style.zIndex = 9999;
+        el.style.zIndex = nextZ;
 
-        const content = el.querySelector('.modal-content');
+        content = el.querySelector('.modal-content');
         if (content) {
             content.style.display = 'block';
             content.style.visibility = 'visible';
@@ -2443,7 +2383,7 @@ function showModal(modalId) {
             content.style.transform = 'none';
             content.style.opacity = '1';
             // ensure content is in front
-            content.style.zIndex = 10000;
+            content.style.zIndex = nextZ + 1;
         }
         const overlay = document.querySelector('.nav-overlay');
         if (overlay) {
@@ -2463,14 +2403,6 @@ function showModal(modalId) {
         }
     } catch (e) { /* ignore focus errors */ }
 
-    // Debug computed style to help if the form remains hidden
-    try {
-        const cs = getComputedStyle(el);
-        const csContent = content ? getComputedStyle(content) : null;
-        console.debug('showModal: opened', modalId, 'modalStyle:', {display: cs.display, visibility: cs.visibility, zIndex: cs.zIndex}, 'contentStyle:', csContent && {display: csContent.display, visibility: csContent.visibility, opacity: csContent.opacity, pointerEvents: csContent.pointerEvents});
-    } catch (e) { /* ignore */ }
-
-    console.debug('showModal: opened', modalId);
 }
 
 function hideModal(modalId) {
@@ -2798,6 +2730,115 @@ async function populateStoreCategorySelect(selectedId = null) {
         categorySelect.value = String(selectedId);
     }
 }
+
+function setProductStoreTerms(stores) {
+    productStoreTermsById = {};
+    (stores || []).forEach(s => {
+        if (s && s.id !== undefined && s.id !== null) {
+            productStoreTermsById[String(s.id)] = s.payment_term || '';
+        }
+    });
+}
+
+function isDiscountPaymentTerm(term) {
+    return String(term || '').toLowerCase().includes('with discount');
+}
+
+function recalcProductCost() {
+    const priceEl = document.getElementById('productPrice');
+    const costEl = document.getElementById('productCostPrice');
+    const storeEl = document.getElementById('productStore');
+    const discountRow = document.getElementById('productDiscountRow');
+    const discountTypeEl = document.getElementById('productDiscountType');
+    const discountValueEl = document.getElementById('productDiscountValue');
+    if (!priceEl || !costEl || !storeEl) return;
+
+    const term = productStoreTermsById[String(storeEl.value || '')] || '';
+    const hasDiscount = isDiscountPaymentTerm(term);
+    if (discountRow) discountRow.style.display = hasDiscount ? '' : 'none';
+
+    const rawPrice = String(priceEl.value || '').trim();
+    const price = rawPrice.length ? parseFloat(rawPrice) : NaN;
+    if (!Number.isFinite(price) || price < 0) {
+        return;
+    }
+
+    let cost = price;
+    if (hasDiscount) {
+        const dtype = String(discountTypeEl?.value || 'amount');
+        const rawD = String(discountValueEl?.value || '').trim();
+        const dval = rawD.length ? parseFloat(rawD) : NaN;
+        if (Number.isFinite(dval) && dval > 0) {
+            const disc = dtype === 'percent' ? (price * dval / 100) : dval;
+            cost = price - disc;
+        }
+    } else {
+        if (discountValueEl) discountValueEl.value = '';
+        if (discountTypeEl) discountTypeEl.value = 'amount';
+    }
+
+    if (!Number.isFinite(cost) || cost < 0) cost = 0;
+    costEl.readOnly = true;
+    costEl.value = (Math.round(cost * 100) / 100).toFixed(2);
+}
+
+function bindProductPriceCalc() {
+    const formEl = document.getElementById('addProductForm');
+    if (!formEl || formEl.dataset.boundPriceCalc) return;
+    formEl.dataset.boundPriceCalc = '1';
+    ['productStore', 'productPrice', 'productDiscountType', 'productDiscountValue'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', recalcProductCost);
+        el.addEventListener('input', recalcProductCost);
+    });
+}
+
+function applyProductMeasureMode(mode) {
+    const unitSelect = document.getElementById('productUnit');
+    const sizeSelect = document.getElementById('productSize');
+    const unitRadio = document.getElementById('productMeasureModeUnit');
+    const sizeRadio = document.getElementById('productMeasureModeSize');
+    const m = String(mode || '').toLowerCase() === 'size' ? 'size' : 'unit';
+    if (unitRadio) unitRadio.checked = m === 'unit';
+    if (sizeRadio) sizeRadio.checked = m === 'size';
+    if (unitSelect) unitSelect.disabled = m !== 'unit';
+    if (sizeSelect) sizeSelect.disabled = m !== 'size';
+    if (m === 'unit' && sizeSelect) sizeSelect.value = '';
+    if (m === 'size' && unitSelect) unitSelect.value = '';
+}
+
+function syncProductMeasureModeFromValues() {
+    const unitSelect = document.getElementById('productUnit');
+    const sizeSelect = document.getElementById('productSize');
+    const hasUnit = !!(unitSelect && String(unitSelect.value || '').trim());
+    const hasSize = !!(sizeSelect && String(sizeSelect.value || '').trim());
+    if (hasSize) applyProductMeasureMode('size');
+    else if (hasUnit) applyProductMeasureMode('unit');
+    else {
+        const unitRadio = document.getElementById('productMeasureModeUnit');
+        const sizeRadio = document.getElementById('productMeasureModeSize');
+        if (sizeRadio && sizeRadio.checked) applyProductMeasureMode('size');
+        else if (unitRadio && unitRadio.checked) applyProductMeasureMode('unit');
+        else applyProductMeasureMode('unit');
+    }
+}
+
+function bindProductMeasureMode() {
+    const formEl = document.getElementById('addProductForm');
+    if (!formEl || formEl.dataset.boundMeasureMode) return;
+    formEl.dataset.boundMeasureMode = '1';
+    const unitRadio = document.getElementById('productMeasureModeUnit');
+    const sizeRadio = document.getElementById('productMeasureModeSize');
+    if (unitRadio) unitRadio.addEventListener('change', () => { if (unitRadio.checked) applyProductMeasureMode('unit'); });
+    if (sizeRadio) sizeRadio.addEventListener('change', () => { if (sizeRadio.checked) applyProductMeasureMode('size'); });
+    const unitSelect = document.getElementById('productUnit');
+    const sizeSelect = document.getElementById('productSize');
+    if (unitSelect) unitSelect.addEventListener('change', () => { if (unitSelect.value) applyProductMeasureMode('unit'); });
+    if (sizeSelect) sizeSelect.addEventListener('change', () => { if (sizeSelect.value) applyProductMeasureMode('size'); });
+    syncProductMeasureModeFromValues();
+}
+
 // Product Management Functions
 async function showAddProductModal() {
     // Load stores and categories for dropdowns
@@ -2820,6 +2861,8 @@ async function showAddProductModal() {
                 storeSelect.innerHTML += `<option value="${store.id}">${store.name}</option>`;
             });
         }
+        setProductStoreTerms((storesData && storesData.stores) || []);
+        bindProductPriceCalc();
 
         // Populate category dropdown
         const categorySelect = document.getElementById('productCategory');
@@ -2831,6 +2874,7 @@ async function showAddProductModal() {
         }
 
         const itemSelect = document.getElementById('productItem');
+        let applyItemSelection = null;
         if (itemSelect) {
             // build map for quick lookup
             const productsById = {};
@@ -2850,7 +2894,7 @@ async function showAddProductModal() {
             const catSel = document.getElementById('productCategory');
             const priceEl = document.getElementById('productPrice');
 
-            const applyItemSelection = (val) => {
+            applyItemSelection = (val) => {
                 const usingItem = !!val;
                 if (nameEl) { nameEl.readOnly = usingItem; nameEl.required = !usingItem; }
                 if (descEl) { descEl.readOnly = usingItem; }
@@ -2870,6 +2914,8 @@ async function showAddProductModal() {
                     if (nameEl) nameEl.value = nameEl.value || '';
                     if (descEl) descEl.value = descEl.value || '';
                 }
+                try { syncProductMeasureModeFromValues(); } catch (e) {}
+                try { recalcProductCost(); } catch (e) {}
             };
 
             itemSelect.addEventListener('change', (e) => applyItemSelection(e.target.value));
@@ -2907,6 +2953,15 @@ async function showAddProductModal() {
         }
 
         try {
+            bindProductMeasureMode();
+            if (typeof applyItemSelection === 'function') {
+                const itemSelect2 = document.getElementById('productItem');
+                if (itemSelect2) applyItemSelection(itemSelect2.value);
+            }
+            syncProductMeasureModeFromValues();
+        } catch (e) {}
+
+        try {
             const modal = document.getElementById('addProductModal');
             if (modal) {
                 const titleEl = modal.querySelector('.modal-header h3');
@@ -2914,6 +2969,17 @@ async function showAddProductModal() {
                 const saveBtn = modal.querySelector('#saveProductBtn');
                 if (saveBtn) saveBtn.textContent = 'Save Product';
             }
+        } catch (e) {}
+        try {
+            const costEl = document.getElementById('productCostPrice');
+            const priceEl = document.getElementById('productPrice');
+            if (costEl) costEl.value = '';
+            if (priceEl) priceEl.value = '';
+            const discountTypeEl = document.getElementById('productDiscountType');
+            const discountValueEl = document.getElementById('productDiscountValue');
+            if (discountTypeEl) discountTypeEl.value = 'amount';
+            if (discountValueEl) discountValueEl.value = '';
+            recalcProductCost();
         } catch (e) {}
         showModal('addProductModal');
         const fileInput = document.getElementById('productImageFile');
@@ -2944,36 +3010,55 @@ async function saveProduct() {
     const formEl = document.getElementById('addProductForm');
     const formData = new FormData(formEl);
     const rawStoreId = formData.get('store_id');
-    const rawPrice = formData.get('price');
     const rawName = (formData.get('name') || '').trim();
     const rawItemId = formData.get('item_id') || '';
     const storeId = parseInt(rawStoreId, 10);
-    const priceVal = parseFloat(rawPrice);
     const usingTemplate = !!rawItemId;
+    const rawCostPrice = formData.get('cost_price');
+    const rawCost = String(rawCostPrice || '').trim();
+    const isEditing = !!editingProductId;
+    const costPriceVal = rawCost.length ? parseFloat(rawCost) : NaN;
+    const rawPrice = String(formData.get('price') || '').trim();
+    const priceVal = rawPrice.length ? parseFloat(rawPrice) : NaN;
 
     if (!Number.isInteger(storeId) || storeId <= 0) {
         showError('Invalid Input', 'Please select a store');
-        return;
-    }
-    if (!Number.isFinite(priceVal) || priceVal < 0) {
-        showError('Invalid Input', 'Please enter a valid price');
         return;
     }
     if (!usingTemplate && rawName.length < 2) {
         showError('Invalid Input', 'Please enter a product name or choose an existing product');
         return;
     }
+    if (!Number.isFinite(priceVal) || priceVal < 0) {
+        showError('Invalid Input', 'Please enter a valid price');
+        return;
+    }
+    try { recalcProductCost(); } catch (e) {}
+    const finalCostVal = parseFloat(String(document.getElementById('productCostPrice')?.value || '').trim());
+    if (!Number.isFinite(finalCostVal) || finalCostVal < 0) {
+        showError('Invalid Input', 'Unable to calculate a valid cost price');
+        return;
+    }
 
     const productData = {
         name: rawName,
         description: formData.get('description'),
-        price: priceVal,
         category_id: formData.get('category_id') || null,
         store_id: storeId,
         stock_quantity: parseInt(formData.get('stock_quantity'), 10) || 0,
         unit_id: formData.get('unit_id') || null,
-        size_id: formData.get('size_id') || null
+        size_id: formData.get('size_id') || null,
+        price: priceVal
     };
+    const modeRaw = String(formData.get('product_measure_mode') || '').trim().toLowerCase();
+    if (modeRaw === 'size') productData.unit_id = null;
+    else if (modeRaw === 'unit') productData.size_id = null;
+    else if (productData.size_id) productData.unit_id = null;
+    productData.cost_price = finalCostVal;
+    const discountType = String(formData.get('discount_type') || '').trim();
+    const discountValueRaw = String(formData.get('discount_value') || '').trim();
+    if (discountType) productData.discount_type = discountType;
+    if (discountValueRaw.length) productData.discount_value = parseFloat(discountValueRaw);
 
     // If a file was selected, upload it first to server to get back a public URL and variants
     const fileInput = document.getElementById('productImageFile');
@@ -3052,25 +3137,30 @@ async function saveProduct() {
 
 async function editProduct(productId) {
     // Open edit modal and populate fields
-    editingProductId = productId;
+    const id = parseInt(productId, 10);
+    if (!Number.isInteger(id) || id <= 0) {
+        showError('Error', 'Invalid product ID');
+        return;
+    }
+    editingProductId = id;
     try {
-        const resp = await fetch(`${API_BASE}/api/products/${productId}?admin=1`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        const resp = await fetch(`${API_BASE}/api/products/${id}?admin=1`, { headers: { 'Authorization': `Bearer ${authToken}` } });
         const data = await resp.json();
         if (!data.success || !data.product) {
             showError('Error', 'Failed to load product for editing');
             return;
         }
         const p = data.product;
-        const [storesResponse, categoriesResponse, itemsResponse, unitsResp, sizesResp] = await Promise.all([
+        const [storesResponse, categoriesResponse, productsResponse, unitsResp, sizesResp] = await Promise.all([
             fetch(`${API_BASE}/api/stores`),
             fetch(`${API_BASE}/api/categories`),
-            fetch(`${API_BASE}/api/products/items`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
+            fetch(`${API_BASE}/api/products?admin=1`, { headers: { 'Authorization': `Bearer ${authToken}` } }),
             fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' }),
             fetch(`${API_BASE}/api/sizes?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' })
         ]);
         const storesData = await storesResponse.json();
         const categoriesData = await categoriesResponse.json();
-        const itemsData = await itemsResponse.json();
+        const productsData = await productsResponse.json();
         const unitsJson = await unitsResp.json();
         const sizesJson = await sizesResp.json();
         const form = document.getElementById('addProductForm');
@@ -3087,6 +3177,8 @@ async function editProduct(productId) {
                 });
             }
         }
+        setProductStoreTerms((storesData && storesData.stores) || []);
+        bindProductPriceCalc();
         if (categorySelect) {
             categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
             if (categoriesData && categoriesData.success && Array.isArray(categoriesData.categories)) {
@@ -3111,18 +3203,48 @@ async function editProduct(productId) {
                 });
             }
         }
-        let itemsById = {};
+        try { bindProductMeasureMode(); } catch (e) {}
+        const productsById = {};
         if (itemSelect) {
-            if (itemsData && itemsData.success && Array.isArray(itemsData.items)) {
+            if (productsData && productsData.success && Array.isArray(productsData.products)) {
                 itemSelect.innerHTML = '<option value="">None</option>';
-                itemsData.items.forEach(it => {
-                    itemsById[it.id] = it;
-                    const label = it.category_name ? `${it.name} — ${it.category_name}` : it.name;
-                    itemSelect.innerHTML += `<option value="${it.id}">${label}</option>`;
+                productsData.products.forEach(prod => {
+                    productsById[prod.id] = prod;
+                    const label = prod.category_name ? `${prod.name} — ${prod.category_name}` : prod.name;
+                    itemSelect.innerHTML += `<option value="${prod.id}">${label}</option>`;
                 });
             }
+
+            const nameEl = document.getElementById('productName');
+            const descEl = document.getElementById('productDescription');
+            const unitSel = document.getElementById('productUnit');
+            const sizeSel = document.getElementById('productSize');
+            const catSel = document.getElementById('productCategory');
+            const priceEl = document.getElementById('productPrice');
+
+            const applyItemSelection = (val) => {
+                const usingItem = !!val;
+                if (nameEl) { nameEl.readOnly = usingItem; nameEl.required = !usingItem; }
+                if (descEl) { descEl.readOnly = usingItem; }
+
+                if (usingItem && productsById[val]) {
+                    const prod = productsById[val];
+                    if (nameEl) nameEl.value = prod.name || '';
+                    if (descEl) descEl.value = prod.description || '';
+                    if (catSel && prod.category_id) catSel.value = prod.category_id;
+                    if (unitSel && prod.unit_id) unitSel.value = prod.unit_id;
+                    if (sizeSel && prod.size_id) sizeSel.value = prod.size_id;
+                    if (priceEl && prod.price !== undefined && prod.price !== null) priceEl.value = prod.price;
+                }
+                try { syncProductMeasureModeFromValues(); } catch (e) {}
+                try { recalcProductCost(); } catch (e) {}
+            };
+
+            itemSelect.onchange = (e) => applyItemSelection(e.target.value);
+            applyItemSelection(itemSelect.value);
         }
         form.querySelector('#productName').value = p.name || '';
+        if (form.querySelector('#productCostPrice')) form.querySelector('#productCostPrice').value = (p.cost_price !== undefined && p.cost_price !== null) ? p.cost_price : '';
         form.querySelector('#productPrice').value = p.price || '';
         form.querySelector('#productDescription').value = p.description || '';
         form.querySelector('#productStock').value = p.stock_quantity || 0;
@@ -3134,20 +3256,36 @@ async function editProduct(productId) {
         if (p.category_id && categorySelect) categorySelect.value = p.category_id;
         if (p.unit_id && unitSelect) unitSelect.value = p.unit_id;
         if (p.size_id && sizeSelect) sizeSelect.value = p.size_id;
+        try { syncProductMeasureModeFromValues(); } catch (e) {}
+        if (isDiscountPaymentTerm(productStoreTermsById[String(p.store_id || '')] || '')) {
+            const priceNum = parseFloat(String(p.price ?? '').trim());
+            const costNum = parseFloat(String(p.cost_price ?? '').trim());
+            const discountTypeEl = document.getElementById('productDiscountType');
+            const discountValueEl = document.getElementById('productDiscountValue');
+            if (Number.isFinite(priceNum) && Number.isFinite(costNum) && priceNum > 0) {
+                const delta = priceNum - costNum;
+                if (delta > 0) {
+                    if (discountTypeEl) discountTypeEl.value = 'amount';
+                    if (discountValueEl) discountValueEl.value = (Math.round(delta * 100) / 100).toFixed(2);
+                }
+            }
+        }
+        try { recalcProductCost(); } catch (e) {}
         if (itemSelect) {
             if (p.item_id) {
                 itemSelect.value = p.item_id;
                 const useItem = true;
                 const nameEl = document.getElementById('productName');
                 const descEl = document.getElementById('productDescription');
-                if (nameEl) nameEl.disabled = useItem;
-                if (descEl) descEl.disabled = useItem;
-                const it = itemsById[p.item_id];
-                if (it) {
-                    if (categorySelect && it.category_id) categorySelect.value = it.category_id;
-                    if (unitSelect && it.unit_id) unitSelect.value = it.unit_id;
-                    if (sizeSelect && it.size_id) sizeSelect.value = it.size_id;
+                if (nameEl) { nameEl.readOnly = useItem; nameEl.required = !useItem; }
+                if (descEl) { descEl.readOnly = useItem; }
+                const prod = productsById[p.item_id];
+                if (prod) {
+                    if (categorySelect && prod.category_id) categorySelect.value = prod.category_id;
+                    if (unitSelect && prod.unit_id) unitSelect.value = prod.unit_id;
+                    if (sizeSelect && prod.size_id) sizeSelect.value = prod.size_id;
                 }
+                try { syncProductMeasureModeFromValues(); } catch (e) {}
             } else {
                 itemSelect.value = '';
             }
@@ -4437,12 +4575,13 @@ function displayStores(stores) {
     tbody.innerHTML = '';
 
     stores.forEach(store => {
+        const ownerDisplay = store.owner_name || '-';
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${store.id}</td>
             <td>${store.name}</td>
             <td>${store.location}</td>
-            <td>${store.owner_name || 'Admin'}</td>
+            <td>${ownerDisplay}</td>
             <td>${store.rating} ⭐</td>
             <td><span class="status-${store.is_active ? 'active' : 'inactive'}">${store.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
@@ -4481,7 +4620,7 @@ function displayStores(stores) {
             const statusPillBg = s.is_active ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
             const imgSrc = s.image_url ? String(s.image_url).trim().replace(/\\/g, '/') : '';
             const safeImg = imgSrc ? (imgSrc.startsWith('http') || imgSrc.startsWith('data:') ? imgSrc : (API_BASE.replace(/\/$/, '') + '/' + imgSrc.replace(/^\/+/, ''))) : '';
-            const owner = s.owner_name || 'Admin';
+            const owner = s.owner_name || '-';
             const phone = s.phone || '';
             const email = s.email || '';
             const delivery = s.delivery_time || '';

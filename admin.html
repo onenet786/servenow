@@ -1073,8 +1073,31 @@
                             <input type="text" id="productName" name="name" required>
                         </div>
                         <div class="form-group">
+                            <label for="productCostPrice">Cost Price (PKR):</label>
+                            <input type="number" id="productCostPrice" name="cost_price" step="0.01" min="0" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
                             <label for="productPrice">Price (PKR):</label>
-                            <input type="number" id="productPrice" name="price" step="0.01" min="0" required>
+                            <input type="number" id="productPrice" name="price" step="0.01" min="0">
+                        </div>
+                        <div class="form-group">
+                        </div>
+                    </div>
+
+                    <div class="form-row" id="productDiscountRow" style="display:none;">
+                        <div class="form-group">
+                            <label for="productDiscountType">Discount Type:</label>
+                            <select id="productDiscountType" name="discount_type">
+                                <option value="amount">Fixed Amount</option>
+                                <option value="percent">Percentage</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="productDiscountValue">Discount Value:</label>
+                            <input type="number" id="productDiscountValue" name="discount_value" step="0.01" min="0" value="">
                         </div>
                     </div>
 
@@ -1101,6 +1124,24 @@
                             <select id="productCategory" name="category_id">
                                 <!-- Categories will be loaded dynamically -->
                             </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Use:</label>
+                            <div style="display:flex; gap:1rem; align-items:center; margin-top:0.5rem;">
+                                <label style="display:flex; gap:0.4rem; align-items:center;">
+                                    <input type="radio" id="productMeasureModeUnit" name="product_measure_mode" value="unit" checked>
+                                    Unit
+                                </label>
+                                <label style="display:flex; gap:0.4rem; align-items:center;">
+                                    <input type="radio" id="productMeasureModeSize" name="product_measure_mode" value="size">
+                                    Size
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group">
                         </div>
                     </div>
 

@@ -11,6 +11,36 @@ const sharp = (() => {
 })();
 const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') });
 
+function roundMoney(val) {
+    const n = Number(val);
+    if (!Number.isFinite(n)) return null;
+    return Math.round(n * 100) / 100;
+}
+
+function isDiscountPaymentTerm(term) {
+    return String(term || '').toLowerCase().includes('with discount');
+}
+
+function computeCostFromPrice({ price, discountType, discountValue }) {
+    const p = Number(price);
+    if (!Number.isFinite(p) || p < 0) return null;
+    const dv = Number(discountValue);
+    if (!Number.isFinite(dv) || dv <= 0) return roundMoney(p);
+    const type = String(discountType || 'amount');
+    const disc = type === 'percent' ? (p * dv / 100) : dv;
+    const out = p - disc;
+    return roundMoney(out < 0 ? 0 : out);
+}
+
+function normalizeNumber(val) {
+    if (val === undefined || val === null) return { present: false, value: null, ok: true };
+    const s = String(val).trim();
+    if (s.length === 0) return { present: false, value: null, ok: true };
+    const n = Number(s);
+    if (!Number.isFinite(n)) return { present: true, value: null, ok: false };
+    return { present: true, value: n, ok: n >= 0 };
+}
+
 // Helper: given a public imageUrl like '/uploads/xxx.jpg', compute avg RGB and overlay alpha using sharp
 async function extractImageVarsFromPath(imageUrl) {
     try {
@@ -169,6 +199,7 @@ router.get('/', optionalAuth, async (req, res) => {
                 id: product.id,
                 name: product.name,
                 description: product.description,
+                cost_price: product.cost_price,
                 price: product.price,
                 image_url: product.image_url,
                 image_variants: getImageVariants(product.image_url),
@@ -313,6 +344,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
                 id: product.id,
                 name: product.name,
                 description: product.description,
+                cost_price: product.cost_price,
                 price: product.price,
                 image_url: product.image_url,
                 image_variants: getImageVariants(product.image_url),
@@ -428,6 +460,9 @@ router.post('/export-base64-images', authenticateToken, requireAdmin, async (req
 router.post('/', authenticateToken, requireStoreOwner, [
     body('name').trim().isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
     body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
+    body('cost_price').optional().isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
+    body('discount_type').optional().isIn(['amount', 'percent']).withMessage('Invalid discount type'),
+    body('discount_value').optional().isFloat({ min: 0 }).withMessage('Discount value must be a positive number'),
     body('store_id').isInt().withMessage('Store ID must be a valid integer'),
     body('stock_quantity').optional().isInt({ min: 0 }).withMessage('Stock quantity must be a non-negative integer')
 ], async (req, res) => {
@@ -441,21 +476,22 @@ router.post('/', authenticateToken, requireStoreOwner, [
             });
         }
 
-        const {
-            name,
-            description,
-            price,
-            image_url,
-            category_id,
-            store_id,
-            stock_quantity = 0,
-            unit_id = null,
-            size_id = null
-        } = req.body;
+        const name = req.body.name;
+        const description = req.body.description ?? null;
+        const category_id = req.body.category_id ?? null;
+        const store_id = req.body.store_id;
+        const stock_quantity = req.body.stock_quantity ?? 0;
+        const unit_id = req.body.unit_id ?? null;
+        const size_id = req.body.size_id ?? null;
+        const price = req.body.price;
+        const cost_price = req.body.cost_price;
+        const discount_type = req.body.discount_type;
+        const discount_value = req.body.discount_value;
+        let image_url = req.body.image_url ?? null;
 
         // Check if store exists and user has permission
         const [stores] = await req.db.execute(
-            'SELECT owner_id FROM stores WHERE id = ? AND is_active = true',
+            'SELECT owner_id, payment_term FROM stores WHERE id = ? AND is_active = true',
             [store_id]
         );
 
@@ -473,6 +509,31 @@ router.post('/', authenticateToken, requireStoreOwner, [
                 message: 'You do not have permission to add products to this store'
             });
         }
+
+        const normalizedPrice = normalizeNumber(price);
+        if (!normalizedPrice.present || !normalizedPrice.ok) {
+            return res.status(400).json({ success: false, message: 'Price is required' });
+        }
+        const paymentTerm = stores[0].payment_term;
+        const normalizedCost = normalizeNumber(cost_price);
+        const normalizedDiscount = normalizeNumber(discount_value);
+        let derivedCost = null;
+        if (isDiscountPaymentTerm(paymentTerm)) {
+            if (normalizedDiscount.present && normalizedDiscount.ok) {
+                derivedCost = computeCostFromPrice({ price: normalizedPrice.value, discountType: discount_type, discountValue: normalizedDiscount.value });
+            } else if (normalizedCost.present && normalizedCost.ok) {
+                derivedCost = roundMoney(normalizedCost.value);
+            } else {
+                derivedCost = roundMoney(normalizedPrice.value);
+            }
+        } else {
+            if (normalizedCost.present && normalizedCost.ok) {
+                derivedCost = roundMoney(normalizedCost.value);
+            } else {
+                derivedCost = roundMoney(normalizedPrice.value);
+            }
+        }
+        if (derivedCost === null) return res.status(400).json({ success: false, message: 'Invalid price/cost input' });
 
         // Check if category exists (if provided)
         if (category_id) {
@@ -503,20 +564,20 @@ router.post('/', authenticateToken, requireStoreOwner, [
             // prefer metadata supplied by client (e.g., from upload endpoint)
             if (!meta && req.body && (req.body.image_bg_r !== undefined || req.body.image_bg_g !== undefined)) {
                 meta = {
-                    image_bg_r: req.body.image_bg_r,
-                    image_bg_g: req.body.image_bg_g,
-                    image_bg_b: req.body.image_bg_b,
-                    image_overlay_alpha: req.body.image_overlay_alpha,
-                    image_contrast: req.body.image_contrast
+                    image_bg_r: req.body.image_bg_r ?? null,
+                    image_bg_g: req.body.image_bg_g ?? null,
+                    image_bg_b: req.body.image_bg_b ?? null,
+                    image_overlay_alpha: req.body.image_overlay_alpha ?? null,
+                    image_contrast: req.body.image_contrast ?? null
                 };
             }
 
             if (!meta) meta = await extractImageVarsFromPath(String(image_url || ''));
         } catch (e) { /* ignore */ }
 
-        const insertFields = ['name','description','price','image_url','category_id','store_id','stock_quantity'];
-        const insertPlaceholders = ['?','?','?','?','?','?','?'];
-        const insertValues = [name, description, price, image_url, category_id, store_id, stock_quantity];
+        const insertFields = ['name','description','cost_price','price','image_url','category_id','store_id','stock_quantity'];
+        const insertPlaceholders = ['?','?','?','?','?','?','?','?'];
+        const insertValues = [name, description, derivedCost, roundMoney(normalizedPrice.value), image_url, category_id, store_id, stock_quantity];
         if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
         if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
         if (meta) {
@@ -526,7 +587,28 @@ router.post('/', authenticateToken, requireStoreOwner, [
         }
 
         const sql = `INSERT INTO products (${insertFields.join(',')}) VALUES (${insertPlaceholders.join(',')})`;
-        const [result] = await req.db.execute(sql, insertValues);
+        let result;
+        try {
+            [result] = await req.db.execute(sql, insertValues);
+        } catch (e) {
+            const msg = e && e.message ? e.message : '';
+            if (e && e.code === 'ER_BAD_FIELD_ERROR' && msg.includes("Unknown column 'cost_price'")) {
+                const idx = insertFields.indexOf('cost_price');
+                if (idx !== -1) {
+                    const retryFields = insertFields.slice();
+                    const retryValues = insertValues.slice();
+                    retryFields.splice(idx, 1);
+                    retryValues.splice(idx, 1);
+                    const retryPlaceholders = retryFields.map(() => '?');
+                    const retrySql = `INSERT INTO products (${retryFields.join(',')}) VALUES (${retryPlaceholders.join(',')})`;
+                    ;[result] = await req.db.execute(retrySql, retryValues);
+                } else {
+                    throw e;
+                }
+            } else {
+                throw e;
+            }
+        }
 
         res.status(201).json({
             success: true,
@@ -534,7 +616,7 @@ router.post('/', authenticateToken, requireStoreOwner, [
             product: {
                 id: result.insertId,
                 name,
-                price,
+                price: roundMoney(normalizedPrice.value),
                 store_id
             }
         });
@@ -552,7 +634,10 @@ router.post('/', authenticateToken, requireStoreOwner, [
 // Update product (Admin or Store Owner)
 router.put('/:id', authenticateToken, requireStoreOwner, [
     body('name').optional().trim().isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
+    body('cost_price').optional().isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
     body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a positive number'),
+    body('discount_type').optional().isIn(['amount', 'percent']).withMessage('Invalid discount type'),
+    body('discount_value').optional().isFloat({ min: 0 }).withMessage('Discount value must be a positive number'),
     body('stock_quantity').optional().isInt({ min: 0 }).withMessage('Stock quantity must be a non-negative integer')
 ], async (req, res) => {
     try {
@@ -569,7 +654,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
 
         // Check if product exists and get store info
         const [products] = await req.db.execute(`
-            SELECT p.*, s.owner_id
+            SELECT p.*, s.owner_id, s.payment_term
             FROM products p
             JOIN stores s ON p.store_id = s.id
             WHERE p.id = ?
@@ -592,22 +677,71 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             });
         }
 
-        const {
-            name,
-            description,
-            price,
-            image_url,
-            category_id,
-            stock_quantity,
-            is_available
-        } = req.body;
+        const name = req.body.name;
+        const description = req.body.description;
+        const category_id = req.body.category_id;
+        const stock_quantity = req.body.stock_quantity;
+        const is_available = req.body.is_available;
+        const cost_price = req.body.cost_price;
+        const price = req.body.price;
+        const discount_type = req.body.discount_type;
+        const discount_value = req.body.discount_value;
+        let image_url = req.body.image_url;
 
         const updateFields = [];
         const updateValues = [];
 
         if (name !== undefined) { updateFields.push('name = ?'); updateValues.push(name); }
         if (description !== undefined) { updateFields.push('description = ?'); updateValues.push(description); }
-        if (price !== undefined) { updateFields.push('price = ?'); updateValues.push(price); }
+        const normalizedCost = normalizeNumber(cost_price);
+        const normalizedPrice = normalizeNumber(price);
+        const normalizedDiscount = normalizeNumber(discount_value);
+        const hasDiscount = isDiscountPaymentTerm(product.payment_term);
+
+        if (normalizedPrice.present) {
+            if (!normalizedPrice.ok) return res.status(400).json({ success: false, message: 'Invalid price' });
+            const roundedPrice = roundMoney(normalizedPrice.value);
+            updateFields.push('price = ?');
+            updateValues.push(roundedPrice);
+
+            let derivedCost = null;
+            if (hasDiscount) {
+                if (normalizedDiscount.present && normalizedDiscount.ok) {
+                    derivedCost = computeCostFromPrice({ price: roundedPrice, discountType: discount_type, discountValue: normalizedDiscount.value });
+                } else {
+                    const existingDiscount = Number(product.price) - Number(product.cost_price);
+                    if (Number.isFinite(existingDiscount) && existingDiscount > 0) {
+                        derivedCost = roundMoney(roundedPrice - existingDiscount);
+                        if (derivedCost !== null && derivedCost < 0) derivedCost = 0;
+                    } else if (normalizedCost.present && normalizedCost.ok) {
+                        derivedCost = roundMoney(normalizedCost.value);
+                    } else {
+                        derivedCost = roundMoney(roundedPrice);
+                    }
+                }
+            } else {
+                if (normalizedCost.present && normalizedCost.ok) {
+                    derivedCost = roundMoney(normalizedCost.value);
+                } else {
+                    derivedCost = roundMoney(roundedPrice);
+                }
+            }
+
+            if (derivedCost !== null) {
+                updateFields.push('cost_price = ?');
+                updateValues.push(derivedCost);
+            }
+        } else if (normalizedCost.present) {
+            if (!normalizedCost.ok) return res.status(400).json({ success: false, message: 'Invalid cost price' });
+            updateFields.push('cost_price = ?');
+            updateValues.push(roundMoney(normalizedCost.value));
+        } else if (hasDiscount && normalizedDiscount.present && normalizedDiscount.ok) {
+            const derivedCost = computeCostFromPrice({ price: product.price, discountType: discount_type, discountValue: normalizedDiscount.value });
+            if (derivedCost !== null) {
+                updateFields.push('cost_price = ?');
+                updateValues.push(derivedCost);
+            }
+        }
         if (image_url !== undefined) {
             // If client supplied a remote URL, download it into uploads first
             if (image_url && /^https?:\/\//i.test(String(image_url))) {
@@ -626,11 +760,11 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
                 let meta = null;
                 if (req.body && (req.body.image_bg_r !== undefined || req.body.image_bg_g !== undefined)) {
                     meta = {
-                        image_bg_r: req.body.image_bg_r,
-                        image_bg_g: req.body.image_bg_g,
-                        image_bg_b: req.body.image_bg_b,
-                        image_overlay_alpha: req.body.image_overlay_alpha,
-                        image_contrast: req.body.image_contrast
+                        image_bg_r: req.body.image_bg_r ?? null,
+                        image_bg_g: req.body.image_bg_g ?? null,
+                        image_bg_b: req.body.image_bg_b ?? null,
+                        image_overlay_alpha: req.body.image_overlay_alpha ?? null,
+                        image_contrast: req.body.image_contrast ?? null
                     };
                 }
                 if (!meta) meta = await extractImageVarsFromPath(String(image_url || ''));
@@ -655,10 +789,31 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
 
         updateValues.push(id);
 
-        await req.db.execute(
-            `UPDATE products SET ${updateFields.join(', ')} WHERE id = ?`,
-            updateValues
-        );
+        try {
+            await req.db.execute(
+                `UPDATE products SET ${updateFields.join(', ')} WHERE id = ?`,
+                updateValues
+            );
+        } catch (e) {
+            const msg = e && e.message ? e.message : '';
+            if (e && e.code === 'ER_BAD_FIELD_ERROR' && msg.includes("Unknown column 'cost_price'")) {
+                const retryFields = [];
+                const retryValues = [];
+                for (let i = 0; i < updateFields.length; i++) {
+                    if (updateFields[i] === 'cost_price = ?') continue;
+                    retryFields.push(updateFields[i]);
+                    retryValues.push(updateValues[i]);
+                }
+                if (retryFields.length === 0) throw e;
+                retryValues.push(id);
+                await req.db.execute(
+                    `UPDATE products SET ${retryFields.join(', ')} WHERE id = ?`,
+                    retryValues
+                );
+            } else {
+                throw e;
+            }
+        }
 
         res.json({
             success: true,

@@ -182,6 +182,19 @@ async function startServer() {
         console.error('Error creating login_logs table:', err);
     }
 
+    try {
+        const [cols] = await db.execute(
+            'SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1',
+            [process.env.DB_NAME, 'products', 'cost_price']
+        );
+        if (!cols || cols.length === 0) {
+            await db.execute('ALTER TABLE products ADD COLUMN cost_price DECIMAL(10, 2) NULL');
+            console.log('Added products.cost_price column');
+        }
+    } catch (err) {
+        console.error('Error ensuring products.cost_price column:', err && err.message ? err.message : err);
+    }
+
     console.log('Database connected. Starting HTTP server...');
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on port ${PORT}`);

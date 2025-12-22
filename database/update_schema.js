@@ -36,6 +36,34 @@ async function updateSchema() {
             }
         }
 
+        try {
+            await connection.execute(`
+                ALTER TABLE stores 
+                ADD COLUMN payment_term ENUM('Cash Only','Cash with Discount','Credit','Credit with Discount') DEFAULT NULL
+            `);
+            console.log('Added payment_term to stores table.');
+        } catch (err) {
+            if (err.code === 'ER_DUP_FIELDNAME') {
+                console.log('stores.payment_term already exists.');
+            } else {
+                throw err;
+            }
+        }
+
+        try {
+            await connection.execute(`
+                ALTER TABLE products 
+                ADD COLUMN cost_price DECIMAL(10, 2) NULL
+            `);
+            console.log('Added cost_price to products table.');
+        } catch (err) {
+            if (err.code === 'ER_DUP_FIELDNAME') {
+                console.log('products.cost_price already exists.');
+            } else {
+                throw err;
+            }
+        }
+
     } catch (error) {
         console.error('Error updating schema:', error);
     } finally {
