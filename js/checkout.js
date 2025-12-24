@@ -96,23 +96,84 @@ function displayCheckoutItems() {
 }
 
 // Handle payment method selection
-function handlePaymentMethodChange() {
+async function handlePaymentMethodChange() {
     const paymentMethod = document.getElementById('paymentMethod');
     const cardDetails = document.getElementById('cardDetails');
+    const walletBalanceInfo = document.getElementById('walletBalanceInfo');
 
     if (paymentMethod.value === 'card') {
         cardDetails.style.display = 'block';
+        if (walletBalanceInfo) walletBalanceInfo.style.display = 'none';
         // Make card fields required
         document.getElementById('cardNumber').required = true;
         document.getElementById('expiryDate').required = true;
         document.getElementById('cvv').required = true;
-    } else {
+    } else if (paymentMethod.value === 'wallet') {
         cardDetails.style.display = 'none';
         // Remove required from card fields
         document.getElementById('cardNumber').required = false;
         document.getElementById('expiryDate').required = false;
         document.getElementById('cvv').required = false;
+        
+        // Fetch and show wallet balance
+        await showWalletBalance();
+    } else {
+        cardDetails.style.display = 'none';
+        if (walletBalanceInfo) walletBalanceInfo.style.display = 'none';
+        // Remove required from card fields
+        document.getElementById('cardNumber').required = false;
+        document.getElementById('expiryDate').required = false;
+        document.getElementById('cvv').required = false;
     }
+}
+
+async function showWalletBalance() {
+    const authToken = localStorage.getItem('serveNowToken');
+    if (!authToken) return;
+
+    let walletBalanceInfo = document.getElementById('walletBalanceInfo');
+    if (!walletBalanceInfo) {
+        walletBalanceInfo = document.createElement('div');
+        walletBalanceInfo.id = 'walletBalanceInfo';
+        walletBalanceInfo.className = 'wallet-balance-info';
+        document.getElementById('paymentMethod').parentNode.appendChild(walletBalanceInfo);
+    }
+
+    walletBalanceInfo.style.display = 'block';
+    walletBalanceInfo.innerHTML = 'Loading balance...';
+
+    try {
+        const response = await fetch(`${API_BASE}/api/wallet/balance`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await response.json();
+
+        if (data.success && data.wallet) {
+            const balance = parseFloat(data.wallet.balance);
+            const total = calculateTotal();
+            const isInsufficient = balance < total;
+            
+            walletBalanceInfo.innerHTML = `
+                <div class="balance-container ${isInsufficient ? 'insufficient' : 'sufficient'}">
+                    <span>Your Balance: <strong>PKR ${balance.toFixed(2)}</strong></span>
+                    ${isInsufficient ? '<br><span class="error-text">Insufficient balance. <a href="wallet.html">Top up here</a></span>' : ''}
+                </div>
+            `;
+        } else {
+            walletBalanceInfo.innerHTML = 'Failed to load wallet balance';
+        }
+    } catch (error) {
+        console.error('Error fetching wallet balance:', error);
+        walletBalanceInfo.innerHTML = 'Error loading wallet balance';
+    }
+}
+
+function calculateTotal() {
+    let total = 0;
+    cart.forEach(item => {
+        total += parseFloat(item.price) * item.quantity;
+    });
+    return total + 2.99; // Total + Delivery Fee
 }
 
 // Handle checkout form submission
@@ -140,6 +201,24 @@ async function handleCheckoutSubmit(e) {
         payment_method: formData.get('paymentMethod'),
         special_instructions: '' // Not implemented in form
     };
+
+    if (orderData.payment_method === 'wallet') {
+        try {
+            const response = await fetch(`${API_BASE}/api/wallet/balance`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+            });
+            const data = await response.json();
+            if (data.success && data.wallet) {
+                const total = calculateTotal();
+                if (parseFloat(data.wallet.balance) < total) {
+                    showError('Insufficient Balance', 'Your wallet balance is insufficient for this order. Please top up.');
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Error checking balance during submit:', error);
+        }
+    }
 
     try {
         const response = await fetch(`${API_BASE}/api/orders`, {

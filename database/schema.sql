@@ -191,3 +191,74 @@ CREATE TABLE IF NOT EXISTS `riders_fuel_history` (
     INDEX `idx_rfh_rider` (`rider_id`),
     CONSTRAINT `fk_rfh_rider` FOREIGN KEY (`rider_id`) REFERENCES `riders` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Wallets table
+CREATE TABLE IF NOT EXISTS wallets (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT UNIQUE NOT NULL,
+    balance DECIMAL(10, 2) DEFAULT 0.00,
+    total_credited DECIMAL(10, 2) DEFAULT 0.00,
+    total_spent DECIMAL(10, 2) DEFAULT 0.00,
+    auto_recharge_enabled BOOLEAN DEFAULT FALSE,
+    auto_recharge_amount DECIMAL(10, 2) DEFAULT 0.00,
+    auto_recharge_threshold DECIMAL(10, 2) DEFAULT 0.00,
+    last_credited_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_wallets_user_id (user_id)
+);
+
+-- Wallet transactions table
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    wallet_id INT NOT NULL,
+    type ENUM('credit', 'debit', 'refund', 'transfer') NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    description VARCHAR(255),
+    reference_type VARCHAR(50),  -- 'order', 'refund', 'topup', 'transfer'
+    reference_id VARCHAR(255),
+    balance_after DECIMAL(10, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,
+    INDEX idx_wt_wallet_id (wallet_id),
+    INDEX idx_wt_type (type),
+    INDEX idx_wt_created_at (created_at)
+);
+
+-- Wallet transfers table
+CREATE TABLE IF NOT EXISTS wallet_transfers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    sender_id INT NOT NULL,
+    recipient_id INT NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    description TEXT,
+    sender_wallet_id INT NOT NULL,
+    recipient_wallet_id INT NOT NULL,
+    status ENUM('pending', 'completed', 'rejected', 'cancelled') DEFAULT 'pending',
+    rejection_reason TEXT,
+    completed_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_wallet_id) REFERENCES wallets(id),
+    FOREIGN KEY (recipient_wallet_id) REFERENCES wallets(id)
+);
+
+-- Saved payment methods table
+CREATE TABLE IF NOT EXISTS saved_payment_methods (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    type ENUM('card', 'paypal') NOT NULL,
+    gateway_id VARCHAR(255) NOT NULL,
+    card_last_four VARCHAR(4),
+    card_brand VARCHAR(20),
+    card_expiry_month INT,
+    card_expiry_year INT,
+    is_primary BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_spm_user_id (user_id)
+);

@@ -198,6 +198,21 @@ router.post('/', authenticateToken, async (req, res) => {
 
         total += delivery_fee;
 
+        // Check wallet balance if payment method is wallet
+        if (payment_method === 'wallet') {
+            const [wallets] = await req.db.execute(
+                'SELECT id, balance FROM wallets WHERE user_id = ?',
+                [req.user.id]
+            );
+
+            if (!wallets.length || parseFloat(wallets[0].balance) < total) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Insufficient wallet balance'
+                });
+            }
+        }
+
         // Generate order number
         const orderNumber = 'ORD' + Date.now() + Math.floor(Math.random() * 1000);
 
@@ -215,6 +230,31 @@ router.post('/', authenticateToken, async (req, res) => {
                 'INSERT INTO order_items (order_id, product_id, quantity, price, size_id, unit_id, variant_label) VALUES (?, ?, ?, ?, ?, ?, ?)',
                 [orderResult.insertId, item.productId, item.quantity, item.unitPrice, item.sizeId, item.unitId, item.variantLabel]
             );
+        }
+
+        // Deduct from wallet if payment method is wallet
+        if (payment_method === 'wallet') {
+            const [wallets] = await req.db.execute(
+                'SELECT id, balance FROM wallets WHERE user_id = ?',
+                [req.user.id]
+            );
+            
+            if (wallets.length > 0) {
+                const wallet = wallets[0];
+                const newBalance = parseFloat(wallet.balance) - total;
+                
+                await req.db.execute(
+                    'UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?',
+                    [newBalance, total, wallet.id]
+                );
+                
+                await req.db.execute(
+                    `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
+                     reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [wallet.id, 'debit', total, `Order payment - ${orderNumber}`, 
+                     'order', orderResult.insertId, newBalance]
+                );
+            }
         }
 
         res.status(201).json({

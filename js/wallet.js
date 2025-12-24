@@ -42,8 +42,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const stripeData = await stripeResponse.json();
         
         if (stripeData.success && stripeData.wallet) {
-            const stripePK = '{{STRIPE_PUBLIC_KEY}}'; // Will be replaced by backend
-            if (stripePK && stripePK !== '{{STRIPE_PUBLIC_KEY}}') {
+            const stripePK = stripeData.stripePublicKey;
+            if (stripePK) {
                 walletStripe = Stripe(stripePK);
                 walletElements = walletStripe.elements();
                 walletCardElement = walletElements.create('card');

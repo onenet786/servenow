@@ -31,10 +31,16 @@ router.get('/balance', authenticateToken, async (req, res) => {
                 [userId]
             );
 
-            return sendSuccess(res, { wallet: newWallet[0] }, 'Wallet created');
+            return sendSuccess(res, { 
+                wallet: newWallet[0],
+                stripePublicKey: process.env.STRIPE_PUBLIC_KEY 
+            }, 'Wallet created');
         }
 
-        return sendSuccess(res, { wallet: wallets[0] }, 'Wallet balance retrieved');
+        return sendSuccess(res, { 
+            wallet: wallets[0],
+            stripePublicKey: process.env.STRIPE_PUBLIC_KEY 
+        }, 'Wallet balance retrieved');
 
     } catch (error) {
         return sendServerError(res, error);

@@ -243,7 +243,7 @@ async function startServer() {
     
     // Create login_logs table if not exists
     try {
-        await db.query(`
+        await pool.query(`
             CREATE TABLE IF NOT EXISTS login_logs (
                 id INT PRIMARY KEY AUTO_INCREMENT,
                 user_id INT NOT NULL,
@@ -258,12 +258,12 @@ async function startServer() {
     }
 
     try {
-        const [cols] = await db.execute(
+        const [cols] = await pool.execute(
             'SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1',
             [process.env.DB_NAME, 'products', 'cost_price']
         );
         if (!cols || cols.length === 0) {
-            await db.execute('ALTER TABLE products ADD COLUMN cost_price DECIMAL(10, 2) NULL');
+            await pool.execute('ALTER TABLE products ADD COLUMN cost_price DECIMAL(10, 2) NULL');
             console.log('Added products.cost_price column');
         }
     } catch (err) {

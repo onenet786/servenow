@@ -184,9 +184,47 @@ async function loadHomeCategories() {
     }
 }
 
+async function loadHeaderWalletBalance() {
+    const token = localStorage.getItem('serveNowToken');
+    if (!token) return;
+
+    // Look for wallet link in nav
+    const navUl = document.querySelector('nav ul');
+    if (!navUl) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/wallet/balance`);
+        const data = await response.json();
+
+        if (data.success && data.wallet) {
+            const balance = parseFloat(data.wallet.balance);
+            
+            // Check if balance span already exists
+            let balanceSpan = document.getElementById('headerWalletBalance');
+            if (!balanceSpan) {
+                // Find wallet link
+                const walletLink = Array.from(navUl.querySelectorAll('a')).find(a => a.href.includes('wallet.html'));
+                if (walletLink) {
+                    balanceSpan = document.createElement('span');
+                    balanceSpan.id = 'headerWalletBalance';
+                    balanceSpan.className = 'header-balance';
+                    walletLink.appendChild(balanceSpan);
+                }
+            }
+            
+            if (balanceSpan) {
+                balanceSpan.textContent = ` (PKR ${balance.toFixed(2)})`;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading header wallet balance:', error);
+    }
+}
+
 // Trigger home categories load on DOM ready (safe to call on any page)
 window.addEventListener('DOMContentLoaded', function() {
     try { loadHomeCategories(); } catch(e) { /* ignore */ }
+    try { loadHeaderWalletBalance(); } catch(e) { /* ignore */ }
 });
 
 // Cart functionality
