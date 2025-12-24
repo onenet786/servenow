@@ -244,7 +244,8 @@ router.post('/', authenticateToken, requireStoreOwner, [
     body('name').trim().isLength({ min: 2 }).withMessage('Store name must be at least 2 characters'),
     body('location').trim().notEmpty().withMessage('Location is required'),
     body('phone').optional().isMobilePhone().withMessage('Please provide a valid phone number'),
-    body('email').optional().isEmail().withMessage('Please provide a valid email')
+    body('email').optional().isEmail().withMessage('Please provide a valid email'),
+    body('rating').optional().isFloat({ min: 0, max: 5 }).withMessage('Rating must be between 0 and 5')
 ], async (req, res) => {
     try {
         const errors = validationResult(req)
@@ -269,8 +270,16 @@ router.post('/', authenticateToken, requireStoreOwner, [
             address,
             opening_time, closing_time,
             payment_term,
-            image_url
+            image_url,
+            rating
         } = req.body
+
+        if (rating !== undefined && req.user.user_type !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only admins can set store rating'
+            })
+        }
 
         // If user is store owner, they can only create stores for themselves
         // If user is admin, they can create stores for any owner
@@ -278,10 +287,52 @@ router.post('/', authenticateToken, requireStoreOwner, [
         const parsedOwnerId = rawOwnerId === null || rawOwnerId === undefined ? null : parseInt(String(rawOwnerId), 10)
         const ownerId = Number.isFinite(parsedOwnerId) && parsedOwnerId > 0 ? parsedOwnerId : null
 
+        const insertFields = [
+            'name',
+            'description',
+            'owner_name',
+            'location',
+            'latitude',
+            'longitude',
+            'delivery_time',
+            'opening_time',
+            'closing_time',
+            'payment_term',
+            'phone',
+            'email',
+            'address',
+            'owner_id',
+            'cover_image'
+        ]
+        const insertValues = [
+            name,
+            description || null,
+            owner_name || null,
+            location,
+            latitude || null,
+            longitude || null,
+            delivery_time || null,
+            opening_time || null,
+            closing_time || null,
+            payment_term || null,
+            phone || null,
+            email || null,
+            address || null,
+            ownerId,
+            image_url || null
+        ]
+
+        if (rating !== undefined && req.user.user_type === 'admin') {
+            const n = parseFloat(rating)
+            const safeRating = Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 0
+            insertFields.push('rating')
+            insertValues.push(safeRating)
+        }
+
+        const placeholders = insertFields.map(() => '?').join(', ')
         const [result] = await req.db.execute(
-            `INSERT INTO stores (name, description, owner_name, location, latitude, longitude, delivery_time, opening_time, closing_time, payment_term, phone, email, address, owner_id, cover_image)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name, description || null, owner_name || null, location, latitude || null, longitude || null, delivery_time || null, opening_time || null, closing_time || null, payment_term || null, phone || null, email || null, address || null, ownerId, image_url || null]
+            `INSERT INTO stores (${insertFields.join(', ')}) VALUES (${placeholders})`,
+            insertValues
         )
 
         res.status(201).json({
@@ -312,7 +363,8 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
     body('name').optional().trim().isLength({ min: 2 }).withMessage('Store name must be at least 2 characters'),
     body('location').optional().trim().notEmpty().withMessage('Location is required'),
     body('phone').optional().isMobilePhone().withMessage('Please provide a valid phone number'),
-    body('email').optional().isEmail().withMessage('Please provide a valid email')
+    body('email').optional().isEmail().withMessage('Please provide a valid email'),
+    body('rating').optional().isFloat({ min: 0, max: 5 }).withMessage('Rating must be between 0 and 5')
 ], async (req, res) => {
     try {
         const errors = validationResult(req)
@@ -364,7 +416,8 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             opening_time,
             closing_time,
             payment_term,
-            image_url
+            image_url,
+            rating
         } = req.body
 
         const updateFields = []
@@ -384,6 +437,18 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (email !== undefined) { updateFields.push('email = ?'); updateValues.push(email) }
         if (address !== undefined) { updateFields.push('address = ?'); updateValues.push(address) }
         if (image_url !== undefined) { updateFields.push('cover_image = ?'); updateValues.push(image_url) }
+        if (rating !== undefined) {
+            if (req.user.user_type !== 'admin') {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Only admins can set store rating'
+                })
+            }
+            const n = parseFloat(rating)
+            const safeRating = Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 0
+            updateFields.push('rating = ?')
+            updateValues.push(safeRating)
+        }
         if (is_active !== undefined && req.user.user_type === 'admin') { updateFields.push('is_active = ?'); updateValues.push(is_active) }
 
         if (updateFields.length === 0) {
