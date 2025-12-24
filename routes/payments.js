@@ -124,7 +124,7 @@ async function processCardPayment(req, orderId, userId, amount, cardToken, saveC
         // 2. Create payment intent
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(amount * 100),
-            currency: 'usd',
+            currency: 'pkr',
             customer: customerId,
             payment_method: cardToken,
             confirm: true,
