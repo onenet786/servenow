@@ -1,3 +1,49 @@
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 14+
+- MySQL 5.7+ (or MariaDB)
+- npm or yarn
+
+### Installation
+
+1. **Clone and setup**:
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database credentials
+   ```
+
+3. **Initialize database**:
+   ```bash
+   node setup-db.js
+   ```
+
+4. **Start server**:
+   ```bash
+   npm run dev      # Development with auto-reload
+   npm start        # Production
+   ```
+
+5. **Access the application**:
+   - Open http://localhost:3002 in your browser
+   - Login with default admin credentials (see Security section)
+
+### Environment Variables
+
+Key variables in `.env`:
+- `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` - Database connection
+- `JWT_SECRET` - **MUST change in production**
+- `PORT` - Server port (default: 3002)
+- `NODE_ENV` - Set to 'production' for production deployment
+- `ALLOWED_ORIGINS` - Comma-separated CORS origins (production only)
+
+---
+
 ## 🎯 Admin Dashboard Features
 
 The admin dashboard provides comprehensive management capabilities:
@@ -41,6 +87,11 @@ The admin dashboard provides comprehensive management capabilities:
 - **Role-Based Access**: Different permissions for different user types
 - **Protected Routes**: All admin operations require proper authentication
 - **Input Validation**: Server-side validation for all data inputs
+- **Security Headers**: CSRF protection, XSS prevention, clickjacking protection
+- **CORS Protection**: Environment-aware CORS configuration
+- **Database Connection Pooling**: Improved performance and resource management
+
+### Default Admin Credentials (⚠️ Change immediately in production)
 - **Email:** admin@servenow.com
 - **Password:** admin123
 
@@ -87,8 +138,8 @@ The admin dashboard provides comprehensive management capabilities:
 
 ## 🌐 Access Points
 
-- **Website:** http://localhost:3001
-- **Admin Dashboard:** Login as admin → admin.html
+- **Website:** http://localhost:3002
+- **Admin Dashboard:** Login as admin → /admin.html
 
 ## 📄 Database Schema
 

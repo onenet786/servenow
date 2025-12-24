@@ -36,6 +36,13 @@
                 <li><a href="#" class="tab-link" data-tab="products"><i class="fas fa-box"></i> Products</a></li>
                 <li><a href="#" class="tab-link" data-tab="orders"><i class="fas fa-shopping-cart"></i> Orders</a></li>
                 <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-wallet"></i> Payments & Wallets <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" class="tab-link" data-tab="payments"><i class="fas fa-credit-card"></i> Payments</a></li>
+                        <li><a href="#" class="tab-link" data-tab="wallets"><i class="fas fa-piggy-bank"></i> Wallets</a></li>
+                    </ul>
+                </li>
+                <li class="dropdown">
                     <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-chart-bar"></i> Reports <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
                     <ul class="dropdown-menu">
                         <li><a href="#" class="tab-link" data-tab="order-reports"><i class="fas fa-chart-line"></i> Order Reports</a></li>
@@ -532,6 +539,154 @@
                             </div>
 
 
+                        </div>
+
+                        <!-- Payments Tab -->
+                        <div id="payments" class="tab-content">
+                            <h2>Payments Management</h2>
+
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <h3 id="paymentsTotalRevenue">-</h3>
+                                    <p>Total Revenue</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="paymentsSuccessCount">-</h3>
+                                    <p>Successful</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="paymentsPendingCount">-</h3>
+                                    <p>Pending</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="paymentsFailedCount">-</h3>
+                                    <p>Failed</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="paymentsTodayCount">-</h3>
+                                    <p>Today's Transactions</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="paymentsTodayAmount">-</h3>
+                                    <p>Today's Amount</p>
+                                </div>
+                            </div>
+
+                            <div class="filter-controls">
+                                <div class="filter-group">
+                                    <label for="paymentStatusFilter">Status:</label>
+                                    <select id="paymentStatusFilter">
+                                        <option value="">All Status</option>
+                                        <option value="success">Success</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="failed">Failed</option>
+                                        <option value="refunded">Refunded</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="paymentMethodFilter">Method:</label>
+                                    <select id="paymentMethodFilter">
+                                        <option value="">All Methods</option>
+                                        <option value="card">Card</option>
+                                        <option value="wallet">Wallet</option>
+                                        <option value="cash">Cash</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="paymentStartDate">Start Date:</label>
+                                    <input type="date" id="paymentStartDate">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="paymentEndDate">End Date:</label>
+                                    <input type="date" id="paymentEndDate">
+                                </div>
+                                <button class="btn btn-secondary" id="paymentClearFiltersBtn">Clear Filters</button>
+                            </div>
+
+                            <div class="table-container">
+                                <table id="paymentsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Order</th>
+                                            <th>Customer</th>
+                                            <th>Amount</th>
+                                            <th>Method</th>
+                                            <th>Gateway</th>
+                                            <th>Status</th>
+                                            <th>Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paymentsTableBody">
+                                        <!-- Payments will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Wallets Tab -->
+                        <div id="wallets" class="tab-content">
+                            <h2>Wallets Management</h2>
+
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <h3 id="walletsTotalBalance">-</h3>
+                                    <p>Total Balance</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="walletsActiveCount">-</h3>
+                                    <p>Active Wallets</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="walletsAutoRechargeCount">-</h3>
+                                    <p>Auto-Recharge Enabled</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="walletsTotalTransactions">-</h3>
+                                    <p>Total Transactions</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="walletsTotalCredited">-</h3>
+                                    <p>Total Credited</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="walletsTotalSpent">-</h3>
+                                    <p>Total Spent</p>
+                                </div>
+                            </div>
+
+                            <div class="filter-controls">
+                                <div class="filter-group">
+                                    <label for="walletBalanceMin">Min Balance:</label>
+                                    <input type="number" id="walletBalanceMin" placeholder="0" step="0.01">
+                                </div>
+                                <div class="filter-group">
+                                    <label for="walletBalanceMax">Max Balance:</label>
+                                    <input type="number" id="walletBalanceMax" placeholder="10000" step="0.01">
+                                </div>
+                                <button class="btn btn-secondary" id="walletClearFiltersBtn">Clear Filters</button>
+                            </div>
+
+                            <div class="table-container">
+                                <table id="walletsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>User</th>
+                                            <th>Balance</th>
+                                            <th>Total Credited</th>
+                                            <th>Total Spent</th>
+                                            <th>Auto-Recharge</th>
+                                            <th>Last Updated</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="walletsTableBody">
+                                        <!-- Wallets will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <!-- Order Reports Tab -->
