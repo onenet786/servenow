@@ -3,6 +3,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const mysql = require('mysql2/promise');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
 
 // Load environment variables from .env and allow the .env values to override existing env vars
 const dotenvResult = dotenv.config({ override: true });
@@ -33,18 +35,81 @@ const riderRoutes = require('./routes/riders');
 const adminRoutes = require('./routes/admin');
 const unitRoutes = require('./routes/units');
 const sizeRoutes = require('./routes/sizes');
+const paymentRoutes = require('./routes/payments');
+const walletRoutes = require('./routes/wallets');
 
 const app = express();
 console.log('Express application created.');
 
 // Middleware
 console.log('Setting up middleware...');
-app.use(cors({
-    origin: true, // Allow all origins for development
+
+// Request logging
+if (process.env.NODE_ENV === 'production') {
+    app.use(morgan('combined'));
+} else {
+    app.use(morgan('dev'));
+}
+console.log('Morgan request logging configured.');
+
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Too many requests from this IP, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: 'Too many login attempts, please try again later.',
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use('/api/', limiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+console.log('Rate limiting configured.');
+
+// CORS configuration - restrict in production
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            const allowedOrigins = process.env.ALLOWED_ORIGINS 
+                ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+                : ['http://localhost:3002', 'http://localhost:3001'];
+            
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error('CORS not allowed'));
+            }
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
+
+// Security headers middleware
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 console.log('Middleware setup complete.');
@@ -55,29 +120,35 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 console.log('Static files configured for /uploads and /images paths.');
 
-// Database connection
-let db;
+// Database connection pool
+let pool;
 async function connectDB() {
     console.log('Attempting to connect to database...');
     try {
-        db = await mysql.createConnection({
+        pool = await mysql.createPool({
             host: process.env.DB_HOST,
             user: process.env.DB_USER,
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME,
-            port: process.env.DB_PORT
+            port: process.env.DB_PORT,
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0,
+            enableKeepAlive: true,
+            keepAliveInitialDelayMs: 0
         });
-        console.log(`Connected to MySQL database: ${process.env.DB_NAME}`);
+        console.log(`Connected to MySQL database pool: ${process.env.DB_NAME}`);
         console.log(`Database host: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
+        console.log(`Connection pool size: 10`);
     } catch (error) {
         console.error('Database connection failed:', error);
         process.exit(1);
     }
 }
 
-// Make database connection available to routes
+// Make database pool available to routes
 app.use((req, res, next) => {
-    req.db = db;
+    req.db = pool;
     next();
 });
 
@@ -110,6 +181,10 @@ app.use('/api/units', unitRoutes);
 console.log('Unit routes mounted at /api/units');
 app.use('/api/sizes', sizeRoutes);
 console.log('Size routes mounted at /api/sizes');
+app.use('/api/payments', paymentRoutes);
+console.log('Payment routes mounted at /api/payments');
+app.use('/api/wallet', walletRoutes);
+console.log('Wallet routes mounted at /api/wallet');
 console.log('All API routes configured.');
 
 // Serve login.html for the root path

@@ -916,6 +916,12 @@ function switchTab(tabName) {
             });
             break;
         // (rider fuel is now a sub-panel inside the Riders tab)
+        case 'payments':
+            loadPayments();
+            break;
+        case 'wallets':
+            loadWallets();
+            break;
         case 'order-reports':
             // Reports tab doesn't need initial loading, user will generate reports manually
             break;
@@ -5218,51 +5224,203 @@ function runDebugTableHighlight() {
             };
         }
 
-        console.log('DEBUG: Table element:', pick(table));
-        console.log('DEBUG: Thead element:', pick(thead));
-        console.log('DEBUG: Tbody element:', pick(tbody));
-        console.log('DEBUG: First TR (tbody):', pick(firstTr));
-        console.log('DEBUG: First TH:', pick(th));
-        console.log('DEBUG: First TD:', pick(td));
-
-        console.log('DEBUG: Bounding rects:');
-        console.log('Table rect:', table.getBoundingClientRect());
-        if(thead) console.log('Thead rect:', thead.getBoundingClientRect());
-        if(tbody) console.log('Tbody rect:', tbody.getBoundingClientRect());
-        if(th) console.log('TH rect:', th.getBoundingClientRect());
-        if(td) console.log('TD rect:', td.getBoundingClientRect());
-
-        console.log('DEBUG: Children of first TR (index,text,left,width):');
-        if(firstTr){
-            Array.from(firstTr.children).forEach((c,i)=>{
-                console.log(i, c.tagName, c.textContent.trim().slice(0,40), c.getBoundingClientRect().left, getComputedStyle(c).width);
-            });
-        }
-
-        console.log('DEBUG: Any colgroup present?', !!table.querySelector('colgroup'), 'colgroup:', table.querySelector('colgroup') ? table.querySelector('colgroup').outerHTML : null);
-
-        if(thead && tbody){
-            const dx = (tbody.getBoundingClientRect().left - thead.getBoundingClientRect().left);
-            console.log('DEBUG: tbody left - thead left =', dx);
-        }
-
         // highlight first column visually
         document.querySelectorAll('#ridersTable th:first-child, #ridersTable td:first-child').forEach(e=>{
             e.style.outline = '3px dashed red';
             e.style.background = 'rgba(255,0,0,0.03)';
         });
 
-        // log ancestor chain to detect unexpected offsets
-        let el = table;
-        console.log('DEBUG: Ancestor chain (tag, id, classes, inline style, left/margin/padding/transform):');
-        while(el && el.tagName){
-            const cs = getComputedStyle(el);
-            console.log(el.tagName, el.id || '', el.className || '', 'inlineStyle=', el.style && el.style.cssText ? el.style.cssText : '', 'left=', cs.left, 'marginLeft=', cs.marginLeft, 'paddingLeft=', cs.paddingLeft, 'transform=', cs.transform);
-            el = el.parentElement;
-        }
-
     } catch (err) {
         console.error('runDebugTableHighlight error:', err);
+    }
+}
+
+// ===== PAYMENTS MANAGEMENT =====
+async function loadPayments() {
+    try {
+        const response = await fetch(`${API_BASE}/api/admin/payments/stats`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const statsData = await response.json();
+        if (statsData.success) {
+            const stats = statsData.stats;
+            document.getElementById('paymentsTotalRevenue').textContent = `PKR ${stats.total?.total_amount?.toFixed(2) || '0.00'}`;
+            document.getElementById('paymentsSuccessCount').textContent = stats.successful?.total || 0;
+            document.getElementById('paymentsPendingCount').textContent = stats.pending?.total || 0;
+            document.getElementById('paymentsFailedCount').textContent = stats.failed?.total || 0;
+            document.getElementById('paymentsTodayCount').textContent = stats.today?.count || 0;
+            document.getElementById('paymentsTodayAmount').textContent = `PKR ${stats.today?.total?.toFixed(2) || '0.00'}`;
+        }
+
+        const listResponse = await fetch(`${API_BASE}/api/admin/payments?limit=50`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const listData = await listResponse.json();
+        
+        const tbody = document.getElementById('paymentsTableBody');
+        tbody.innerHTML = '';
+
+        if (listData.success && listData.payments && listData.payments.length) {
+            listData.payments.forEach(payment => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${payment.id}</td>
+                    <td>#${payment.order_id}</td>
+                    <td>${payment.first_name} ${payment.last_name}</td>
+                    <td>PKR ${parseFloat(payment.amount).toFixed(2)}</td>
+                    <td><span class="badge badge-${payment.payment_method}">${payment.payment_method}</span></td>
+                    <td>${payment.gateway || 'N/A'}</td>
+                    <td><span class="badge badge-${payment.status}">${payment.status}</span></td>
+                    <td>${new Date(payment.created_at).toLocaleDateString()}</td>
+                    <td><button class="btn btn-small btn-info" onclick="viewPaymentDetails(${payment.id})">View</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">No payments found</td></tr>';
+        }
+
+        attachPaymentFilterListeners();
+    } catch (error) {
+        console.error('Load payments error:', error);
+        showError('Payments', 'Failed to load payments');
+    }
+}
+
+function attachPaymentFilterListeners() {
+    document.getElementById('paymentClearFiltersBtn')?.addEventListener('click', () => {
+        document.getElementById('paymentStatusFilter').value = '';
+        document.getElementById('paymentMethodFilter').value = '';
+        document.getElementById('paymentStartDate').value = '';
+        document.getElementById('paymentEndDate').value = '';
+        loadPayments();
+    });
+}
+
+async function viewPaymentDetails(paymentId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/admin/payments/${paymentId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const payment = data.payment;
+            alert(`Payment Details\n\nID: ${payment.id}\nOrder: #${payment.order_id}\nCustomer: ${payment.first_name} ${payment.last_name}\nAmount: PKR ${payment.amount}\nMethod: ${payment.payment_method}\nStatus: ${payment.status}\nDate: ${new Date(payment.created_at).toLocaleString()}`);
+        }
+    } catch (error) {
+        console.error('View payment details error:', error);
+        showError('Payment Details', 'Failed to load payment details');
+    }
+}
+
+// ===== WALLETS MANAGEMENT =====
+async function loadWallets() {
+    try {
+        const response = await fetch(`${API_BASE}/api/admin/wallets/stats`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const statsData = await response.json();
+        if (statsData.success) {
+            const stats = statsData.stats;
+            document.getElementById('walletsTotalBalance').textContent = `PKR ${stats.total_balance?.toFixed(2) || '0.00'}`;
+            document.getElementById('walletsActiveCount').textContent = stats.active_wallets || 0;
+            document.getElementById('walletsAutoRechargeCount').textContent = stats.with_auto_recharge || 0;
+            document.getElementById('walletsTotalTransactions').textContent = stats.transactions?.total_transactions || 0;
+            document.getElementById('walletsTotalCredited').textContent = `PKR ${stats.transactions?.total_credited?.toFixed(2) || '0.00'}`;
+            document.getElementById('walletsTotalSpent').textContent = `PKR ${stats.transactions?.total_spent?.toFixed(2) || '0.00'}`;
+        }
+
+        const listResponse = await fetch(`${API_BASE}/api/admin/wallets?limit=50`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const listData = await listResponse.json();
+        
+        const tbody = document.getElementById('walletsTableBody');
+        tbody.innerHTML = '';
+
+        if (listData.success && listData.wallets && listData.wallets.length) {
+            listData.wallets.forEach(wallet => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${wallet.id}</td>
+                    <td>${wallet.first_name} ${wallet.last_name}</td>
+                    <td>PKR ${parseFloat(wallet.balance).toFixed(2)}</td>
+                    <td>PKR ${parseFloat(wallet.total_credited).toFixed(2)}</td>
+                    <td>PKR ${parseFloat(wallet.total_spent).toFixed(2)}</td>
+                    <td>${wallet.auto_recharge_enabled ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-danger">No</span>'}</td>
+                    <td>${new Date(wallet.updated_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-small btn-info" onclick="viewWalletDetails(${wallet.id})">View</button>
+                        <button class="btn btn-small btn-warning" onclick="adjustWalletBalance(${wallet.id})">Adjust</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No wallets found</td></tr>';
+        }
+
+        attachWalletFilterListeners();
+    } catch (error) {
+        console.error('Load wallets error:', error);
+        showError('Wallets', 'Failed to load wallets');
+    }
+}
+
+function attachWalletFilterListeners() {
+    document.getElementById('walletClearFiltersBtn')?.addEventListener('click', () => {
+        document.getElementById('walletBalanceMin').value = '';
+        document.getElementById('walletBalanceMax').value = '';
+        loadWallets();
+    });
+}
+
+async function viewWalletDetails(walletId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/admin/wallets/${walletId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const wallet = data.wallet;
+            const txList = data.recent_transactions.slice(0, 5).map(tx => `  • ${tx.type.toUpperCase()}: PKR ${tx.amount} - ${tx.description}`).join('\n');
+            alert(`Wallet Details\n\nID: ${wallet.id}\nUser: ${wallet.first_name} ${wallet.last_name}\nBalance: PKR ${wallet.balance}\nTotal Credited: PKR ${wallet.total_credited}\nTotal Spent: PKR ${wallet.total_spent}\n\nRecent Transactions:\n${txList || 'No transactions'}`);
+        }
+    } catch (error) {
+        console.error('View wallet details error:', error);
+        showError('Wallet Details', 'Failed to load wallet details');
+    }
+}
+
+async function adjustWalletBalance(walletId) {
+    const amount = prompt('Enter amount to adjust (positive for credit, negative for debit):');
+    if (amount === null || amount === '') return;
+    
+    const reason = prompt('Enter reason for adjustment:');
+    if (reason === null || reason === '') return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/admin/wallets/${walletId}/adjust`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ amount: parseFloat(amount), reason })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess('Wallet Adjusted', `New balance: PKR ${data.new_balance}`);
+            loadWallets();
+        } else {
+            showError('Adjustment Failed', data.message);
+        }
+    } catch (error) {
+        console.error('Adjust wallet error:', error);
+        showError('Adjustment Error', 'Failed to adjust wallet balance');
     }
 }
 

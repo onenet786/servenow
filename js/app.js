@@ -1090,9 +1090,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         navUl.innerHTML = `
                             <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
                             <li><a href="stores.html"><i class="fas fa-store"></i> Stores</a></li>
+                            <li><a href="orders.html"><i class="fas fa-box"></i> Orders</a></li>
                             <li><a href="cart.html"><i class="fas fa-shopping-cart"></i> Cart <span id="cartCount">0</span></a></li>
+                            <li><a href="wallet.html"><i class="fas fa-wallet"></i> Wallet</a></li>
                             <li>Welcome ${user.first_name}</li>
-                            <li><a href="#" onclick="logout()">Logout</a></li>
+                            <li><a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
                         `;
                     }
                 }

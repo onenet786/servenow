@@ -293,3 +293,199 @@ router.post('/migrate/items', authenticateToken, requireAdmin, async (req, res) 
         return res.status(500).json({ success: false, message: 'Migration failed', error: err.message });
     }
 });
+
+// ===== PAYMENT MANAGEMENT (ADMIN) =====
+
+// Get all payments with filters and pagination
+router.get('/payments', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { page = 1, limit = 20, status, startDate, endDate, userId } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        let query = 'SELECT p.*, u.email, u.first_name, u.last_name, o.total_amount FROM payments p JOIN users u ON p.user_id = u.id JOIN orders o ON p.order_id = o.id WHERE 1=1';
+        const params = [];
+
+        if (status) {
+            query += ' AND p.status = ?';
+            params.push(status);
+        }
+        if (startDate) {
+            query += ' AND DATE(p.created_at) >= ?';
+            params.push(startDate);
+        }
+        if (endDate) {
+            query += ' AND DATE(p.created_at) <= ?';
+            params.push(endDate);
+        }
+        if (userId) {
+            query += ' AND p.user_id = ?';
+            params.push(userId);
+        }
+
+        const [payments] = await req.db.execute(query + ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?', [...params, parseInt(limit), offset]);
+        const [countResult] = await req.db.execute('SELECT COUNT(*) as total FROM payments p WHERE 1=1' + (status ? ' AND p.status = ?' : '') + (startDate ? ' AND DATE(p.created_at) >= ?' : '') + (endDate ? ' AND DATE(p.created_at) <= ?' : '') + (userId ? ' AND p.user_id = ?' : ''), params);
+
+        return res.json({ success: true, payments, total: countResult[0].total, page: parseInt(page), limit: parseInt(limit) });
+    } catch (error) {
+        console.error('Get payments error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch payments', error: error.message });
+    }
+});
+
+// Get payment details
+router.get('/payments/:paymentId', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const [payments] = await req.db.execute('SELECT p.*, u.email, u.first_name, u.last_name, u.phone, o.total_amount, o.status as order_status FROM payments p JOIN users u ON p.user_id = u.id JOIN orders o ON p.order_id = o.id WHERE p.id = ?', [paymentId]);
+
+        if (!payments.length) {
+            return res.status(404).json({ success: false, message: 'Payment not found' });
+        }
+
+        return res.json({ success: true, payment: payments[0] });
+    } catch (error) {
+        console.error('Get payment details error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch payment details', error: error.message });
+    }
+});
+
+// Payment statistics for admin dashboard
+router.get('/payments/stats', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const [totalResult] = await req.db.execute('SELECT COUNT(*) as total, SUM(amount) as total_amount FROM payments');
+        const [successResult] = await req.db.execute('SELECT COUNT(*) as total, SUM(amount) as total_amount FROM payments WHERE status = "success"');
+        const [pendingResult] = await req.db.execute('SELECT COUNT(*) as total, SUM(amount) as total_amount FROM payments WHERE status = "pending"');
+        const [failedResult] = await req.db.execute('SELECT COUNT(*) as total, SUM(amount) as total_amount FROM payments WHERE status = "failed"');
+        const [methodStats] = await req.db.execute('SELECT payment_method, COUNT(*) as count, SUM(amount) as total FROM payments WHERE status = "success" GROUP BY payment_method');
+        const [todayStats] = await req.db.execute('SELECT COUNT(*) as count, SUM(amount) as total FROM payments WHERE status = "success" AND DATE(created_at) = CURDATE()');
+
+        return res.json({
+            success: true,
+            stats: {
+                total: totalResult[0],
+                successful: successResult[0],
+                pending: pendingResult[0],
+                failed: failedResult[0],
+                today: todayStats[0],
+                by_method: methodStats
+            }
+        });
+    } catch (error) {
+        console.error('Payment stats error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch payment stats', error: error.message });
+    }
+});
+
+// ===== WALLET MANAGEMENT (ADMIN) =====
+
+// Get all wallets with pagination
+router.get('/wallets', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { page = 1, limit = 20, minBalance, maxBalance } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        let query = 'SELECT w.*, u.email, u.first_name, u.last_name FROM wallets w JOIN users u ON w.user_id = u.id WHERE 1=1';
+        const params = [];
+
+        if (minBalance) {
+            query += ' AND w.balance >= ?';
+            params.push(minBalance);
+        }
+        if (maxBalance) {
+            query += ' AND w.balance <= ?';
+            params.push(maxBalance);
+        }
+
+        const [wallets] = await req.db.execute(query + ' ORDER BY w.balance DESC LIMIT ? OFFSET ?', [...params, parseInt(limit), offset]);
+        const [countResult] = await req.db.execute('SELECT COUNT(*) as total FROM wallets w WHERE 1=1' + (minBalance ? ' AND w.balance >= ?' : '') + (maxBalance ? ' AND w.balance <= ?' : ''), params);
+
+        return res.json({ success: true, wallets, total: countResult[0].total, page: parseInt(page), limit: parseInt(limit) });
+    } catch (error) {
+        console.error('Get wallets error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch wallets', error: error.message });
+    }
+});
+
+// Get wallet details
+router.get('/wallets/:walletId', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { walletId } = req.params;
+        const [wallets] = await req.db.execute('SELECT w.*, u.email, u.first_name, u.last_name, u.phone FROM wallets w JOIN users u ON w.user_id = u.id WHERE w.id = ?', [walletId]);
+
+        if (!wallets.length) {
+            return res.status(404).json({ success: false, message: 'Wallet not found' });
+        }
+
+        const wallet = wallets[0];
+
+        const [transactions] = await req.db.execute('SELECT * FROM wallet_transactions WHERE wallet_id = ? ORDER BY created_at DESC LIMIT 50', [walletId]);
+
+        return res.json({ success: true, wallet, recent_transactions: transactions });
+    } catch (error) {
+        console.error('Get wallet details error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch wallet details', error: error.message });
+    }
+});
+
+// Manually adjust wallet balance (admin only)
+router.post('/wallets/:walletId/adjust', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { walletId } = req.params;
+        const { amount, reason } = req.body;
+
+        if (!amount || !reason) {
+            return res.status(400).json({ success: false, message: 'Amount and reason are required' });
+        }
+
+        if (isNaN(amount) || amount === 0) {
+            return res.status(400).json({ success: false, message: 'Invalid amount' });
+        }
+
+        const [wallets] = await req.db.execute('SELECT * FROM wallets WHERE id = ?', [walletId]);
+        if (!wallets.length) {
+            return res.status(404).json({ success: false, message: 'Wallet not found' });
+        }
+
+        const wallet = wallets[0];
+        const newBalance = parseFloat(wallet.balance) + parseFloat(amount);
+
+        if (newBalance < 0) {
+            return res.status(400).json({ success: false, message: 'Insufficient balance for deduction' });
+        }
+
+        const type = amount > 0 ? 'credit' : 'debit';
+
+        await req.db.execute('UPDATE wallets SET balance = ? WHERE id = ?', [newBalance, walletId]);
+        await req.db.execute('INSERT INTO wallet_transactions (wallet_id, type, amount, description, balance_after) VALUES (?, ?, ?, ?, ?)', [walletId, type, Math.abs(amount), `Admin adjustment: ${reason}`, newBalance]);
+
+        return res.json({ success: true, message: 'Wallet adjusted successfully', new_balance: newBalance });
+    } catch (error) {
+        console.error('Adjust wallet error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to adjust wallet', error: error.message });
+    }
+});
+
+// Wallet statistics for admin dashboard
+router.get('/wallets/stats', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const [totalStats] = await req.db.execute('SELECT COUNT(*) as total_wallets, SUM(balance) as total_balance, AVG(balance) as avg_balance FROM wallets');
+        const [activeStats] = await req.db.execute('SELECT COUNT(*) as count FROM wallets WHERE balance > 0');
+        const [autoRechargeStats] = await req.db.execute('SELECT COUNT(*) as count FROM wallets WHERE auto_recharge_enabled = TRUE');
+        const [transactionStats] = await req.db.execute('SELECT COUNT(*) as total_transactions, SUM(CASE WHEN type = "credit" THEN amount ELSE 0 END) as total_credited, SUM(CASE WHEN type = "debit" THEN amount ELSE 0 END) as total_spent FROM wallet_transactions');
+
+        return res.json({
+            success: true,
+            stats: {
+                total_wallets: totalStats[0].total_wallets,
+                total_balance: totalStats[0].total_balance,
+                avg_balance: totalStats[0].avg_balance,
+                active_wallets: activeStats[0].count,
+                with_auto_recharge: autoRechargeStats[0].count,
+                transactions: transactionStats[0]
+            }
+        });
+    } catch (error) {
+        console.error('Wallet stats error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch wallet stats', error: error.message });
+    }
+});
