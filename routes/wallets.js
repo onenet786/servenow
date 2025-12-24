@@ -91,7 +91,7 @@ router.post('/topup', authenticateToken, [
         // 3. Create payment intent for top-up
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(amount * 100),
-            currency: 'usd',
+            currency: 'pkr',
             customer: customerId,
             payment_method: cardToken,
             confirm: true,
