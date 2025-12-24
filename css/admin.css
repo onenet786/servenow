@@ -574,7 +574,7 @@ header { position: relative; }
     list-style: none;
     padding: 0;
     margin: 0;
-    display: flex;
+    display: none !important;
     gap: 1rem;
     align-items: center;
 }
@@ -600,10 +600,20 @@ header { position: relative; }
     list-style: none;
     padding: 0;
     margin: 0;
-    display: flex;
+    display: none !important;
     gap: 1rem;
     align-items: center;
 }
+
+@media (min-width: 769px) {
+    .nav-menu { display: flex !important; }
+}
+
+@media (max-width: 768px) {
+    .nav-menu { display: none !important; }
+}
+
+.nav-menu.active { display: flex !important; }
 
 /* Ensure mobile still wraps the nav links nicely */
 @media (max-width: 600px) {
@@ -1543,7 +1553,8 @@ th.sortable.sort-desc::before {
     .hamburger-menu { display: inline-flex !important; }
     .nav-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; pointer-events: none; transition: opacity 240ms ease; z-index: 900; }
     body.left-open .nav-overlay { opacity: 1; pointer-events: auto; }
-    .admin-nav.sidebar-left .nav-menu { display: flex; }
+    .admin-nav.sidebar-left .nav-menu { display: none !important; }
+    .admin-nav.sidebar-left .nav-menu.active { display: flex !important; }
     .admin-nav.sidebar-left .nav-menu li { width: 100%; }
     .admin-nav.sidebar-left .nav-menu li a { width: 100%; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.95rem; color: rgba(255,255,255,0.85); }
 

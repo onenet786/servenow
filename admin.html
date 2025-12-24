@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - ServeNow</title>
-    <link rel="stylesheet" href="style/main.css?v=12">
-    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="style/main.css?v=3">
+    <link rel="stylesheet" href="css/admin.css?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <link rel="icon" type="image/png" href="images/servenow.png">
@@ -1474,18 +1474,21 @@
                 e.stopPropagation();
                 const isOpen = document.body.classList.toggle('left-open');
                 hamburgerMenu.classList.toggle('active', isOpen);
+                navMenu.classList.toggle('active', isOpen);
             });
             const navLinks = navMenu.querySelectorAll('a');
             navLinks.forEach(link => {
                 link.addEventListener('click', function() {
                     document.body.classList.remove('left-open');
                     hamburgerMenu.classList.remove('active');
+                    navMenu.classList.remove('active');
                 });
             });
             document.addEventListener('click', function(event) {
                 if (!navMenu.contains(event.target) && !hamburgerMenu.contains(event.target)) {
                     document.body.classList.remove('left-open');
                     hamburgerMenu.classList.remove('active');
+                    navMenu.classList.remove('active');
                 }
             });
         }
