@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="storeTitle">Store - ServeNow</title>
+    <link rel="stylesheet" href="style/main.css?v=9">
+    <link rel="stylesheet" href="style/responsive.css?v=9">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">
+                <h1>ServeNow</h1>
+            </div>
+            <button class="menu-toggle" aria-label="Toggle navigation menu" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="stores.html">Stores</a></li>
+                <li><a href="cart.html">Cart <span id="cartCount">0</span></a></li>
+                <li><a href="login.html">Login</a></li>
+                <li><a href="register.html">Register</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="store-header">
+            <div id="storeInfo">
+                <!-- Store info will be loaded dynamically -->
+            </div>
+        </section>
+
+        <section class="store-products">
+            <h3>Available Products</h3>
+            <div class="product-grid" id="storeProducts">
+                <!-- Products will be loaded dynamically -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>@ 2025 SERVENOW. All Rights Reserved. Powered by: OneNet Solutions Pakistan</p>
+    </footer>
+
+    <script src="js/app.js?v=7"></script>
+    <script src="js/store.js"></script>
+</body>
+</html>

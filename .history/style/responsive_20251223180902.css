@@ -1,0 +1,239 @@
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+    /* Navigation */
+    nav {
+        padding: 0.8rem 1rem;
+        position: relative;
+    }
+
+    nav ul {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.98);
+        flex-direction: column;
+        padding: 1rem;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        gap: 0;
+    }
+
+    nav ul.active {
+        display: flex;
+    }
+
+    nav ul li {
+        width: 100%;
+        border-bottom: 1px solid #edf2f7;
+    }
+
+    nav ul li:last-child {
+        border-bottom: none;
+    }
+
+    nav ul li a {
+        display: block;
+        padding: 1rem;
+        color: #2d3748;
+        font-weight: 600;
+    }
+
+    nav ul li a:hover {
+        background: #f7fafc;
+        color: #667eea;
+        transform: none;
+    }
+
+    .menu-toggle {
+        display: flex;
+        margin-left: auto;
+    }
+
+    /* Hero Section */
+    .hero {
+        padding: 3rem 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .hero h2 {
+        font-size: 2rem;
+    }
+
+    .hero p {
+        font-size: 1rem;
+    }
+
+    #getLocation {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1rem;
+    }
+
+    /* Grids */
+    .category-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .product-grid,
+    .store-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    /* Cards */
+    .store-card,
+    .product-card,
+    .category-card {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .scroll-arrow {
+        display: none !important;
+    }
+
+    .horizontal-scroll-container {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow-x: visible;
+        gap: 1rem;
+        padding: 20px 0;
+    }
+
+    .horizontal-scroll-container .store-card {
+        min-width: 0;
+    }
+
+    /* Search Bar */
+    .search-container {
+        flex-direction: column;
+        padding: 1rem;
+        gap: 10px;
+        border-radius: 20px;
+    }
+
+    .search-input-wrapper,
+    .search-select-wrapper {
+        width: 100%;
+        min-width: 0;
+    }
+
+    /* Cart */
+    .cart-item.serving-card {
+        flex-direction: column;
+        text-align: center;
+        padding: 15px;
+    }
+
+    .serving-dish {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+
+    .serving-header {
+        justify-content: center;
+        width: 100%;
+        position: relative;
+    }
+
+    .serving-remove {
+        position: absolute;
+        right: 0;
+        top: -5px;
+    }
+
+    .serving-details {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* Login Card */
+    .hanging-login-card {
+        width: 90%;
+        max-width: 380px;
+        margin: 0 auto;
+    }
+}
+
+/* Landscape Mode Adjustments */
+@media (max-width: 900px) and (orientation: landscape) {
+    .hero {
+        padding: 2rem 1rem;
+    }
+    
+    .login-body {
+        padding-top: 5vh;
+    }
+    
+    .hanging-login-card {
+        margin-top: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .product-grid,
+    .store-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .scroll-arrow {
+        display: none !important;
+    }
+
+    .horizontal-scroll-container {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        overflow-x: visible;
+        gap: 0.75rem;
+        padding: 20px 0;
+    }
+
+    .horizontal-scroll-container .store-card {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 1024px) and (orientation: portrait) {
+    .product-grid,
+    .store-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .scroll-arrow {
+        display: none !important;
+    }
+
+    .horizontal-scroll-container {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow-x: visible;
+    }
+
+    .horizontal-scroll-container .store-card {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 1024px) and (orientation: landscape) {
+    .product-grid,
+    .store-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .scroll-arrow {
+        display: none !important;
+    }
+
+    .horizontal-scroll-container {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        overflow-x: visible;
+    }
+
+    .horizontal-scroll-container .store-card {
+        min-width: 0;
+    }
+}

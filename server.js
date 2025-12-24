@@ -122,9 +122,9 @@ console.log('Setting up frontend static file serving...');
 app.use(express.static(path.join(__dirname)));
 console.log('Frontend static files configured.');
 
-// Disable caching for JS files to avoid stale script issues during development
+// Disable caching for frontend assets to avoid stale layout/script issues during development
 app.use((req, res, next) => {
-    if (req.path.endsWith('.js')) {
+    if (req.path.endsWith('.js') || req.path.endsWith('.css') || req.path.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');

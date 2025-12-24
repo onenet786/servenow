@@ -349,6 +349,28 @@ main {
     margin-top: 2rem;
 }
 
+.store-grid,
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+    align-items: start;
+    justify-items: center;
+}
+
+.store-grid > :only-child,
+.product-grid > :only-child {
+    grid-column: 1 / -1;
+    justify-self: center;
+}
+
+.store-grid .store-card,
+.product-grid .product-card {
+    width: 100%;
+    max-width: 300px;
+}
+
 /* -----------------------------------------------------------------------------
    CREATIVE "HANGING" CARD STYLES
    ----------------------------------------------------------------------------- */

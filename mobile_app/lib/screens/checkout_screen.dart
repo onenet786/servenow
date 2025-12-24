@@ -51,10 +51,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     try {
       final items = cart.items
-          .map((item) => {
-                'product_id': item.product.id,
-                'quantity': item.quantity,
-              })
+          .map((item) {
+            final payload = <String, dynamic>{
+              'product_id': item.product.id,
+              'quantity': item.quantity,
+            };
+            if (item.variant?.sizeId != null) {
+              payload['size_id'] = item.variant!.sizeId;
+            }
+            if (item.variant?.unitId != null) {
+              payload['unit_id'] = item.variant!.unitId;
+            }
+            if (item.variantLabel != null) {
+              payload['variant_label'] = item.variantLabel;
+            }
+            return payload;
+          })
           .toList();
 
       await ApiService.createOrder(
@@ -154,7 +166,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           final item = cart.items[index];
                           return ListTile(
                             title: Text(item.product.name),
-                            subtitle: Text('${item.quantity} x PKR ${item.product.price}'),
+                            subtitle: Text(
+                              item.variantLabel != null
+                                  ? '${item.variantLabel} • ${item.quantity} x PKR ${item.unitPrice}'
+                                  : '${item.quantity} x PKR ${item.unitPrice}',
+                            ),
                             trailing: Text('PKR ${item.total.toStringAsFixed(2)}'),
                           );
                         },
@@ -169,7 +185,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          '\$${cart.totalAmount.toStringAsFixed(2)}',
+                          'PKR ${cart.totalAmount.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
