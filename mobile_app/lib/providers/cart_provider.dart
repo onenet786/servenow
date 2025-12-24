@@ -22,28 +22,34 @@ class CartProvider with ChangeNotifier {
     return _items.first.product.storeId;
   }
 
-  void addItem(Product product, int quantity) {
+  bool _sameVariant(ProductVariant? a, ProductVariant? b) {
+    return a?.sizeId == b?.sizeId && a?.unitId == b?.unitId;
+  }
+
+  void addItem(Product product, int quantity, {ProductVariant? variant}) {
     // Check if product is from the same store
     if (_items.isNotEmpty && _items.first.product.storeId != product.storeId) {
       throw Exception('You can only order from one store at a time. Clear cart to change store.');
     }
 
-    final existingIndex = _items.indexWhere((item) => item.product.id == product.id);
+    final existingIndex = _items.indexWhere(
+      (item) => item.product.id == product.id && _sameVariant(item.variant, variant),
+    );
     if (existingIndex >= 0) {
       _items[existingIndex].quantity += quantity;
     } else {
-      _items.add(CartItem(product: product, quantity: quantity));
+      _items.add(CartItem(product: product, variant: variant, quantity: quantity));
     }
     notifyListeners();
   }
 
-  void removeItem(int productId) {
-    _items.removeWhere((item) => item.product.id == productId);
+  void removeCartItem(CartItem item) {
+    _items.remove(item);
     notifyListeners();
   }
 
-  void updateQuantity(int productId, int quantity) {
-    final index = _items.indexWhere((item) => item.product.id == productId);
+  void updateCartItemQuantity(CartItem item, int quantity) {
+    final index = _items.indexOf(item);
     if (index >= 0) {
       if (quantity <= 0) {
         _items.removeAt(index);

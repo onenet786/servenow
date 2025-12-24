@@ -4,9 +4,41 @@ const { authenticateToken, requireAdmin, requireStoreOwner } = require('../middl
 
 const router = express.Router();
 
+async function hasColumn(db, table, column) {
+    const [rows] = await db.execute(
+        'SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        [table, column]
+    );
+    return rows && rows[0] && rows[0].cnt > 0;
+}
+
+async function ensureOrderItemsVariantColumns(db) {
+    try {
+        const hasSizeId = await hasColumn(db, 'order_items', 'size_id');
+        if (!hasSizeId) {
+            await db.execute('ALTER TABLE order_items ADD COLUMN size_id INT NULL');
+        }
+    } catch (e) {}
+
+    try {
+        const hasUnitId = await hasColumn(db, 'order_items', 'unit_id');
+        if (!hasUnitId) {
+            await db.execute('ALTER TABLE order_items ADD COLUMN unit_id INT NULL');
+        }
+    } catch (e) {}
+
+    try {
+        const hasVariantLabel = await hasColumn(db, 'order_items', 'variant_label');
+        if (!hasVariantLabel) {
+            await db.execute('ALTER TABLE order_items ADD COLUMN variant_label VARCHAR(255) NULL');
+        }
+    } catch (e) {}
+}
+
 // Get user's orders
 router.get('/my-orders', authenticateToken, async (req, res) => {
     try {
+        await ensureOrderItemsVariantColumns(req.db);
         const [orders] = await req.db.execute(`
             SELECT o.*, s.name as store_name, s.location as store_location
             FROM orders o
@@ -81,22 +113,87 @@ router.post('/', authenticateToken, async (req, res) => {
             });
         }
 
-        // Calculate total
-        let total = 0;
+        const storeId = parseInt(String(store_id), 10);
+        if (!Number.isInteger(storeId) || storeId <= 0) {
+            return res.status(400).json({ success: false, message: 'Store ID is invalid' });
+        }
+
         const delivery_fee = 2.99;
+        const normalizedItems = [];
+        let total = 0;
 
         for (let item of items) {
-            const [products] = await req.db.execute(
-                'SELECT price FROM products WHERE id = ? AND is_available = true',
-                [item.product_id]
-            );
-            if (products.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Product ${item.product_id} not found or not available`
-                });
+            const productId = parseInt(String(item.product_id), 10);
+            const quantity = parseInt(String(item.quantity), 10);
+            const sizeId = item.size_id === null || item.size_id === undefined ? null : parseInt(String(item.size_id), 10);
+            const unitId = item.unit_id === null || item.unit_id === undefined ? null : parseInt(String(item.unit_id), 10);
+            const providedVariantLabel = item.variant_label ? String(item.variant_label) : null;
+
+            if (!Number.isInteger(productId) || productId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
+                return res.status(400).json({ success: false, message: 'Invalid order item payload' });
             }
-            total += products[0].price * item.quantity;
+
+            if (sizeId && unitId) {
+                return res.status(400).json({ success: false, message: 'Order item cannot include both size_id and unit_id' });
+            }
+
+            const [products] = await req.db.execute(
+                'SELECT id, price FROM products WHERE id = ? AND store_id = ? AND is_available = true',
+                [productId, storeId]
+            );
+            if (!products || products.length === 0) {
+                return res.status(400).json({ success: false, message: `Product ${productId} not found or not available` });
+            }
+
+            let unitPrice = Number(products[0].price);
+            let variantLabel = providedVariantLabel;
+
+            if (sizeId) {
+                const [rows] = await req.db.execute(
+                    `
+                        SELECT psp.price, sz.label as size_label, u.name as unit_name, u.abbreviation as unit_abbreviation
+                        FROM product_size_prices psp
+                        LEFT JOIN sizes sz ON psp.size_id = sz.id
+                        LEFT JOIN units u ON psp.unit_id = u.id
+                        WHERE psp.product_id = ? AND psp.size_id = ?
+                        LIMIT 1
+                    `,
+                    [productId, sizeId]
+                );
+                if (!rows || rows.length === 0) {
+                    return res.status(400).json({ success: false, message: `Variant size ${sizeId} not found for product ${productId}` });
+                }
+                unitPrice = Number(rows[0].price);
+                if (!variantLabel) {
+                    const sizeLabel = rows[0].size_label ? String(rows[0].size_label) : '';
+                    const unitLabel = rows[0].unit_abbreviation || rows[0].unit_name ? String(rows[0].unit_abbreviation || rows[0].unit_name) : '';
+                    variantLabel = (sizeLabel && unitLabel) ? `${sizeLabel} ${unitLabel}` : (sizeLabel || unitLabel || null);
+                }
+            } else if (unitId) {
+                const [rows] = await req.db.execute(
+                    `
+                        SELECT psp.price, sz.label as size_label, u.name as unit_name, u.abbreviation as unit_abbreviation
+                        FROM product_size_prices psp
+                        LEFT JOIN sizes sz ON psp.size_id = sz.id
+                        LEFT JOIN units u ON psp.unit_id = u.id
+                        WHERE psp.product_id = ? AND psp.unit_id = ?
+                        LIMIT 1
+                    `,
+                    [productId, unitId]
+                );
+                if (!rows || rows.length === 0) {
+                    return res.status(400).json({ success: false, message: `Variant unit ${unitId} not found for product ${productId}` });
+                }
+                unitPrice = Number(rows[0].price);
+                if (!variantLabel) {
+                    const sizeLabel = rows[0].size_label ? String(rows[0].size_label) : '';
+                    const unitLabel = rows[0].unit_abbreviation || rows[0].unit_name ? String(rows[0].unit_abbreviation || rows[0].unit_name) : '';
+                    variantLabel = (sizeLabel && unitLabel) ? `${sizeLabel} ${unitLabel}` : (sizeLabel || unitLabel || null);
+                }
+            }
+
+            total += unitPrice * quantity;
+            normalizedItems.push({ productId, quantity, unitPrice, sizeId, unitId, variantLabel });
         }
 
         total += delivery_fee;
@@ -108,18 +205,15 @@ router.post('/', authenticateToken, async (req, res) => {
         const [orderResult] = await req.db.execute(
             `INSERT INTO orders (order_number, user_id, store_id, total_amount, delivery_fee, payment_method, delivery_address, delivery_time, special_instructions)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [orderNumber, req.user.id, store_id, total, delivery_fee, payment_method, delivery_address, delivery_time || null, special_instructions || null]
+            [orderNumber, req.user.id, storeId, total, delivery_fee, payment_method, delivery_address, delivery_time || null, special_instructions || null]
         );
 
         // Add order items
-        for (let item of items) {
-            const [products] = await req.db.execute(
-                'SELECT price FROM products WHERE id = ?',
-                [item.product_id]
-            );
+        await ensureOrderItemsVariantColumns(req.db);
+        for (let item of normalizedItems) {
             await req.db.execute(
-                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
-                [orderResult.insertId, item.product_id, item.quantity, products[0].price]
+                'INSERT INTO order_items (order_id, product_id, quantity, price, size_id, unit_id, variant_label) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [orderResult.insertId, item.productId, item.quantity, item.unitPrice, item.sizeId, item.unitId, item.variantLabel]
             );
         }
 

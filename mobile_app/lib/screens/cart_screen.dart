@@ -58,11 +58,13 @@ class CartScreen extends StatelessWidget {
                     itemCount: cart.items.length,
                     itemBuilder: (context, index) {
                       final item = cart.items[index];
+                      final dismissKey =
+                          '${item.product.id}-${item.variant?.sizeId ?? 'n'}-${item.variant?.unitId ?? 'n'}';
                       return Dismissible(
-                        key: ValueKey(item.product.id),
+                        key: ValueKey(dismissKey),
                         direction: DismissDirection.endToStart,
                         onDismissed: (_) {
-                          cart.removeItem(item.product.id);
+                          cart.removeCartItem(item);
                         },
                         background: Container(
                           color: Colors.red,
@@ -95,7 +97,9 @@ class CartScreen extends StatelessWidget {
                                   : const Icon(Icons.fastfood, size: 40),
                               title: Text(item.product.name),
                               subtitle: Text(
-                                'Total: \$${item.total.toStringAsFixed(2)}',
+                                item.variantLabel != null
+                                    ? '${item.variantLabel} • Total: PKR ${item.total.toStringAsFixed(2)}'
+                                    : 'Total: PKR ${item.total.toStringAsFixed(2)}',
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -104,12 +108,12 @@ class CartScreen extends StatelessWidget {
                                     icon: const Icon(Icons.remove),
                                     onPressed: () {
                                       if (item.quantity > 1) {
-                                        cart.updateQuantity(
-                                          item.product.id,
+                                        cart.updateCartItemQuantity(
+                                          item,
                                           item.quantity - 1,
                                         );
                                       } else {
-                                        cart.removeItem(item.product.id);
+                                        cart.removeCartItem(item);
                                       }
                                     },
                                   ),
@@ -120,8 +124,8 @@ class CartScreen extends StatelessWidget {
                                   IconButton(
                                     icon: const Icon(Icons.add),
                                     onPressed: () {
-                                      cart.updateQuantity(
-                                        item.product.id,
+                                      cart.updateCartItemQuantity(
+                                        item,
                                         item.quantity + 1,
                                       );
                                     },

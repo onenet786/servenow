@@ -1,3 +1,70 @@
+class ProductVariant {
+  final int? sizeId;
+  final String? sizeLabel;
+  final int? unitId;
+  final String? unitName;
+  final String? unitAbbreviation;
+  final double price;
+  final double? costPrice;
+
+  const ProductVariant({
+    this.sizeId,
+    this.sizeLabel,
+    this.unitId,
+    this.unitName,
+    this.unitAbbreviation,
+    required this.price,
+    this.costPrice,
+  });
+
+  factory ProductVariant.fromJson(Map<String, dynamic> json) {
+    int? parseNullableInt(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      return int.tryParse(v.toString());
+    }
+
+    double? parseNullableDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
+    }
+
+    return ProductVariant(
+      sizeId: parseNullableInt(json['size_id']),
+      sizeLabel: json['size_label'],
+      unitId: parseNullableInt(json['unit_id']),
+      unitName: json['unit_name'],
+      unitAbbreviation: json['unit_abbreviation'],
+      price: (json['price'] is num)
+          ? (json['price'] as num).toDouble()
+          : double.parse(json['price'].toString()),
+      costPrice: parseNullableDouble(json['cost_price']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'size_id': sizeId,
+      'size_label': sizeLabel,
+      'unit_id': unitId,
+      'unit_name': unitName,
+      'unit_abbreviation': unitAbbreviation,
+      'price': price,
+      'cost_price': costPrice,
+    };
+  }
+
+  String get displayLabel {
+    final size = (sizeLabel ?? '').trim();
+    final unit = ((unitAbbreviation ?? unitName) ?? '').trim();
+    if (size.isNotEmpty && unit.isNotEmpty) return '$size $unit';
+    if (size.isNotEmpty) return size;
+    if (unit.isNotEmpty) return unit;
+    return 'Default';
+  }
+}
+
 class Product {
   final int id;
   final String name;
@@ -16,6 +83,7 @@ class Product {
   final bool isAvailable;
   final int? storeId;
   final int? categoryId;
+  final List<ProductVariant> sizeVariants;
 
   Product({
     required this.id,
@@ -35,9 +103,18 @@ class Product {
     required this.isAvailable,
     this.storeId,
     this.categoryId,
+    this.sizeVariants = const [],
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    final rawVariants = json['size_variants'];
+    final variants = rawVariants is List
+        ? rawVariants
+            .whereType<Map>()
+            .map((v) => ProductVariant.fromJson(v.cast<String, dynamic>()))
+            .toList()
+        : <ProductVariant>[];
+
     return Product(
       id: json['id'],
       name: json['name'],
@@ -62,6 +139,7 @@ class Product {
           : (json['is_available'] == 1 || json['is_available'] == 'true'),
       storeId: json['store_id'],
       categoryId: json['category_id'],
+      sizeVariants: variants,
     );
   }
 
@@ -84,6 +162,7 @@ class Product {
       'is_available': isAvailable,
       'store_id': storeId,
       'category_id': categoryId,
+      'size_variants': sizeVariants.map((v) => v.toJson()).toList(),
     };
   }
 }

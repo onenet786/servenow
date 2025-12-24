@@ -15,6 +15,35 @@ class StoreScreen extends StatefulWidget {
 
 class _StoreScreenState extends State<StoreScreen> {
   late Future<Map<String, dynamic>> _storeDetailsFuture;
+  final Map<int, String> _selectedVariantKeyByProductId = {};
+
+  String _variantKey(ProductVariant v) {
+    return '${v.sizeId ?? 'n'}:${v.unitId ?? 'n'}';
+  }
+
+  int _crossAxisCountFor(double width, Orientation orientation) {
+    if (orientation == Orientation.landscape) {
+      if (width >= 1400) return 6;
+      if (width >= 1100) return 5;
+      return 4;
+    }
+
+    if (width >= 1200) return 5;
+    if (width >= 900) return 4;
+    if (width >= 600) return 3;
+    return 2;
+  }
+
+  double _mainAxisExtentFor(double width, int crossAxisCount) {
+    const horizontalPadding = 32.0;
+    const spacing = 10.0;
+    final cardWidth =
+        (width - horizontalPadding - (crossAxisCount - 1) * spacing) /
+            crossAxisCount;
+    if (cardWidth >= 260) return 420;
+    if (cardWidth >= 210) return 390;
+    return 360;
+  }
 
   @override
   void initState() {
@@ -83,6 +112,11 @@ class _StoreScreenState extends State<StoreScreen> {
           final products = productsList
               .map((json) => Product.fromJson(json))
               .toList();
+          final media = MediaQuery.of(context);
+          final crossAxisCount =
+              _crossAxisCountFor(media.size.width, media.orientation);
+          final mainAxisExtent =
+              _mainAxisExtentFor(media.size.width, crossAxisCount);
 
           return CustomScrollView(
             slivers: [
@@ -170,9 +204,9 @@ class _StoreScreenState extends State<StoreScreen> {
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.75,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisExtent: mainAxisExtent,
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
                   ),
@@ -191,6 +225,19 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   Widget _buildProductCard(BuildContext context, Product product) {
+    final variants = product.sizeVariants;
+    final selectedVariant = variants.isNotEmpty
+        ? (() {
+            final selectedKey = _selectedVariantKeyByProductId[product.id];
+            if (selectedKey == null) return variants.first;
+            return variants.firstWhere(
+              (v) => _variantKey(v) == selectedKey,
+              orElse: () => variants.first,
+            );
+          })()
+        : null;
+    final displayPrice = selectedVariant?.price ?? product.price;
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -234,9 +281,55 @@ class _StoreScreenState extends State<StoreScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  'PKR ${product.price}',
+                  'PKR $displayPrice',
                   style: const TextStyle(color: Colors.green),
                 ),
+                if (variants.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  if (variants.length == 1)
+                    Text(
+                      variants.first.displayLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.grey),
+                    )
+                  else
+                    RadioGroup<String>(
+                      groupValue: selectedVariant == null
+                          ? null
+                          : _variantKey(selectedVariant),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _selectedVariantKeyByProductId[product.id] = value;
+                        });
+                      },
+                      child: Column(
+                        children: variants.map((v) {
+                          final key = _variantKey(v);
+                          final isSelected = selectedVariant != null &&
+                              _variantKey(selectedVariant) == key;
+                          return RadioListTile<String>(
+                            value: key,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            title: Text(
+                              v.displayLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
@@ -253,7 +346,7 @@ class _StoreScreenState extends State<StoreScreen> {
                               Provider.of<CartProvider>(
                                 context,
                                 listen: false,
-                              ).addItem(product, 1);
+                              ).addItem(product, 1, variant: selectedVariant);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Added to cart'),

@@ -11,6 +11,47 @@ const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') })
 
 const router = express.Router()
 
+async function loadProductSizeVariants(db, productIds) {
+    try {
+        const ids = (Array.isArray(productIds) ? productIds : [])
+            .map(x => parseInt(String(x), 10))
+            .filter(x => Number.isInteger(x) && x > 0)
+        if (!ids.length) return {}
+
+        const placeholders = ids.map(() => '?').join(',')
+        const [rows] = await db.execute(
+            `
+                SELECT psp.product_id, psp.size_id, psp.unit_id, psp.price, psp.cost_price, psp.sort_order,
+                       sz.label as size_label, u.name as unit_name, u.abbreviation as unit_abbreviation
+                FROM product_size_prices psp
+                LEFT JOIN sizes sz ON psp.size_id = sz.id
+                LEFT JOIN units u ON psp.unit_id = u.id
+                WHERE psp.product_id IN (${placeholders})
+                ORDER BY psp.product_id ASC, psp.sort_order ASC, psp.id ASC
+            `,
+            ids
+        )
+
+        const out = {}
+        for (const r of rows || []) {
+            const pid = r.product_id
+            if (!out[pid]) out[pid] = []
+            out[pid].push({
+                size_id: r.size_id,
+                size_label: r.size_label || null,
+                unit_id: r.unit_id === null || r.unit_id === undefined ? null : Number(r.unit_id),
+                unit_name: r.unit_name || null,
+                unit_abbreviation: r.unit_abbreviation || null,
+                price: Number(r.price),
+                cost_price: r.cost_price === null || r.cost_price === undefined ? null : Number(r.cost_price)
+            })
+        }
+        return out
+    } catch (e) {
+        return {}
+    }
+}
+
 // Get all stores (optionally filter by category via products)
 router.get('/', async (req, res) => {
     try {
@@ -124,13 +165,17 @@ router.get('/:id', async (req, res) => {
 
         // Get products for this store
         const [products] = await req.db.execute(`
-            SELECT p.*, c.name as category_name, u.name as unit_name
+            SELECT p.*, c.name as category_name, u.name as unit_name, u.abbreviation as unit_abbreviation,
+                   sz.label as size_label
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN units u ON p.unit_id = u.id
+            LEFT JOIN sizes sz ON p.size_id = sz.id
             WHERE p.store_id = ? AND p.is_available = true
             ORDER BY p.name ASC
         `, [id])
+
+        const variantsByProductId = await loadProductSizeVariants(req.db, (products || []).map(p => p.id))
 
         res.json({
             success: true,
@@ -165,7 +210,22 @@ router.get('/:id', async (req, res) => {
                 is_available: product.is_available,
                 unit_id: product.unit_id,
                 unit_name: product.unit_name,
+                unit_abbreviation: product.unit_abbreviation,
+                size_id: product.size_id,
+                size_label: product.size_label,
                 store_id: product.store_id
+                ,
+                size_variants: (variantsByProductId[product.id] && variantsByProductId[product.id].length)
+                    ? variantsByProductId[product.id]
+                    : (product.size_id || product.unit_id ? [{
+                        size_id: product.size_id || null,
+                        size_label: product.size_label || null,
+                        unit_id: product.unit_id || null,
+                        unit_name: product.unit_name || null,
+                        unit_abbreviation: product.unit_abbreviation || null,
+                        price: Number(product.price),
+                        cost_price: product.cost_price === null || product.cost_price === undefined ? null : Number(product.cost_price)
+                    }] : [])
             }))
         })
 

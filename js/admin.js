@@ -2780,6 +2780,49 @@ function recalcProductCost() {
     if (!Number.isFinite(cost) || cost < 0) cost = 0;
     costEl.readOnly = true;
     costEl.value = (Math.round(cost * 100) / 100).toFixed(2);
+    try { recalcVariantCosts(); } catch (e) {}
+}
+
+function computeCostForPrice(price) {
+    const storeEl = document.getElementById('productStore');
+    const discountTypeEl = document.getElementById('productDiscountType');
+    const discountValueEl = document.getElementById('productDiscountValue');
+    const term = productStoreTermsById[String(storeEl?.value || '')] || '';
+    const hasDiscount = isDiscountPaymentTerm(term);
+
+    let cost = Number(price);
+    if (!Number.isFinite(cost) || cost < 0) return null;
+    if (hasDiscount) {
+        const dtype = String(discountTypeEl?.value || 'amount');
+        const rawD = String(discountValueEl?.value || '').trim();
+        const dval = rawD.length ? parseFloat(rawD) : NaN;
+        if (Number.isFinite(dval) && dval > 0) {
+            const disc = dtype === 'percent' ? (cost * dval / 100) : dval;
+            cost = cost - disc;
+        }
+    }
+    if (!Number.isFinite(cost) || cost < 0) cost = 0;
+    return Math.round(cost * 100) / 100;
+}
+
+function recalcVariantCosts() {
+    const cb = document.getElementById('productHasSizePrices');
+    if (!cb || !cb.checked) return;
+    const tbody = document.getElementById('productSizePricesBody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    for (const row of rows) {
+        const priceEl = row.querySelector('input[data-role="size-price-price"]');
+        const costEl = row.querySelector('input[data-role="variant-cost"]');
+        if (!costEl) continue;
+        const price = priceEl ? parseFloat(String(priceEl.value || '').trim()) : NaN;
+        if (!Number.isFinite(price) || price < 0) {
+            costEl.value = '';
+            continue;
+        }
+        const computed = computeCostForPrice(price);
+        costEl.value = computed === null ? '' : computed.toFixed(2);
+    }
 }
 
 function bindProductPriceCalc() {
@@ -2794,18 +2837,44 @@ function bindProductPriceCalc() {
     });
 }
 
+function getProductMeasureMode() {
+    const sizeRadio = document.getElementById('productMeasureModeSize');
+    const unitRadio = document.getElementById('productMeasureModeUnit');
+    if (sizeRadio && sizeRadio.checked) return 'size';
+    if (unitRadio && unitRadio.checked) return 'unit';
+    return 'unit';
+}
+
 function applyProductMeasureMode(mode) {
     const unitSelect = document.getElementById('productUnit');
     const sizeSelect = document.getElementById('productSize');
     const unitRadio = document.getElementById('productMeasureModeUnit');
     const sizeRadio = document.getElementById('productMeasureModeSize');
+    const variantsHeader = document.getElementById('productVariantsMeasureHeader');
+    const variantsToggleText = document.getElementById('productVariantsToggleText');
+    const variantsSectionTitle = document.getElementById('productVariantsSectionTitle');
+    const addVariantBtn = document.getElementById('addSizePriceBtn');
+    const useVariants = !!document.getElementById('productHasSizePrices')?.checked;
     const m = String(mode || '').toLowerCase() === 'size' ? 'size' : 'unit';
     if (unitRadio) unitRadio.checked = m === 'unit';
     if (sizeRadio) sizeRadio.checked = m === 'size';
-    if (unitSelect) unitSelect.disabled = m !== 'unit';
-    if (sizeSelect) sizeSelect.disabled = m !== 'size';
-    if (m === 'unit' && sizeSelect) sizeSelect.value = '';
-    if (m === 'size' && unitSelect) unitSelect.value = '';
+
+    if (variantsHeader) variantsHeader.textContent = m === 'size' ? 'Size' : 'Unit';
+    if (variantsToggleText) variantsToggleText.textContent = m === 'size' ? 'Multiple sizes / prices' : 'Multiple units / prices';
+    if (variantsSectionTitle) variantsSectionTitle.textContent = m === 'size' ? 'Size prices:' : 'Unit prices:';
+    if (addVariantBtn) addVariantBtn.textContent = m === 'size' ? 'Add Size Price' : 'Add Unit Price';
+
+    if (useVariants) {
+        if (unitSelect) { unitSelect.disabled = true; unitSelect.value = ''; }
+        if (sizeSelect) { sizeSelect.disabled = true; sizeSelect.value = ''; }
+    } else {
+        if (unitSelect) unitSelect.disabled = m !== 'unit';
+        if (sizeSelect) sizeSelect.disabled = m !== 'size';
+        if (m === 'unit' && sizeSelect) sizeSelect.value = '';
+        if (m === 'size' && unitSelect) unitSelect.value = '';
+    }
+
+    try { refreshProductSizePriceRowOptions(); } catch (e) {}
 }
 
 function syncProductMeasureModeFromValues() {
@@ -2837,6 +2906,192 @@ function bindProductMeasureMode() {
     if (unitSelect) unitSelect.addEventListener('change', () => { if (unitSelect.value) applyProductMeasureMode('unit'); });
     if (sizeSelect) sizeSelect.addEventListener('change', () => { if (sizeSelect.value) applyProductMeasureMode('size'); });
     syncProductMeasureModeFromValues();
+}
+
+function collectProductSizePrices() {
+    const tbody = document.getElementById('productSizePricesBody');
+    const out = [];
+    const seen = new Set();
+    if (!tbody) return out;
+    const mode = getProductMeasureMode();
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    for (const row of rows) {
+        const measureEl = row.querySelector('select[data-role="variant-measure"]');
+        const priceEl = row.querySelector('input[data-role="size-price-price"]');
+        const costEl = row.querySelector('input[data-role="variant-cost"]');
+        const measureId = measureEl ? parseInt(String(measureEl.value || ''), 10) : NaN;
+        const price = priceEl ? parseFloat(String(priceEl.value || '').trim()) : NaN;
+        const cost = costEl ? parseFloat(String(costEl.value || '').trim()) : NaN;
+        if (!Number.isInteger(measureId) || measureId <= 0) continue;
+        if (!Number.isFinite(price) || price < 0) continue;
+        const key = `${mode}:${measureId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const rounded = Math.round(price * 100) / 100;
+        const costRounded = Number.isFinite(cost) && cost >= 0 ? (Math.round(cost * 100) / 100) : undefined;
+        if (mode === 'size') out.push({ size_id: measureId, price: rounded, cost_price: costRounded });
+        else out.push({ unit_id: measureId, price: rounded, cost_price: costRounded });
+    }
+    return out;
+}
+
+function computeMinPrice(variants) {
+    let min = null;
+    for (const v of variants || []) {
+        const p = Number(v && v.price);
+        if (!Number.isFinite(p) || p < 0) continue;
+        if (min === null || p < min) min = p;
+    }
+    return min;
+}
+
+function syncProductPriceFromSizePrices() {
+    const cb = document.getElementById('productHasSizePrices');
+    const priceEl = document.getElementById('productPrice');
+    if (!cb || !priceEl) return;
+    if (!cb.checked) {
+        priceEl.readOnly = false;
+        return;
+    }
+    const variants = collectProductSizePrices();
+    const min = computeMinPrice(variants);
+    if (min !== null) {
+        priceEl.value = String(min);
+    } else {
+        priceEl.value = '';
+    }
+    priceEl.readOnly = true;
+    try { recalcProductCost(); } catch (e) {}
+}
+
+function setProductSizePricesEnabled(enabled) {
+    const cb = document.getElementById('productHasSizePrices');
+    const section = document.getElementById('productSizePricesSection');
+    const single = document.getElementById('productSingleMeasureSection');
+    const singleSelectors = document.getElementById('productSingleMeasureSelectorsRow');
+    const tbody = document.getElementById('productSizePricesBody');
+    if (cb) cb.checked = !!enabled;
+    if (section) section.style.display = enabled ? '' : 'none';
+    if (single) single.style.display = '';
+    if (singleSelectors) singleSelectors.style.display = enabled ? 'none' : '';
+    if (!enabled && tbody) tbody.innerHTML = '';
+    try { applyProductMeasureMode(getProductMeasureMode()); } catch (e) {}
+    syncProductPriceFromSizePrices();
+}
+
+function addProductSizePriceRow(prefill) {
+    const tbody = document.getElementById('productSizePricesBody');
+    if (!tbody) return;
+    const mode = getProductMeasureMode();
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+    `;
+    const measureTd = tr.children[0];
+    const priceTd = tr.children[1];
+    const costTd = tr.children[2];
+    const actionTd = tr.children[3];
+
+    const measureSelect = document.createElement('select');
+    measureSelect.setAttribute('data-role', 'variant-measure');
+    measureSelect.style.minWidth = '260px';
+    if (mode === 'size') {
+        measureSelect.innerHTML = '<option value="">Select Size</option>' + (currentSizes || []).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+        if (prefill && prefill.size_id) measureSelect.value = String(prefill.size_id);
+    } else {
+        measureSelect.innerHTML = '<option value="">Select Unit</option>' + (currentUnits || []).map(u => `<option value="${u.id}">${u.name}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`).join('');
+        if (prefill && prefill.unit_id) measureSelect.value = String(prefill.unit_id);
+    }
+
+    const priceInput = document.createElement('input');
+    priceInput.type = 'number';
+    priceInput.min = '0';
+    priceInput.step = '0.01';
+    priceInput.setAttribute('data-role', 'size-price-price');
+    priceInput.style.width = '160px';
+    priceInput.value = (prefill && prefill.price !== undefined && prefill.price !== null) ? String(prefill.price) : '';
+
+    const costInput = document.createElement('input');
+    costInput.type = 'number';
+    costInput.min = '0';
+    costInput.step = '0.01';
+    costInput.readOnly = true;
+    costInput.setAttribute('data-role', 'variant-cost');
+    costInput.style.width = '160px';
+    costInput.value = (prefill && prefill.cost_price !== undefined && prefill.cost_price !== null) ? String(prefill.cost_price) : '';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-small btn-secondary';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', () => {
+        tr.remove();
+        syncProductPriceFromSizePrices();
+    });
+
+    measureSelect.addEventListener('change', syncProductPriceFromSizePrices);
+    priceInput.addEventListener('input', syncProductPriceFromSizePrices);
+
+    measureTd.appendChild(measureSelect);
+    priceTd.appendChild(priceInput);
+    costTd.appendChild(costInput);
+    const actions = document.createElement('div');
+    actions.className = 'action-buttons';
+    actions.appendChild(removeBtn);
+    actionTd.appendChild(actions);
+    tbody.appendChild(tr);
+    syncProductPriceFromSizePrices();
+}
+
+function refreshProductSizePriceRowOptions() {
+    const tbody = document.getElementById('productSizePricesBody');
+    if (!tbody) return;
+    const mode = getProductMeasureMode();
+    const selects = Array.from(tbody.querySelectorAll('select[data-role="variant-measure"]'));
+    for (const sel of selects) {
+        const selected = String(sel.value || '');
+        if (mode === 'size') {
+            sel.innerHTML = '<option value="">Select Size</option>' + (currentSizes || []).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+        } else {
+            sel.innerHTML = '<option value="">Select Unit</option>' + (currentUnits || []).map(u => `<option value="${u.id}">${u.name}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`).join('');
+        }
+        if (selected) sel.value = selected;
+    }
+}
+
+function resetProductSizePricesUI() {
+    const cb = document.getElementById('productHasSizePrices');
+    const tbody = document.getElementById('productSizePricesBody');
+    if (tbody) tbody.innerHTML = '';
+    if (cb) cb.checked = true;
+    setProductSizePricesEnabled(true);
+    if (tbody && !tbody.querySelector('tr')) addProductSizePriceRow({});
+}
+
+function bindProductSizePricesUI() {
+    const formEl = document.getElementById('addProductForm');
+    if (!formEl || formEl.dataset.boundSizePrices) return;
+    formEl.dataset.boundSizePrices = '1';
+    const cb = document.getElementById('productHasSizePrices');
+    const addBtn = document.getElementById('addSizePriceBtn');
+    if (cb) {
+        cb.addEventListener('change', () => {
+            setProductSizePricesEnabled(cb.checked);
+            if (cb.checked) {
+                const existing = collectProductSizePrices();
+                if (!existing.length) addProductSizePriceRow({});
+            }
+        });
+    }
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            if (cb && !cb.checked) setProductSizePricesEnabled(true);
+            addProductSizePriceRow({});
+        });
+    }
 }
 
 // Product Management Functions
@@ -2924,6 +3179,9 @@ async function showAddProductModal() {
 
         
 
+        bindProductSizePricesUI();
+        resetProductSizePricesUI();
+
         // Populate units and sizes
         try {
             const [unitsResp, sizesResp] = await Promise.all([
@@ -2932,6 +3190,9 @@ async function showAddProductModal() {
             ]);
             const unitsJson = await unitsResp.json();
             const sizesJson = await sizesResp.json();
+            if (unitsJson && unitsJson.success && Array.isArray(unitsJson.units)) currentUnits = unitsJson.units;
+            if (sizesJson && sizesJson.success && Array.isArray(sizesJson.sizes)) currentSizes = sizesJson.sizes;
+            refreshProductSizePriceRowOptions();
 
             const unitSelect = document.getElementById('productUnit');
             if (unitSelect) {
@@ -3020,6 +3281,10 @@ async function saveProduct() {
     const costPriceVal = rawCost.length ? parseFloat(rawCost) : NaN;
     const rawPrice = String(formData.get('price') || '').trim();
     const priceVal = rawPrice.length ? parseFloat(rawPrice) : NaN;
+    const useSizePrices = !!document.getElementById('productHasSizePrices')?.checked;
+    const sizeVariants = useSizePrices ? collectProductSizePrices() : [];
+    const minVariantPrice = useSizePrices ? computeMinPrice(sizeVariants) : null;
+    const effectivePriceVal = useSizePrices ? minVariantPrice : priceVal;
 
     if (!Number.isInteger(storeId) || storeId <= 0) {
         showError('Invalid Input', 'Please select a store');
@@ -3029,10 +3294,18 @@ async function saveProduct() {
         showError('Invalid Input', 'Please enter a product name or choose an existing product');
         return;
     }
-    if (!Number.isFinite(priceVal) || priceVal < 0) {
+    if (useSizePrices && !sizeVariants.length) {
+        showError('Invalid Input', 'Please add at least one size price');
+        return;
+    }
+    if (!Number.isFinite(effectivePriceVal) || effectivePriceVal < 0) {
         showError('Invalid Input', 'Please enter a valid price');
         return;
     }
+    try {
+        const priceEl = document.getElementById('productPrice');
+        if (priceEl && useSizePrices) priceEl.value = String(effectivePriceVal);
+    } catch (e) {}
     try { recalcProductCost(); } catch (e) {}
     const finalCostVal = parseFloat(String(document.getElementById('productCostPrice')?.value || '').trim());
     if (!Number.isFinite(finalCostVal) || finalCostVal < 0) {
@@ -3048,12 +3321,18 @@ async function saveProduct() {
         stock_quantity: parseInt(formData.get('stock_quantity'), 10) || 0,
         unit_id: formData.get('unit_id') || null,
         size_id: formData.get('size_id') || null,
-        price: priceVal
+        price: effectivePriceVal
     };
-    const modeRaw = String(formData.get('product_measure_mode') || '').trim().toLowerCase();
-    if (modeRaw === 'size') productData.unit_id = null;
-    else if (modeRaw === 'unit') productData.size_id = null;
-    else if (productData.size_id) productData.unit_id = null;
+    if (useSizePrices) {
+        productData.size_variants = sizeVariants;
+        productData.unit_id = null;
+        productData.size_id = null;
+    } else {
+        const modeRaw = String(formData.get('product_measure_mode') || '').trim().toLowerCase();
+        if (modeRaw === 'size') productData.unit_id = null;
+        else if (modeRaw === 'unit') productData.size_id = null;
+        else if (productData.size_id) productData.unit_id = null;
+    }
     productData.cost_price = finalCostVal;
     const discountType = String(formData.get('discount_type') || '').trim();
     const discountValueRaw = String(formData.get('discount_value') || '').trim();
@@ -3163,12 +3442,16 @@ async function editProduct(productId) {
         const productsData = await productsResponse.json();
         const unitsJson = await unitsResp.json();
         const sizesJson = await sizesResp.json();
+        if (unitsJson && unitsJson.success && Array.isArray(unitsJson.units)) currentUnits = unitsJson.units;
+        if (sizesJson && sizesJson.success && Array.isArray(sizesJson.sizes)) currentSizes = sizesJson.sizes;
         const form = document.getElementById('addProductForm');
         const storeSelect = document.getElementById('productStore');
         const categorySelect = document.getElementById('productCategory');
         const unitSelect = document.getElementById('productUnit');
         const sizeSelect = document.getElementById('productSize');
         const itemSelect = document.getElementById('productItem');
+        bindProductSizePricesUI();
+        resetProductSizePricesUI();
         if (storeSelect) {
             storeSelect.innerHTML = '<option value="">Select Store</option>';
             if (storesData && storesData.success && Array.isArray(storesData.stores)) {
@@ -3203,6 +3486,7 @@ async function editProduct(productId) {
                 });
             }
         }
+        refreshProductSizePriceRowOptions();
         try { bindProductMeasureMode(); } catch (e) {}
         const productsById = {};
         if (itemSelect) {
@@ -3256,6 +3540,18 @@ async function editProduct(productId) {
         if (p.category_id && categorySelect) categorySelect.value = p.category_id;
         if (p.unit_id && unitSelect) unitSelect.value = p.unit_id;
         if (p.size_id && sizeSelect) sizeSelect.value = p.size_id;
+        try {
+            const hasVariants = Array.isArray(p.size_variants) && p.size_variants.length > 0;
+            const shouldUseVariants = hasVariants && (!p.size_id || p.size_variants.length > 1);
+            if (shouldUseVariants) {
+                setProductSizePricesEnabled(true);
+                const tbody = document.getElementById('productSizePricesBody');
+                if (tbody) tbody.innerHTML = '';
+                (p.size_variants || []).forEach(v => addProductSizePriceRow({ size_id: v.size_id, unit_id: v.unit_id, price: v.price }));
+            } else {
+                setProductSizePricesEnabled(false);
+            }
+        } catch (e) {}
         try { syncProductMeasureModeFromValues(); } catch (e) {}
         if (isDiscountPaymentTerm(productStoreTermsById[String(p.store_id || '')] || '')) {
             const priceNum = parseFloat(String(p.price ?? '').trim());

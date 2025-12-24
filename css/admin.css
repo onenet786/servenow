@@ -1418,6 +1418,75 @@ th.sortable.sort-desc::before {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
+#addProductModal {
+    overflow: auto;
+}
+
+#addProductModal .modal-content {
+    padding: 1rem;
+    max-width: 1200px;
+    max-height: 92vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+#addProductModal .modal-header {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+}
+
+#addProductModal .modal-body {
+    overflow: visible;
+}
+
+#addProductModal .modal-footer {
+    padding-top: 0.6rem;
+    background: #fff;
+    border-top: 1px solid #eee;
+}
+
+#addProductModal .modal-body form .form-row {
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+}
+
+#addProductModal .modal-body form .form-group label {
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+}
+
+#addProductModal .modal-body form .form-group input,
+#addProductModal .modal-body form .form-group select,
+#addProductModal .modal-body form .form-group textarea {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.9rem;
+}
+
+#addProductModal #productDescription {
+    min-height: 56px;
+    max-height: 56px;
+    resize: none;
+}
+
+#addProductModal #productSizePricesSection .table-container {
+    margin-top: 0.35rem !important;
+    max-height: 210px;
+    overflow: auto;
+}
+
+#addProductModal #productSizePricesTable th,
+#addProductModal #productSizePricesTable td {
+    padding: 0.45rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+#addProductModal #productSizePricesTable select,
+#addProductModal #productSizePricesTable input {
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box;
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;

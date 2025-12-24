@@ -32,6 +32,17 @@ function computeCostFromPrice({ price, discountType, discountValue }) {
     return roundMoney(out < 0 ? 0 : out);
 }
 
+function deriveCostForPrice({ price, paymentTerm, discountType, discountValue }) {
+    const p = Number(price);
+    if (!Number.isFinite(p) || p < 0) return null;
+    const rounded = roundMoney(p);
+    if (rounded === null) return null;
+    if (!isDiscountPaymentTerm(paymentTerm)) return rounded;
+    const dv = Number(discountValue);
+    if (!Number.isFinite(dv) || dv <= 0) return rounded;
+    return computeCostFromPrice({ price: rounded, discountType, discountValue: dv });
+}
+
 function normalizeNumber(val) {
     if (val === undefined || val === null) return { present: false, value: null, ok: true };
     const s = String(val).trim();
@@ -39,6 +50,153 @@ function normalizeNumber(val) {
     const n = Number(s);
     if (!Number.isFinite(n)) return { present: true, value: null, ok: false };
     return { present: true, value: n, ok: n >= 0 };
+}
+
+function normalizeSizeVariantsInput(input) {
+    try {
+        let raw = input;
+        if (typeof raw === 'string') {
+            const s = raw.trim();
+            if (s.length === 0) return [];
+            raw = JSON.parse(s);
+        }
+        if (!Array.isArray(raw)) return [];
+
+        const byKey = new Map();
+        for (const v of raw) {
+            const sizeRaw = v && v.size_id !== undefined && v.size_id !== null ? String(v.size_id).trim() : '';
+            const unitRaw = v && v.unit_id !== undefined && v.unit_id !== null ? String(v.unit_id).trim() : '';
+            const sizeId = sizeRaw.length ? parseInt(sizeRaw, 10) : null;
+            const unitId = unitRaw.length ? parseInt(unitRaw, 10) : null;
+            const price = v && v.price !== undefined ? Number(v.price) : NaN;
+            const cost = v && v.cost_price !== undefined && v.cost_price !== null && String(v.cost_price).trim().length ? Number(v.cost_price) : null;
+            if (sizeId === null && unitId === null) continue;
+            if (sizeId !== null && unitId !== null) continue;
+            if (sizeId !== null && (!Number.isInteger(sizeId) || sizeId <= 0)) continue;
+            if (unitId !== null && (!Number.isInteger(unitId) || unitId <= 0)) continue;
+            if (!Number.isFinite(price) || price < 0) continue;
+            if (cost !== null && (!Number.isFinite(cost) || cost < 0)) continue;
+            const key = sizeId !== null ? `s:${sizeId}` : `u:${unitId}`;
+            byKey.set(key, { size_id: sizeId, unit_id: unitId, price: roundMoney(price), cost_price: cost === null ? null : roundMoney(cost) });
+        }
+        return Array.from(byKey.values());
+    } catch (e) {
+        return [];
+    }
+}
+
+function getMinVariantPrice(variants) {
+    let min = null;
+    for (const v of variants || []) {
+        const p = Number(v && v.price);
+        if (!Number.isFinite(p)) continue;
+        if (min === null || p < min) min = p;
+    }
+    return min;
+}
+
+async function ensureProductSizePricesTable(db) {
+    try {
+        await db.execute('SELECT 1 FROM product_size_prices LIMIT 1');
+        try {
+            await db.execute('SELECT unit_id FROM product_size_prices LIMIT 1');
+        } catch (e) {
+            const msg = e && e.message ? e.message : '';
+            if (e && e.code === 'ER_BAD_FIELD_ERROR' && msg.includes("Unknown column 'unit_id'")) {
+                await db.execute('ALTER TABLE product_size_prices ADD COLUMN unit_id INT NULL AFTER size_id');
+            }
+        }
+        try {
+            await db.execute('SELECT cost_price FROM product_size_prices LIMIT 1');
+        } catch (e) {
+            const msg = e && e.message ? e.message : '';
+            if (e && e.code === 'ER_BAD_FIELD_ERROR' && msg.includes("Unknown column 'cost_price'")) {
+                await db.execute('ALTER TABLE product_size_prices ADD COLUMN cost_price DECIMAL(10, 2) NULL AFTER price');
+            }
+        }
+
+        try { await db.execute('ALTER TABLE product_size_prices MODIFY COLUMN size_id INT NULL'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices DROP INDEX uq_product_size_unit'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices DROP INDEX uq_product_size'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices DROP INDEX uq_product_unit'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices ADD UNIQUE KEY uq_product_size (product_id, size_id)'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices ADD UNIQUE KEY uq_product_unit (product_id, unit_id)'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices ADD INDEX idx_psp_unit (unit_id)'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices ADD INDEX idx_psp_size (size_id)'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices ADD INDEX idx_psp_product (product_id)'); } catch (e) {}
+        try { await db.execute('ALTER TABLE product_size_prices ADD CONSTRAINT fk_psp_unit FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL'); } catch (e) {}
+        return true;
+    } catch (e) {
+        if (e && (e.code === 'ER_NO_SUCH_TABLE' || e.code === 'ER_BAD_TABLE_ERROR')) {
+            await db.execute(`
+                CREATE TABLE IF NOT EXISTS product_size_prices (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    product_id INT NOT NULL,
+                    size_id INT NULL,
+                    unit_id INT NULL,
+                    price DECIMAL(10, 2) NOT NULL,
+                    cost_price DECIMAL(10, 2) NULL,
+                    sort_order INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_product_size (product_id, size_id),
+                    UNIQUE KEY uq_product_unit (product_id, unit_id),
+                    INDEX idx_psp_product (product_id),
+                    INDEX idx_psp_size (size_id),
+                    INDEX idx_psp_unit (unit_id),
+                    CONSTRAINT fk_psp_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_psp_size FOREIGN KEY (size_id) REFERENCES sizes(id) ON DELETE CASCADE,
+                    CONSTRAINT fk_psp_unit FOREIGN KEY (unit_id) REFERENCES units(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            `);
+            return true;
+        }
+        return false;
+    }
+}
+
+async function loadProductSizeVariants(db, productIds) {
+    try {
+        const ids = (Array.isArray(productIds) ? productIds : []).map(x => parseInt(String(x), 10)).filter(x => Number.isInteger(x) && x > 0);
+        if (!ids.length) return {};
+
+        try {
+            await ensureProductSizePricesTable(db);
+        } catch (e) {
+            return {};
+        }
+
+        const placeholders = ids.map(() => '?').join(',');
+        const [rows] = await db.execute(
+            `
+                SELECT psp.product_id, psp.size_id, psp.unit_id, psp.price, psp.cost_price, psp.sort_order,
+                       sz.label as size_label, u.name as unit_name, u.abbreviation as unit_abbreviation
+                FROM product_size_prices psp
+                LEFT JOIN sizes sz ON psp.size_id = sz.id
+                LEFT JOIN units u ON psp.unit_id = u.id
+                WHERE psp.product_id IN (${placeholders})
+                ORDER BY psp.product_id ASC, psp.sort_order ASC, psp.id ASC
+            `,
+            ids
+        );
+
+        const out = {};
+        for (const r of rows || []) {
+            const pid = r.product_id;
+            if (!out[pid]) out[pid] = [];
+            out[pid].push({
+                size_id: r.size_id,
+                size_label: r.size_label || null,
+                unit_id: r.unit_id === null || r.unit_id === undefined ? null : Number(r.unit_id),
+                unit_name: r.unit_name || null,
+                unit_abbreviation: r.unit_abbreviation || null,
+                price: Number(r.price),
+                cost_price: r.cost_price === null || r.cost_price === undefined ? null : Number(r.cost_price)
+            });
+        }
+        return out;
+    } catch (e) {
+        return {};
+    }
 }
 
 // Helper: given a public imageUrl like '/uploads/xxx.jpg', compute avg RGB and overlay alpha using sharp
@@ -192,6 +350,7 @@ router.get('/', optionalAuth, async (req, res) => {
         query += ' ORDER BY p.name ASC';
 
         const [products] = await req.db.execute(query, queryParams);
+        const variantsByProductId = await loadProductSizeVariants(req.db, (products || []).map(p => p.id));
 
         res.json({
             success: true,
@@ -218,7 +377,18 @@ router.get('/', optionalAuth, async (req, res) => {
                 unit_id: product.unit_id,
                 unit_name: product.unit_name,
                 size_id: product.size_id,
-                size_label: product.size_label
+                size_label: product.size_label,
+                size_variants: (variantsByProductId[product.id] && variantsByProductId[product.id].length)
+                    ? variantsByProductId[product.id]
+                    : (product.size_id ? [{
+                        size_id: product.size_id,
+                        size_label: product.size_label || null,
+                        unit_id: product.unit_id || null,
+                        unit_name: product.unit_name || null,
+                        unit_abbreviation: null,
+                        price: Number(product.price),
+                        cost_price: product.cost_price === null || product.cost_price === undefined ? null : Number(product.cost_price)
+                    }] : [])
             }))
         });
 
@@ -337,6 +507,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
         }
 
         const product = products[0];
+        const variantsByProductId = await loadProductSizeVariants(req.db, [product.id]);
 
         res.json({
             success: true,
@@ -363,7 +534,18 @@ router.get('/:id', optionalAuth, async (req, res) => {
                 unit_id: product.unit_id,
                 unit_name: product.unit_name,
                 size_id: product.size_id,
-                size_label: product.size_label
+                size_label: product.size_label,
+                size_variants: (variantsByProductId[product.id] && variantsByProductId[product.id].length)
+                    ? variantsByProductId[product.id]
+                    : (product.size_id ? [{
+                        size_id: product.size_id,
+                        size_label: product.size_label || null,
+                        unit_id: product.unit_id || null,
+                        unit_name: product.unit_name || null,
+                        unit_abbreviation: null,
+                        price: Number(product.price),
+                        cost_price: product.cost_price === null || product.cost_price === undefined ? null : Number(product.cost_price)
+                    }] : [])
             }
         });
 
@@ -511,8 +693,12 @@ router.post('/', authenticateToken, requireStoreOwner, [
         }
 
         const normalizedPrice = normalizeNumber(price);
-        if (!normalizedPrice.present || !normalizedPrice.ok) {
-            return res.status(400).json({ success: false, message: 'Price is required' });
+        const requestedVariants = normalizeSizeVariantsInput(req.body.size_variants ?? req.body.variants);
+        const hasRequestedVariants = Array.isArray(requestedVariants) && requestedVariants.length > 0;
+        const effectivePrice = hasRequestedVariants ? getMinVariantPrice(requestedVariants) : normalizedPrice.value;
+        const normalizedEffectivePrice = normalizeNumber(effectivePrice);
+        if (!normalizedEffectivePrice.present || !normalizedEffectivePrice.ok) {
+            return res.status(400).json({ success: false, message: hasRequestedVariants ? 'At least one valid size price is required' : 'Price is required' });
         }
         const paymentTerm = stores[0].payment_term;
         const normalizedCost = normalizeNumber(cost_price);
@@ -520,17 +706,17 @@ router.post('/', authenticateToken, requireStoreOwner, [
         let derivedCost = null;
         if (isDiscountPaymentTerm(paymentTerm)) {
             if (normalizedDiscount.present && normalizedDiscount.ok) {
-                derivedCost = computeCostFromPrice({ price: normalizedPrice.value, discountType: discount_type, discountValue: normalizedDiscount.value });
+                derivedCost = computeCostFromPrice({ price: normalizedEffectivePrice.value, discountType: discount_type, discountValue: normalizedDiscount.value });
             } else if (normalizedCost.present && normalizedCost.ok) {
                 derivedCost = roundMoney(normalizedCost.value);
             } else {
-                derivedCost = roundMoney(normalizedPrice.value);
+                derivedCost = roundMoney(normalizedEffectivePrice.value);
             }
         } else {
             if (normalizedCost.present && normalizedCost.ok) {
                 derivedCost = roundMoney(normalizedCost.value);
             } else {
-                derivedCost = roundMoney(normalizedPrice.value);
+                derivedCost = roundMoney(normalizedEffectivePrice.value);
             }
         }
         if (derivedCost === null) return res.status(400).json({ success: false, message: 'Invalid price/cost input' });
@@ -577,9 +763,11 @@ router.post('/', authenticateToken, requireStoreOwner, [
 
         const insertFields = ['name','description','cost_price','price','image_url','category_id','store_id','stock_quantity'];
         const insertPlaceholders = ['?','?','?','?','?','?','?','?'];
-        const insertValues = [name, description, derivedCost, roundMoney(normalizedPrice.value), image_url, category_id, store_id, stock_quantity];
-        if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
-        if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
+        const insertValues = [name, description, derivedCost, roundMoney(normalizedEffectivePrice.value), image_url, category_id, store_id, stock_quantity];
+        if (!hasRequestedVariants) {
+            if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
+            if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
+        }
         if (meta) {
             insertFields.push('image_bg_r','image_bg_g','image_bg_b','image_overlay_alpha','image_contrast');
             insertPlaceholders.push('?,?,?,?,?');
@@ -610,13 +798,38 @@ router.post('/', authenticateToken, requireStoreOwner, [
             }
         }
 
+        if (hasRequestedVariants) {
+            const ensured = await ensureProductSizePricesTable(req.db);
+            if (!ensured) {
+                return res.status(500).json({ success: false, message: 'Failed to initialize size pricing table' });
+            }
+            const dv = (normalizedDiscount.present && normalizedDiscount.ok) ? normalizedDiscount.value : null;
+            const values = [];
+            const placeholders = [];
+            const variantsWithCost = [];
+            for (let i = 0; i < requestedVariants.length; i++) {
+                const v = requestedVariants[i];
+                const derivedVariantCost = deriveCostForPrice({ price: v.price, paymentTerm, discountType: discount_type, discountValue: dv });
+                const variantCost = derivedVariantCost === null ? roundMoney(v.price) : derivedVariantCost;
+                variantsWithCost.push({ size_id: v.size_id ?? null, unit_id: v.unit_id ?? null, price: roundMoney(v.price), cost_price: variantCost });
+                placeholders.push('(?, ?, ?, ?, ?, ?)');
+                values.push(result.insertId, v.size_id ?? null, v.unit_id ?? null, v.price, variantCost, i);
+            }
+            await req.db.execute(
+                `INSERT INTO product_size_prices (product_id, size_id, unit_id, price, cost_price, sort_order) VALUES ${placeholders.join(',')}`,
+                values
+            );
+            requestedVariants.splice(0, requestedVariants.length, ...variantsWithCost);
+        }
+
         res.status(201).json({
             success: true,
             message: 'Product created successfully',
             product: {
                 id: result.insertId,
                 name,
-                price: roundMoney(normalizedPrice.value),
+                price: roundMoney(normalizedEffectivePrice.value),
+                size_variants: hasRequestedVariants ? requestedVariants : [],
                 store_id
             }
         });
@@ -683,10 +896,49 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         const stock_quantity = req.body.stock_quantity;
         const is_available = req.body.is_available;
         const cost_price = req.body.cost_price;
-        const price = req.body.price;
+        let price = req.body.price;
         const discount_type = req.body.discount_type;
         const discount_value = req.body.discount_value;
         let image_url = req.body.image_url;
+
+        const variantsProvided = (req.body && (req.body.size_variants !== undefined || req.body.variants !== undefined));
+        const requestedVariants = normalizeSizeVariantsInput(req.body.size_variants ?? req.body.variants);
+        const hasRequestedVariants = requestedVariants.length > 0;
+
+        if (variantsProvided) {
+            if (!hasRequestedVariants) {
+                return res.status(400).json({ success: false, message: 'At least one valid size price is required' });
+            }
+            const minPrice = getMinVariantPrice(requestedVariants);
+            if (!Number.isFinite(minPrice)) {
+                return res.status(400).json({ success: false, message: 'Invalid size prices' });
+            }
+            price = minPrice;
+            try {
+                const ensured = await ensureProductSizePricesTable(req.db);
+                if (!ensured) return res.status(500).json({ success: false, message: 'Failed to initialize size pricing table' });
+                await req.db.execute('DELETE FROM product_size_prices WHERE product_id = ?', [id]);
+                const normDisc = normalizeNumber(discount_value);
+                const dv = (normDisc.present && normDisc.ok) ? normDisc.value : null;
+                const values = [];
+                const placeholders = [];
+                for (let i = 0; i < requestedVariants.length; i++) {
+                    const v = requestedVariants[i];
+                    const derivedVariantCost = deriveCostForPrice({ price: v.price, paymentTerm: product.payment_term, discountType: discount_type, discountValue: dv });
+                    const variantCost = derivedVariantCost === null ? roundMoney(v.price) : derivedVariantCost;
+                    placeholders.push('(?, ?, ?, ?, ?, ?)');
+                    values.push(id, v.size_id ?? null, v.unit_id ?? null, v.price, variantCost, i);
+                    v.cost_price = variantCost;
+                }
+                await req.db.execute(
+                    `INSERT INTO product_size_prices (product_id, size_id, unit_id, price, cost_price, sort_order) VALUES ${placeholders.join(',')}`,
+                    values
+                );
+            } catch (e) {
+                console.error('Failed to persist product size prices', e);
+                return res.status(500).json({ success: false, message: 'Failed to save size prices', error: e.message });
+            }
+        }
 
         const updateFields = [];
         const updateValues = [];
@@ -777,8 +1029,13 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id); }
         if (stock_quantity !== undefined) { updateFields.push('stock_quantity = ?'); updateValues.push(stock_quantity); }
         if (is_available !== undefined) { updateFields.push('is_available = ?'); updateValues.push(is_available); }
-        if (req.body.unit_id !== undefined) { updateFields.push('unit_id = ?'); updateValues.push(req.body.unit_id); }
-        if (req.body.size_id !== undefined) { updateFields.push('size_id = ?'); updateValues.push(req.body.size_id); }
+        if (variantsProvided) {
+            updateFields.push('unit_id = ?'); updateValues.push(null);
+            updateFields.push('size_id = ?'); updateValues.push(null);
+        } else {
+            if (req.body.unit_id !== undefined) { updateFields.push('unit_id = ?'); updateValues.push(req.body.unit_id); }
+            if (req.body.size_id !== undefined) { updateFields.push('size_id = ?'); updateValues.push(req.body.size_id); }
+        }
 
         if (updateFields.length === 0) {
             return res.status(400).json({
