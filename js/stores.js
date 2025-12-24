@@ -91,17 +91,19 @@ async function displayAllStores(filteredStores = null) {
     storesToDisplay.forEach(store => {
         const storeCard = document.createElement('div');
         storeCard.className = 'store-card';
-        storeCard.innerHTML = `
-            <div class="store-card-header">
-                <h4>${store.name}</h4>
-            </div>
-            <div class="store-card-body">
-                <p><i class="fas fa-map-marker-alt"></i> ${store.location}</p>
-                <p><i class="fas fa-star" style="color: #f59e0b;"></i> ${store.rating}</p>
-                <p><i class="fas fa-clock"></i> ${store.delivery_time}</p>
-                <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
-            </div>
-        `;
+        storeCard.innerHTML = (typeof buildStoreCardHtml === 'function')
+            ? buildStoreCardHtml(store)
+            : `
+                <div class="store-card-header">
+                    <h4>${store.name}</h4>
+                </div>
+                <div class="store-card-body">
+                    <p><i class="fas fa-map-marker-alt"></i> ${store.location}</p>
+                    <p><i class="fas fa-star"></i> ${store.rating}</p>
+                    <p><i class="fas fa-clock"></i> ${store.delivery_time}</p>
+                    <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
+                </div>
+            `;
         storeGrid.appendChild(storeCard);
     });
 }

@@ -485,6 +485,51 @@ function showError(error) {
     showError('Error', errorMessage);
 }
 
+function normalizePublicImageUrl(rawUrl, fallbackUrl) {
+    try {
+        if (!rawUrl) return fallbackUrl;
+        let url = String(rawUrl).trim().replace(/\\/g, '/');
+        if (!url) return fallbackUrl;
+        if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) return url;
+        if (url.startsWith('//')) return window.location.protocol + url;
+        if (url.startsWith('/')) return API_BASE.replace(/\/$/, '') + url;
+        return API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
+    } catch (e) {
+        return fallbackUrl;
+    }
+}
+
+function formatStoreRatingValue(rating) {
+    const n = parseFloat(rating);
+    if (Number.isFinite(n)) return n.toFixed(1);
+    return 'N/A';
+}
+
+function buildStoreCardHtml(store) {
+    const fallbackImg = 'https://via.placeholder.com/96x96/E0E0E0/666666?text=Store';
+    const imageSrc = normalizePublicImageUrl(store && store.image_url, fallbackImg);
+    const safeAlt = String((store && store.name) || 'Store').replace(/"/g, '&quot;');
+    const locationText = (store && store.location) ? store.location : '—';
+    const ratingText = formatStoreRatingValue(store && store.rating);
+    const deliveryText = (store && store.delivery_time) ? store.delivery_time : '—';
+    const id = store && store.id ? store.id : '';
+
+    return `
+        <div class="store-card-header">
+            <div class="store-card-header-inner">
+                <img class="store-card-logo" src="${imageSrc}" alt="${safeAlt}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${fallbackImg}'">
+                <h4>${(store && store.name) ? store.name : 'Store'}</h4>
+            </div>
+        </div>
+        <div class="store-card-body">
+            <p><i class="fas fa-map-marker-alt"></i> ${locationText}</p>
+            <p class="store-rating"><i class="fas fa-star"></i> ${ratingText}</p>
+            <p><i class="fas fa-clock"></i> ${deliveryText}</p>
+            <a href="store.html?id=${id}" class="btn btn-primary">View Store</a>
+        </div>
+    `;
+}
+
 function displayNearbyStores() {
     const allStoresSection = document.getElementById('allStoresSection');
     if (allStoresSection) {
@@ -509,17 +554,7 @@ async function displayAllStoresHorizontal() {
             data.stores.forEach(store => {
                 const storeCard = document.createElement('div');
                 storeCard.className = 'store-card';
-                storeCard.innerHTML = `
-                    <div class="store-card-header">
-                        <h4>${store.name}</h4>
-                    </div>
-                    <div class="store-card-body">
-                        <p><i class="fas fa-map-marker-alt"></i> ${store.location}</p>
-                        <p><i class="fas fa-star" style="color: #f59e0b;"></i> ${store.rating}</p>
-                        <p><i class="fas fa-clock"></i> ${store.delivery_time}</p>
-                        <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
-                    </div>
-                `;
+                storeCard.innerHTML = buildStoreCardHtml(store);
                 storeContainer.appendChild(storeCard);
             });
 
@@ -567,20 +602,20 @@ function initScrollControls(container) {
 async function handleStoreSearch(filters = {}) {
     const searchResultsSection = document.getElementById('searchResultsSection');
     const categoriesSection = document.getElementById('categoriesSection');
-    const featuredStoresSection = document.querySelector('.featured-stores');
+    const allStoresSection = document.getElementById('allStoresSection');
     const searchResultsGrid = document.getElementById('searchResultsGrid');
     
     // If no filters active, show categories and featured stores, hide search results
     if (!filters.search && !filters.category) {
         if (categoriesSection) categoriesSection.classList.remove('hidden');
-        if (featuredStoresSection) featuredStoresSection.style.display = 'block';
+        if (allStoresSection) allStoresSection.style.display = 'block';
         if (searchResultsSection) searchResultsSection.classList.add('hidden');
         return;
     }
 
     // Filters active: Hide categories and featured stores, show search results
     if (categoriesSection) categoriesSection.classList.add('hidden');
-    if (featuredStoresSection) featuredStoresSection.style.display = 'none';
+    if (allStoresSection) allStoresSection.style.display = 'none';
     if (searchResultsSection) searchResultsSection.classList.remove('hidden');
 
     if (!searchResultsGrid) return;
@@ -617,17 +652,7 @@ async function handleStoreSearch(filters = {}) {
             stores.forEach(store => {
                 const storeCard = document.createElement('div');
                 storeCard.className = 'store-card';
-                storeCard.innerHTML = `
-                    <div class="store-card-header">
-                        <h4>${store.name}</h4>
-                    </div>
-                    <div class="store-card-body">
-                        <p><i class="fas fa-map-marker-alt"></i> ${store.location}</p>
-                        <p><i class="fas fa-star" style="color: #f59e0b;"></i> ${store.rating}</p>
-                        <p><i class="fas fa-clock"></i> ${store.delivery_time}</p>
-                        <a href="store.html?id=${store.id}" class="btn btn-primary">View Store</a>
-                    </div>
-                `;
+                storeCard.innerHTML = buildStoreCardHtml(store);
                 searchResultsGrid.appendChild(storeCard);
             });
         }

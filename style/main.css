@@ -371,6 +371,97 @@ main {
     max-width: 300px;
 }
 
+@media (min-width: 1025px) {
+    .store-grid,
+    .product-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1.5rem;
+    }
+
+    .store-grid .store-card,
+    .product-grid .product-card {
+        max-width: 240px;
+    }
+
+    .horizontal-scroll-container .store-card {
+        min-width: 240px;
+        max-width: 240px;
+    }
+
+    .store-card,
+    .category-card,
+    .product-card {
+        width: 240px;
+        height: 336px;
+        margin-top: 48px !important;
+        border: 6px solid white;
+        border-radius: 10px;
+    }
+
+    .store-card::before,
+    .category-card::before,
+    .product-card::before {
+        top: -48px;
+        width: 12px;
+        height: 12px;
+    }
+
+    .store-card::after,
+    .category-card::after,
+    .product-card::after {
+        top: -48px;
+        height: 48px;
+    }
+
+    .store-card-header {
+        height: 72px;
+    }
+
+    .category-card img {
+        height: 160px;
+    }
+
+    .product-image {
+        height: 160px;
+    }
+}
+
+footer {
+    margin-top: auto;
+    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    color: #ffffff;
+    text-align: center;
+    padding: 1.75rem 1.25rem 1.25rem;
+    position: relative;
+}
+
+footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--primary-gradient);
+}
+
+footer p {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    footer {
+        padding: 1.5rem 1rem 1rem;
+    }
+
+    footer p {
+        font-size: 0.8rem;
+    }
+}
+
 /* -----------------------------------------------------------------------------
    CREATIVE "HANGING" CARD STYLES
    ----------------------------------------------------------------------------- */
@@ -387,7 +478,8 @@ main {
 .store-card,
 .category-card,
 .product-card {
-    width: 300px;
+    width: 100%;
+    max-width: 300px;
     height: 420px;
     flex-shrink: 0;
     margin-top: 60px !important; /* Space for the hanging string */
@@ -633,6 +725,32 @@ main {
     border-bottom: 4px solid #fff; /* Separation line */
 }
 
+.store-card-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 0 6px;
+    min-width: 0;
+}
+
+.store-card-logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.85);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+    flex-shrink: 0;
+}
+
+.store-card-header-inner h4 {
+    flex: 1;
+    min-width: 0;
+}
+
 /* Decorative screws on header */
 .store-card-header::before,
 .store-card-header::after {
@@ -700,6 +818,14 @@ main {
     text-align: center;
     font-size: 1rem;
     flex-shrink: 0;
+}
+
+.store-card-body p.store-rating {
+    font-weight: 700;
+}
+
+.store-card-body p.store-rating i {
+    color: #f59e0b;
 }
 
 .store-card .btn {
@@ -1492,5 +1618,62 @@ main {
 
 .toast.removing {
     animation: slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@media (min-width: 1025px) {
+    .category-grid,
+    .store-grid,
+    .product-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1.5rem;
+        justify-items: center;
+    }
+
+    .store-grid .store-card,
+    .product-grid .product-card {
+        max-width: 240px;
+    }
+
+    .horizontal-scroll-container .store-card {
+        min-width: 240px;
+        max-width: 240px;
+    }
+
+    .store-card,
+    .category-card,
+    .product-card {
+        max-width: 240px;
+        height: 336px;
+        margin-top: 48px !important;
+        border: 6px solid white;
+        border-radius: 10px;
+    }
+
+    .store-card::before,
+    .category-card::before,
+    .product-card::before {
+        top: -48px;
+        width: 12px;
+        height: 12px;
+    }
+
+    .store-card::after,
+    .category-card::after,
+    .product-card::after {
+        top: -48px;
+        height: 48px;
+    }
+
+    .store-card-header {
+        height: 72px;
+    }
+
+    .category-card img {
+        height: 160px;
+    }
+
+    .product-image {
+        height: 160px;
+    }
 }
 
