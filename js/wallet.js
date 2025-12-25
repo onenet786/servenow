@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Load wallet data
         loadWalletBalance();
         loadTransactions();
+        loadPaymentMethods();
 
         // Event listeners
         document.getElementById('paymentMethod').addEventListener('change', handlePaymentMethodChange);
@@ -154,23 +155,84 @@ function handlePaymentMethodChange(e) {
     const cardSection = document.getElementById('cardSection');
     const paypalMessage = document.getElementById('paypalMessage');
     const saveCardGroup = document.getElementById('saveCardGroup');
+    const savedCardsContainer = document.getElementById('savedCardsContainer');
 
     if (method === 'card') {
-        cardSection.style.display = 'block';
         paypalMessage.style.display = 'none';
         saveCardGroup.style.display = 'flex';
-        
-        if (walletCardElement && !walletCardElement._parent) {
-            walletCardElement.mount('#card-element');
+        savedCardsContainer.style.display = 'block';
+
+        // If user chooses to use a new card by default, mount the card element
+        const selected = document.querySelector('input[name="savedCardRadio"]:checked');
+        if (!selected || selected.value === 'new') {
+            cardSection.style.display = 'block';
+            if (walletCardElement && !(walletCardElement._parent || walletCardElement._mounted)) {
+                try { walletCardElement.mount('#card-element'); } catch (err) { /* ignore mount errors */ }
+            }
+        } else {
+            // Using saved card, hide card element
+            cardSection.style.display = 'none';
         }
     } else if (method === 'paypal') {
         cardSection.style.display = 'none';
         paypalMessage.style.display = 'block';
         saveCardGroup.style.display = 'none';
+        document.getElementById('savedCardsContainer').style.display = 'none';
     } else {
         cardSection.style.display = 'none';
         paypalMessage.style.display = 'none';
         saveCardGroup.style.display = 'none';
+        document.getElementById('savedCardsContainer').style.display = 'none';
+    }
+}
+
+// Load saved payment methods and render them so user can pick an existing card
+async function loadPaymentMethods() {
+    try {
+        const container = document.getElementById('savedCards');
+        container.innerHTML = '<div style="color: #999; text-align: center; padding: 10px;">Loading saved cards...</div>';
+
+        const res = await fetch(`${API_BASE}/api/wallet/payment-methods`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+
+        if (data.success && data.payment_methods && data.payment_methods.length) {
+            const methodsHtml = [];
+            // Add option for using a new card
+            methodsHtml.push(`<label style="display:block; margin-bottom:8px;"><input type=\"radio\" name=\"savedCardRadio\" value=\"new\" checked> Use a new card</label>`);
+
+            data.payment_methods.forEach(pm => {
+                methodsHtml.push(
+                    `<label style=\"display:block; padding:8px; border-radius:6px; margin-bottom:6px; cursor:pointer;\">
+                        <input type=\"radio\" name=\"savedCardRadio\" value=\"id_${pm.id}\" data-gateway-id=\"${pm.gateway_id || pm.gatewayId || pm.gateway_id || ''}\"> ${pm.card_brand || pm.cardBrand || ''} •••• ${pm.card_last_four || ''} (exp ${pm.card_expiry_month || ''}/${pm.card_expiry_year || ''})
+                    </label>`
+                );
+            });
+
+            container.innerHTML = methodsHtml.join('');
+
+            // When selecting saved card radio, update visibility of card element
+            container.querySelectorAll('input[name="savedCardRadio"]').forEach(r => {
+                r.addEventListener('change', () => {
+                    const cardSection = document.getElementById('cardSection');
+                    if (r.value === 'new') {
+                        cardSection.style.display = 'block';
+                        try { walletCardElement.mount('#card-element'); } catch (err) { }
+                        document.getElementById('saveCardGroup').style.display = 'flex';
+                    } else {
+                        cardSection.style.display = 'none';
+                        document.getElementById('saveCardGroup').style.display = 'none';
+                    }
+                });
+            });
+        } else {
+            container.innerHTML = '<div style="color: #999; text-align: center; padding: 10px;">No saved cards</div>';
+        }
+    } catch (error) {
+        console.error('Load payment methods error:', error);
+        const container = document.getElementById('savedCards');
+        container.innerHTML = '<div style="color: #e74c3c; text-align: center; padding: 10px;">Failed to load saved cards</div>';
     }
 }
 
@@ -205,21 +267,37 @@ async function handleTopupSubmit(e) {
         btn.disabled = true;
         btn.textContent = 'Processing...';
 
-        // Create payment method with Stripe
+        // Create payment method with Stripe or use saved card
         if (paymentMethod === 'card') {
-            const { paymentMethod: pm, error } = await walletStripe.createPaymentMethod({
-                type: 'card',
-                card: walletCardElement,
-                billing_details: {
-                    name: localStorage.getItem('serveNowUserName') || 'User'
-                }
-            });
+            // Check saved card selection
+            const selected = document.querySelector('input[name="savedCardRadio"]:checked');
+            let cardTokenToUse = null;
 
-            if (error) {
-                showError(`Card error: ${error.message}`);
-                btn.disabled = false;
-                btn.textContent = 'Add to Wallet';
-                return;
+            if (selected && selected.value && selected.value !== 'new') {
+                // saved card selected - extract gateway id
+                cardTokenToUse = selected.dataset.gatewayId || null;
+            }
+
+            let pmIdToSend = cardTokenToUse;
+
+            if (!cardTokenToUse) {
+                // create a new payment method from card element
+                const { paymentMethod: pm, error } = await walletStripe.createPaymentMethod({
+                    type: 'card',
+                    card: walletCardElement,
+                    billing_details: {
+                        name: localStorage.getItem('serveNowUserName') || 'User'
+                    }
+                });
+
+                if (error) {
+                    showError(`Card error: ${error.message}`);
+                    btn.disabled = false;
+                    btn.textContent = 'Add to Wallet';
+                    return;
+                }
+
+                pmIdToSend = pm.id;
             }
 
             // Submit topup request
@@ -232,7 +310,7 @@ async function handleTopupSubmit(e) {
                 body: JSON.stringify({
                     amount: amount,
                     paymentMethod: 'card',
-                    cardToken: pm.id,
+                    cardToken: pmIdToSend,
                     saveCard: document.getElementById('saveCard').checked
                 })
             });
@@ -251,6 +329,8 @@ async function handleTopupSubmit(e) {
                 
                 loadWalletBalance();
                 loadTransactions();
+                // refresh saved cards list (if new card was saved)
+                loadPaymentMethods();
             } else {
                 showError(`Topup failed: ${topupData.message}`);
             }

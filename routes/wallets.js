@@ -301,7 +301,7 @@ router.get('/payment-methods', authenticateToken, async (req, res) => {
         const userId = req.user.id;
 
         const [methods] = await req.db.execute(
-            `SELECT id, type, card_last_four, card_brand, card_expiry_month, 
+            `SELECT id, type, gateway_id, card_last_four, card_brand, card_expiry_month, 
              card_expiry_year, is_primary, created_at 
              FROM saved_payment_methods WHERE user_id = ? AND is_active = TRUE`,
             [userId]
