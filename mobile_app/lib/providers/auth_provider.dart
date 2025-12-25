@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'dart:convert';
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -36,6 +37,9 @@ class AuthProvider with ChangeNotifier {
         if (_user != null) {
           await prefs.setString('user', jsonEncode(_user!.toJson()));
         }
+        
+        // Initialize Stripe with public key
+        await _initializeStripe(_token!);
       } else {
         throw Exception(data['message'] ?? 'Login failed');
       }
@@ -155,6 +159,10 @@ class AuthProvider with ChangeNotifier {
 
         // Update prefs
         await prefs.setString('user', jsonEncode(_user!.toJson()));
+        
+        // Initialize Stripe with public key
+        await _initializeStripe(storedToken);
+        
         notifyListeners();
       } else {
         await logout();
@@ -173,6 +181,20 @@ class AuthProvider with ChangeNotifier {
       } else {
         await logout();
       }
+    }
+  }
+
+  Future<void> _initializeStripe(String token) async {
+    try {
+      final data = await ApiService.getWalletBalance(token);
+      final stripePublicKey = data['stripePublicKey'];
+      
+      if (stripePublicKey != null && stripePublicKey.isNotEmpty) {
+        await Stripe.instance.applySettings();
+        Stripe.publishableKey = stripePublicKey;
+      }
+    } catch (e) {
+      // Ignore Stripe initialization errors, wallet is optional
     }
   }
 }
