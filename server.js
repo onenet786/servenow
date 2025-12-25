@@ -37,6 +37,7 @@ const unitRoutes = require('./routes/units');
 const sizeRoutes = require('./routes/sizes');
 const paymentRoutes = require('./routes/payments');
 const walletRoutes = require('./routes/wallets');
+const { logError } = require('./utils/debugLogger');
 
 const app = express();
 console.log('Express application created.');
@@ -225,6 +226,7 @@ console.log('Catch-all handler configured.');
 console.log('Setting up error handling middleware...');
 app.use((err, req, res, next) => {
     console.error(`[${new Date().toISOString()}] Error:`, err.stack);
+    logError(`Global Handler (${req.method} ${req.path})`, err);
     res.status(500).json({
         success: false,
         message: 'Something went wrong!',

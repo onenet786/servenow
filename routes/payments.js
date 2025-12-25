@@ -475,7 +475,9 @@ router.post('/:paymentId/refund', authenticateToken, [
 router.get('/', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        const { limit = 10, offset = 0 } = req.query;
+        const { limit, offset } = req.query;
+        const limitVal = Math.max(1, parseInt(limit) || 10);
+        const offsetVal = Math.max(0, parseInt(offset) || 0);
 
         const [payments] = await req.db.execute(
             `SELECT p.id, p.order_id, p.amount, p.payment_method, p.gateway, 
@@ -485,19 +487,19 @@ router.get('/', authenticateToken, async (req, res) => {
              WHERE p.user_id = ?
              ORDER BY p.created_at DESC
              LIMIT ? OFFSET ?`,
-            [userId, parseInt(limit), parseInt(offset)]
+            [userId, limitVal, offsetVal]
         );
 
-        const [total] = await req.db.execute(
+        const [totalResult] = await req.db.execute(
             'SELECT COUNT(*) as count FROM payments WHERE user_id = ?',
             [userId]
         );
 
         return sendSuccess(res, { 
             payments, 
-            total: total[0].count,
-            limit: parseInt(limit),
-            offset: parseInt(offset)
+            total: Number(totalResult[0].count),
+            limit: limitVal,
+            offset: offsetVal
         }, 'Payment history retrieved');
 
     } catch (error) {

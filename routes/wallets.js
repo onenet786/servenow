@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendValidationError, sendServerError } = require('../utils/response');
+const { logError } = require('../utils/debugLogger');
 
 const router = express.Router();
 
@@ -152,7 +153,9 @@ router.post('/topup', authenticateToken, [
 router.get('/transactions', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        const { limit = 20, offset = 0, type } = req.query;
+        const { limit, offset, type } = req.query;
+        const limitVal = Math.max(1, parseInt(limit) || 20);
+        const offsetVal = Math.max(0, parseInt(offset) || 0);
 
         // Get wallet ID
         const [wallets] = await req.db.execute(
@@ -178,9 +181,10 @@ router.get('/transactions', authenticateToken, async (req, res) => {
         }
 
         query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
+        params.push(limitVal, offsetVal);
 
-        const [transactions] = await req.db.execute(query, params);
+        console.log('[wallets] Fetching transactions for user:', userId, 'wallet:', wallet.id, 'query:', query, 'params:', params);
+        const [transactions] = await req.db.query(query, params);
 
         // Get total count
         let countQuery = 'SELECT COUNT(*) as count FROM wallet_transactions WHERE wallet_id = ?';
@@ -191,16 +195,20 @@ router.get('/transactions', authenticateToken, async (req, res) => {
             countParams.push(type);
         }
 
-        const [total] = await req.db.execute(countQuery, countParams);
+        const [totalResult] = await req.db.query(countQuery, countParams);
+        const total = Number(totalResult[0]?.count || 0);
+
+        console.log('[wallets] Found', transactions.length, 'transactions, total:', total);
 
         return sendSuccess(res, { 
             transactions,
-            total: total[0].count,
-            limit: parseInt(limit),
-            offset: parseInt(offset)
+            total,
+            limit: limitVal,
+            offset: offsetVal
         }, 'Transaction history retrieved');
 
     } catch (error) {
+        logError('Get transactions', error);
         return sendServerError(res, error);
     }
 });
@@ -463,10 +471,13 @@ router.post('/transfers/send', authenticateToken, [
 // Get sent transfers
 router.get('/transfers/sent', authenticateToken, async (req, res) => {
     try {
+        console.log('[wallets] GET /transfers/sent - user:', req.user);
         const userId = req.user.id;
-        const { limit = 20, offset = 0, status } = req.query;
+        const { limit, offset, status } = req.query;
+        const limitVal = Math.max(1, parseInt(limit) || 20);
+        const offsetVal = Math.max(0, parseInt(offset) || 0);
 
-        let query = `SELECT t.*, u.email as recipient_email, u.name as recipient_name
+        let query = `SELECT t.*, u.email as recipient_email, CONCAT(u.first_name, ' ', u.last_name) as recipient_name
                    FROM wallet_transfers t
                    JOIN users u ON t.recipient_id = u.id
                    WHERE t.sender_id = ?`;
@@ -478,23 +489,33 @@ router.get('/transfers/sent', authenticateToken, async (req, res) => {
         }
 
         query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
+        params.push(limitVal, offsetVal);
 
-        const [transfers] = await req.db.execute(query, params);
+        console.log('[wallets] Fetching sent transfers for user:', userId, 'query:', query, 'params:', params);
+        const [transfers] = await req.db.query(query, params);
 
-        const [total] = await req.db.execute(
-            'SELECT COUNT(*) as count FROM wallet_transfers WHERE sender_id = ?',
-            [userId]
-        );
+        let countQuery = 'SELECT COUNT(*) as count FROM wallet_transfers WHERE sender_id = ?';
+        let countParams = [userId];
+        if (status && ['pending', 'completed', 'rejected', 'cancelled'].includes(status)) {
+            countQuery += ' AND status = ?';
+            countParams.push(status);
+        }
 
-        return sendSuccess(res, {
+        const [totalResult] = await req.db.query(countQuery, countParams);
+        const total = Number(totalResult[0]?.count || 0);
+
+        const responseData = {
             transfers,
-            total: total[0].count,
-            limit: parseInt(limit),
-            offset: parseInt(offset)
-        }, 'Sent transfers retrieved');
+            total,
+            limit: limitVal,
+            offset: offsetVal
+        };
+        console.log('[wallets] Sending response for sent transfers:', JSON.stringify(responseData).substring(0, 200));
+        return sendSuccess(res, responseData, 'Sent transfers retrieved');
 
     } catch (error) {
+        console.error('Error fetching sent transfers:', error);
+        logError('Get sent transfers', error);
         return sendServerError(res, error);
     }
 });
@@ -502,10 +523,13 @@ router.get('/transfers/sent', authenticateToken, async (req, res) => {
 // Get received transfers
 router.get('/transfers/received', authenticateToken, async (req, res) => {
     try {
+        console.log('[wallets] GET /transfers/received - user:', req.user);
         const userId = req.user.id;
-        const { limit = 20, offset = 0, status } = req.query;
+        const { limit, offset, status } = req.query;
+        const limitVal = Math.max(1, parseInt(limit) || 20);
+        const offsetVal = Math.max(0, parseInt(offset) || 0);
 
-        let query = `SELECT t.*, u.email as sender_email, u.name as sender_name
+        let query = `SELECT t.*, u.email as sender_email, CONCAT(u.first_name, ' ', u.last_name) as sender_name
                    FROM wallet_transfers t
                    JOIN users u ON t.sender_id = u.id
                    WHERE t.recipient_id = ?`;
@@ -517,23 +541,50 @@ router.get('/transfers/received', authenticateToken, async (req, res) => {
         }
 
         query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
+        params.push(limitVal, offsetVal);
 
-        const [transfers] = await req.db.execute(query, params);
+        console.log('[wallets] Fetching received transfers for user:', userId, 'query:', query, 'params:', params);
+        let transfers;
+        try {
+            const [rows] = await req.db.query(query, params);
+            transfers = rows;
+            console.log('[wallets] DB query successful, rows:', transfers.length);
+        } catch (dbError) {
+            console.error('[wallets] DB query failed:', dbError);
+            logError('Get received transfers - Main Query', dbError);
+            throw dbError;
+        }
 
-        const [total] = await req.db.execute(
-            'SELECT COUNT(*) as count FROM wallet_transfers WHERE recipient_id = ?',
-            [userId]
-        );
+        console.log('[wallets] Fetching total count...');
+        let total;
+        try {
+            let countQuery = 'SELECT COUNT(*) as count FROM wallet_transfers WHERE recipient_id = ?';
+            let countParams = [userId];
+            if (status && ['pending', 'completed', 'rejected', 'cancelled'].includes(status)) {
+                countQuery += ' AND status = ?';
+                countParams.push(status);
+            }
+            const [totalResult] = await req.db.query(countQuery, countParams);
+            total = Number(totalResult[0]?.count || 0);
+            console.log('[wallets] Total count successful:', total);
+        } catch (countError) {
+            console.error('[wallets] Count query failed:', countError);
+            logError('Get received transfers - Count Query', countError);
+            throw countError;
+        }
 
-        return sendSuccess(res, {
+        const responseData = {
             transfers,
-            total: total[0].count,
-            limit: parseInt(limit),
-            offset: parseInt(offset)
-        }, 'Received transfers retrieved');
+            total,
+            limit: limitVal,
+            offset: offsetVal
+        };
+        console.log('[wallets] Sending response for received transfers:', JSON.stringify(responseData).substring(0, 200));
+        return sendSuccess(res, responseData, 'Received transfers retrieved');
 
     } catch (error) {
+        console.error('Error fetching received transfers:', error);
+        logError('Get received transfers', error);
         return sendServerError(res, error);
     }
 });

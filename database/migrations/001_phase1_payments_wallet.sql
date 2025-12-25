@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS refunds (
     status ENUM('pending', 'processed', 'failed') DEFAULT 'pending',
     refund_transaction_id VARCHAR(255),
     requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMP,
+    processed_at TIMESTAMP NULL DEFAULT NULL,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

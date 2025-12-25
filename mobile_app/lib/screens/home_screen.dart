@@ -85,6 +85,12 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('ServeNow'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.account_balance_wallet),
+            onPressed: () {
+              Navigator.of(context).pushNamed('/wallet');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
               Provider.of<AuthProvider>(context, listen: false).logout();
