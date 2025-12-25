@@ -65,9 +65,9 @@ router.get('/visitor-stats', authenticateToken, requireAdmin, async (req, res) =
         
         return res.json({
             success: true,
-            today_logins: todayLogins[0].count,
-            today_unique_visitors: todayVisitors[0].count,
-            active_users: activeUsers[0].count
+            today_logins: Number(todayLogins[0].count),
+            today_unique_visitors: Number(todayVisitors[0].count),
+            active_users: Number(activeUsers[0].count)
         });
     } catch (err) {
         console.error('Visitor stats error:', err);
@@ -299,8 +299,10 @@ router.post('/migrate/items', authenticateToken, requireAdmin, async (req, res) 
 // Get all payments with filters and pagination
 router.get('/payments', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 20, status, startDate, endDate, userId } = req.query;
-        const offset = (parseInt(page) - 1) * parseInt(limit);
+        const { page, limit, status, startDate, endDate, userId } = req.query;
+        const pageVal = Math.max(1, parseInt(page) || 1);
+        const limitVal = Math.max(1, parseInt(limit) || 20);
+        const offsetVal = (pageVal - 1) * limitVal;
 
         let query = 'SELECT p.*, u.email, u.first_name, u.last_name, o.total_amount FROM payments p JOIN users u ON p.user_id = u.id JOIN orders o ON p.order_id = o.id WHERE 1=1';
         const params = [];
@@ -322,10 +324,10 @@ router.get('/payments', authenticateToken, requireAdmin, async (req, res) => {
             params.push(userId);
         }
 
-        const [payments] = await req.db.execute(query + ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?', [...params, parseInt(limit), offset]);
+        const [payments] = await req.db.execute(query + ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?', [...params, limitVal, offsetVal]);
         const [countResult] = await req.db.execute('SELECT COUNT(*) as total FROM payments p WHERE 1=1' + (status ? ' AND p.status = ?' : '') + (startDate ? ' AND DATE(p.created_at) >= ?' : '') + (endDate ? ' AND DATE(p.created_at) <= ?' : '') + (userId ? ' AND p.user_id = ?' : ''), params);
 
-        return res.json({ success: true, payments, total: countResult[0].total, page: parseInt(page), limit: parseInt(limit) });
+        return res.json({ success: true, payments, total: Number(countResult[0].total), page: pageVal, limit: limitVal });
     } catch (error) {
         console.error('Get payments error:', error);
         return res.status(500).json({ success: false, message: 'Failed to fetch payments', error: error.message });
@@ -362,12 +364,16 @@ router.get('/payments/stats', authenticateToken, requireAdmin, async (req, res) 
         return res.json({
             success: true,
             stats: {
-                total: totalResult[0],
-                successful: successResult[0],
-                pending: pendingResult[0],
-                failed: failedResult[0],
-                today: todayStats[0],
-                by_method: methodStats
+                total: { total: Number(totalResult[0].total), total_amount: Number(totalResult[0].total_amount || 0) },
+                successful: { total: Number(successResult[0].total), total_amount: Number(successResult[0].total_amount || 0) },
+                pending: { total: Number(pendingResult[0].total), total_amount: Number(pendingResult[0].total_amount || 0) },
+                failed: { total: Number(failedResult[0].total), total_amount: Number(failedResult[0].total_amount || 0) },
+                today: { count: Number(todayStats[0].count), total: Number(todayStats[0].total || 0) },
+                by_method: methodStats.map(m => ({
+                    payment_method: m.payment_method,
+                    count: Number(m.count),
+                    total: Number(m.total || 0)
+                }))
             }
         });
     } catch (error) {
@@ -381,8 +387,10 @@ router.get('/payments/stats', authenticateToken, requireAdmin, async (req, res) 
 // Get all wallets with pagination
 router.get('/wallets', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 20, minBalance, maxBalance } = req.query;
-        const offset = (parseInt(page) - 1) * parseInt(limit);
+        const { page, limit, minBalance, maxBalance } = req.query;
+        const pageVal = Math.max(1, parseInt(page) || 1);
+        const limitVal = Math.max(1, parseInt(limit) || 20);
+        const offsetVal = (pageVal - 1) * limitVal;
 
         let query = 'SELECT w.*, u.email, u.first_name, u.last_name FROM wallets w JOIN users u ON w.user_id = u.id WHERE 1=1';
         const params = [];
@@ -396,10 +404,10 @@ router.get('/wallets', authenticateToken, requireAdmin, async (req, res) => {
             params.push(maxBalance);
         }
 
-        const [wallets] = await req.db.execute(query + ' ORDER BY w.balance DESC LIMIT ? OFFSET ?', [...params, parseInt(limit), offset]);
+        const [wallets] = await req.db.execute(query + ' ORDER BY w.balance DESC LIMIT ? OFFSET ?', [...params, limitVal, offsetVal]);
         const [countResult] = await req.db.execute('SELECT COUNT(*) as total FROM wallets w WHERE 1=1' + (minBalance ? ' AND w.balance >= ?' : '') + (maxBalance ? ' AND w.balance <= ?' : ''), params);
 
-        return res.json({ success: true, wallets, total: countResult[0].total, page: parseInt(page), limit: parseInt(limit) });
+        return res.json({ success: true, wallets, total: Number(countResult[0].total), page: pageVal, limit: limitVal });
     } catch (error) {
         console.error('Get wallets error:', error);
         return res.status(500).json({ success: false, message: 'Failed to fetch wallets', error: error.message });
@@ -476,12 +484,16 @@ router.get('/wallets/stats', authenticateToken, requireAdmin, async (req, res) =
         return res.json({
             success: true,
             stats: {
-                total_wallets: totalStats[0].total_wallets,
-                total_balance: totalStats[0].total_balance,
-                avg_balance: totalStats[0].avg_balance,
-                active_wallets: activeStats[0].count,
-                with_auto_recharge: autoRechargeStats[0].count,
-                transactions: transactionStats[0]
+                total_wallets: Number(totalStats[0].total_wallets),
+                total_balance: Number(totalStats[0].total_balance || 0),
+                avg_balance: Number(totalStats[0].avg_balance || 0),
+                active_wallets: Number(activeStats[0].count),
+                with_auto_recharge: Number(autoRechargeStats[0].count),
+                transactions: {
+                    total_transactions: Number(transactionStats[0].total_transactions),
+                    total_credited: Number(transactionStats[0].total_credited || 0),
+                    total_spent: Number(transactionStats[0].total_spent || 0)
+                }
             }
         });
     } catch (error) {

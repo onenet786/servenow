@@ -289,7 +289,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
         const [orders] = await req.db.execute(`
             SELECT o.*, u.first_name, u.last_name, u.email, s.name as store_name,
                    r.first_name as rider_first_name, r.last_name as rider_last_name,
-                   (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as items_count
+                   CAST((SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS SIGNED) as items_count
             FROM orders o
             JOIN users u ON o.user_id = u.id
             JOIN stores s ON o.store_id = s.id

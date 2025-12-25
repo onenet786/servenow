@@ -273,6 +273,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             onTap: () {},
           ),
           ListTile(
+            leading: const Icon(Icons.account_balance_wallet),
+            title: const Text('Wallet'),
+            onTap: () {
+              Navigator.of(context).pop(); // Close drawer
+              Navigator.of(context).pushNamed('/wallet');
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.delivery_dining),
             title: const Text('Riders'),
             onTap: () {},
