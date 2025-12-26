@@ -1105,6 +1105,32 @@
         </div>
     </div>
 
+    <!-- Restore Confirmation Modal -->
+    <div id="restoreConfirmModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Confirm Database Restore</h3>
+                <span class="close" data-modal="restoreConfirmModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="color:#c0392b; font-weight:600;">Warning: Restoring will overwrite your current database and cannot be undone.</p>
+                <p>Selected backup will be imported. Ensure you have entered the server <strong>restore passphrase</strong> in the <em>Super Admin Password</em> field.</p>
+                <p>Selected backup: <strong id="restoreFilename">(none)</strong></p>
+                <div class="form-group">
+                    <label for="restoreConfirmInput">Type <strong>RESTORE</strong> to confirm:</label>
+                    <input type="text" id="restoreConfirmInput" placeholder="Type RESTORE to confirm" style="width:100%; padding:8px;">
+                </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="restoreAcknowledge"> I understand this will overwrite the current database</label>
+                </div>
+            </div>
+            <div class="modal-footer" style="display:flex; gap:8px; justify-content:flex-end; padding:12px 16px;">
+                <button class="btn btn-secondary" data-modal="restoreConfirmModal">Cancel</button>
+                <button class="btn btn-warning" id="confirmRestoreBtn" disabled>Confirm Restore</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Store Modal -->
     <div id="addStoreModal" class="modal">
         <div class="modal-content">
