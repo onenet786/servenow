@@ -11,8 +11,7 @@ function getVariantLabel(variant) {
     if (!variant) return '';
     const parts = [];
     if (variant.size_label) parts.push(variant.size_label);
-    if (variant.unit_abbreviation) parts.push(variant.unit_abbreviation);
-    else if (variant.unit_name) parts.push(variant.unit_name);
+    if (variant.unit_name) parts.push(variant.unit_name);
     return parts.length > 0 ? parts.join(' ') : 'Default';
 }
 
@@ -24,12 +23,28 @@ function displayStoreInfo(store) {
     }
 
     document.getElementById('storeTitle').textContent = `${store.name} - ServeNow`;
+    
+    let logoSrc = 'https://via.placeholder.com/100x100/667eea/ffffff?text=' + encodeURIComponent(store.name.substring(0, 1));
+    if (store.image_url) {
+        let url = String(store.image_url).trim().replace(/\\/g, '/');
+        if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) {
+            logoSrc = url;
+        } else if (url.startsWith('/')) {
+            logoSrc = API_BASE.replace(/\/$/, '') + url;
+        } else {
+            logoSrc = API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
+        }
+    }
+    
     document.getElementById('storeInfo').innerHTML = `
-        <h2>${store.name}</h2>
-        <div class="store-details">
-            <p><strong>Location:</strong> ${store.location}</p>
-            <p><strong>Rating:</strong> ${store.rating} ⭐</p>
-            <p><strong>Delivery Time:</strong> ${store.delivery_time || '30-45 min'}</p>
+        <div class="store-info-content">
+            <img src="${logoSrc}" alt="${store.name}" class="store-logo" onerror="this.src='https://via.placeholder.com/100x100/667eea/ffffff?text=S'">
+            <div class="store-details">
+                <h2>${store.name}</h2>
+                <p><i class="fas fa-map-marker-alt"></i> ${store.location || 'Location not available'}</p>
+                <p><i class="fas fa-star"></i> ${(parseFloat(store.rating) || 0).toFixed(1)} Rating</p>
+                <p><i class="fas fa-clock"></i> ${store.delivery_time || '30-45'} min delivery</p>
+            </div>
         </div>
     `;
 }
