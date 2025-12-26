@@ -163,7 +163,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         activities.add({
           'type': 'store',
           'data': lastStore,
-          'title': 'New Store: ${lastStore['store_name'] ?? 'Store'} added',
+          'title': 'New Store: ${lastStore['name'] ?? 'Store'} added',
           'subtitle': _formatTimeAgo(lastStore['created_at']),
           'icon': Icons.store,
           'color': Colors.orange,
@@ -743,7 +743,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildStoreListItem(dynamic store) {
     return Card(
       child: ListTile(
-        title: Text('${store['store_name'] ?? 'Unknown Store'}'),
+        title: Text('${store['name'] ?? 'Unknown Store'}'),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
