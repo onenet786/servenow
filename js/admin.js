@@ -1238,7 +1238,7 @@ function loadUsers() {
     .catch(error => console.error('Error loading users:', error));
 }
 
-async function editUser(userId) {
+async function editUserType(userId) {
     // Get current user data first
     fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
@@ -1318,7 +1318,7 @@ function loadStores() {
     .catch(error => console.error('Error loading stores:', error));
 }
 
-async function editStore(storeId) {
+async function editStoreType(storeId) {
     showInfo('Coming Soon', 'Edit store functionality is being implemented.');
 }
 

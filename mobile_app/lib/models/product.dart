@@ -38,7 +38,7 @@ class ProductVariant {
       unitAbbreviation: json['unit_abbreviation'],
       price: (json['price'] is num)
           ? (json['price'] as num).toDouble()
-          : double.parse(json['price'].toString()),
+          : double.tryParse(json['price'].toString()) ?? 0.0,
       costPrice: parseNullableDouble(json['cost_price']),
     );
   }
@@ -119,7 +119,7 @@ class Product {
       id: json['id'],
       name: json['name'],
       description: json['description'],
-      price: double.parse(json['price'].toString()),
+      price: double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
       imageUrl: json['image_url'],
       imageBgR: json['image_bg_r'],
       imageBgG: json['image_bg_g'],

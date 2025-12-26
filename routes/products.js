@@ -789,7 +789,7 @@ router.post('/', authenticateToken, requireStoreOwner, [
                     retryValues.splice(idx, 1);
                     const retryPlaceholders = retryFields.map(() => '?');
                     const retrySql = `INSERT INTO products (${retryFields.join(',')}) VALUES (${retryPlaceholders.join(',')})`;
-                    ;[result] = await req.db.execute(retrySql, retryValues);
+                    [result] = await req.db.execute(retrySql, retryValues);
                 } else {
                     throw e;
                 }

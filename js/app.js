@@ -475,7 +475,7 @@ function getUserLocation() {
 
     navigator.geolocation.getCurrentPosition(
         showPosition,
-        showError,
+        showLocationError,
         {
             enableHighAccuracy: true,
             timeout: 10000,
@@ -505,7 +505,7 @@ function showPosition(position) {
     displayNearbyStores();
 }
 
-function showError(error) {
+function showLocationError(error) {
     // Reset button state
     const locationBtn = document.getElementById('getLocation');
     if (locationBtn) {
@@ -1230,12 +1230,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const storeSearch = document.getElementById('storeSearch');
         const clearStoreFiltersBtn = document.getElementById('clearStoreFiltersBtn');
 
-        function applyStoreFilters() {
+        const applyStoreFilters = () => {
             const search = storeSearch ? storeSearch.value : '';
             const category = storeCategoryFilter ? storeCategoryFilter.value : '';
             // Use the new handleStoreSearch function
             handleStoreSearch({ search, category });
-        }
+        };
 
         if (storeSearch) {
             storeSearch.addEventListener('input', applyStoreFilters);
