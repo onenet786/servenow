@@ -251,19 +251,6 @@ async function fetchProductStock(productId) {
 
 async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc, storeId, variantData, quantityToAdd = 1) {
     const qToAdd = parseFloat(quantityToAdd) || 1;
-    // Check for multiple stores
-    if (cart.length > 0 && storeId) {
-        const currentStoreId = cart[0].storeId;
-        if (currentStoreId && currentStoreId != storeId) {
-            if (confirm('You can only order from one store at a time. Clear your current cart and start a new order from this store?')) {
-                cart = [];
-                localStorage.setItem('serveNowCart', JSON.stringify(cart));
-                updateCartCount();
-            } else {
-                return;
-            }
-        }
-    }
 
     const existingItem = cart.find(item => item.id === productId);
     let maxQty = Number.isFinite(parseFloat(stockQty)) ? Math.max(0, parseInt(stockQty, 10)) : null;

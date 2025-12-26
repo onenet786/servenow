@@ -46,6 +46,7 @@
                     <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-chart-bar"></i> Reports <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
                     <ul class="dropdown-menu">
                         <li><a href="#" class="tab-link" data-tab="order-reports"><i class="fas fa-chart-line"></i> Order Reports</a></li>
+                        <li><a href="#" class="tab-link" data-tab="inventory-report"><i class="fas fa-boxes"></i> Inventory Report</a></li>
                     </ul>
                 </li>
                 <li class="dropdown">
@@ -762,6 +763,127 @@
                                         <!-- Report data will be loaded here -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+
+                        <!-- Inventory Report Tab -->
+                        <div id="inventory-report" class="tab-content">
+                            <h2>Inventory Report</h2>
+                            
+                            <!-- Summary Cards -->
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                    <h3 id="totalStoresCount">-</h3>
+                                    <p>Total Stores</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="totalCategoriesCount">-</h3>
+                                    <p>Total Categories</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="totalProductsCount">-</h3>
+                                    <p>Total Products</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="totalStockCount">-</h3>
+                                    <p>Total Stock Units</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="totalInventoryValue">-</h3>
+                                    <p>Total Inventory Value</p>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 2rem; margin-bottom: 1rem;">
+                                <label for="inventoryReportSelect" style="margin-right: 1rem; font-weight: 600;">Select Report:</label>
+                                <select id="inventoryReportSelect" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 0.95rem; cursor: pointer;">
+                                    <option value="store">Store-wise Inventory</option>
+                                    <option value="category">Category-wise Inventory</option>
+                                    <option value="breakdown">Store-wise Category Breakdown</option>
+                                    <option value="sales">Store Sale-wise</option>
+                                </select>
+                            </div>
+
+                            <!-- Store-wise Inventory -->
+                            <div id="storeReportSection" style="display: block;">
+                                <h3 style="margin-bottom: 1rem;">Store-wise Inventory</h3>
+                                <div class="table-container">
+                                    <table id="storeInventoryTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Store Name</th>
+                                                <th>Products</th>
+                                                <th>Total Stock</th>
+                                                <th>Inventory Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="storeInventoryBody">
+                                            <!-- Store data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Category-wise Inventory -->
+                            <div id="categoryReportSection" style="display: none;">
+                                <h3 style="margin-bottom: 1rem;">Category-wise Inventory</h3>
+                                <div class="table-container">
+                                    <table id="categoryInventoryTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Category Name</th>
+                                                <th>Products</th>
+                                                <th>Total Stock</th>
+                                                <th>Inventory Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="categoryInventoryBody">
+                                            <!-- Category data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Store-Category Breakdown -->
+                            <div id="breakdownReportSection" style="display: none;">
+                                <h3 style="margin-bottom: 1rem;">Store-wise Category Breakdown</h3>
+                                <div class="table-container">
+                                    <table id="storeCategoryBreakdownTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Store Name</th>
+                                                <th>Category</th>
+                                                <th>Products</th>
+                                                <th>Stock</th>
+                                                <th>Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="storeCategoryBreakdownBody">
+                                            <!-- Store-category breakdown will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Store Sale-wise -->
+                            <div id="salesReportSection" style="display: none;">
+                                <h3 style="margin-bottom: 1rem;">Store Sale-wise Report</h3>
+                                <div class="table-container">
+                                    <table id="storeSalesTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Store Name</th>
+                                                <th>Total Orders</th>
+                                                <th>Total Sales</th>
+                                                <th>Average Order Value</th>
+                                                <th>Unique Customers</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="storeSalesBody">
+                                            <!-- Store sales data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
 
@@ -1647,6 +1769,7 @@
     </footer>
 
     <script src="js/admin.js?v=11"></script>
+    <script src="js/inventory-report.js"></script>
     <script>
         const hamburgerMenu = document.getElementById('hamburgerMenu');
         const navMenu = document.getElementById('navMenu');
