@@ -40,9 +40,9 @@ class _StoreScreenState extends State<StoreScreen> {
     final cardWidth =
         (width - horizontalPadding - (crossAxisCount - 1) * spacing) /
         crossAxisCount;
-    if (cardWidth >= 260) return 340;
-    if (cardWidth >= 210) return 320;
-    return 310;
+    if (cardWidth >= 260) return 275;
+    if (cardWidth >= 210) return 259;
+    return 251;
   }
 
   @override
@@ -249,7 +249,7 @@ class _StoreScreenState extends State<StoreScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            height: 120,
+            height: 97,
             width: double.infinity,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
@@ -276,7 +276,7 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(6.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -291,7 +291,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   style: const TextStyle(color: Colors.green),
                 ),
                 if (variants.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   if (variants.length == 1)
                     Text(
                       variants.first.displayLabel,
@@ -359,13 +359,13 @@ class _StoreScreenState extends State<StoreScreen> {
                       ),
                     ),
                 ],
-                const SizedBox(height: 8),
+                const SizedBox(height: 5),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      minimumSize: const Size(0, 30),
+                      minimumSize: const Size(0, 24),
                       backgroundColor: Colors.red[900],
                       foregroundColor: Colors.white,
                     ),
