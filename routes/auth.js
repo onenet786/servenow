@@ -118,28 +118,28 @@ router.post('/login', [
 
         // Development shortcut: allow the default admin credentials even if user row is missing
         if (process.env.NODE_ENV === 'development' && email && email.toLowerCase() === 'admin@servenow.com' && password === 'admin123') {
-            const adminEmail = 'admin@servenow.com'
+            const adminEmail = 'admin@servenow.com';
             const [existingUsers] = await req.db.execute(
                 'SELECT id, first_name, last_name, email, user_type FROM users WHERE email = ? LIMIT 1',
                 [adminEmail]
-            )
+            );
 
-            let adminUser = existingUsers && existingUsers[0] ? existingUsers[0] : null
+            let adminUser = existingUsers && existingUsers[0] ? existingUsers[0] : null;
 
             if (!adminUser) {
-                const saltRounds = 10
-                const hashedPassword = await bcrypt.hash(password, saltRounds)
+                const saltRounds = 10;
+                const hashedPassword = await bcrypt.hash(password, saltRounds);
                 const [insertResult] = await req.db.execute(
                     `INSERT INTO users (first_name, last_name, email, password, user_type, is_verified, is_active)
                      VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     ['Dev', 'Admin', adminEmail, hashedPassword, 'admin', true, true]
-                )
-                adminUser = { id: insertResult.insertId, first_name: 'Dev', last_name: 'Admin', email: adminEmail, user_type: 'admin' }
+                );
+                adminUser = { id: insertResult.insertId, first_name: 'Dev', last_name: 'Admin', email: adminEmail, user_type: 'admin' };
             } else {
                 await req.db.execute(
                     'UPDATE users SET user_type = ?, is_verified = ?, is_active = ? WHERE id = ?',
                     ['admin', true, true, adminUser.id]
-                )
+                );
             }
 
             const token = jwt.sign(
@@ -152,19 +152,19 @@ router.post('/login', [
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: process.env.JWT_EXPIRE }
-            )
+            );
 
             try {
-                const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-                await req.db.execute('INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)', [adminUser.id, 'admin', ip])
-            } catch (e) { console.error('Login log error:', e) }
+                const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+                await req.db.execute('INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)', [adminUser.id, 'admin', ip]);
+            } catch (e) { console.error('Login log error:', e); }
 
             return res.json({
                 success: true,
                 message: 'Dev admin login',
                 token,
                 user: { id: adminUser.id, first_name: adminUser.first_name || 'Dev', last_name: adminUser.last_name || 'Admin', email: adminEmail, user_type: 'admin' }
-            })
+            });
         }
 
         // Find user

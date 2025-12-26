@@ -39,10 +39,10 @@ class _StoreScreenState extends State<StoreScreen> {
     const spacing = 10.0;
     final cardWidth =
         (width - horizontalPadding - (crossAxisCount - 1) * spacing) /
-            crossAxisCount;
-    if (cardWidth >= 260) return 420;
-    if (cardWidth >= 210) return 390;
-    return 360;
+        crossAxisCount;
+    if (cardWidth >= 260) return 340;
+    if (cardWidth >= 210) return 320;
+    return 310;
   }
 
   @override
@@ -113,10 +113,14 @@ class _StoreScreenState extends State<StoreScreen> {
               .map((json) => Product.fromJson(json))
               .toList();
           final media = MediaQuery.of(context);
-          final crossAxisCount =
-              _crossAxisCountFor(media.size.width, media.orientation);
-          final mainAxisExtent =
-              _mainAxisExtentFor(media.size.width, crossAxisCount);
+          final crossAxisCount = _crossAxisCountFor(
+            media.size.width,
+            media.orientation,
+          );
+          final mainAxisExtent = _mainAxisExtentFor(
+            media.size.width,
+            crossAxisCount,
+          );
 
           return CustomScrollView(
             slivers: [
@@ -216,7 +220,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   }, childCount: products.length),
                 ),
               ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 20)),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
             ],
           );
         },
@@ -244,7 +248,9 @@ class _StoreScreenState extends State<StoreScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          SizedBox(
+            height: 120,
+            width: double.infinity,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(10),
@@ -255,14 +261,14 @@ class _StoreScreenState extends State<StoreScreen> {
                       width: double.infinity,
                       fit: BoxFit.cover,
                       errorBuilder: (ctx, err, _) =>
-                          const Icon(Icons.image_not_supported, size: 50),
+                          const Icon(Icons.image_not_supported, size: 40),
                     )
                   : Container(
                       color: Colors.grey[200],
                       child: const Center(
                         child: Icon(
                           Icons.fastfood,
-                          size: 40,
+                          size: 30,
                           color: Colors.grey,
                         ),
                       ),
@@ -304,29 +310,52 @@ class _StoreScreenState extends State<StoreScreen> {
                           _selectedVariantKeyByProductId[product.id] = value;
                         });
                       },
-                      child: Column(
-                        children: variants.map((v) {
-                          final key = _variantKey(v);
-                          final isSelected = selectedVariant != null &&
-                              _variantKey(selectedVariant) == key;
-                          return RadioListTile<String>(
-                            value: key,
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
-                            title: Text(
-                              v.displayLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: variants.map((v) {
+                            final key = _variantKey(v);
+                            final isSelected =
+                                selectedVariant != null &&
+                                _variantKey(selectedVariant) == key;
+                            return InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _selectedVariantKeyByProductId[product.id] =
+                                      key;
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Radio<String>(
+                                      value: key,
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: const VisualDensity(
+                                        horizontal: VisualDensity.minimumDensity,
+                                        vertical: VisualDensity.minimumDensity,
+                                      ),
+                                    ),
+                                    Text(
+                                      v.displayLabel,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                 ],

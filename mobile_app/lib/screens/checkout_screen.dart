@@ -35,7 +35,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final wallet = Provider.of<WalletProvider>(context, listen: false);
-      
+
       if (auth.token != null) {
         await wallet.loadWalletBalance(auth.token!);
         if (wallet.wallet != null) {
@@ -86,24 +86,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     try {
-      final items = cart.items
-          .map((item) {
-            final payload = <String, dynamic>{
-              'product_id': item.product.id,
-              'quantity': item.quantity,
-            };
-            if (item.variant?.sizeId != null) {
-              payload['size_id'] = item.variant!.sizeId;
-            }
-            if (item.variant?.unitId != null) {
-              payload['unit_id'] = item.variant!.unitId;
-            }
-            if (item.variantLabel != null) {
-              payload['variant_label'] = item.variantLabel;
-            }
-            return payload;
-          })
-          .toList();
+      final items = cart.items.map((item) {
+        final payload = <String, dynamic>{
+          'product_id': item.product.id,
+          'quantity': item.quantity,
+        };
+        if (item.variant?.sizeId != null) {
+          payload['size_id'] = item.variant!.sizeId;
+        }
+        if (item.variant?.unitId != null) {
+          payload['unit_id'] = item.variant!.unitId;
+        }
+        if (item.variantLabel != null) {
+          payload['variant_label'] = item.variantLabel;
+        }
+        return payload;
+      }).toList();
 
       await ApiService.createOrder(
         auth.token!,
@@ -111,7 +109,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         items: items,
         deliveryAddress: _addressController.text,
         paymentMethod: _paymentMethod,
-        deliveryTime: _timeController.text.isNotEmpty ? _timeController.text : null,
+        deliveryTime: _timeController.text.isNotEmpty
+            ? _timeController.text
+            : null,
         specialInstructions: _instructionsController.text.isNotEmpty
             ? _instructionsController.text
             : null,
@@ -134,10 +134,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: const Text('OK'),
               onPressed: () {
                 Navigator.of(ctx).pop(); // Close dialog
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/home',
-                  (route) => false,
-                );
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/home', (route) => false);
               },
             ),
           ],
@@ -172,201 +171,226 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Checkout'),
-      ),
+      appBar: AppBar(title: const Text('Checkout')),
+      resizeToAvoidBottomInset: false,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Order Summary',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Order Summary',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: cart.items.length,
-                        itemBuilder: (context, index) {
-                          final item = cart.items[index];
-                          return ListTile(
-                            title: Text(item.product.name),
-                            subtitle: Text(
-                              item.variantLabel != null
-                                  ? '${item.variantLabel} • ${item.quantity} x PKR ${item.unitPrice}'
-                                  : '${item.quantity} x PKR ${item.unitPrice}',
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: cart.items.map((item) {
+                            return ListTile(
+                              dense: true,
+                              title: Text(item.product.name),
+                              subtitle: Text(
+                                item.variantLabel != null
+                                    ? '${item.variantLabel} • ${item.quantity} x PKR ${item.unitPrice}'
+                                    : '${item.quantity} x PKR ${item.unitPrice}',
+                              ),
+                              trailing: Text(
+                                'PKR ${item.total.toStringAsFixed(2)}',
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Amount:',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                            trailing: Text('PKR ${item.total.toStringAsFixed(2)}'),
-                          );
+                          ),
+                          Text(
+                            'PKR ${cart.totalAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Delivery Details',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _addressController,
+                        decoration: const InputDecoration(
+                          labelText: 'Delivery Address',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.location_on),
+                        ),
+                        maxLines: 2,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter delivery address';
+                          }
+                          return null;
                         },
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Total Amount:',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _timeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Preferred Delivery Time (Optional)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.access_time),
+                          hintText: 'e.g., ASAP or 2023-12-25 18:00',
                         ),
-                        Text(
-                          'PKR ${cart.totalAmount.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _instructionsController,
+                        decoration: const InputDecoration(
+                          labelText: 'Special Instructions (Optional)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.note),
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Payment Method',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Column(
+                        children: [
+                          RadioListTile<String>(
+                            title: const Text('Cash on Delivery'),
+                            value: 'cash',
+                            groupValue: _paymentMethod,
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _paymentMethod = value;
+                                });
+                              }
+                            },
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Delivery Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _addressController,
-                      decoration: const InputDecoration(
-                        labelText: 'Delivery Address',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.location_on),
+                          RadioListTile<String>(
+                            title: const Text('Credit Card'),
+                            value: 'card',
+                            groupValue: _paymentMethod,
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _paymentMethod = value;
+                                });
+                              }
+                            },
+                          ),
+                          RadioListTile<String>(
+                            title: const Text('Wallet'),
+                            value: 'wallet',
+                            groupValue: _paymentMethod,
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _paymentMethod = value;
+                                });
+                              }
+                            },
+                          ),
+                        ],
                       ),
-                      maxLines: 2,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter delivery address';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _timeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Preferred Delivery Time (Optional)',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.access_time),
-                        hintText: 'e.g., ASAP or 2023-12-25 18:00',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _instructionsController,
-                      decoration: const InputDecoration(
-                        labelText: 'Special Instructions (Optional)',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.note),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Payment Method',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    RadioListTile<String>(
-                      title: const Text('Cash on Delivery'),
-                      value: 'cash',
-                      groupValue: _paymentMethod,
-                      onChanged: (value) {
-                        setState(() {
-                          _paymentMethod = value!;
-                        });
-                      },
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Credit Card'),
-                      value: 'card',
-                      groupValue: _paymentMethod,
-                      onChanged: (value) {
-                        setState(() {
-                          _paymentMethod = value!;
-                        });
-                      },
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('Wallet'),
-                      value: 'wallet',
-                      groupValue: _paymentMethod,
-                      onChanged: (value) {
-                        setState(() {
-                          _paymentMethod = value!;
-                        });
-                      },
-                    ),
-                    if (_paymentMethod == 'wallet' && _walletBalance != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10, left: 16),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: _walletBalance! >= cart.totalAmount
-                                ? Colors.green.shade50
-                                : Colors.red.shade50,
-                            border: Border.all(
+                      if (_paymentMethod == 'wallet' && _walletBalance != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10, left: 16),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
                               color: _walletBalance! >= cart.totalAmount
-                                  ? Colors.green
-                                  : Colors.red,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Wallet Balance: PKR ${_walletBalance!.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: _walletBalance! >= cart.totalAmount
-                                      ? Colors.green
-                                      : Colors.red,
-                                ),
+                                  ? Colors.green.shade50
+                                  : Colors.red.shade50,
+                              border: Border.all(
+                                color: _walletBalance! >= cart.totalAmount
+                                    ? Colors.green
+                                    : Colors.red,
                               ),
-                              if (_walletBalance! < cart.totalAmount)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    'Insufficient balance. Need PKR ${(cart.totalAmount - _walletBalance!).toStringAsFixed(2)} more.',
-                                    style: const TextStyle(
-                                      color: Colors.red,
-                                      fontSize: 12,
-                                    ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Wallet Balance: PKR ${_walletBalance!.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _walletBalance! >= cart.totalAmount
+                                        ? Colors.green
+                                        : Colors.red,
                                   ),
                                 ),
-                            ],
+                                if (_walletBalance! < cart.totalAmount)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text(
+                                      'Insufficient balance. Need PKR ${(cart.totalAmount - _walletBalance!).toStringAsFixed(2)} more.',
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 30),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: _submitOrder,
+                          child: const Text(
+                            'Place Order',
+                            style: TextStyle(fontSize: 18),
                           ),
                         ),
                       ),
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.blueAccent,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: _submitOrder,
-                        child: const Text(
-                          'Place Order',
-                          style: TextStyle(fontSize: 18),
-                        ),
-                      ),
-                    ),
-                  ],
+                      const SizedBox(height: 50),
+                    ],
+                  ),
                 ),
               ),
             ),
