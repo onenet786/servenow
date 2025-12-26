@@ -249,7 +249,7 @@ async function fetchProductStock(productId) {
     return null;
 }
 
-async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc, storeId) {
+async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc, storeId, variantData) {
     // Check for multiple stores
     if (cart.length > 0 && storeId) {
         const currentStoreId = cart[0].storeId;
@@ -272,7 +272,6 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
     if (existingItem) {
         if (imageSrc) existingItem.image = imageSrc;
         if (maxQty !== null) existingItem.maxQty = maxQty;
-        // Update storeId if missing
         if (storeId && !existingItem.storeId) existingItem.storeId = storeId;
         
         const next = (existingItem.quantity || 1) + 1;
@@ -298,6 +297,13 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
             unitId: unitId || null,
             image: imageSrc || null
         };
+        
+        if (variantData) {
+            item.sizeId = variantData.size_id;
+            item.sizeLabel = variantData.size_label;
+            item.variantLabel = variantData.variant_label;
+        }
+        
         if (maxQty !== null) item.maxQty = maxQty;
         cart.push(item);
     }
@@ -420,6 +426,7 @@ function displayCart() {
 
         const itemElement = document.createElement('div');
         itemElement.className = 'cart-item serving-card';
+        const variantLabel = item.variantLabel ? `<p class="variant-label" style="font-size: 0.85em; color: #666; margin: 4px 0 0 0;">${item.variantLabel}</p>` : '';
         itemElement.innerHTML = `
             <div class="serving-dish">
                 <div class="dish-shadow"></div>
@@ -432,6 +439,7 @@ function displayCart() {
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
+                ${variantLabel}
                 <div class="serving-details">
                     <div class="cart-qty">
                         <button class="qty-btn" onclick="decrementQty(${item.id})">−</button>
