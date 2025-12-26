@@ -22,19 +22,21 @@ class WalletTransactionModel {
   });
 
   factory WalletTransactionModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic v) {
+      if (v == null) return 0.0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0.0;
+    }
+
     return WalletTransactionModel(
       id: json['id'] as int? ?? 0,
       walletId: json['wallet_id'] as int? ?? 0,
       type: json['type'] as String? ?? 'credit',
-      amount: (json['amount'] is int)
-          ? (json['amount'] as int).toDouble()
-          : json['amount'] as double? ?? 0.0,
+      amount: parseDouble(json['amount']),
       description: json['description'] as String? ?? '',
       referenceType: json['reference_type'] as String?,
       referenceId: json['reference_id'] as String?,
-      balanceAfter: (json['balance_after'] is int)
-          ? (json['balance_after'] as int).toDouble()
-          : json['balance_after'] as double? ?? 0.0,
+      balanceAfter: parseDouble(json['balance_after']),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),

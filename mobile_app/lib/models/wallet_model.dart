@@ -28,25 +28,27 @@ class WalletModel {
   });
 
   factory WalletModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic v) {
+      if (v == null) return 0.0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0.0;
+    }
+
+    double? parseNullableDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
+    }
+
     return WalletModel(
       id: json['id'] as int? ?? 0,
       userId: json['user_id'] as int? ?? 0,
-      balance: (json['balance'] is int)
-          ? (json['balance'] as int).toDouble()
-          : json['balance'] as double? ?? 0.0,
-      totalCredited: (json['total_credited'] is int)
-          ? (json['total_credited'] as int).toDouble()
-          : json['total_credited'] as double? ?? 0.0,
-      totalSpent: (json['total_spent'] is int)
-          ? (json['total_spent'] as int).toDouble()
-          : json['total_spent'] as double? ?? 0.0,
+      balance: parseDouble(json['balance']),
+      totalCredited: parseDouble(json['total_credited']),
+      totalSpent: parseDouble(json['total_spent']),
       autoRechargeEnabled: json['auto_recharge_enabled'] as bool? ?? false,
-      autoRechargeAmount: json['auto_recharge_amount'] is int
-          ? (json['auto_recharge_amount'] as int).toDouble()
-          : json['auto_recharge_amount'] as double?,
-      autoRechargeThreshold: json['auto_recharge_threshold'] is int
-          ? (json['auto_recharge_threshold'] as int).toDouble()
-          : json['auto_recharge_threshold'] as double?,
+      autoRechargeAmount: parseNullableDouble(json['auto_recharge_amount']),
+      autoRechargeThreshold: parseNullableDouble(json['auto_recharge_threshold']),
       lastCreditedAt: json['last_credited_at'] != null
           ? DateTime.parse(json['last_credited_at'] as String)
           : null,

@@ -32,13 +32,17 @@ class WalletTransferModel {
   });
 
   factory WalletTransferModel.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic v) {
+      if (v == null) return 0.0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0.0;
+    }
+
     return WalletTransferModel(
       id: json['id'] as int? ?? 0,
       senderId: json['sender_id'] as int? ?? 0,
       recipientId: json['recipient_id'] as int? ?? 0,
-      amount: (json['amount'] is int)
-          ? (json['amount'] as int).toDouble()
-          : json['amount'] as double? ?? 0.0,
+      amount: parseDouble(json['amount']),
       description: json['description'] as String? ?? '',
       status: json['status'] as String? ?? 'pending',
       senderEmail: json['sender_email'] as String?,
