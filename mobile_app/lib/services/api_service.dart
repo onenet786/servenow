@@ -491,4 +491,68 @@ class ApiService {
     );
     return _handleResponse(response);
   }
+
+  static Future<Map<String, dynamic>> getInventoryReport(String token) async {
+    final uri = Uri.parse('$baseUrl/api/admin/inventory-report');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> getStoreSalesReport(String token) async {
+    final uri = Uri.parse('$baseUrl/api/admin/store-sales-report');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<List<dynamic>> getUsers(String token) async {
+    final uri = Uri.parse('$baseUrl/api/users');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['users'] ?? [];
+  }
+
+  static Future<List<dynamic>> getStoresForAdmin(String token) async {
+    final uri = Uri.parse('$baseUrl/api/stores');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['stores'] ?? [];
+  }
+
+  static Future<List<dynamic>> getProductsForAdmin(String token) async {
+    final uri = Uri.parse('$baseUrl/api/products');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['products'] ?? [];
+  }
+
+  static Future<List<dynamic>> getRiders(String token) async {
+    final uri = Uri.parse('$baseUrl/api/riders');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return data['riders'] ?? [];
+  }
 }

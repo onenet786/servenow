@@ -255,35 +255,57 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             leading: const Icon(Icons.dashboard),
             title: const Text('Dashboard'),
             selected: true,
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).pop();
+            },
           ),
           ListTile(
             leading: const Icon(Icons.store),
             title: const Text('Manage Stores'),
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/manage-stores');
+            },
           ),
           ListTile(
             leading: const Icon(Icons.shopping_bag),
             title: const Text('Manage Products'),
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/manage-products');
+            },
           ),
           ListTile(
             leading: const Icon(Icons.people),
             title: const Text('Manage Users'),
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/manage-users');
+            },
           ),
           ListTile(
             leading: const Icon(Icons.account_balance_wallet),
             title: const Text('Wallet'),
             onTap: () {
-              Navigator.of(context).pop(); // Close drawer
+              Navigator.of(context).pop();
               Navigator.of(context).pushNamed('/wallet');
             },
           ),
           ListTile(
             leading: const Icon(Icons.delivery_dining),
             title: const Text('Riders'),
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/manage-riders');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.inventory),
+            title: const Text('Inventory Report'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/inventory-report');
+            },
           ),
           const Divider(),
           ListTile(

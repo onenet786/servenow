@@ -11,6 +11,11 @@ import 'screens/rider_dashboard_screen.dart';
 import 'screens/cart_screen.dart';
 import 'screens/checkout_screen.dart';
 import 'screens/wallet_screen.dart';
+import 'screens/inventory_report_screen.dart';
+import 'screens/manage_stores_screen.dart';
+import 'screens/manage_products_screen.dart';
+import 'screens/manage_users_screen.dart';
+import 'screens/manage_riders_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -46,6 +51,11 @@ class MyApp extends StatelessWidget {
           '/cart': (context) => const CartScreen(),
           '/checkout': (context) => const CheckoutScreen(),
           '/wallet': (context) => const WalletScreen(),
+          '/inventory-report': (context) => const InventoryReportScreen(),
+          '/manage-stores': (context) => const ManageStoresScreen(),
+          '/manage-products': (context) => const ManageProductsScreen(),
+          '/manage-users': (context) => const ManageUsersScreen(),
+          '/manage-riders': (context) => const ManageRidersScreen(),
         },
       ),
     );
