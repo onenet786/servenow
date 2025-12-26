@@ -1,7 +1,19 @@
+const productVariantsMap = {};
+
 // Get store ID from URL
 function getStoreId() {
     const urlParams = new URLSearchParams(window.location.search);
     return parseInt(urlParams.get('id'));
+}
+
+// Get variant label (size + unit)
+function getVariantLabel(variant) {
+    if (!variant) return '';
+    const parts = [];
+    if (variant.size_label) parts.push(variant.size_label);
+    if (variant.unit_abbreviation) parts.push(variant.unit_abbreviation);
+    else if (variant.unit_name) parts.push(variant.unit_name);
+    return parts.length > 0 ? parts.join(' ') : 'Default';
 }
 
 // Display store information
@@ -37,14 +49,11 @@ function displayStoreProducts(storeProducts) {
         const productCard = document.createElement('div');
         productCard.className = 'product-card';
 
-        // Normalize image path and build <img> with optional srcset
         let imageSrc = 'https://via.placeholder.com/200x150/E0E0E0/666666?text=No+Image';
         let variants = null;
-        // Use image_url from API
         const rawImage = product.image_url || product.image;
         
         if (rawImage) {
-            // Normalize backslashes and trim
             let url = String(rawImage).trim().replace(/\\/g, '/');
             if (/^https?:\/\//i.test(url) || url.toLowerCase().startsWith('data:')) {
                 imageSrc = url;
@@ -53,8 +62,36 @@ function displayStoreProducts(storeProducts) {
             } else {
                 imageSrc = API_BASE.replace(/\/$/, '') + '/' + url.replace(/^\/+/, '');
             }
-            // if server provided variants mapping, use it
             variants = product.image_variants || product.variants || null;
+        }
+
+        const sizeVariants = product.size_variants || [];
+        productVariantsMap[product.id] = sizeVariants;
+        
+        const defaultVariant = sizeVariants.length > 0 ? sizeVariants[0] : null;
+        const displayPrice = defaultVariant ? defaultVariant.price : product.price;
+        const displayVariantLabel = getVariantLabel(defaultVariant);
+        const uniqueId = `product-${product.id}-variant`;
+
+        let variantsHtml = '';
+        if (sizeVariants.length > 1) {
+            variantsHtml = `
+                <div class="variant-selector">
+                    <label class="variant-selector-label">Select variant:</label>
+                    <div class="variant-options">
+                        ${sizeVariants.map((variant, idx) => `
+                            <label class="variant-option">
+                                <input type="radio" name="${uniqueId}" value="${idx}" ${idx === 0 ? 'checked' : ''} 
+                                    onchange="updateProductPrice(${product.id}, this.value)">
+                                <span>${getVariantLabel(variant)}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                    <p class="variant-price" id="price-${product.id}">PKR ${displayPrice.toFixed(2)}</p>
+                </div>
+            `;
+        } else if (sizeVariants.length === 1) {
+            variantsHtml = `<p class="variant-label">${displayVariantLabel}</p><p class="price" id="price-${product.id}">PKR ${displayPrice.toFixed(2)}</p>`;
         }
 
         productCard.innerHTML = `
@@ -69,12 +106,11 @@ function displayStoreProducts(storeProducts) {
                 </div>
             <div class="product-card-content">
                 <h4>${product.name}</h4>
-                <p class="price">PKR ${parseFloat(product.price).toFixed(2)}</p>
-                <button class="add-to-cart" onclick="addToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.price}, ${Number.isFinite(parseInt(product.stock_quantity)) ? parseInt(product.stock_quantity,10) : 'undefined'}, '${String(product.unit_name || '').replace(/'/g, "\\'")}', ${product.unit_id || 'null'}, '${imageSrc.replace(/'/g, "\\'")}', ${currentStoreId})">Add to Cart</button>
+                ${variantsHtml ? variantsHtml : `<p class="price" id="price-${product.id}">PKR ${displayPrice.toFixed(2)}</p>`}
+                <button class="add-to-cart" id="add-btn-${product.id}" onclick="addProductToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${currentStoreId}, '${imageSrc.replace(/'/g, "\\'")}')">Add to Cart</button>
             </div>
         `;
         productGrid.appendChild(productCard);
-        // Apply orientation fit or server-provided meta for cached images in this card
         productCard.querySelectorAll('img').forEach(img => {
             try {
                 if (img.complete && img.naturalWidth && img.naturalHeight) {
@@ -149,4 +185,53 @@ function applyOrientationFitStore(img) {
             img.addEventListener('load', onLoad);
         }
     } catch (e) { console.warn('applyOrientationFitStore failed', e); }
+}
+
+// Update product price when variant changes
+function updateProductPrice(productId, variantIndex) {
+    const variants = productVariantsMap[productId];
+    if (!variants || !variants[variantIndex]) return;
+    
+    const variant = variants[variantIndex];
+    const priceElement = document.getElementById(`price-${productId}`);
+    if (priceElement) {
+        priceElement.textContent = `PKR ${variant.price.toFixed(2)}`;
+    }
+}
+
+// Add product to cart with variant info
+function addProductToCart(productId, productName, storeId, imageSrc) {
+    const variants = productVariantsMap[productId] || [];
+    const selectedVariantIndex = getSelectedVariantIndex(productId);
+    const selectedVariant = variants.length > 0 ? variants[selectedVariantIndex || 0] : null;
+    
+    const cartItem = {
+        id: productId,
+        name: productName,
+        price: selectedVariant ? selectedVariant.price : 0,
+        quantity: 1,
+        unit_id: selectedVariant ? selectedVariant.unit_id : null,
+        unit_name: selectedVariant ? selectedVariant.unit_name : null,
+        size_id: selectedVariant ? selectedVariant.size_id : null,
+        size_label: selectedVariant ? selectedVariant.size_label : null,
+        variant_label: selectedVariant ? getVariantLabel(selectedVariant) : null,
+        image_url: imageSrc,
+        storeId: storeId
+    };
+    
+    addToCart(productId, productName, cartItem.price, 1, 
+              cartItem.unit_name || '', cartItem.unit_id, imageSrc, storeId, cartItem);
+}
+
+// Get selected variant index for product
+function getSelectedVariantIndex(productId) {
+    const variants = productVariantsMap[productId] || [];
+    if (variants.length <= 1) return 0;
+    
+    const uniqueId = `product-${productId}-variant`;
+    const radioButton = document.querySelector(`input[name="${uniqueId}"]:checked`);
+    if (radioButton) {
+        return parseInt(radioButton.value);
+    }
+    return 0;
 }
