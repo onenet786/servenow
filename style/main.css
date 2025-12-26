@@ -771,7 +771,7 @@ footer p {
     color: white;
     margin: 0;
     font-family: 'Montserrat', sans-serif;
-    font-size: 1.3rem;
+    font-size: 1.1rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -786,7 +786,7 @@ footer p {
 }
 
 .store-card-body {
-    padding: 1.25rem;
+    padding: 1rem;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -797,26 +797,26 @@ footer p {
 }
 
 .store-card-body p {
-    margin: 0.5rem 0;
+    margin: 0.4rem 0;
     color: #4a5568;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     background: white; /* Legibility over pattern */
-    padding: 4px 8px;
+    padding: 3px 6px;
     border-radius: 4px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .store-card-body p i {
     color: #667eea;
-    width: 20px;
+    width: 18px;
     text-align: center;
-    font-size: 1rem;
+    font-size: 0.9rem;
     flex-shrink: 0;
 }
 
@@ -832,10 +832,11 @@ footer p {
     margin-top: auto;
     width: 100%;
     border-radius: 4px;
-    padding: 0.9rem;
+    padding: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2px;
     box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 

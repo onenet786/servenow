@@ -27,11 +27,6 @@ class CartProvider with ChangeNotifier {
   }
 
   void addItem(Product product, int quantity, {ProductVariant? variant}) {
-    // Check if product is from the same store
-    if (_items.isNotEmpty && _items.first.product.storeId != product.storeId) {
-      throw Exception('You can only order from one store at a time. Clear cart to change store.');
-    }
-
     final existingIndex = _items.indexWhere(
       (item) => item.product.id == product.id && _sameVariant(item.variant, variant),
     );

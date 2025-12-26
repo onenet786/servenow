@@ -23,18 +23,14 @@ class _StoreScreenState extends State<StoreScreen> {
 
   int _crossAxisCountFor(double width, Orientation orientation) {
     if (orientation == Orientation.landscape) {
-      if (width >= 1400) return 6;
-      if (width >= 1100) return 5;
-      return 4;
+      if (width >= 1000) return 2;
+      return 1;
     }
-
-    if (width >= 1200) return 5;
-    if (width >= 900) return 4;
-    if (width >= 600) return 3;
-    return 2;
+    return 1;
   }
 
   double _mainAxisExtentFor(double width, int crossAxisCount) {
+    if (crossAxisCount == 1) return 180; // Horizontal layout height
     const horizontalPadding = 32.0;
     const spacing = 10.0;
     final cardWidth =
@@ -125,86 +121,102 @@ class _StoreScreenState extends State<StoreScreen> {
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (ApiService.getImageUrl(store['image_url']).isNotEmpty)
-                      Image.network(
-                        ApiService.getImageUrl(store['image_url']),
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, _) => Container(
-                          height: 200,
-                          color: Colors.grey[300],
-                          child: const Icon(
-                            Icons.store,
-                            size: 80,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            store['name'],
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.location_on,
-                                size: 16,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  store['location'],
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          if (store['rating'] != null)
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.star,
-                                  size: 16,
-                                  color: Colors.amber,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${store['rating']}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (ApiService.getImageUrl(store['image_url'])
+                            .isNotEmpty)
+                          Image.network(
+                            ApiService.getImageUrl(store['image_url']),
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder:
+                                (ctx, err, _) => Container(
+                                  height: 200,
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.store,
+                                    size: 80,
+                                    color: Colors.grey,
                                   ),
                                 ),
-                              ],
-                            ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Products',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
                           ),
-                        ],
-                      ),
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                store['name'],
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.location_on,
+                                    size: 16,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      store['location'],
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              if (store['rating'] != null)
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.star,
+                                      size: 16,
+                                      color: Colors.amber,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${store['rating']}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Text(
+                    'Products',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 10)),
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverGrid(
@@ -216,7 +228,7 @@ class _StoreScreenState extends State<StoreScreen> {
                   ),
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final product = products[index];
-                    return _buildProductCard(context, product);
+                    return _buildProductCard(context, product, crossAxisCount);
                   }, childCount: products.length),
                 ),
               ),
@@ -228,19 +240,227 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Product product) {
+  Widget _buildProductCard(
+    BuildContext context,
+    Product product,
+    int crossAxisCount,
+  ) {
     final variants = product.sizeVariants;
-    final selectedVariant = variants.isNotEmpty
-        ? (() {
-            final selectedKey = _selectedVariantKeyByProductId[product.id];
-            if (selectedKey == null) return variants.first;
-            return variants.firstWhere(
-              (v) => _variantKey(v) == selectedKey,
-              orElse: () => variants.first,
-            );
-          })()
-        : null;
+    final selectedVariant =
+        variants.isNotEmpty
+            ? (() {
+              final selectedKey = _selectedVariantKeyByProductId[product.id];
+              if (selectedKey == null) return variants.first;
+              return variants.firstWhere(
+                (v) => _variantKey(v) == selectedKey,
+                orElse: () => variants.first,
+              );
+            })()
+            : null;
     final displayPrice = selectedVariant?.price ?? product.price;
+
+    if (crossAxisCount == 1) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            // Product Image
+            SizedBox(
+              width: 130,
+              height: double.infinity,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(12),
+                ),
+                child:
+                    ApiService.getImageUrl(product.imageUrl).isNotEmpty
+                        ? Image.network(
+                          ApiService.getImageUrl(product.imageUrl),
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (ctx, err, _) => const Icon(
+                                Icons.image_not_supported,
+                                size: 40,
+                              ),
+                        )
+                        : Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: Icon(
+                              Icons.fastfood,
+                              size: 40,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+              ),
+            ),
+            // Product Details
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'PKR $displayPrice',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (variants.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      if (variants.length == 1)
+                        Text(
+                          variants.first.displayLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        )
+                      else
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children:
+                                variants.map((v) {
+                                  final key = _variantKey(v);
+                                  final isSelected =
+                                      selectedVariant != null &&
+                                      _variantKey(selectedVariant) == key;
+                                  return InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedVariantKeyByProductId[product
+                                            .id] = key;
+                                      });
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 12.0,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          SizedBox(
+                                            height: 32,
+                                            width: 32,
+                                            child: // ignore: deprecated_member_use
+                                              Radio<String>(
+                                              value: key,
+                                              // ignore: deprecated_member_use
+                                              groupValue:
+                                                  selectedVariant == null
+                                                      ? null
+                                                      : _variantKey(
+                                                        selectedVariant,
+                                                      ),
+                                              // ignore: deprecated_member_use
+                                              onChanged: (value) {
+                                                if (value == null) return;
+                                                setState(() {
+                                                  _selectedVariantKeyByProductId[product
+                                                      .id] = value;
+                                                });
+                                              },
+                                              materialTapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                              visualDensity: const VisualDensity(
+                                                horizontal:
+                                                    VisualDensity.minimumDensity,
+                                                vertical:
+                                                    VisualDensity.minimumDensity,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            v.displayLabel,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight:
+                                                  isSelected
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
+                        ),
+                    ],
+                    const Spacer(),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 36,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[900],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed:
+                            product.isAvailable
+                                ? () {
+                                  try {
+                                    Provider.of<CartProvider>(
+                                      context,
+                                      listen: false,
+                                    ).addItem(
+                                      product,
+                                      1,
+                                      variant: selectedVariant,
+                                    );
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Added to cart'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(e.toString()),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                                : null,
+                        child: Text(
+                          product.isAvailable ? 'Add to Cart' : 'Unavailable',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Card(
       elevation: 2,
@@ -255,24 +475,28 @@ class _StoreScreenState extends State<StoreScreen> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(10),
               ),
-              child: ApiService.getImageUrl(product.imageUrl).isNotEmpty
-                  ? Image.network(
-                      ApiService.getImageUrl(product.imageUrl),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (ctx, err, _) =>
-                          const Icon(Icons.image_not_supported, size: 40),
-                    )
-                  : Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(
-                          Icons.fastfood,
-                          size: 30,
-                          color: Colors.grey,
+              child:
+                  ApiService.getImageUrl(product.imageUrl).isNotEmpty
+                      ? Image.network(
+                        ApiService.getImageUrl(product.imageUrl),
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (ctx, err, _) => const Icon(
+                              Icons.image_not_supported,
+                              size: 40,
+                            ),
+                      )
+                      : Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: Icon(
+                            Icons.fastfood,
+                            size: 30,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
-                    ),
             ),
           ),
           Padding(
@@ -300,64 +524,76 @@ class _StoreScreenState extends State<StoreScreen> {
                       style: const TextStyle(color: Colors.grey),
                     )
                   else
-                    RadioGroup<String>(
-                      groupValue: selectedVariant == null
-                          ? null
-                          : _variantKey(selectedVariant),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() {
-                          _selectedVariantKeyByProductId[product.id] = value;
-                        });
-                      },
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: variants.map((v) {
-                            final key = _variantKey(v);
-                            final isSelected =
-                                selectedVariant != null &&
-                                _variantKey(selectedVariant) == key;
-                            return InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _selectedVariantKeyByProductId[product.id] =
-                                      key;
-                                });
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Radio<String>(
-                                      value: key,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                      visualDensity: const VisualDensity(
-                                        horizontal: VisualDensity.minimumDensity,
-                                        vertical: VisualDensity.minimumDensity,
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children:
+                                variants.map((v) {
+                                  final key = _variantKey(v);
+                                  final isSelected =
+                                      selectedVariant != null &&
+                                      _variantKey(selectedVariant) == key;
+                                  return InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedVariantKeyByProductId[product
+                                            .id] = key;
+                                      });
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4.0,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          // ignore: deprecated_member_use
+                                          Radio<String>(
+                                            value: key,
+                                            // ignore: deprecated_member_use
+                                            groupValue:
+                                                selectedVariant == null
+                                                    ? null
+                                                    : _variantKey(
+                                                      selectedVariant,
+                                                    ),
+                                            // ignore: deprecated_member_use
+                                            onChanged: (value) {
+                                              if (value == null) return;
+                                              setState(() {
+                                                _selectedVariantKeyByProductId[product
+                                                    .id] = value;
+                                              });
+                                            },
+                                            materialTapTargetSize:
+                                                MaterialTapTargetSize.shrinkWrap,
+                                            visualDensity: const VisualDensity(
+                                              horizontal:
+                                                  VisualDensity.minimumDensity,
+                                              vertical:
+                                                  VisualDensity.minimumDensity,
+                                            ),
+                                          ),
+                                          Text(
+                                            v.displayLabel,
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight:
+                                                  isSelected
+                                                      ? FontWeight.w600
+                                                      : FontWeight.w400,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    Text(
-                                      v.displayLabel,
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: isSelected
-                                            ? FontWeight.w600
-                                            : FontWeight.w400,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                                  );
+                                }).toList(),
+                          ),
                         ),
-                      ),
-                    ),
                 ],
                 const SizedBox(height: 5),
                 SizedBox(
@@ -369,29 +605,30 @@ class _StoreScreenState extends State<StoreScreen> {
                       backgroundColor: Colors.red[900],
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: product.isAvailable
-                        ? () {
-                            try {
-                              Provider.of<CartProvider>(
-                                context,
-                                listen: false,
-                              ).addItem(product, 1, variant: selectedVariant);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Added to cart'),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(e.toString()),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                    onPressed:
+                        product.isAvailable
+                            ? () {
+                              try {
+                                Provider.of<CartProvider>(
+                                  context,
+                                  listen: false,
+                                ).addItem(product, 1, variant: selectedVariant);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Added to cart'),
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(e.toString()),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
                             }
-                          }
-                        : null,
+                            : null,
                     child: Text(product.isAvailable ? 'Add' : 'Unavailable'),
                   ),
                 ),

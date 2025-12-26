@@ -249,7 +249,8 @@ async function fetchProductStock(productId) {
     return null;
 }
 
-async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc, storeId, variantData) {
+async function addToCart(productId, productName, price, stockQty, unitName, unitId, imageSrc, storeId, variantData, quantityToAdd = 1) {
+    const qToAdd = parseFloat(quantityToAdd) || 1;
     // Check for multiple stores
     if (cart.length > 0 && storeId) {
         const currentStoreId = cart[0].storeId;
@@ -274,9 +275,10 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
         if (maxQty !== null) existingItem.maxQty = maxQty;
         if (storeId && !existingItem.storeId) existingItem.storeId = storeId;
         
-        const next = (existingItem.quantity || 1) + 1;
+        const next = (existingItem.quantity || 0) + qToAdd;
         if (maxQty !== null && next > maxQty) {
             showWarning('Limited Stock', `Only ${maxQty} available for ${productName}.`);
+            existingItem.quantity = maxQty;
         } else {
             existingItem.quantity = next;
         }
@@ -287,12 +289,19 @@ async function addToCart(productId, productName, price, stockQty, unitName, unit
             updateCartCount();
             return;
         }
+        
+        let initialQty = qToAdd;
+        if (maxQty !== null && initialQty > maxQty) {
+            showWarning('Limited Stock', `Only ${maxQty} available for ${productName}.`);
+            initialQty = maxQty;
+        }
+
         const item = {
             id: productId,
             name: productName,
             price: price,
             storeId: storeId,
-            quantity: 1,
+            quantity: initialQty,
             unitName: unitName || null,
             unitId: unitId || null,
             image: imageSrc || null

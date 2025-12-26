@@ -120,9 +120,15 @@ function displayStoreProducts(storeProducts) {
                     })}
                 </div>
             <div class="product-card-content">
-                <h4>${product.name}</h4>
-                ${variantsHtml ? variantsHtml : `<p class="price" id="price-${product.id}">PKR ${displayPrice.toFixed(2)}</p>`}
-                <button class="add-to-cart" id="add-btn-${product.id}" onclick="addProductToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${currentStoreId}, '${imageSrc.replace(/'/g, "\\'")}')">Add to Cart</button>
+                <div class="product-info-left">
+                    <h4>${product.name}</h4>
+                    ${variantsHtml ? variantsHtml : `<p class="price" id="price-${product.id}">PKR ${displayPrice.toFixed(2)}</p>`}
+                </div>
+                <div class="product-controls-right">
+                    <button class="add-to-cart" id="add-btn-${product.id}" onclick="addProductToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${currentStoreId}, '${imageSrc.replace(/'/g, "\\'")}')">
+                        <i class="fas fa-plus"></i> Add
+                    </button>
+                </div>
             </div>
         `;
         productGrid.appendChild(productCard);
