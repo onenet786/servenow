@@ -198,32 +198,39 @@ router.post('/', authenticateToken, async (req, res) => {
 
         total += delivery_fee;
 
-        // Check wallet balance if payment method is wallet
+        let wallet = null;
         if (payment_method === 'wallet') {
             const [wallets] = await req.db.execute(
                 'SELECT id, balance FROM wallets WHERE user_id = ?',
                 [req.user.id]
             );
 
-            if (!wallets.length || parseFloat(wallets[0].balance) < total) {
+            if (!wallets.length) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Insufficient wallet balance'
+                    message: 'Wallet not found'
+                });
+            }
+
+            wallet = wallets[0];
+            const balance = parseFloat(wallet.balance);
+            
+            if (balance < total) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Insufficient wallet balance. Required: PKR ${total.toFixed(2)}, Available: PKR ${balance.toFixed(2)}`
                 });
             }
         }
 
-        // Generate order number
         const orderNumber = 'ORD' + Date.now() + Math.floor(Math.random() * 1000);
 
-        // Create order
         const [orderResult] = await req.db.execute(
             `INSERT INTO orders (order_number, user_id, store_id, total_amount, delivery_fee, payment_method, delivery_address, delivery_time, special_instructions)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [orderNumber, req.user.id, storeId, total, delivery_fee, payment_method, delivery_address, delivery_time || null, special_instructions || null]
         );
 
-        // Add order items
         await ensureOrderItemsVariantColumns(req.db);
         for (let item of normalizedItems) {
             await req.db.execute(
@@ -232,29 +239,20 @@ router.post('/', authenticateToken, async (req, res) => {
             );
         }
 
-        // Deduct from wallet if payment method is wallet
-        if (payment_method === 'wallet') {
-            const [wallets] = await req.db.execute(
-                'SELECT id, balance FROM wallets WHERE user_id = ?',
-                [req.user.id]
+        if (payment_method === 'wallet' && wallet) {
+            const newBalance = parseFloat(wallet.balance) - total;
+            
+            await req.db.execute(
+                'UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?',
+                [newBalance, total, wallet.id]
             );
             
-            if (wallets.length > 0) {
-                const wallet = wallets[0];
-                const newBalance = parseFloat(wallet.balance) - total;
-                
-                await req.db.execute(
-                    'UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?',
-                    [newBalance, total, wallet.id]
-                );
-                
-                await req.db.execute(
-                    `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
-                     reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [wallet.id, 'debit', total, `Order payment - ${orderNumber}`, 
-                     'order', orderResult.insertId, newBalance]
-                );
-            }
+            await req.db.execute(
+                `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
+                 reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [wallet.id, 'debit', total, `Order payment - ${orderNumber}`, 
+                 'order', orderResult.insertId, newBalance]
+            );
         }
 
         res.status(201).json({
