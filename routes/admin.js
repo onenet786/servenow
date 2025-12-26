@@ -75,6 +75,134 @@ router.get('/visitor-stats', authenticateToken, requireAdmin, async (req, res) =
     }
 });
 
+router.get('/inventory-report', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const [storeInventory] = await req.db.execute(`
+            SELECT 
+                s.id as store_id,
+                s.name as store_name,
+                COUNT(p.id) as total_products,
+                SUM(p.stock_quantity) as total_stock,
+                SUM(p.stock_quantity * p.price) as total_inventory_value
+            FROM stores s
+            LEFT JOIN products p ON s.id = p.store_id
+            GROUP BY s.id, s.name
+            ORDER BY s.name
+        `);
+
+        const [categoryInventory] = await req.db.execute(`
+            SELECT 
+                c.id as category_id,
+                c.name as category_name,
+                COUNT(p.id) as total_products,
+                SUM(p.stock_quantity) as total_stock,
+                SUM(p.stock_quantity * p.price) as total_inventory_value
+            FROM categories c
+            LEFT JOIN products p ON c.id = p.category_id
+            GROUP BY c.id, c.name
+            ORDER BY c.name
+        `);
+
+        const [storeCategoryBreakdown] = await req.db.execute(`
+            SELECT 
+                s.id as store_id,
+                s.name as store_name,
+                c.id as category_id,
+                c.name as category_name,
+                COUNT(p.id) as product_count,
+                SUM(p.stock_quantity) as stock_quantity,
+                SUM(p.stock_quantity * p.price) as inventory_value
+            FROM stores s
+            LEFT JOIN products p ON s.id = p.store_id
+            LEFT JOIN categories c ON p.category_id = c.id
+            GROUP BY s.id, s.name, c.id, c.name
+            ORDER BY s.name, c.name
+        `);
+
+        const [totalStats] = await req.db.execute(`
+            SELECT 
+                COUNT(DISTINCT s.id) as total_stores,
+                COUNT(DISTINCT c.id) as total_categories,
+                COUNT(p.id) as total_products,
+                SUM(p.stock_quantity) as total_stock,
+                SUM(p.stock_quantity * p.price) as total_inventory_value
+            FROM stores s
+            CROSS JOIN categories c
+            LEFT JOIN products p ON s.id = p.store_id AND c.id = p.category_id
+        `);
+
+        return res.json({
+            success: true,
+            store_wise: storeInventory.map(row => ({
+                store_id: row.store_id,
+                store_name: row.store_name,
+                total_products: Number(row.total_products) || 0,
+                total_stock: Number(row.total_stock) || 0,
+                total_inventory_value: parseFloat(row.total_inventory_value) || 0
+            })),
+            category_wise: categoryInventory.map(row => ({
+                category_id: row.category_id,
+                category_name: row.category_name,
+                total_products: Number(row.total_products) || 0,
+                total_stock: Number(row.total_stock) || 0,
+                total_inventory_value: parseFloat(row.total_inventory_value) || 0
+            })),
+            store_category_breakdown: storeCategoryBreakdown.map(row => ({
+                store_id: row.store_id,
+                store_name: row.store_name,
+                category_id: row.category_id,
+                category_name: row.category_name,
+                product_count: Number(row.product_count) || 0,
+                stock_quantity: Number(row.stock_quantity) || 0,
+                inventory_value: parseFloat(row.inventory_value) || 0
+            })),
+            summary: {
+                total_stores: Number(totalStats[0].total_stores) || 0,
+                total_categories: Number(totalStats[0].total_categories) || 0,
+                total_products: Number(totalStats[0].total_products) || 0,
+                total_stock: Number(totalStats[0].total_stock) || 0,
+                total_inventory_value: parseFloat(totalStats[0].total_inventory_value) || 0
+            }
+        });
+    } catch (err) {
+        console.error('Inventory report error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to fetch inventory report', error: err.message });
+    }
+});
+
+router.get('/store-sales-report', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const [storeSales] = await req.db.execute(`
+            SELECT 
+                s.id as store_id,
+                s.name as store_name,
+                COUNT(DISTINCT o.id) as total_orders,
+                COALESCE(SUM(o.total_amount), 0) as total_sales,
+                COALESCE(AVG(o.total_amount), 0) as average_order_value,
+                COUNT(DISTINCT o.user_id) as unique_customers
+            FROM stores s
+            LEFT JOIN orders o ON s.id = o.store_id AND o.status != 'cancelled'
+            GROUP BY s.id, s.name
+            ORDER BY total_sales DESC
+        `);
+
+        return res.json({
+            success: true,
+            store_sales: storeSales.map(row => ({
+                store_id: row.store_id,
+                store_name: row.store_name,
+                total_orders: Number(row.total_orders) || 0,
+                total_sales: parseFloat(row.total_sales) || 0,
+                average_order_value: parseFloat(row.average_order_value) || 0,
+                unique_customers: Number(row.unique_customers) || 0
+            }))
+        });
+    } catch (err) {
+        console.error('Store sales report error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to fetch store sales report', error: err.message });
+    }
+});
+
 module.exports = router;
 
 // --- Database backup endpoints ---

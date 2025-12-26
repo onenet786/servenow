@@ -979,6 +979,9 @@ function switchTab(tabName) {
         case 'order-reports':
             // Reports tab doesn't need initial loading, user will generate reports manually
             break;
+        case 'inventory-report':
+            loadInventoryReport();
+            break;
         case 'db-backup':
             // Load list of available backups when backup tab is opened
             loadBackups();

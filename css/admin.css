@@ -2441,3 +2441,23 @@ main { max-width: 100vw; width: 100%; }
     position: fixed !important;
   }
 }
+
+#storeInventoryTable,
+#categoryInventoryTable,
+#storeCategoryBreakdownTable,
+#storeSalesTable {
+    table-layout: auto;
+}
+
+#storeInventoryTable tbody td:first-child,
+#storeInventoryTable thead th:first-child,
+#categoryInventoryTable tbody td:first-child,
+#categoryInventoryTable thead th:first-child,
+#storeCategoryBreakdownTable tbody td:first-child,
+#storeCategoryBreakdownTable thead th:first-child,
+#storeSalesTable tbody td:first-child,
+#storeSalesTable thead th:first-child {
+    width: 300px !important;
+    min-width: 300px !important;
+    word-wrap: break-word;
+}
