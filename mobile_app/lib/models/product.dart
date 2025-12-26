@@ -57,7 +57,7 @@ class ProductVariant {
 
   String get displayLabel {
     final size = (sizeLabel ?? '').trim();
-    final unit = ((unitAbbreviation ?? unitName) ?? '').trim();
+    final unit = (unitName ?? '').trim();
     if (size.isNotEmpty && unit.isNotEmpty) return '$size $unit';
     if (size.isNotEmpty) return size;
     if (unit.isNotEmpty) return unit;
