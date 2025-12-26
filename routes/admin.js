@@ -208,6 +208,90 @@ router.get('/backup-db/download', authenticateToken, requireAdmin, async (req, r
     }
 });
 
+// RESTORE endpoint (safe/no-op by default)
+// Historically this project provided a restore route. To avoid client-side JSON parse errors
+// when the route is missing, provide a safe JSON response here. Enabling real restores
+// requires setting ENABLE_RESTORE=true and ensuring mysqldump/mysql client availability
+// and appropriate security considerations.
+router.post('/restore-db', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { filename } = req.body || {};
+        if (!filename) return res.status(400).json({ success: false, message: 'filename is required' });
+
+        if (process.env.ENABLE_RESTORE !== 'true') {
+            return res.status(501).json({ success: false, message: 'Restore endpoint is disabled on this server. Set ENABLE_RESTORE=true to enable.' });
+        }
+
+        // Implement restore using mysql2 connector (no external mysql client)
+        const safe = path.basename(filename);
+        const filepath = path.join(BACKUP_DIR, safe);
+        if (!fs.existsSync(filepath)) return res.status(404).json({ success: false, message: 'Backup file not found' });
+
+        // Require the request to come from the web admin UI (extra guard against mobile API calls)
+        const requestedFrom = (req.get('X-Requested-From') || req.get('x-requested-from') || '').toString();
+        const referer = (req.get('referer') || req.get('referrer') || '').toString();
+        if (requestedFrom !== 'web-admin' && !referer.includes('/admin.html')) {
+            return res.status(403).json({ success: false, message: 'Restore requests must originate from the web admin UI' });
+        }
+
+        // Require a server-side passphrase for extra confirmation
+        const providedPass = req.body && req.body.password ? String(req.body.password) : '';
+        const requiredPass = process.env.RESTORE_PASSPHRASE;
+        if (!requiredPass) return res.status(500).json({ success: false, message: 'Server restore passphrase not configured (RESTORE_PASSPHRASE)' });
+        if (providedPass !== requiredPass) return res.status(403).json({ success: false, message: 'Invalid restore confirmation passphrase' });
+
+        // Locking to prevent concurrent restores
+        const lockFile = path.join(BACKUP_DIR, '.restore.lock');
+        if (fs.existsSync(lockFile)) {
+            try {
+                const info = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+                return res.status(423).json({ success: false, message: 'Restore already in progress', info });
+            } catch (_) {
+                return res.status(423).json({ success: false, message: 'Restore already in progress' });
+            }
+        }
+
+        // create lock
+        try {
+            fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid, ts: Date.now(), user: req.user && req.user.id ? req.user.id : null }));
+        } catch (e) {
+            console.error('Failed to create restore lock:', e);
+            return res.status(500).json({ success: false, message: 'Failed to create restore lock' });
+        }
+
+        // Read SQL file and execute using mysql2/promise
+        const mysqlPromise = require('mysql2/promise');
+        const dbHost = process.env.DB_HOST || process.env.MYSQL_HOST || 'localhost';
+        const dbPort = process.env.DB_PORT || process.env.MYSQL_PORT || '3306';
+        const dbUser = process.env.DB_USER || process.env.MYSQL_USER || process.env.MYSQL_USERNAME;
+        const dbPass = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD;
+        const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'servenow';
+
+        if (!dbUser) {
+            try { fs.unlinkSync(lockFile); } catch(_){}
+            return res.status(500).json({ success: false, message: 'DB user not configured on server' });
+        }
+
+        try {
+            const sql = fs.readFileSync(filepath, 'utf8');
+            const conn = await mysqlPromise.createConnection({ host: dbHost, port: Number(dbPort), user: dbUser, password: dbPass, database: dbName, multipleStatements: true });
+            await conn.query('SET FOREIGN_KEY_CHECKS=0');
+            await conn.query(sql);
+            await conn.query('SET FOREIGN_KEY_CHECKS=1');
+            await conn.end();
+            try { fs.unlinkSync(lockFile); } catch(_){}
+            return res.json({ success: true, message: 'Restore completed successfully' });
+        } catch (errExec) {
+            console.error('Restore (connector) failed:', errExec && errExec.stack ? errExec.stack : errExec);
+            try { fs.unlinkSync(lockFile); } catch(_){}
+            return res.status(500).json({ success: false, message: 'Restore failed', error: errExec && errExec.message ? errExec.message : String(errExec) });
+        }
+    } catch (err) {
+        console.error('Restore backup error:', err);
+        return res.status(500).json({ success: false, message: 'Restore failed', error: err.message });
+    }
+});
+
 router.post('/upload-image', authenticateToken, requireAdmin, upload.single('image'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });

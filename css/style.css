@@ -448,11 +448,13 @@ main {
 
 .store-card h4 {
     margin-bottom: 0.5rem;
+    font-size: 1.1rem;
 }
 
 .store-card p {
     margin-bottom: 1rem;
     color: #666;
+    font-size: 0.85rem;
 }
 
 /* Forms */

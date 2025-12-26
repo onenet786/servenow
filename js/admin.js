@@ -301,7 +301,33 @@ function initializeAdmin() {
     const refreshBackupsBtn = document.getElementById('refreshBackupsBtn');
     if (refreshBackupsBtn) refreshBackupsBtn.addEventListener('click', loadBackups);
     const restoreBackupBtn = document.getElementById('restoreBackupBtn');
-    if (restoreBackupBtn) restoreBackupBtn.addEventListener('click', restoreSelectedBackup);
+    function updateRestoreButtonState() {
+        const sel = document.querySelector('input[name="selBackup"]:checked');
+        if (restoreBackupBtn) restoreBackupBtn.disabled = !sel;
+    }
+    // initialize and bind to selection changes
+    updateRestoreButtonState();
+    document.addEventListener('change', (ev) => {
+        if (ev.target && ev.target.name === 'selBackup') updateRestoreButtonState();
+    });
+
+    if (restoreBackupBtn) {
+        restoreBackupBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            const selected = document.querySelector('input[name="selBackup"]:checked');
+            if (!selected) { showError('Restore', 'Please select a backup to restore'); return; }
+            // autofill modal filename and reset modal inputs
+            const filenameEl = document.getElementById('restoreFilename');
+            if (filenameEl) filenameEl.textContent = selected.value || '(unknown)';
+            const restoreInput = document.getElementById('restoreConfirmInput');
+            const restoreAck = document.getElementById('restoreAcknowledge');
+            const confirmRestoreBtn = document.getElementById('confirmRestoreBtn');
+            if (restoreInput) restoreInput.value = '';
+            if (restoreAck) restoreAck.checked = false;
+            if (confirmRestoreBtn) confirmRestoreBtn.disabled = true;
+            showModal('restoreConfirmModal');
+        });
+    }
     const clearDatabaseBtn = document.getElementById('clearDatabaseBtn');
     if (clearDatabaseBtn) clearDatabaseBtn.addEventListener('click', clearDatabaseWithBackup);
     const clearDatabaseKeepOneBtn = document.getElementById('clearDatabaseKeepOneBtn');
@@ -317,6 +343,34 @@ function initializeAdmin() {
     }
     if (filterRider) {
         filterRider.addEventListener('change', filterOrders);
+    }
+
+    // Wire up restore confirmation modal
+    const restoreInput = document.getElementById('restoreConfirmInput');
+    const confirmRestoreBtn = document.getElementById('confirmRestoreBtn');
+    if (restoreInput && confirmRestoreBtn) {
+        const restoreAck = document.getElementById('restoreAcknowledge');
+        function updateConfirmState() {
+            const ok = String(restoreInput.value || '').trim().toUpperCase() === 'RESTORE';
+            const ack = restoreAck ? restoreAck.checked : false;
+            confirmRestoreBtn.disabled = !(ok && ack);
+        }
+        restoreInput.addEventListener('input', updateConfirmState);
+        if (restoreAck) restoreAck.addEventListener('change', updateConfirmState);
+
+        confirmRestoreBtn.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            // Close modal and perform restore
+            hideModal('restoreConfirmModal');
+            try {
+                // Re-validate selection before proceeding
+                const selected = document.querySelector('input[name="selBackup"]:checked');
+                if (!selected) { showError('Restore', 'Please select a backup to restore'); return; }
+                await restoreSelectedBackup();
+            } catch (err) {
+                console.error('confirmRestore error:', err);
+            }
+        });
     }
     if (clearFiltersBtn) {
         clearFiltersBtn.addEventListener('click', clearFilters);
@@ -1082,10 +1136,24 @@ async function restoreBackup(filename) {
     try {
         const resp = await fetch(`${API_BASE}/api/admin/restore-db`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}`, 'X-Requested-From': 'web-admin' },
             body: JSON.stringify({ filename, username: u, password: p })
         });
         const data = await resp.json();
+        if (resp.status === 501) {
+            showError('Restore Disabled', data.message || 'Restore is disabled on this server');
+            const btn = document.getElementById('restoreBackupBtn'); if (btn) btn.disabled = true;
+            return;
+        }
+        if (resp.status === 423) {
+            showError('Restore Locked', data.message || 'Another restore is in progress');
+            return;
+        }
+        if (resp.status === 403) {
+            showError('Restore Unauthorized', data.message || 'Invalid confirmation passphrase');
+            return;
+        }
+
         if (data.success) {
             showSuccess('Restore Complete', data.message || 'Database restored');
             await loadBackups();
