@@ -6,44 +6,64 @@ const { logError } = require('../utils/debugLogger');
 
 const router = express.Router();
 
+const getOrCreateWallet = async (db, userId) => {
+    const [wallets] = await db.execute(
+        `SELECT id, balance, total_credited, total_spent, auto_recharge_enabled, 
+         auto_recharge_amount, auto_recharge_threshold, last_credited_at 
+         FROM wallets WHERE user_id = ?`,
+        [userId]
+    );
+
+    if (!wallets.length) {
+        await db.execute(
+            'INSERT INTO wallets (user_id, balance) VALUES (?, ?)',
+            [userId, 0]
+        );
+        const [newWallet] = await db.execute(
+            'SELECT id, balance, total_credited, total_spent FROM wallets WHERE user_id = ?',
+            [userId]
+        );
+        return newWallet[0];
+    }
+    return wallets[0];
+};
+
+const validatePaymentMethodOwnership = async (db, paymentMethodId, userId) => {
+    const [methods] = await db.execute(
+        'SELECT user_id FROM saved_payment_methods WHERE id = ?',
+        [paymentMethodId]
+    );
+
+    if (!methods.length || methods[0].user_id !== userId) {
+        return null;
+    }
+    return methods[0];
+};
+
+const recordWalletTransaction = async (db, walletId, type, amount, description, referenceType, referenceId, balanceAfter) => {
+    const [result] = await db.execute(
+        `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
+         reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [walletId, type, amount, description, referenceType, referenceId, balanceAfter]
+    );
+    return result.insertId;
+};
+
 // ===== WALLET BALANCE & OPERATIONS =====
 
 // Get wallet balance
 router.get('/balance', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-
-        const [wallets] = await req.db.execute(
-            `SELECT id, balance, total_credited, total_spent, auto_recharge_enabled, 
-             auto_recharge_amount, auto_recharge_threshold, last_credited_at 
-             FROM wallets WHERE user_id = ?`,
-            [userId]
-        );
-
-        if (!wallets.length) {
-            // Create wallet if doesn't exist (shouldn't happen with proper migration)
-            await req.db.execute(
-                'INSERT INTO wallets (user_id, balance) VALUES (?, ?)',
-                [userId, 0]
-            );
-
-            const [newWallet] = await req.db.execute(
-                'SELECT id, balance, total_credited, total_spent FROM wallets WHERE user_id = ?',
-                [userId]
-            );
-
-            return sendSuccess(res, { 
-                wallet: newWallet[0],
-                stripePublicKey: process.env.STRIPE_PUBLIC_KEY 
-            }, 'Wallet created');
-        }
+        const wallet = await getOrCreateWallet(req.db, userId);
 
         return sendSuccess(res, { 
-            wallet: wallets[0],
+            wallet,
             stripePublicKey: process.env.STRIPE_PUBLIC_KEY 
         }, 'Wallet balance retrieved');
 
     } catch (error) {
+        logError('Get wallet balance', error);
         return sendServerError(res, error);
     }
 });
@@ -62,20 +82,9 @@ router.post('/topup', authenticateToken, [
         const userId = req.user.id;
         const { amount, paymentMethod, cardToken, saveCard } = req.body;
 
-        // 1. Get wallet
-        const [wallets] = await req.db.execute(
-            'SELECT id FROM wallets WHERE user_id = ?',
-            [userId]
-        );
-
-        if (!wallets.length) {
-            return sendError(res, 'Wallet not found', 404);
-        }
-
-        const wallet = wallets[0];
+        const wallet = await getOrCreateWallet(req.db, userId);
         const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-        // 2. Process payment via Stripe
         const [users] = await req.db.execute(
             'SELECT stripe_customer_id FROM users WHERE id = ?',
             [userId]
@@ -95,7 +104,6 @@ router.post('/topup', authenticateToken, [
             );
         }
 
-        // 3. Create payment intent for top-up
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(amount * 100),
             currency: 'pkr',
@@ -109,22 +117,17 @@ router.post('/topup', authenticateToken, [
             return sendError(res, 'Payment failed', 400);
         }
 
-        // 4. Credit wallet
-        const newBalance = parseFloat(wallets[0]?.balance || 0) + parseFloat(amount);
+        const newBalance = parseFloat(wallet.balance || 0) + parseFloat(amount);
         await req.db.execute(
             'UPDATE wallets SET balance = ?, total_credited = total_credited + ?, last_credited_at = NOW() WHERE id = ?',
             [newBalance, amount, wallet.id]
         );
 
-        // 5. Record transaction
-        const [result] = await req.db.execute(
-            `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
-             reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [wallet.id, 'credit', amount, `Top-up via ${paymentMethod}`, 
-             'topup', paymentIntent.id, newBalance]
+        const transactionId = await recordWalletTransaction(
+            req.db, wallet.id, 'credit', amount, 
+            `Top-up via ${paymentMethod}`, 'topup', paymentIntent.id, newBalance
         );
 
-        // 6. Save payment method if requested
         if (saveCard && paymentIntent.payment_method) {
             const pm = await stripe.paymentMethods.retrieve(paymentIntent.payment_method);
             await req.db.execute(
@@ -136,13 +139,13 @@ router.post('/topup', authenticateToken, [
         }
 
         return sendSuccess(res, { 
-            transaction_id: result.insertId,
+            transaction_id: transactionId,
             new_balance: newBalance,
             amount_added: amount
         }, 'Wallet topped up successfully', 201);
 
     } catch (error) {
-        console.error('Wallet top-up error:', error);
+        logError('Wallet top-up', error);
         return sendServerError(res, error);
     }
 });
@@ -230,20 +233,10 @@ router.post('/auto-recharge', authenticateToken, [
         const userId = req.user.id;
         const { enabled, amount, threshold } = req.body;
 
-        // Get wallet
-        const [wallets] = await req.db.execute(
-            'SELECT id FROM wallets WHERE user_id = ?',
-            [userId]
-        );
+        const wallet = await getOrCreateWallet(req.db, userId);
 
-        if (!wallets.length) {
-            return sendError(res, 'Wallet not found', 404);
-        }
-
-        // Update auto-recharge settings
-        const updateParams = [wallets[0].id];
+        const updateParams = [enabled];
         let updateFields = ['auto_recharge_enabled = ?'];
-        updateParams.unshift(enabled);
 
         if (enabled && amount) {
             updateFields.push('auto_recharge_amount = ?');
@@ -255,14 +248,16 @@ router.post('/auto-recharge', authenticateToken, [
             updateParams.push(threshold);
         }
 
+        updateParams.push(wallet.id);
         await req.db.execute(
             `UPDATE wallets SET ${updateFields.join(', ')} WHERE id = ?`,
-            [...updateParams, wallets[0].id]
+            updateParams
         );
 
         return sendSuccess(res, { enabled }, 'Auto-recharge settings updated');
 
     } catch (error) {
+        logError('Configure auto-recharge', error);
         return sendServerError(res, error);
     }
 });
@@ -271,24 +266,16 @@ router.post('/auto-recharge', authenticateToken, [
 router.get('/auto-recharge', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-
-        const [wallets] = await req.db.execute(
-            `SELECT auto_recharge_enabled, auto_recharge_amount, 
-             auto_recharge_threshold FROM wallets WHERE user_id = ?`,
-            [userId]
-        );
-
-        if (!wallets.length) {
-            return sendError(res, 'Wallet not found', 404);
-        }
+        const wallet = await getOrCreateWallet(req.db, userId);
 
         return sendSuccess(res, { 
-            enabled: wallets[0].auto_recharge_enabled,
-            amount: wallets[0].auto_recharge_amount,
-            threshold: wallets[0].auto_recharge_threshold
+            enabled: wallet.auto_recharge_enabled,
+            amount: wallet.auto_recharge_amount,
+            threshold: wallet.auto_recharge_threshold
         }, 'Auto-recharge settings retrieved');
 
     } catch (error) {
+        logError('Get auto-recharge settings', error);
         return sendServerError(res, error);
     }
 });
@@ -320,23 +307,16 @@ router.put('/payment-methods/:id/primary', authenticateToken, async (req, res) =
         const { id } = req.params;
         const userId = req.user.id;
 
-        // Verify ownership
-        const [methods] = await req.db.execute(
-            'SELECT user_id FROM saved_payment_methods WHERE id = ?',
-            [id]
-        );
-
-        if (!methods.length || methods[0].user_id !== userId) {
+        const method = await validatePaymentMethodOwnership(req.db, id, userId);
+        if (!method) {
             return sendError(res, 'Payment method not found', 404);
         }
 
-        // Update - clear other primary
         await req.db.execute(
             'UPDATE saved_payment_methods SET is_primary = FALSE WHERE user_id = ?',
             [userId]
         );
 
-        // Set this as primary
         await req.db.execute(
             'UPDATE saved_payment_methods SET is_primary = TRUE WHERE id = ?',
             [id]
@@ -345,6 +325,7 @@ router.put('/payment-methods/:id/primary', authenticateToken, async (req, res) =
         return sendSuccess(res, {}, 'Primary payment method updated');
 
     } catch (error) {
+        logError('Set primary payment method', error);
         return sendServerError(res, error);
     }
 });
@@ -355,17 +336,11 @@ router.delete('/payment-methods/:id', authenticateToken, async (req, res) => {
         const { id } = req.params;
         const userId = req.user.id;
 
-        // Verify ownership
-        const [methods] = await req.db.execute(
-            'SELECT user_id FROM saved_payment_methods WHERE id = ?',
-            [id]
-        );
-
-        if (!methods.length || methods[0].user_id !== userId) {
+        const method = await validatePaymentMethodOwnership(req.db, id, userId);
+        if (!method) {
             return sendError(res, 'Payment method not found', 404);
         }
 
-        // Soft delete
         await req.db.execute(
             'UPDATE saved_payment_methods SET is_active = FALSE WHERE id = ?',
             [id]
@@ -374,6 +349,7 @@ router.delete('/payment-methods/:id', authenticateToken, async (req, res) => {
         return sendSuccess(res, {}, 'Payment method deleted');
 
     } catch (error) {
+        logError('Delete payment method', error);
         return sendServerError(res, error);
     }
 });
@@ -399,7 +375,6 @@ router.post('/transfers/send', authenticateToken, [
             return sendError(res, 'Cannot send money to yourself', 400);
         }
 
-        // 1. Check if recipient exists
         const [recipients] = await req.db.execute(
             'SELECT id FROM users WHERE id = ?',
             [recipientId]
@@ -409,36 +384,14 @@ router.post('/transfers/send', authenticateToken, [
             return sendError(res, 'Recipient not found', 404);
         }
 
-        // 2. Get sender wallet
-        const [senderWallets] = await req.db.execute(
-            'SELECT id, balance FROM wallets WHERE user_id = ?',
-            [senderId]
-        );
-
-        if (!senderWallets.length) {
-            return sendError(res, 'Wallet not found', 404);
-        }
-
-        const senderWallet = senderWallets[0];
-
-        // 3. Check sender balance
+        const senderWallet = await getOrCreateWallet(req.db, senderId);
+        
         if (parseFloat(senderWallet.balance) < parseFloat(amount)) {
             return sendError(res, 'Insufficient wallet balance', 400);
         }
 
-        // 4. Get recipient wallet
-        const [recipientWallets] = await req.db.execute(
-            'SELECT id FROM wallets WHERE user_id = ?',
-            [recipientId]
-        );
+        const recipientWallet = await getOrCreateWallet(req.db, recipientId);
 
-        if (!recipientWallets.length) {
-            return sendError(res, 'Recipient wallet not found', 404);
-        }
-
-        const recipientWallet = recipientWallets[0];
-
-        // 5. Create transfer request
         const [result] = await req.db.execute(
             `INSERT INTO wallet_transfers 
              (sender_id, recipient_id, amount, description, sender_wallet_id, recipient_wallet_id, status) 
@@ -446,13 +399,10 @@ router.post('/transfers/send', authenticateToken, [
             [senderId, recipientId, amount, description || '', senderWallet.id, recipientWallet.id]
         );
 
-        // 6. Create transaction entry for sender (pending)
         const newSenderBalance = parseFloat(senderWallet.balance) - parseFloat(amount);
-        await req.db.execute(
-            `INSERT INTO wallet_transactions 
-             (wallet_id, type, amount, description, reference_type, reference_id, balance_after) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [senderWallet.id, 'debit', amount, `Transfer to user #${recipientId}`, 'transfer', result.insertId, newSenderBalance]
+        await recordWalletTransaction(
+            req.db, senderWallet.id, 'debit', amount, 
+            `Transfer to user #${recipientId}`, 'transfer', result.insertId, newSenderBalance
         );
 
         return sendSuccess(res, { 
@@ -463,7 +413,7 @@ router.post('/transfers/send', authenticateToken, [
         }, 'Transfer request created', 201);
 
     } catch (error) {
-        console.error('Transfer send error:', error);
+        logError('Transfer send', error);
         return sendServerError(res, error);
     }
 });

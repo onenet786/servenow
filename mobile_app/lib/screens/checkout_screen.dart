@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../services/api_service.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -18,14 +19,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _instructionsController = TextEditingController();
   String _paymentMethod = 'cash';
   bool _isLoading = false;
+  double? _walletBalance;
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill address from user profile if available
     final user = Provider.of<AuthProvider>(context, listen: false).user;
     if (user != null && user.address != null) {
       _addressController.text = user.address!;
+    }
+    _loadWalletBalance();
+  }
+
+  Future<void> _loadWalletBalance() async {
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final wallet = Provider.of<WalletProvider>(context, listen: false);
+      
+      if (auth.token != null) {
+        await wallet.loadWalletBalance(auth.token!);
+        if (wallet.wallet != null) {
+          setState(() {
+            _walletBalance = wallet.wallet!.balance;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading wallet balance: $e');
     }
   }
 
@@ -44,6 +64,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
     if (cart.items.isEmpty) return;
+
+    if (_paymentMethod == 'wallet' && _walletBalance != null) {
+      if (_walletBalance! < cart.totalAmount) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Insufficient wallet balance. Need PKR ${(cart.totalAmount - _walletBalance!).toStringAsFixed(2)} more.',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+    }
 
     setState(() {
       _isLoading = true;
@@ -240,30 +276,80 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       'Payment Method',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    RadioGroup<String>(
+                    const SizedBox(height: 10),
+                    RadioListTile<String>(
+                      title: const Text('Cash on Delivery'),
+                      value: 'cash',
                       groupValue: _paymentMethod,
                       onChanged: (value) {
                         setState(() {
                           _paymentMethod = value!;
                         });
                       },
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: RadioListTile<String>(
-                              title: const Text('Cash on Delivery'),
-                              value: 'cash',
-                            ),
-                          ),
-                          Expanded(
-                            child: RadioListTile<String>(
-                              title: const Text('Credit Card'),
-                              value: 'card',
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
+                    RadioListTile<String>(
+                      title: const Text('Credit Card'),
+                      value: 'card',
+                      groupValue: _paymentMethod,
+                      onChanged: (value) {
+                        setState(() {
+                          _paymentMethod = value!;
+                        });
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Wallet'),
+                      value: 'wallet',
+                      groupValue: _paymentMethod,
+                      onChanged: (value) {
+                        setState(() {
+                          _paymentMethod = value!;
+                        });
+                      },
+                    ),
+                    if (_paymentMethod == 'wallet' && _walletBalance != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10, left: 16),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: _walletBalance! >= cart.totalAmount
+                                ? Colors.green.shade50
+                                : Colors.red.shade50,
+                            border: Border.all(
+                              color: _walletBalance! >= cart.totalAmount
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Wallet Balance: PKR ${_walletBalance!.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: _walletBalance! >= cart.totalAmount
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                              if (_walletBalance! < cart.totalAmount)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'Insufficient balance. Need PKR ${(cart.totalAmount - _walletBalance!).toStringAsFixed(2)} more.',
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 30),
                     SizedBox(
                       width: double.infinity,

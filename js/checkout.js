@@ -210,13 +210,17 @@ async function handleCheckoutSubmit(e) {
             const data = await response.json();
             if (data.success && data.wallet) {
                 const total = calculateTotal();
-                if (parseFloat(data.wallet.balance) < total) {
-                    showError('Insufficient Balance', 'Your wallet balance is insufficient for this order. Please top up.');
+                const balance = parseFloat(data.wallet.balance);
+                if (balance < total) {
+                    const needed = (total - balance).toFixed(2);
+                    showError('Insufficient Balance', `Your wallet balance is insufficient. Need PKR ${needed} more.`);
                     return;
                 }
             }
         } catch (error) {
             console.error('Error checking balance during submit:', error);
+            showError('Balance Check Failed', 'Could not verify wallet balance. Please try again.');
+            return;
         }
     }
 
