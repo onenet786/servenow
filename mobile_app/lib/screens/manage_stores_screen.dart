@@ -37,9 +37,9 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
       _logger.e('Error loading stores: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading stores: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading stores: $e')));
       }
     }
   }
@@ -91,7 +91,7 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -110,7 +110,7 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        store['store_name'] ?? 'Unknown',
+                        store['name'] ?? 'Unknown Store',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -120,10 +120,7 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
                       const SizedBox(height: 4),
                       Text(
                         store['email'] ?? 'No email',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -134,9 +131,13 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: (store['status'] ?? 'inactive').toString().toLowerCase() == 'active'
-                        ? Colors.green.withOpacity(0.2)
-                        : Colors.orange.withOpacity(0.2),
+                    color:
+                        (store['status'] ?? 'inactive')
+                                .toString()
+                                .toLowerCase() ==
+                            'active'
+                        ? Colors.green.withValues(alpha: 0.2)
+                        : Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -144,7 +145,11 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: (store['status'] ?? 'inactive').toString().toLowerCase() == 'active'
+                      color:
+                          (store['status'] ?? 'inactive')
+                                  .toString()
+                                  .toLowerCase() ==
+                              'active'
                           ? Colors.green
                           : Colors.orange,
                     ),
@@ -170,19 +175,10 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
         Text(
           value.length > 15 ? '${value.substring(0, 15)}...' : value,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ],
     );

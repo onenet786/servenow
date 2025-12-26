@@ -31,6 +31,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _activeUsers = 0;
   int _todayLogins = 0;
 
+  // Recent Activity
+  List<Map<String, dynamic>> _recentActivities = [];
+
   @override
   void initState() {
     super.initState();
@@ -42,14 +45,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) return;
 
-      // Fetch Orders and Visitor Stats in parallel
+      // Fetch Orders, Visitor Stats, Users, and Stores in parallel
       final results = await Future.wait([
         ApiService.getOrders(token),
         ApiService.getVisitorStats(token),
+        ApiService.getUsers(token),
+        ApiService.getStoresForAdmin(token),
       ]);
 
       final orders = results[0] as List<dynamic>;
       final visitorStats = results[1] as Map<String, dynamic>;
+      final users = results[2] as List<dynamic>;
+      final stores = results[3] as List<dynamic>;
 
       final now = DateTime.now();
       final todayOrders = orders.where((o) {
@@ -78,6 +85,91 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }).length;
       }
 
+      // Build recent activities list - only show the LAST record for each type
+      final activities = <Map<String, dynamic>>[];
+
+      // Get last order
+      final sortedOrders = [...orders];
+      try {
+        sortedOrders.sort((a, b) {
+          final dateA =
+              DateTime.tryParse(a['created_at'].toString()) ?? DateTime.now();
+          final dateB =
+              DateTime.tryParse(b['created_at'].toString()) ?? DateTime.now();
+          return dateB.compareTo(dateA);
+        });
+      } catch (e) {
+        _logger.w('Error sorting orders: $e');
+      }
+
+      if (sortedOrders.isNotEmpty) {
+        final lastOrder = sortedOrders.first;
+        activities.add({
+          'type': 'order',
+          'data': lastOrder,
+          'title': 'New Order #${lastOrder['id']}',
+          'subtitle': _formatTimeAgo(lastOrder['created_at']),
+          'icon': Icons.shopping_bag,
+          'color': Colors.blue,
+        });
+      }
+
+      // Get last user registration
+      final sortedUsers = [...users];
+      try {
+        sortedUsers.sort((a, b) {
+          final dateA =
+              DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+              DateTime.now();
+          final dateB =
+              DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+              DateTime.now();
+          return dateB.compareTo(dateA);
+        });
+      } catch (e) {
+        _logger.w('Error sorting users: $e');
+      }
+
+      if (sortedUsers.isNotEmpty) {
+        final lastUser = sortedUsers.first;
+        activities.add({
+          'type': 'user',
+          'data': lastUser,
+          'title': 'New User: ${lastUser['first_name'] ?? 'User'} registered',
+          'subtitle': _formatTimeAgo(lastUser['created_at']),
+          'icon': Icons.person_add,
+          'color': Colors.green,
+        });
+      }
+
+      // Get last store
+      if (stores.isNotEmpty) {
+        final sortedStores = [...stores];
+        try {
+          sortedStores.sort((a, b) {
+            final dateA =
+                DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+                DateTime.now();
+            final dateB =
+                DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+                DateTime.now();
+            return dateB.compareTo(dateA);
+          });
+        } catch (e) {
+          _logger.w('Error sorting stores: $e');
+        }
+
+        final lastStore = sortedStores.first;
+        activities.add({
+          'type': 'store',
+          'data': lastStore,
+          'title': 'New Store: ${lastStore['store_name'] ?? 'Store'} added',
+          'subtitle': _formatTimeAgo(lastStore['created_at']),
+          'icon': Icons.store,
+          'color': Colors.orange,
+        });
+      }
+
       setState(() {
         // Today
         _todayTotal = todayOrders.length;
@@ -94,6 +186,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         // Visitors
         _activeUsers = visitorStats['active_users'] ?? 0;
         _todayLogins = visitorStats['today_logins'] ?? 0;
+
+        // Recent Activities
+        _recentActivities = activities;
 
         _isLoading = false;
       });
@@ -488,31 +583,204 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          _buildActivityItem(
-            title: 'New Order #1234',
-            subtitle: '2 mins ago',
-            icon: Icons.shopping_bag,
-            color: Colors.blue,
+      child: _recentActivities.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Text(
+                'No recent activity',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            )
+          : Column(
+              children: [
+                for (int i = 0; i < _recentActivities.length; i++) ...[
+                  GestureDetector(
+                    onTap: () => _showDetailedRecords(
+                      _recentActivities[i]['type'],
+                      _recentActivities[i]['data'],
+                    ),
+                    child: _buildActivityItem(
+                      title: _recentActivities[i]['title'],
+                      subtitle: _recentActivities[i]['subtitle'],
+                      icon: _recentActivities[i]['icon'],
+                      color: _recentActivities[i]['color'],
+                    ),
+                  ),
+                  if (i < _recentActivities.length - 1)
+                    const Divider(height: 1),
+                ],
+              ],
+            ),
+    );
+  }
+
+  void _showDetailedRecords(String type, dynamic lastRecord) async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+
+    List<dynamic> records = [];
+    String title = '';
+
+    try {
+      if (type == 'order') {
+        final allOrders = await ApiService.getOrders(token);
+        records = _sortByDate(allOrders, 'created_at').take(7).toList();
+        title = 'Last 7 Orders';
+      } else if (type == 'user') {
+        final allUsers = await ApiService.getUsers(token);
+        records = _sortByDate(allUsers, 'created_at').take(7).toList();
+        title = 'Last 7 Users Registered';
+      } else if (type == 'store') {
+        final allStores = await ApiService.getStoresForAdmin(token);
+        records = _sortByDate(allStores, 'created_at').take(7).toList();
+        title = 'Last 7 Stores Added';
+      }
+
+      if (!mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (ctx) => DraggableScrollableSheet(
+          expand: false,
+          builder: (ctx, controller) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ListView.builder(
+                    controller: controller,
+                    itemCount: records.length,
+                    itemBuilder: (ctx, index) {
+                      final record = records[index];
+                      if (type == 'order') {
+                        return _buildOrderListItem(record);
+                      } else if (type == 'user') {
+                        return _buildUserListItem(record);
+                      } else {
+                        return _buildStoreListItem(record);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
-          const Divider(height: 1),
-          _buildActivityItem(
-            title: 'New User Registered',
-            subtitle: '15 mins ago',
-            icon: Icons.person_add,
-            color: Colors.green,
-          ),
-          const Divider(height: 1),
-          _buildActivityItem(
-            title: 'Store "Burger King" Updated',
-            subtitle: '1 hour ago',
-            icon: Icons.store,
-            color: Colors.orange,
-          ),
-        ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading records: $e')));
+    }
+  }
+
+  List<dynamic> _sortByDate(List<dynamic> list, String dateField) {
+    final sorted = [...list];
+    try {
+      sorted.sort((a, b) {
+        final dateA =
+            DateTime.tryParse(a[dateField]?.toString() ?? '') ?? DateTime.now();
+        final dateB =
+            DateTime.tryParse(b[dateField]?.toString() ?? '') ?? DateTime.now();
+        return dateB.compareTo(dateA);
+      });
+    } catch (e) {
+      _logger.w('Error sorting: $e');
+    }
+    return sorted;
+  }
+
+  Widget _buildOrderListItem(dynamic order) {
+    return Card(
+      child: ListTile(
+        title: Text('Order #${order['id']}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text('Status: ${order['status'] ?? 'Unknown'}'),
+            Text('Total: PKR ${order['total_amount'] ?? 0}'),
+            Text(_formatTimeAgo(order['created_at'])),
+          ],
+        ),
+        trailing: Icon(Icons.shopping_bag, color: Colors.blue[700]),
       ),
     );
+  }
+
+  Widget _buildUserListItem(dynamic user) {
+    return Card(
+      child: ListTile(
+        title: Text('${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text('Email: ${user['email'] ?? 'N/A'}'),
+            Text('Type: ${user['user_type'] ?? 'Unknown'}'),
+            Text(_formatTimeAgo(user['created_at'])),
+          ],
+        ),
+        trailing: Icon(Icons.person, color: Colors.green[700]),
+      ),
+    );
+  }
+
+  Widget _buildStoreListItem(dynamic store) {
+    return Card(
+      child: ListTile(
+        title: Text('${store['store_name'] ?? 'Unknown Store'}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text('Email: ${store['email'] ?? 'N/A'}'),
+            Text('Phone: ${store['phone'] ?? 'N/A'}'),
+            Text(_formatTimeAgo(store['created_at'])),
+          ],
+        ),
+        trailing: Icon(Icons.store, color: Colors.orange[700]),
+      ),
+    );
+  }
+
+  String _formatTimeAgo(dynamic dateTimeStr) {
+    if (dateTimeStr == null) return 'Just now';
+    try {
+      final dateTime = DateTime.tryParse(dateTimeStr.toString());
+      if (dateTime == null) return 'Just now';
+
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inSeconds < 60) {
+        return 'Just now';
+      } else if (difference.inMinutes < 60) {
+        return '${difference.inMinutes} min${difference.inMinutes > 1 ? 's' : ''} ago';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+      } else {
+        return 'A week ago';
+      }
+    } catch (e) {
+      return 'Just now';
+    }
   }
 
   Widget _buildActivityItem({

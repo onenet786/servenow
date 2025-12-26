@@ -47,9 +47,9 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
       _logger.e('Error loading products: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading products: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading products: $e')));
       }
     }
   }
@@ -57,9 +57,10 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
   void _filterProducts() {
     final query = _searchController.text.toLowerCase();
     final List<dynamic> filtered = _products.where((product) {
-      final name = (product['product_name'] ?? '').toString().toLowerCase();
-      final description =
-          (product['description'] ?? '').toString().toLowerCase();
+      final name = (product['name'] ?? '').toString().toLowerCase();
+      final description = (product['description'] ?? '')
+          .toString()
+          .toLowerCase();
       return name.contains(query) || description.contains(query);
     }).toList();
 
@@ -132,7 +133,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -153,7 +154,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        product['product_name'] ?? 'Unknown',
+                        product['name'] ?? 'Unknown Product',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -165,14 +166,11 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                       const SizedBox(height: 4),
                       Text(
                         product['store_name'] ?? 'Unknown Store',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '\$${(product['price'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                        'PKR ${_parsePrice(product['price']).toStringAsFixed(2)}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -189,10 +187,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildInfoColumn('Stock', '${product['stock_quantity'] ?? 0}'),
-                _buildInfoColumn(
-                  'Category',
-                  product['category_name'] ?? '-',
-                ),
+                _buildInfoColumn('Category', product['category_name'] ?? '-'),
               ],
             ),
           ],
@@ -202,6 +197,15 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
   }
 
   Widget _buildProductImage(String? imageUrl) {
+    String? fullUrl;
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      if (imageUrl.startsWith('http')) {
+        fullUrl = imageUrl;
+      } else if (imageUrl.startsWith('/')) {
+        fullUrl = ApiService.baseUrl + imageUrl;
+      }
+    }
+
     return Container(
       width: 60,
       height: 60,
@@ -209,12 +213,15 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
         color: Colors.grey[200],
         borderRadius: BorderRadius.circular(6),
       ),
-      child: imageUrl != null && imageUrl.isNotEmpty
+      child: fullUrl != null
           ? Image.network(
-              imageUrl,
+              fullUrl,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
-                return const Icon(Icons.image_not_supported);
+                return const Icon(
+                  Icons.image_not_supported,
+                  color: Colors.grey,
+                );
               },
             )
           : const Icon(Icons.shopping_bag, color: Colors.grey),
@@ -225,21 +232,21 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
         Text(
           value.length > 12 ? '${value.substring(0, 12)}...' : value,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ],
     );
+  }
+
+  double _parsePrice(dynamic price) {
+    if (price == null) return 0.0;
+    if (price is num) return price.toDouble();
+    if (price is String) {
+      return double.tryParse(price) ?? 0.0;
+    }
+    return 0.0;
   }
 }

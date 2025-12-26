@@ -48,9 +48,9 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
       _logger.e('Error loading riders: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading riders: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading riders: $e')));
       }
     }
   }
@@ -58,13 +58,11 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
   void _filterRiders() {
     final query = _searchController.text.toLowerCase();
     final List<dynamic> filtered = _riders.where((rider) {
-      final name =
-          '${rider['first_name']} ${rider['last_name']}'.toLowerCase();
+      final name = '${rider['first_name']} ${rider['last_name']}'.toLowerCase();
       final email = (rider['email'] ?? '').toString().toLowerCase();
       final status = (rider['status'] ?? '').toString();
 
-      final matchesSearch =
-          name.contains(query) || email.contains(query);
+      final matchesSearch = name.contains(query) || email.contains(query);
       final matchesStatus = _statusFilter.isEmpty || status == _statusFilter;
 
       return matchesSearch && matchesStatus;
@@ -159,10 +157,8 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
           _filterRiders();
         },
         backgroundColor: Colors.white,
-        selectedColor: Colors.indigo.withOpacity(0.2),
-        side: BorderSide(
-          color: isSelected ? Colors.indigo : Colors.grey[300]!,
-        ),
+        selectedColor: Colors.indigo.withValues(alpha: 0.2),
+        side: BorderSide(color: isSelected ? Colors.indigo : Colors.grey[300]!),
       ),
     );
   }
@@ -172,8 +168,8 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
     final Color statusColor = status == 'active'
         ? Colors.green
         : status == 'inactive'
-            ? Colors.orange
-            : Colors.red;
+        ? Colors.orange
+        : Colors.red;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -182,7 +178,7 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -211,10 +207,7 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
                       const SizedBox(height: 4),
                       Text(
                         rider['email'] ?? 'No email',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -225,7 +218,7 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.2),
+                    color: statusColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -244,7 +237,10 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildInfoColumn('Phone', rider['phone'] ?? '-'),
-                _buildInfoColumn('Deliveries', '${rider['total_deliveries'] ?? 0}'),
+                _buildInfoColumn(
+                  'Deliveries',
+                  '${rider['total_deliveries'] ?? 0}',
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -265,19 +261,10 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
         Text(
           value.length > 15 ? '${value.substring(0, 15)}...' : value,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ],
     );

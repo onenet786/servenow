@@ -48,9 +48,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       _logger.e('Error loading users: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading users: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading users: $e')));
       }
     }
   }
@@ -58,13 +58,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   void _filterUsers() {
     final query = _searchController.text.toLowerCase();
     final List<dynamic> filtered = _users.where((user) {
-      final name =
-          '${user['first_name']} ${user['last_name']}'.toLowerCase();
+      final name = '${user['first_name']} ${user['last_name']}'.toLowerCase();
       final email = (user['email'] ?? '').toString().toLowerCase();
       final userType = (user['user_type'] ?? '').toString();
 
-      final matchesSearch =
-          name.contains(query) || email.contains(query);
+      final matchesSearch = name.contains(query) || email.contains(query);
       final matchesType = _filterType.isEmpty || userType == _filterType;
 
       return matchesSearch && matchesType;
@@ -159,10 +157,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           _filterUsers();
         },
         backgroundColor: Colors.white,
-        selectedColor: Colors.indigo.withOpacity(0.2),
-        side: BorderSide(
-          color: isSelected ? Colors.indigo : Colors.grey[300]!,
-        ),
+        selectedColor: Colors.indigo.withValues(alpha: 0.2),
+        side: BorderSide(color: isSelected ? Colors.indigo : Colors.grey[300]!),
       ),
     );
   }
@@ -172,10 +168,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final Color typeColor = userType == 'admin'
         ? Colors.red
         : userType == 'store_owner'
-            ? Colors.blue
-            : userType == 'rider'
-                ? Colors.green
-                : Colors.orange;
+        ? Colors.blue
+        : userType == 'rider'
+        ? Colors.green
+        : Colors.orange;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -184,7 +180,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -213,10 +209,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       const SizedBox(height: 4),
                       Text(
                         user['email'] ?? 'No email',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                     ],
                   ),
@@ -227,7 +220,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: typeColor.withOpacity(0.2),
+                    color: typeColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -259,19 +252,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
         Text(
           value.length > 15 ? '${value.substring(0, 15)}...' : value,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ],
     );
