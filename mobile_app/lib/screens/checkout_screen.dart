@@ -57,6 +57,40 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
+  Widget _buildPaymentOption(String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          // ignore: deprecated_member_use
+          Radio<String>(
+            value: value,
+            // ignore: deprecated_member_use
+            groupValue: _paymentMethod,
+            // ignore: deprecated_member_use
+            onChanged: (newValue) {
+              if (newValue != null) {
+                setState(() {
+                  _paymentMethod = newValue;
+                });
+              }
+            },
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _paymentMethod = value;
+                });
+              },
+              child: Text(title),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitOrder() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -86,7 +120,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     try {
-      final items = cart.items.map((item) {
+      final Map<int, List<Map<String, dynamic>>> ordersByStore = {};
+      
+      for (var item in cart.items) {
+        final storeId = item.product.storeId;
+        if (storeId == null) continue;
+        
+        if (!ordersByStore.containsKey(storeId)) {
+          ordersByStore[storeId] = [];
+        }
+        
         final payload = <String, dynamic>{
           'product_id': item.product.id,
           'quantity': item.quantity,
@@ -100,22 +143,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (item.variantLabel != null) {
           payload['variant_label'] = item.variantLabel;
         }
-        return payload;
-      }).toList();
+        
+        ordersByStore[storeId]!.add(payload);
+      }
 
-      await ApiService.createOrder(
-        auth.token!,
-        storeId: cart.currentStoreId!,
-        items: items,
-        deliveryAddress: _addressController.text,
-        paymentMethod: _paymentMethod,
-        deliveryTime: _timeController.text.isNotEmpty
-            ? _timeController.text
-            : null,
-        specialInstructions: _instructionsController.text.isNotEmpty
-            ? _instructionsController.text
-            : null,
-      );
+      for (final storeId in ordersByStore.keys) {
+        await ApiService.createOrder(
+          auth.token!,
+          storeId: storeId,
+          items: ordersByStore[storeId]!,
+          deliveryAddress: _addressController.text,
+          paymentMethod: _paymentMethod,
+          deliveryTime: _timeController.text.isNotEmpty
+              ? _timeController.text
+              : null,
+          specialInstructions: _instructionsController.text.isNotEmpty
+              ? _instructionsController.text
+              : null,
+        );
+      }
 
       // Clear cart
       cart.clear();
@@ -291,42 +337,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       const SizedBox(height: 10),
                       Column(
                         children: [
-                          RadioListTile<String>(
-                            title: const Text('Cash on Delivery'),
-                            value: 'cash',
-                            groupValue: _paymentMethod,
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() {
-                                  _paymentMethod = value;
-                                });
-                              }
-                            },
-                          ),
-                          RadioListTile<String>(
-                            title: const Text('Credit Card'),
-                            value: 'card',
-                            groupValue: _paymentMethod,
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() {
-                                  _paymentMethod = value;
-                                });
-                              }
-                            },
-                          ),
-                          RadioListTile<String>(
-                            title: const Text('Wallet'),
-                            value: 'wallet',
-                            groupValue: _paymentMethod,
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() {
-                                  _paymentMethod = value;
-                                });
-                              }
-                            },
-                          ),
+                          _buildPaymentOption('Cash on Delivery', 'cash'),
+                          _buildPaymentOption('Credit Card', 'card'),
+                          _buildPaymentOption('Wallet', 'wallet'),
                         ],
                       ),
                       if (_paymentMethod == 'wallet' && _walletBalance != null)

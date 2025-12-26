@@ -78,60 +78,97 @@ class CartScreen extends StatelessWidget {
                             vertical: 4,
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: ListTile(
-                              leading:
-                                  ApiService.getImageUrl(
-                                    item.product.imageUrl,
-                                  ).isNotEmpty
-                                  ? Image.network(
-                                      ApiService.getImageUrl(
-                                        item.product.imageUrl,
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.product.name,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    ApiService.getImageUrl(
+                                      item.product.imageUrl,
+                                    ).isNotEmpty
+                                        ? Image.network(
+                                            ApiService.getImageUrl(
+                                              item.product.imageUrl,
+                                            ),
+                                            width: 50,
+                                            height: 50,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (ctx, err, _) =>
+                                                const Icon(Icons.image_not_supported),
+                                          )
+                                        : const Icon(Icons.fastfood, size: 50),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        item.variantLabel != null
+                                            ? '${item.variantLabel} • Total: PKR ${item.total.toStringAsFixed(2)}'
+                                            : 'Total: PKR ${item.total.toStringAsFixed(2)}',
                                       ),
-                                      width: 50,
-                                      height: 50,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (ctx, err, _) =>
-                                          const Icon(Icons.image_not_supported),
-                                    )
-                                  : const Icon(Icons.fastfood, size: 40),
-                              title: Text(item.product.name),
-                              subtitle: Text(
-                                item.variantLabel != null
-                                    ? '${item.variantLabel} • Total: PKR ${item.total.toStringAsFixed(2)}'
-                                    : 'Total: PKR ${item.total.toStringAsFixed(2)}',
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.remove),
-                                    onPressed: () {
-                                      if (item.quantity > 1) {
-                                        cart.updateCartItemQuantity(
-                                          item,
-                                          item.quantity - 1,
-                                        );
-                                      } else {
-                                        cart.removeCartItem(item);
-                                      }
-                                    },
-                                  ),
-                                  Text(
-                                    '${item.quantity}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add),
-                                    onPressed: () {
-                                      cart.updateCartItemQuantity(
-                                        item,
-                                        item.quantity + 1,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
+                                    ),
+                                    SizedBox(
+                                      width: 100,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          SizedBox(
+                                            width: 32,
+                                            height: 32,
+                                            child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              icon: const Icon(Icons.remove, size: 18),
+                                              onPressed: () {
+                                                if (item.quantity > 1) {
+                                                  cart.updateCartItemQuantity(
+                                                    item,
+                                                    item.quantity - 1,
+                                                  );
+                                                } else {
+                                                  cart.removeCartItem(item);
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            width: 32,
+                                            child: Center(
+                                              child: Text(
+                                                '${item.quantity}',
+                                                style: const TextStyle(fontSize: 16),
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            width: 32,
+                                            height: 32,
+                                            child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              icon: const Icon(Icons.add, size: 18),
+                                              onPressed: () {
+                                                cart.updateCartItemQuantity(
+                                                  item,
+                                                  item.quantity + 1,
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -166,7 +203,7 @@ class CartScreen extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0),
                   child: SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

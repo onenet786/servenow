@@ -120,12 +120,24 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<List<dynamic>> getStores() async {
-    final uri = Uri.parse('$baseUrl/api/stores');
+  static Future<List<dynamic>> getStores({int? categoryId}) async {
+    String url = '$baseUrl/api/stores';
+    if (categoryId != null) {
+      url += '?category_id=$categoryId';
+    }
+    final uri = Uri.parse(url);
     _logger.d('ApiService: GET $uri');
     final response = await http.get(uri);
     final data = _handleResponse(response);
     return data['stores'] ?? [];
+  }
+
+  static Future<List<dynamic>> getCategories() async {
+    final uri = Uri.parse('$baseUrl/api/categories');
+    _logger.d('ApiService: GET $uri');
+    final response = await http.get(uri);
+    final data = _handleResponse(response);
+    return data['categories'] ?? [];
   }
 
   static Future<Map<String, dynamic>> getStoreDetails(int id) async {
