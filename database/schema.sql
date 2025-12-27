@@ -262,3 +262,190 @@ CREATE TABLE IF NOT EXISTS saved_payment_methods (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_spm_user_id (user_id)
 );
+
+-- Financial Transactions table
+CREATE TABLE IF NOT EXISTS financial_transactions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    transaction_number VARCHAR(50) UNIQUE NOT NULL,
+    transaction_type ENUM('income', 'expense', 'settlement', 'refund', 'adjustment') NOT NULL,
+    category VARCHAR(50),
+    description TEXT,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_method ENUM('cash', 'card', 'bank_transfer', 'wallet', 'check') NOT NULL,
+    related_entity_type VARCHAR(50),
+    related_entity_id INT,
+    reference_id VARCHAR(100),
+    reference_type VARCHAR(50),
+    status ENUM('pending', 'completed', 'cancelled', 'reversed') DEFAULT 'completed',
+    notes TEXT,
+    created_by INT,
+    approved_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_ft_transaction_type (transaction_type),
+    INDEX idx_ft_created_at (created_at),
+    INDEX idx_ft_payment_method (payment_method)
+);
+
+-- Cash Payment Vouchers table
+CREATE TABLE IF NOT EXISTS cash_payment_vouchers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    voucher_number VARCHAR(50) UNIQUE NOT NULL,
+    voucher_date DATE NOT NULL,
+    payee_name VARCHAR(100) NOT NULL,
+    payee_type ENUM('store', 'rider', 'vendor', 'employee', 'other') NOT NULL,
+    payee_id INT,
+    amount DECIMAL(12, 2) NOT NULL,
+    purpose VARCHAR(255),
+    description TEXT,
+    payment_method ENUM('cash', 'check', 'bank_transfer') NOT NULL,
+    check_number VARCHAR(50),
+    bank_details TEXT,
+    status ENUM('draft', 'pending', 'approved', 'paid', 'cancelled') DEFAULT 'draft',
+    prepared_by INT,
+    approved_by INT,
+    paid_by INT,
+    approved_at TIMESTAMP NULL,
+    paid_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (payee_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (prepared_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (paid_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_cpv_status (status),
+    INDEX idx_cpv_payee_type (payee_type),
+    INDEX idx_cpv_voucher_date (voucher_date)
+);
+
+-- Cash Receipt Vouchers table
+CREATE TABLE IF NOT EXISTS cash_receipt_vouchers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    voucher_number VARCHAR(50) UNIQUE NOT NULL,
+    voucher_date DATE NOT NULL,
+    payer_name VARCHAR(100) NOT NULL,
+    payer_type ENUM('customer', 'store', 'vendor', 'other') NOT NULL,
+    payer_id INT,
+    amount DECIMAL(12, 2) NOT NULL,
+    description VARCHAR(255),
+    details TEXT,
+    payment_method ENUM('cash', 'check', 'bank_transfer') NOT NULL,
+    check_number VARCHAR(50),
+    bank_details TEXT,
+    status ENUM('draft', 'pending', 'received', 'cancelled') DEFAULT 'draft',
+    prepared_by INT,
+    approved_by INT,
+    received_by INT,
+    approved_at TIMESTAMP NULL,
+    received_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (payer_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (prepared_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (received_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_crv_status (status),
+    INDEX idx_crv_payer_type (payer_type),
+    INDEX idx_crv_voucher_date (voucher_date)
+);
+
+-- Rider Cash Movements table
+CREATE TABLE IF NOT EXISTS rider_cash_movements (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    movement_number VARCHAR(50) UNIQUE NOT NULL,
+    rider_id INT NOT NULL,
+    movement_date DATE NOT NULL,
+    movement_type ENUM('cash_collection', 'cash_submission', 'advance', 'settlement', 'adjustment') NOT NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    description TEXT,
+    reference_type VARCHAR(50),
+    reference_id INT,
+    status ENUM('pending', 'completed', 'approved', 'cancelled') DEFAULT 'pending',
+    recorded_by INT,
+    approved_by INT,
+    approved_at TIMESTAMP NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (rider_id) REFERENCES riders(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_rcm_rider_id (rider_id),
+    INDEX idx_rcm_movement_type (movement_type),
+    INDEX idx_rcm_movement_date (movement_date)
+);
+
+-- Store Settlements table
+CREATE TABLE IF NOT EXISTS store_settlements (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    settlement_number VARCHAR(50) UNIQUE NOT NULL,
+    settlement_date DATE NOT NULL,
+    store_id INT NOT NULL,
+    period_from DATE,
+    period_to DATE,
+    total_orders_amount DECIMAL(12, 2) DEFAULT 0.00,
+    commissions DECIMAL(12, 2) DEFAULT 0.00,
+    deductions DECIMAL(12, 2) DEFAULT 0.00,
+    net_amount DECIMAL(12, 2) NOT NULL,
+    payment_method ENUM('cash', 'check', 'bank_transfer') NOT NULL,
+    status ENUM('pending', 'approved', 'paid', 'cancelled') DEFAULT 'pending',
+    approved_by INT,
+    paid_by INT,
+    approved_at TIMESTAMP NULL,
+    paid_at TIMESTAMP NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (paid_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_ss_store_id (store_id),
+    INDEX idx_ss_settlement_date (settlement_date),
+    INDEX idx_ss_status (status)
+);
+
+-- Admin Expenses table
+CREATE TABLE IF NOT EXISTS admin_expenses (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    expense_number VARCHAR(50) UNIQUE NOT NULL,
+    expense_date DATE NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    description TEXT,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_method ENUM('cash', 'card', 'check', 'bank_transfer') NOT NULL,
+    vendor_name VARCHAR(100),
+    receipt_number VARCHAR(50),
+    status ENUM('pending', 'approved', 'paid', 'rejected') DEFAULT 'pending',
+    submitted_by INT,
+    approved_by INT,
+    approved_at TIMESTAMP NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_ae_category (category),
+    INDEX idx_ae_expense_date (expense_date),
+    INDEX idx_ae_status (status)
+);
+
+-- Financial Reports table
+CREATE TABLE IF NOT EXISTS financial_reports (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    report_number VARCHAR(50) UNIQUE NOT NULL,
+    report_type ENUM('daily_summary', 'weekly_summary', 'monthly_summary', 'store_settlement', 'rider_cash_report', 'expense_report', 'custom') NOT NULL,
+    period_from DATE,
+    period_to DATE,
+    total_income DECIMAL(12, 2) DEFAULT 0.00,
+    total_expense DECIMAL(12, 2) DEFAULT 0.00,
+    total_commissions DECIMAL(12, 2) DEFAULT 0.00,
+    net_profit DECIMAL(12, 2) DEFAULT 0.00,
+    data JSON,
+    generated_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (generated_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_fr_report_type (report_type),
+    INDEX idx_fr_period_from (period_from)
+);

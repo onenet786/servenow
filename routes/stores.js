@@ -55,8 +55,8 @@ async function loadProductSizeVariants(db, productIds) {
 // Get all stores (optionally filter by category via products)
 router.get('/', async (req, res) => {
     try {
-        const { category, category_id, search } = req.query;
-        const whereClauses = ['s.is_active = true'];
+        const { category, category_id, search, admin } = req.query;
+        const whereClauses = admin === '1' ? [] : ['s.is_active = true'];
         const params = [];
 
         if (search) {
@@ -99,11 +99,12 @@ router.get('/', async (req, res) => {
             }
         }
 
+        const whereClause = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
         const [stores] = await req.db.execute(`
             SELECT s.*, u.first_name as owner_first_name, u.last_name as owner_last_name, u.email as owner_email
             FROM stores s
             LEFT JOIN users u ON s.owner_id = u.id
-            WHERE ${whereClauses.join(' AND ')}
+            ${whereClause}
             ORDER BY s.rating DESC, s.name ASC
         `, params);
 
@@ -195,6 +196,7 @@ router.get('/:id', async (req, res) => {
                 address: store.address,
                 description: store.description,
                 owner_id: store.owner_id,
+                category_id: store.category_id || null,
                 image_url: store.cover_image || null,
                 owner_email: store.owner_email || null,
                 owner_name: store.owner_name || null
@@ -417,7 +419,8 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             closing_time,
             payment_term,
             image_url,
-            rating
+            rating,
+            category_id
         } = req.body;
 
         const updateFields = [];
@@ -437,6 +440,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
         if (email !== undefined) { updateFields.push('email = ?'); updateValues.push(email); }
         if (address !== undefined) { updateFields.push('address = ?'); updateValues.push(address); }
         if (image_url !== undefined) { updateFields.push('cover_image = ?'); updateValues.push(image_url); }
+        if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id || null); }
         if (rating !== undefined) {
             if (req.user.user_type !== 'admin') {
                 return res.status(403).json({

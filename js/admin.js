@@ -8,12 +8,12 @@ let currentUser = null;
 let authToken = null;
 let currentOrders = [];
 let currentProducts = [];
-let currentUsers = [];
+let currentAccounts = [];
 let currentStores = [];
 let currentCategories = [];
 let currentRiders = [];
 let editingProductId = null;
-let editingUserId = null;
+let editingAccountId = null;
 let editingStoreId = null;
 let editingCategoryId = null;
 let editingRiderId = null;
@@ -27,6 +27,7 @@ let productStoreTermsById = {};
 let sortState = {
     products: { column: 'id', direction: 'asc' },
     users: { column: 'id', direction: 'asc' },
+    accounts: { column: 'id', direction: 'asc' },
     stores: { column: 'id', direction: 'asc' },
     categories: { column: 'id', direction: 'asc' },
     riders: { column: 'id', direction: 'asc' },
@@ -197,7 +198,7 @@ function initializeAdmin() {
     loadDashboardStats();
 
     // Add event listeners for modal open buttons
-    document.getElementById('addUserBtn').addEventListener('click', () => showAddUserModal());
+    document.getElementById('addAccountBtn').addEventListener('click', () => showAddAccountModal());
     document.getElementById('addStoreBtn').addEventListener('click', () => showAddStoreModal());
     document.getElementById('addProductBtn').addEventListener('click', () => showAddProductModal());
     // Removed Export Base64 Images and Image Fit controls
@@ -281,7 +282,7 @@ function initializeAdmin() {
     });
 
     // Add event listeners for save buttons
-    document.getElementById('saveUserBtn').addEventListener('click', saveUser);
+    document.getElementById('saveAccountBtn').addEventListener('click', saveAccount);
     document.getElementById('saveStoreBtn').addEventListener('click', saveStore);
     document.getElementById('saveProductBtn').addEventListener('click', saveProduct);
     const saveSizeBtn = document.getElementById('saveSizeBtn');
@@ -376,15 +377,17 @@ function initializeAdmin() {
         clearFiltersBtn.addEventListener('click', clearFilters);
     }
 
-    // Users filters
-    const userSearch = document.getElementById('userSearch');
-    const userTypeFilter = document.getElementById('userTypeFilter');
-    const userStatusFilter = document.getElementById('userStatusFilter');
-    const userClearFiltersBtn = document.getElementById('userClearFiltersBtn');
-    if (userSearch) userSearch.addEventListener('input', filterUsers);
-    if (userTypeFilter) userTypeFilter.addEventListener('change', filterUsers);
-    if (userStatusFilter) userStatusFilter.addEventListener('change', filterUsers);
-    if (userClearFiltersBtn) userClearFiltersBtn.addEventListener('click', clearUserFilters);
+    // Accounts filters
+    const accountSearch = document.getElementById('accountSearch');
+    const accountTypeFilter = document.getElementById('accountTypeFilter');
+    const accountStatusFilter = document.getElementById('accountStatusFilter');
+    const accountVerifiedFilter = document.getElementById('accountVerifiedFilter');
+    const accountClearFiltersBtn = document.getElementById('accountClearFiltersBtn');
+    if (accountSearch) accountSearch.addEventListener('input', filterAccounts);
+    if (accountTypeFilter) accountTypeFilter.addEventListener('change', filterAccounts);
+    if (accountStatusFilter) accountStatusFilter.addEventListener('change', filterAccounts);
+    if (accountVerifiedFilter) accountVerifiedFilter.addEventListener('change', filterAccounts);
+    if (accountClearFiltersBtn) accountClearFiltersBtn.addEventListener('click', clearAccountFilters);
 
     // Stores filters
     const storeSearch = document.getElementById('storeSearch');
@@ -912,8 +915,8 @@ function switchTab(tabName) {
 
     // Load data for the tab
     switch(tabName) {
-        case 'users':
-            loadUsers();
+        case 'accounts':
+            loadAccounts();
             break;
         case 'stores':
             loadStores();
@@ -1296,68 +1299,171 @@ function loadDashboardStats() {
     .catch(error => console.error('Error loading dashboard stats:', error));
 }
 
-function loadUsers() {
+function loadAccounts() {
     fetch(`${API_BASE}/api/users`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
     })
     .then(response => response.json())
     .then(data => {
-        currentUsers = data.users || [];
-        displayUsers(currentUsers);
-        initializeTableSorting('users');
-    })
-    .catch(error => console.error('Error loading users:', error));
-}
-
-async function editUserType(userId) {
-    // Get current user data first
-    fetch(`${API_BASE}/api/users`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
-    .then(response => response.json())
-    .then(data => {
-        const user = data.users.find(u => u.id === userId);
-        if (!user) {
-            showError('User Not Found', 'The user could not be found in the system.');
-            return;
-        }
-
-        const newType = prompt('Enter new user type (customer, store_owner, admin):', user.user_type);
-        if (!newType || !['customer', 'store_owner', 'admin'].includes(newType)) {
-            showWarning('Invalid User Type', 'Please select: customer, store_owner, or admin');
-            return;
-        }
-
-        fetch(`${API_BASE}/api/users/${userId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({ user_type: newType })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                loadUsers();
-                showSuccess('User Updated', 'User information updated successfully!');
-            } else {
-                showError('Update Failed', data.message || 'Failed to update user');
-            }
-        })
-        .catch(error => {
-            console.error('Error updating user:', error);
-            showError('Error', 'Failed to update user. Please try again.');
-        });
+        currentAccounts = data.users || [];
+        displayAccounts(currentAccounts);
+        loadAccountStats();
+        initializeTableSorting('accounts');
     })
     .catch(error => {
-        console.error('Error fetching user:', error);
-        showError('Error', 'Failed to fetch user data. Please try again.');
+        console.error('Error loading accounts:', error);
+        showError('Error', 'Failed to load accounts');
     });
 }
 
-function toggleUserStatus(userId, currentStatus) {
-    fetch(`${API_BASE}/api/users/${userId}`, {
+function loadAccountStats() {
+    const total = currentAccounts.length;
+    const active = currentAccounts.filter(a => a.is_active === true || a.is_active === 1 || a.is_active === '1').length;
+    const inactive = currentAccounts.filter(a => a.is_active !== true && a.is_active !== 1 && a.is_active !== '1').length;
+    const verified = currentAccounts.filter(a => a.is_verified === true || a.is_verified === 1 || a.is_verified === '1').length;
+
+    document.getElementById('totalAccountsCount').textContent = total;
+    document.getElementById('activeAccountsCount').textContent = active;
+    document.getElementById('inactiveAccountsCount').textContent = inactive;
+    document.getElementById('verifiedAccountsCount').textContent = verified;
+}
+
+function displayAccounts(accounts) {
+    const tbody = document.getElementById('accountsTableBody');
+    tbody.innerHTML = '';
+
+    accounts.forEach(account => {
+        const row = document.createElement('tr');
+        const createdDate = new Date(account.created_at).toLocaleDateString();
+        
+        const isVerified = account.is_verified === true || account.is_verified === 1 || account.is_verified === '1';
+        const isActive = account.is_active === true || account.is_active === 1 || account.is_active === '1';
+        
+        const verifiedBadge = isVerified ? '<span class="status-active">Verified</span>' : '<span class="status-inactive">Unverified</span>';
+        const statusBadge = isActive ? '<span class="status-active">Active</span>' : '<span class="status-inactive">Inactive</span>';
+
+        row.innerHTML = `
+            <td>${account.id}</td>
+            <td>${account.first_name} ${account.last_name}</td>
+            <td>${account.email}</td>
+            <td>${account.phone || '-'}</td>
+            <td>${account.user_type}</td>
+            <td>${statusBadge}</td>
+            <td>${verifiedBadge}</td>
+            <td>${createdDate}</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-small btn-edit" onclick="editAccount(${account.id})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn-small btn-secondary" onclick="toggleAccountStatus(${account.id}, ${isActive})">
+                        <i class="fas fa-${isActive ? 'ban' : 'check'}"></i> ${isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button class="btn-small btn-warning" onclick="resetAccountVerification(${account.id}, '${account.email}')">
+                        <i class="fas fa-shield-alt"></i> Reset Verify
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function showAddAccountModal() {
+    document.getElementById('editAccountForm').reset();
+    document.getElementById('editAccountId').value = '';
+    document.querySelector('#editAccountModal h3').textContent = 'Add New Account';
+    showModal('editAccountModal');
+}
+
+function editAccount(accountId) {
+    const account = currentAccounts.find(a => a.id === accountId);
+    if (!account) {
+        showError('Error', 'Account not found');
+        return;
+    }
+
+    editingAccountId = accountId;
+    const isActive = account.is_active === true || account.is_active === 1 || account.is_active === '1';
+    const isVerified = account.is_verified === true || account.is_verified === 1 || account.is_verified === '1';
+    
+    document.getElementById('editAccountId').value = accountId;
+    document.getElementById('editAccountFirstName').value = account.first_name || '';
+    document.getElementById('editAccountLastName').value = account.last_name || '';
+    document.getElementById('editAccountEmail').value = account.email || '';
+    document.getElementById('editAccountPhone').value = account.phone || '';
+    document.getElementById('editAccountType').value = account.user_type || 'customer';
+    document.getElementById('editAccountStatus').value = isActive ? '1' : '0';
+    document.getElementById('editAccountVerified').value = isVerified ? '1' : '0';
+    document.getElementById('editAccountAddress').value = account.address || '';
+    document.getElementById('editAccountPassword').value = '';
+    document.querySelector('#editAccountModal h3').textContent = 'Edit Account';
+    showModal('editAccountModal');
+}
+
+function saveAccount() {
+    const form = document.getElementById('editAccountForm');
+    const accountId = document.getElementById('editAccountId').value;
+    const firstName = document.getElementById('editAccountFirstName').value;
+    const lastName = document.getElementById('editAccountLastName').value;
+    const email = document.getElementById('editAccountEmail').value;
+    const phone = document.getElementById('editAccountPhone').value;
+    const userType = document.getElementById('editAccountType').value;
+    const isActive = document.getElementById('editAccountStatus').value === '1';
+    const isVerified = document.getElementById('editAccountVerified').value === '1';
+    const address = document.getElementById('editAccountAddress').value;
+    const password = document.getElementById('editAccountPassword').value;
+
+    if (!firstName || !lastName || !email || !userType) {
+        showWarning('Validation Error', 'Please fill in all required fields');
+        return;
+    }
+
+    const payload = {
+        firstName,
+        lastName,
+        email,
+        phone,
+        user_type: userType,
+        is_active: isActive,
+        is_verified: isVerified,
+        address
+    };
+
+    if (password) {
+        payload.password = password;
+    }
+
+    const url = accountId ? `${API_BASE}/api/users/${accountId}` : `${API_BASE}/api/users`;
+    const method = accountId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            hideModal('editAccountModal');
+            loadAccounts();
+            const message = accountId ? 'Account updated successfully' : 'Account created successfully';
+            showSuccess('Success', message);
+        } else {
+            showError('Error', data.message || 'Failed to save account');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving account:', error);
+        showError('Error', 'Failed to save account. Please try again.');
+    });
+}
+
+function toggleAccountStatus(accountId, currentStatus) {
+    fetch(`${API_BASE}/api/users/${accountId}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
@@ -1368,12 +1474,77 @@ function toggleUserStatus(userId, currentStatus) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            loadUsers();
+            loadAccounts();
+            const status = !currentStatus ? 'activated' : 'deactivated';
+            showSuccess('Success', `Account ${status} successfully`);
         } else {
-            showError('Error', 'Failed to update user status. Please try again.');
+            showError('Error', 'Failed to update account status');
         }
     })
-    .catch(error => console.error('Error updating user:', error));
+    .catch(error => {
+        console.error('Error updating account status:', error);
+        showError('Error', 'Failed to update account status');
+    });
+}
+
+function resetAccountVerification(accountId, email) {
+    if (!confirm('Are you sure you want to reset the verification status for this account?')) {
+        return;
+    }
+
+    fetch(`${API_BASE}/api/users/${accountId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ is_verified: false })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadAccounts();
+            showSuccess('Success', 'Verification status reset. User will need to re-verify their email.');
+        } else {
+            showError('Error', 'Failed to reset verification status');
+        }
+    })
+    .catch(error => {
+        console.error('Error resetting verification:', error);
+        showError('Error', 'Failed to reset verification status');
+    });
+}
+
+function filterAccounts() {
+    const searchText = document.getElementById('accountSearch').value.toLowerCase();
+    const typeFilter = document.getElementById('accountTypeFilter').value;
+    const statusFilter = document.getElementById('accountStatusFilter').value;
+    const verifiedFilter = document.getElementById('accountVerifiedFilter').value;
+
+    const filtered = currentAccounts.filter(account => {
+        const matchesSearch = account.first_name.toLowerCase().includes(searchText) ||
+                              account.last_name.toLowerCase().includes(searchText) ||
+                              account.email.toLowerCase().includes(searchText);
+        
+        const isActive = account.is_active === true || account.is_active === 1 || account.is_active === '1';
+        const isVerified = account.is_verified === true || account.is_verified === 1 || account.is_verified === '1';
+        
+        const matchesType = !typeFilter || account.user_type === typeFilter;
+        const matchesStatus = !statusFilter || (statusFilter === 'active' ? isActive : !isActive);
+        const matchesVerified = !verifiedFilter || (verifiedFilter === 'verified' ? isVerified : !isVerified);
+
+        return matchesSearch && matchesType && matchesStatus && matchesVerified;
+    });
+
+    displayAccounts(filtered);
+}
+
+function clearAccountFilters() {
+    document.getElementById('accountSearch').value = '';
+    document.getElementById('accountTypeFilter').value = '';
+    document.getElementById('accountStatusFilter').value = '';
+    document.getElementById('accountVerifiedFilter').value = '';
+    displayAccounts(currentAccounts);
 }
 
 function loadStores() {
@@ -1716,31 +1887,6 @@ function clearFilters() {
     displayOrders(currentOrders);
 }
 
-function filterUsers() {
-    try {
-        const q = (document.getElementById('userSearch')?.value || '').trim().toLowerCase();
-        const type = document.getElementById('userTypeFilter')?.value || '';
-        const status = document.getElementById('userStatusFilter')?.value || '';
-        let filtered = currentUsers || [];
-        if (q) {
-            filtered = filtered.filter(u => {
-                const name = `${u.first_name || ''} ${u.last_name || ''}`.toLowerCase();
-                const email = (u.email || '').toLowerCase();
-                return name.includes(q) || email.includes(q);
-            });
-        }
-        if (type) filtered = filtered.filter(u => String(u.user_type || '').toLowerCase() === type);
-        if (status) filtered = filtered.filter(u => (u.is_active ? 'active' : 'inactive') === status);
-        displayUsers(filtered);
-    } catch (e) { console.warn('filterUsers error', e); }
-}
-
-function clearUserFilters() {
-    const ids = ['userSearch', 'userTypeFilter', 'userStatusFilter'];
-    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    displayUsers(currentUsers);
-}
-
 function filterStores() {
     try {
         const q = (document.getElementById('storeSearch')?.value || '').trim().toLowerCase();
@@ -1753,7 +1899,11 @@ function filterStores() {
                 return name.includes(q) || loc.includes(q);
             });
         }
-        if (status) filtered = filtered.filter(s => (s.is_active ? 'active' : 'inactive') === status);
+        if (status === 'active') {
+            filtered = filtered.filter(s => s.is_active === true || s.is_active === 1 || s.is_active === '1');
+        } else if (status === 'inactive') {
+            filtered = filtered.filter(s => s.is_active !== true && s.is_active !== 1 && s.is_active !== '1');
+        }
         displayStores(filtered);
     } catch (e) { console.warn('filterStores error', e); }
 }
@@ -2500,7 +2650,6 @@ function hideModal(modalId) {
     } catch (e) { /* ignore */ }
     // Clear any editing state related to this modal to avoid stale IDs
     try {
-        if (modalId === 'addUserModal') editingUserId = null;
         if (modalId === 'addUnitModal') editingUnitId = null;
         if (modalId === 'addSizeModal') editingSizeId = null;
         if (modalId === 'addStoreModal') editingStoreId = null;
@@ -2508,100 +2657,6 @@ function hideModal(modalId) {
         if (modalId === 'addCategoryModal') editingCategoryId = null;
         if (modalId === 'addRiderModal') editingRiderId = null;
     } catch (e) { /* ignore */ }
-}
-
-// User Management Functions
-function showAddUserModal() {
-    showModal('addUserModal');
-}
-
-async function saveUser() {
-    const formData = new FormData(document.getElementById('addUserForm'));
-    const userData = {
-        firstName: formData.get('firstName'),
-        lastName: formData.get('lastName'),
-        email: formData.get('email'),
-        phone: formData.get('phone'),
-        password: formData.get('password'),
-        address: formData.get('address'),
-        userType: formData.get('userType'),
-        is_active: formData.get('is_active') !== null ? (formData.get('is_active') === '1' ? true : false) : true
-    };
-    try {
-        if (editingUserId) {
-            // Update existing user (send editable fields)
-            const payload = {
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                email: userData.email,
-                phone: userData.phone,
-                address: userData.address,
-                user_type: userData.userType,
-                is_active: userData.is_active
-            };
-            // include password only if provided
-            if (userData.password) payload.password = userData.password;
-
-            const response = await fetch(`${API_BASE}/api/users/${editingUserId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('User Updated', 'User updated successfully!');
-                hideModal('addUserModal');
-                editingUserId = null;
-                loadUsers();
-            } else {
-                showError('Error', data.message || 'Failed to update user');
-            }
-        } else {
-            const response = await fetch(`${API_BASE}/api/auth/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-                body: JSON.stringify(userData)
-            });
-            const data = await response.json();
-            if (data.success) {
-                showSuccess('User Created', 'User created successfully!');
-                hideModal('addUserModal');
-                loadUsers();
-            } else {
-                showError('Error', data.message || 'Failed to create user');
-            }
-        }
-    } catch (error) {
-        console.error('Error saving user:', error);
-        showError('Error', 'Failed to save user');
-    }
-}
-
-async function editUser(userId) {
-    // Open addUser modal in edit mode
-    editingUserId = userId;
-    try {
-        const resp = await fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${authToken}` } });
-        const data = await resp.json();
-        if (!data.success) { showError('Error', 'Failed to load user data'); return; }
-        const user = data.users.find(u => u.id === userId);
-        if (!user) { showError('User Not Found', 'The selected user could not be found'); return; }
-
-        const form = document.getElementById('addUserForm');
-        form.querySelector('#userFirstName').value = user.first_name || '';
-        form.querySelector('#userLastName').value = user.last_name || '';
-        form.querySelector('#userEmail').value = user.email || '';
-        form.querySelector('#userPhone').value = user.phone || '';
-        form.querySelector('#userAddress').value = user.address || '';
-        form.querySelector('#userType').value = user.user_type || 'customer';
-        const statusSel = form.querySelector('#userStatus');
-        if (statusSel) statusSel.value = user.is_active ? '1' : '0';
-
-        showModal('addUserModal');
-    } catch (e) {
-        console.error('Error loading user for edit', e);
-        showError('Error', 'Failed to load user for edit');
-    }
 }
 
 async function showAddStoreModal() {
@@ -2767,17 +2822,12 @@ async function editStore(storeId) {
         form.querySelector('#storePhone').value = s.phone || '';
         form.querySelector('#storeEmail').value = s.email || '';
         form.querySelector('#storeRating').value = s.rating || 0;
-        if (form.querySelector('#storeCategory')) {
-            form.querySelector('#storeCategory').value = s.category_id || '';
-        }
         form.querySelector('#storeDeliveryTime').value = s.delivery_time || '';
         if (s.opening_time) form.querySelector('#storeOpeningTime').value = s.opening_time;
         if (s.closing_time) form.querySelector('#storeClosingTime').value = s.closing_time;
         if (form.querySelector('#storePaymentTerm')) form.querySelector('#storePaymentTerm').value = s.payment_term || '';
         form.querySelector('#storeDescription').value = s.description || '';
         form.querySelector('#storeAddress').value = s.address || '';
-        // category dropdown may be populated; attempt to set value
-        const catSel = form.querySelector('#storeCategory'); if (catSel && s.category_id) catSel.value = s.category_id;
         const modal = document.getElementById('addStoreModal');
         if (modal) {
             const titleEl = modal.querySelector('.modal-header h3');
@@ -2796,15 +2846,19 @@ async function populateStoreCategorySelect(selectedId = null) {
     const categorySelect = document.getElementById('storeCategory');
     if (!categorySelect) return;
     categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
-    const resp = await fetch(`${API_BASE}/api/categories`);
-    const data = await resp.json();
-    if (data && data.success && Array.isArray(data.categories)) {
-        data.categories.forEach(category => {
-            categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
-        });
-    }
-    if (selectedId) {
-        categorySelect.value = String(selectedId);
+    try {
+        const resp = await fetch(`${API_BASE}/api/categories?includeInactive=true`);
+        const data = await resp.json();
+        if (data && data.success && Array.isArray(data.categories)) {
+            data.categories.forEach(category => {
+                categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+            });
+        }
+        if (selectedId) {
+            categorySelect.value = String(selectedId);
+        }
+    } catch (err) {
+        console.error('Error loading categories:', err);
     }
 }
 
@@ -4711,9 +4765,6 @@ function sortTable(tableType, column) {
         case 'products':
             data = currentProducts;
             break;
-        case 'users':
-            data = currentUsers;
-            break;
         case 'stores':
             data = currentStores;
             break;
@@ -4756,9 +4807,6 @@ function sortTable(tableType, column) {
     switch(tableType) {
         case 'products':
             displayProducts(data);
-            break;
-        case 'users':
-            displayUsers(data);
             break;
         case 'stores':
             displayStores(data);
@@ -4810,130 +4858,8 @@ function updateSortIndicator(header, column, tableType) {
 }
 
 // Update other load functions to store data and initialize sorting
-function loadUsers() {
-    fetch(`${API_BASE}/api/users`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-    })
-    .then(response => response.json())
-    .then(data => {
-        currentUsers = data.users || [];
-        displayUsers(currentUsers);
-        initializeTableSorting('users');
-    })
-    .catch(error => console.error('Error loading users:', error));
-}
-
-function displayUsers(users) {
-    const tbody = document.getElementById('usersTableBody');
-    tbody.innerHTML = '';
-
-    users.forEach(user => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${user.id}</td>
-            <td>${user.first_name} ${user.last_name}</td>
-            <td>${user.email}</td>
-            <td>${user.user_type}</td>
-            <td><span class="status-${user.is_active ? 'active' : 'inactive'}">${user.is_active ? 'Active' : 'Inactive'}</span></td>
-            <td>
-                <div class="action-buttons">
-                    <button class="btn-small btn-edit" onclick="editUser(${user.id})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-small btn-secondary" onclick="toggleUserStatus(${user.id}, ${user.is_active})">
-                        <i class="fas fa-${user.is_active ? 'ban' : 'check'}"></i> ${user.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                </div>
-            </td>
-        `;
-        const ensureHoverCard = () => {
-            let card = document.getElementById('userHoverCard');
-            if (!card) {
-                card = document.createElement('div');
-                card.id = 'userHoverCard';
-                card.style.position = 'absolute';
-                card.style.zIndex = '10000';
-                card.style.display = 'none';
-                card.style.minWidth = '260px';
-                card.style.maxWidth = '320px';
-                card.style.padding = '10px';
-                card.style.borderRadius = '10px';
-                card.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
-                card.style.background = 'linear-gradient(180deg, #fff 0%, #f6f7fb 100%)';
-                document.body.appendChild(card);
-            }
-            return card;
-        };
-        const renderCard = (u) => {
-            const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'User';
-            const statusColor = u.is_active ? '#166534' : '#991b1b';
-            const statusBg = u.is_active ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
-            const avatar = `<div style="width:56px;height:56px;border-radius:28px;background:#e5e7eb;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;color:#6b7280;font-weight:700;">${(u.first_name || 'U').slice(0,1).toUpperCase()}</div>`;
-            const pill = `<span style="padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block;background:${statusBg};color:${statusColor};">${u.is_active ? 'Active' : 'Inactive'}</span>`;
-            const label = (lbl, val) => `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="width:88px;color:#9ca3af;font-size:12px;">${lbl}</div><div style="flex:1;color:#374151;font-size:13px;word-break:break-word;">${val || '-'}</div></div>`;
-            return `
-                <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
-                    ${avatar}
-                    <div style="flex:1;min-width:0;">
-                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                            <div style="font-weight:800;color:#1f2937;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${name}</div>
-                            ${pill}
-                        </div>
-                        <div style="color:#64748b;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${u.user_type || ''}</div>
-                    </div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:6px;">
-                    ${label('Email', u.email || '')}
-                    ${label('Phone', u.phone || '')}
-                    ${label('Address', u.address || '')}
-                    ${label('Type', u.user_type || '')}
-                </div>
-            `;
-        };
-        const positionCard = (card, evt) => {
-            const x = (evt.clientX || 0) + 16 + (window.scrollX || 0);
-            const y = (evt.clientY || 0) + 16 + (window.scrollY || 0);
-            const ww = window.innerWidth || document.documentElement.clientWidth || 800;
-            const wh = window.innerHeight || document.documentElement.clientHeight || 600;
-            card.style.display = 'block';
-            card.style.left = x + 'px';
-            card.style.top = y + 'px';
-            const rect = card.getBoundingClientRect();
-            if (rect.right > ww) card.style.left = Math.max(8, x - (rect.right - ww) - 24) + 'px';
-            if (rect.bottom > wh) card.style.top = Math.max(8, y - (rect.bottom - wh) - 24) + 'px';
-        };
-        const isOverActions = (evt) => {
-            const el = document.elementFromPoint(evt.clientX, evt.clientY);
-            return !!(el && (el.closest('.action-buttons') || (el.closest('td') && el.closest('td').querySelector('.action-buttons'))));
-        };
-        const showCard = (evt) => {
-            if (isOverActions(evt)) return;
-            const card = ensureHoverCard();
-            card.innerHTML = renderCard(user);
-            positionCard(card, evt);
-        };
-        const moveCard = (evt) => {
-            if (isOverActions(evt)) {
-                const card = document.getElementById('userHoverCard');
-                if (card) card.style.display = 'none';
-                return;
-            }
-            const card = document.getElementById('userHoverCard');
-            if (card && card.style.display !== 'none') positionCard(card, evt);
-        };
-        const hideCard = () => {
-            const card = document.getElementById('userHoverCard');
-            if (card) card.style.display = 'none';
-        };
-        row.addEventListener('mouseenter', showCard);
-        row.addEventListener('mousemove', moveCard);
-        row.addEventListener('mouseleave', hideCard);
-        tbody.appendChild(row);
-    });
-}
-
 function loadStores() {
-    fetch(`${API_BASE}/api/stores`)
+    fetch(`${API_BASE}/api/stores?admin=1`)
     .then(response => response.json())
     .then(data => {
         currentStores = data.stores || [];
@@ -4946,6 +4872,14 @@ function loadStores() {
 function displayStores(stores) {
     const tbody = document.getElementById('storesTableBody');
     tbody.innerHTML = '';
+
+    const totalCount = stores.length;
+    const activeCount = stores.filter(s => s.is_active === true || s.is_active === 1 || s.is_active === '1').length;
+    const inactiveCount = totalCount - activeCount;
+
+    document.getElementById('totalStoresCount').textContent = totalCount;
+    document.getElementById('activeStoresCount').textContent = activeCount;
+    document.getElementById('inactiveStoresCount').textContent = inactiveCount;
 
     stores.forEach(store => {
         const ownerDisplay = store.owner_name || '-';

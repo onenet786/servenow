@@ -49,11 +49,16 @@ function loadStoreSalesReport() {
 function displayInventoryReport(data) {
     const summary = data.summary;
     
-    document.getElementById('totalStoresCount').textContent = summary.total_stores;
-    document.getElementById('totalCategoriesCount').textContent = summary.total_categories;
-    document.getElementById('totalProductsCount').textContent = summary.total_products;
-    document.getElementById('totalStockCount').textContent = summary.total_stock.toLocaleString();
-    document.getElementById('totalInventoryValue').textContent = `PKR ${summary.total_inventory_value.toFixed(2)}`;
+    document.getElementById('inventoryTotalStoresCount').textContent = summary.total_stores;
+    document.getElementById('inventoryTotalCategoriesCount').textContent = summary.total_categories;
+    document.getElementById('inventoryTotalProductsCount').textContent = summary.total_products;
+    document.getElementById('inventoryTotalStockCount').textContent = summary.total_stock.toLocaleString();
+    document.getElementById('inventoryTotalValue').textContent = `PKR ${summary.total_inventory_value.toFixed(2)}`;
+    
+    const activeStores = data.store_wise.filter(s => s.is_active === true || s.is_active === 1 || s.is_active === '1').length;
+    const inactiveStores = data.store_wise.length - activeStores;
+    document.getElementById('inventoryActiveStoresCount').textContent = activeStores;
+    document.getElementById('inventoryInactiveStoresCount').textContent = inactiveStores;
     
     displayStoreWiseInventory(data.store_wise);
     displayCategoryWiseInventory(data.category_wise);
