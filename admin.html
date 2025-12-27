@@ -63,6 +63,19 @@
                         <li><a href="#" class="tab-link" data-tab="sizes"><i class="fas fa-ruler-horizontal"></i> Sizes</a></li>
                     </ul>
                 </li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-coins"></i> Financial <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" class="tab-link" data-tab="financial-dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
+                        <li><a href="#" class="tab-link" data-tab="transactions"><i class="fas fa-exchange-alt"></i> Transactions</a></li>
+                        <li><a href="#" class="tab-link" data-tab="payment-vouchers"><i class="fas fa-receipt"></i> Payment Vouchers</a></li>
+                        <li><a href="#" class="tab-link" data-tab="receipt-vouchers"><i class="fas fa-file-invoice-dollar"></i> Receipt Vouchers</a></li>
+                        <li><a href="#" class="tab-link" data-tab="rider-cash"><i class="fas fa-motorcycle"></i> Rider Cash</a></li>
+                        <li><a href="#" class="tab-link" data-tab="store-settlements"><i class="fas fa-handshake"></i> Store Settlements</a></li>
+                        <li><a href="#" class="tab-link" data-tab="expenses"><i class="fas fa-money-bill-wave"></i> Expenses</a></li>
+                        <li><a href="#" class="tab-link" data-tab="financial-reports"><i class="fas fa-file-alt"></i> Reports</a></li>
+                    </ul>
+                </li>
                 <li><a href="#" class="tab-link" data-tab="db-backup"><i class="fas fa-database"></i> Utilities</a></li>
                 <li><a href="#" id="logoutBtn">Logout</a></li>
             </ul>
@@ -245,6 +258,310 @@
 
                         </div>
 
+                        <!-- Financial Dashboard Tab -->
+                        <div id="financial-dashboard" class="tab-content">
+                            <h2>Financial Dashboard</h2>
+                            <div class="filter-controls" style="margin-bottom: 1.5rem;">
+                                <select id="financialPeriodFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="today">Today</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month" selected>This Month</option>
+                                </select>
+                                <button class="btn btn-primary" id="refreshFinancialDashboardBtn">Refresh</button>
+                            </div>
+                            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 2rem;">
+                                <div class="stat-card">
+                                    <h3 id="totalIncomeAmount">₨ -</h3>
+                                    <p>Total Income</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="totalExpenseAmount">₨ -</h3>
+                                    <p>Total Expense</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="totalCommissionsAmount">₨ -</h3>
+                                    <p>Total Commissions</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="netProfitAmount">₨ -</h3>
+                                    <p>Net Profit</p>
+                                </div>
+                            </div>
+                            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+                                <div class="stat-card">
+                                    <h3 id="paymentVouchersAmount">₨ -</h3>
+                                    <p>Payment Vouchers</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="receiptVouchersAmount">₨ -</h3>
+                                    <p>Receipt Vouchers</p>
+                                </div>
+                                <div class="stat-card">
+                                    <h3 id="riderCashAmount">₨ -</h3>
+                                    <p>Rider Cash Submitted</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Transactions Tab -->
+                        <div id="transactions" class="tab-content">
+                            <h2>Financial Transactions</h2>
+                            <button class="btn btn-primary" id="addTransactionBtn">Add Transaction</button>
+                            <div class="filter-controls">
+                                <select id="transactionTypeFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Types</option>
+                                    <option value="income">Income</option>
+                                    <option value="expense">Expense</option>
+                                    <option value="settlement">Settlement</option>
+                                    <option value="refund">Refund</option>
+                                    <option value="adjustment">Adjustment</option>
+                                </select>
+                                <select id="transactionStatusFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <button class="btn btn-secondary" id="clearTransactionFiltersBtn">Clear</button>
+                            </div>
+                            <div class="table-container">
+                                <table id="transactionsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Transaction #</th>
+                                            <th>Type</th>
+                                            <th>Description</th>
+                                            <th>Amount</th>
+                                            <th>Payment Method</th>
+                                            <th>Status</th>
+                                            <th>Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="transactionsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Payment Vouchers Tab -->
+                        <div id="payment-vouchers" class="tab-content">
+                            <h2>Cash Payment Vouchers</h2>
+                            <button class="btn btn-primary" id="addPaymentVoucherBtn">Create Payment Voucher</button>
+                            <div class="filter-controls">
+                                <select id="paymentVoucherStatusFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Status</option>
+                                    <option value="draft">Draft</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <button class="btn btn-secondary" id="clearPaymentVoucherFiltersBtn">Clear</button>
+                            </div>
+                            <div class="table-container">
+                                <table id="paymentVouchersTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Voucher #</th>
+                                            <th>Date</th>
+                                            <th>Payee Name</th>
+                                            <th>Payee Type</th>
+                                            <th>Amount</th>
+                                            <th>Purpose</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paymentVouchersTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Receipt Vouchers Tab -->
+                        <div id="receipt-vouchers" class="tab-content">
+                            <h2>Cash Receipt Vouchers</h2>
+                            <button class="btn btn-primary" id="addReceiptVoucherBtn">Create Receipt Voucher</button>
+                            <div class="filter-controls">
+                                <select id="receiptVoucherStatusFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Status</option>
+                                    <option value="draft">Draft</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="received">Received</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <button class="btn btn-secondary" id="clearReceiptVoucherFiltersBtn">Clear</button>
+                            </div>
+                            <div class="table-container">
+                                <table id="receiptVouchersTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Voucher #</th>
+                                            <th>Date</th>
+                                            <th>Payer Name</th>
+                                            <th>Payer Type</th>
+                                            <th>Amount</th>
+                                            <th>Description</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="receiptVouchersTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Rider Cash Movements Tab -->
+                        <div id="rider-cash" class="tab-content">
+                            <h2>Rider Cash Movements</h2>
+                            <button class="btn btn-primary" id="addRiderCashMovementBtn">Record Cash Movement</button>
+                            <div class="filter-controls">
+                                <select id="riderCashMovementTypeFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Types</option>
+                                    <option value="cash_collection">Cash Collection</option>
+                                    <option value="cash_submission">Cash Submission</option>
+                                    <option value="advance">Advance</option>
+                                    <option value="settlement">Settlement</option>
+                                    <option value="adjustment">Adjustment</option>
+                                </select>
+                                <select id="riderCashStatusFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="approved">Approved</option>
+                                </select>
+                                <button class="btn btn-secondary" id="clearRiderCashFiltersBtn">Clear</button>
+                            </div>
+                            <div class="table-container">
+                                <table id="riderCashTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Movement #</th>
+                                            <th>Rider</th>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                            <th>Recorded By</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="riderCashTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Store Settlements Tab -->
+                        <div id="store-settlements" class="tab-content">
+                            <h2>Store Settlements</h2>
+                            <button class="btn btn-primary" id="addStoreSettlementBtn">Create Settlement</button>
+                            <div class="filter-controls">
+                                <select id="storeSettlementStatusFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <button class="btn btn-secondary" id="clearStoreSettlementFiltersBtn">Clear</button>
+                            </div>
+                            <div class="table-container">
+                                <table id="storeSettlementsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Settlement #</th>
+                                            <th>Store Name</th>
+                                            <th>Settlement Date</th>
+                                            <th>Period From</th>
+                                            <th>Period To</th>
+                                            <th>Net Amount</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="storeSettlementsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Expenses Tab -->
+                        <div id="expenses" class="tab-content">
+                            <h2>Admin Expenses</h2>
+                            <button class="btn btn-primary" id="addExpenseBtn">Record Expense</button>
+                            <div class="filter-controls">
+                                <select id="expenseCategoryFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Categories</option>
+                                    <option value="utilities">Utilities</option>
+                                    <option value="maintenance">Maintenance</option>
+                                    <option value="office">Office</option>
+                                    <option value="travel">Travel</option>
+                                    <option value="marketing">Marketing</option>
+                                    <option value="other">Other</option>
+                                </select>
+                                <select id="expenseStatusFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="paid">Paid</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                                <button class="btn btn-secondary" id="clearExpenseFiltersBtn">Clear</button>
+                            </div>
+                            <div class="table-container">
+                                <table id="expensesTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Expense #</th>
+                                            <th>Date</th>
+                                            <th>Category</th>
+                                            <th>Description</th>
+                                            <th>Amount</th>
+                                            <th>Vendor</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="expensesTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Financial Reports Tab -->
+                        <div id="financial-reports" class="tab-content">
+                            <h2>Financial Reports</h2>
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                                <select id="reportTypeFilter" style="padding: 0.5rem; border-radius: 0.25rem;">
+                                    <option value="">All Report Types</option>
+                                    <option value="daily_summary">Daily Summary</option>
+                                    <option value="weekly_summary">Weekly Summary</option>
+                                    <option value="monthly_summary">Monthly Summary</option>
+                                    <option value="store_settlement">Store Settlement</option>
+                                    <option value="rider_cash_report">Rider Cash Report</option>
+                                    <option value="expense_report">Expense Report</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                                <button class="btn btn-primary" id="generateReportBtn">Generate Report</button>
+                                <button class="btn btn-secondary" id="exportReportBtn">Export</button>
+                            </div>
+                            <div class="table-container">
+                                <table id="reportsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Report #</th>
+                                            <th>Type</th>
+                                            <th>Period From</th>
+                                            <th>Period To</th>
+                                            <th>Total Income</th>
+                                            <th>Total Expense</th>
+                                            <th>Net Profit</th>
+                                            <th>Generated Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="reportsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
 
         
                         <!-- Database Backup Tab -->
@@ -1823,6 +2140,7 @@
         <p>© 2025 SERVENOW. All Rights Reserved. Powered by: OneNet Solutions Pakistan</p>
     </footer>
 
+    <script src="js/financial.js"></script>
     <script src="js/admin.js?v=11"></script>
     <script src="js/inventory-report.js"></script>
     <script>

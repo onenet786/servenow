@@ -989,6 +989,30 @@ function switchTab(tabName) {
             // Load list of available backups when backup tab is opened
             loadBackups();
             break;
+        case 'financial-dashboard':
+            if (typeof loadFinancialDashboard === 'function') loadFinancialDashboard();
+            break;
+        case 'transactions':
+            if (typeof loadTransactions === 'function') loadTransactions();
+            break;
+        case 'payment-vouchers':
+            if (typeof loadPaymentVouchers === 'function') loadPaymentVouchers();
+            break;
+        case 'receipt-vouchers':
+            if (typeof loadReceiptVouchers === 'function') loadReceiptVouchers();
+            break;
+        case 'rider-cash':
+            if (typeof loadRiderCash === 'function') loadRiderCash();
+            break;
+        case 'store-settlements':
+            if (typeof loadStoreSettlements === 'function') loadStoreSettlements();
+            break;
+        case 'expenses':
+            if (typeof loadExpenses === 'function') loadExpenses();
+            break;
+        case 'financial-reports':
+            if (typeof loadFinancialReports === 'function') loadFinancialReports();
+            break;
     }
 }
 
