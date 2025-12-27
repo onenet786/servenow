@@ -37,6 +37,7 @@ const unitRoutes = require('./routes/units');
 const sizeRoutes = require('./routes/sizes');
 const paymentRoutes = require('./routes/payments');
 const walletRoutes = require('./routes/wallets');
+const financialRoutes = require('./routes/financial');
 const { logError } = require('./utils/debugLogger');
 
 const app = express();
@@ -199,6 +200,8 @@ app.use('/api/payments', paymentRoutes);
 console.log('Payment routes mounted at /api/payments');
 app.use('/api/wallet', walletRoutes);
 console.log('Wallet routes mounted at /api/wallet');
+app.use('/api/financial', financialRoutes);
+console.log('Financial routes mounted at /api/financial');
 console.log('All API routes configured.');
 
 // Serve login.html for the root path
