@@ -873,8 +873,19 @@ function generateFinancialReport() {
 
 async function submitGenerateReport() {
     const reportType = document.getElementById('reportTypeModal').value;
-    const periodFrom = document.getElementById('reportPeriodFrom').value || null;
-    const periodTo = document.getElementById('reportPeriodTo').value || null;
+    const periodFromInput = document.getElementById('reportPeriodFrom').value;
+    const periodToInput = document.getElementById('reportPeriodTo').value;
+
+    const payload = {
+        report_type: reportType
+    };
+
+    if (periodFromInput) {
+        payload.period_from = periodFromInput;
+    }
+    if (periodToInput) {
+        payload.period_to = periodToInput;
+    }
 
     try {
         const response = await fetch(`${API_BASE}/api/financial/reports/generate`, {
@@ -883,11 +894,7 @@ async function submitGenerateReport() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             },
-            body: JSON.stringify({
-                report_type: reportType,
-                period_from: periodFrom,
-                period_to: periodTo
-            })
+            body: JSON.stringify(payload)
         });
 
         const data = await response.json();
@@ -925,10 +932,13 @@ function downloadReport(reportId) {
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
+    a.style.display = 'none';
     a.href = url;
     a.download = `${report.report_number}.csv`;
+    document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
+    a.remove();
 }
 
 function viewReport(reportId) {
