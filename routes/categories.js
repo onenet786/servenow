@@ -13,8 +13,10 @@ const router = express.Router();
 // Get all categories
 router.get('/', async (req, res) => {
     try {
+        const { includeInactive } = req.query;
+        const whereClause = includeInactive === 'true' ? '' : 'WHERE is_active = true';
         const [categories] = await req.db.execute(
-            'SELECT * FROM categories WHERE is_active = true ORDER BY name ASC'
+            `SELECT * FROM categories ${whereClause} ORDER BY name ASC`
         );
 
         res.json({

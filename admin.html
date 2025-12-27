@@ -31,7 +31,13 @@
             <!-- Navigation Menu -->
             <ul class="nav-menu" id="navMenu">
                 <li><a href="#" class="tab-link active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="#" class="tab-link" data-tab="users"><i class="fas fa-users"></i> Users</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false"><i class="fas fa-address-card"></i> Accounts <i class="fas fa-chevron-down" style="margin-left: 0.25rem; font-size: 0.8rem;"></i></a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" class="tab-link" data-tab="accounts"><i class="fas fa-users"></i> Accounts</a></li>
+                        <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
+                    </ul>
+                </li>
                 <li><a href="#" class="tab-link" data-tab="stores"><i class="fas fa-store"></i> Stores</a></li>
                 <li><a href="#" class="tab-link" data-tab="products"><i class="fas fa-box"></i> Products</a></li>
                 <li><a href="#" class="tab-link" data-tab="orders"><i class="fas fa-shopping-cart"></i> Orders</a></li>
@@ -57,7 +63,6 @@
                         <li><a href="#" class="tab-link" data-tab="sizes"><i class="fas fa-ruler-horizontal"></i> Sizes</a></li>
                     </ul>
                 </li>
-                <li><a href="#" class="tab-link" data-tab="riders"><i class="fas fa-motorcycle"></i> Riders</a></li>
                 <li><a href="#" class="tab-link" data-tab="db-backup"><i class="fas fa-database"></i> Utilities</a></li>
                 <li><a href="#" id="logoutBtn">Logout</a></li>
             </ul>
@@ -130,25 +135,44 @@
         
 
 
-                        <!-- Users Tab -->
+
+                        <!-- Accounts Tab -->
 
 
-                        <div id="users" class="tab-content">
+                        <div id="accounts" class="tab-content">
 
 
-                            <h2>Users Management</h2>
+                            <h2>Accounts Management</h2>
 
+                            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem; max-height: none; overflow: visible;">
+                                <div class="stat-card" style="padding: 0.5rem 0.5rem;">
+                                    <h3 id="totalAccountsCount" style="font-size: 1rem; margin-bottom: 0.2rem;">-</h3>
+                                    <p style="font-size: 0.75rem; margin: 0;">Total Accounts</p>
+                                </div>
+                                <div class="stat-card" style="padding: 0.5rem 0.5rem;">
+                                    <h3 id="activeAccountsCount" style="font-size: 1rem; margin-bottom: 0.2rem;">-</h3>
+                                    <p style="font-size: 0.75rem; margin: 0;">Active Accounts</p>
+                                </div>
+                                <div class="stat-card" style="padding: 0.5rem 0.5rem;">
+                                    <h3 id="inactiveAccountsCount" style="font-size: 1rem; margin-bottom: 0.2rem;">-</h3>
+                                    <p style="font-size: 0.75rem; margin: 0;">Inactive Accounts</p>
+                                </div>
+                                <div class="stat-card" style="padding: 0.5rem 0.5rem;">
+                                    <h3 id="verifiedAccountsCount" style="font-size: 1rem; margin-bottom: 0.2rem;">-</h3>
+                                    <p style="font-size: 0.75rem; margin: 0;">Verified Accounts</p>
+                                </div>
+                            </div>
 
-                            <button class="btn btn-primary" id="addUserBtn">Add New User</button>
+                            <button class="btn btn-primary" id="addAccountBtn">Add New Account</button>
 
                             <div class="filter-controls">
                                 <div class="filter-group">
-                                    <label for="userSearch">Search:</label>
-                                    <input type="text" id="userSearch" placeholder="Search by name or email">
+                                    <label for="accountSearch">Search:</label>
+                                    <input type="text" id="accountSearch" placeholder="Search by name or email">
                                 </div>
                                 <div class="filter-group">
-                                    <label for="userTypeFilter">Type:</label>
-                                    <select id="userTypeFilter">
+                                    <label for="accountTypeFilter">Type:</label>
+                                    <select id="accountTypeFilter">
                                         <option value="">All Types</option>
                                         <option value="customer">Customer</option>
                                         <option value="store_owner">Store Owner</option>
@@ -156,21 +180,29 @@
                                     </select>
                                 </div>
                                 <div class="filter-group">
-                                    <label for="userStatusFilter">Status:</label>
-                                    <select id="userStatusFilter">
+                                    <label for="accountStatusFilter">Status:</label>
+                                    <select id="accountStatusFilter">
                                         <option value="">All Status</option>
                                         <option value="active">Active</option>
                                         <option value="inactive">Inactive</option>
                                     </select>
                                 </div>
-                                <button class="btn btn-secondary" id="userClearFiltersBtn">Clear Filters</button>
+                                <div class="filter-group">
+                                    <label for="accountVerifiedFilter">Verification:</label>
+                                    <select id="accountVerifiedFilter">
+                                        <option value="">All</option>
+                                        <option value="verified">Verified</option>
+                                        <option value="unverified">Unverified</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-secondary" id="accountClearFiltersBtn">Clear Filters</button>
                             </div>
 
 
                             <div class="table-container">
 
 
-                                <table id="usersTable">
+                                <table id="accountsTable">
 
 
                                     <thead>
@@ -180,20 +212,13 @@
 
 
                                             <th>ID</th>
-
-
                                             <th>Name</th>
-
-
                                             <th>Email</th>
-
-
+                                            <th>Phone</th>
                                             <th>Type</th>
-
-
                                             <th>Status</th>
-
-
+                                            <th>Verified</th>
+                                            <th>Joined</th>
                                             <th>Actions</th>
 
 
@@ -203,10 +228,10 @@
                                     </thead>
 
 
-                                    <tbody id="usersTableBody">
+                                    <tbody id="accountsTableBody">
 
 
-                                        <!-- Users will be loaded here -->
+                                        <!-- Accounts will be loaded here -->
 
 
                                     </tbody>
@@ -270,6 +295,20 @@
 
                             <h2>Stores Management</h2>
 
+                            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1.5rem; max-height: none; overflow: visible;">
+                                <div class="stat-card" style="padding: 0.5rem 0.5rem;">
+                                    <h3 id="totalStoresCount" style="font-size: 1rem; margin-bottom: 0.2rem;">-</h3>
+                                    <p style="font-size: 0.75rem; margin: 0;">Total Stores</p>
+                                </div>
+                                <div class="stat-card" style="padding: 0.5rem 0.5rem;">
+                                    <h3 id="activeStoresCount" style="font-size: 1rem; margin-bottom: 0.2rem;">-</h3>
+                                    <p style="font-size: 0.75rem; margin: 0;">Active Stores</p>
+                                </div>
+                                <div class="stat-card" style="padding: 0.5rem 0.5rem;">
+                                    <h3 id="inactiveStoresCount" style="font-size: 1rem; margin-bottom: 0.2rem;">-</h3>
+                                    <p style="font-size: 0.75rem; margin: 0;">Inactive Stores</p>
+                                </div>
+                            </div>
 
                             <button class="btn btn-primary" id="addStoreBtn">Add New Store</button>
 
@@ -773,23 +812,27 @@
                             <!-- Summary Cards -->
                             <div class="stats-grid">
                                 <div class="stat-card">
-                                    <h3 id="totalStoresCount">-</h3>
+                                    <h3 id="inventoryTotalStoresCount">-</h3>
                                     <p>Total Stores</p>
+                                    <div style="margin-top: 0.75rem; font-size: 0.85rem; color: #666; line-height: 1.6;">
+                                        <div>Active = <span id="inventoryActiveStoresCount">-</span></div>
+                                        <div>Inactive = <span id="inventoryInactiveStoresCount">-</span></div>
+                                    </div>
                                 </div>
                                 <div class="stat-card">
-                                    <h3 id="totalCategoriesCount">-</h3>
+                                    <h3 id="inventoryTotalCategoriesCount">-</h3>
                                     <p>Total Categories</p>
                                 </div>
                                 <div class="stat-card">
-                                    <h3 id="totalProductsCount">-</h3>
+                                    <h3 id="inventoryTotalProductsCount">-</h3>
                                     <p>Total Products</p>
                                 </div>
                                 <div class="stat-card">
-                                    <h3 id="totalStockCount">-</h3>
+                                    <h3 id="inventoryTotalStockCount">-</h3>
                                     <p>Total Stock Units</p>
                                 </div>
                                 <div class="stat-card">
-                                    <h3 id="totalInventoryValue">-</h3>
+                                    <h3 id="inventoryTotalValue">-</h3>
                                     <p>Total Inventory Value</p>
                                 </div>
                             </div>
@@ -1157,45 +1200,45 @@
         
 
 
-            <!-- Add User Modal -->
-    <div id="addUserModal" class="modal">
+    <!-- Edit Account Modal -->
+    <div id="editAccountModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Add New User</h3>
-                <span class="close" data-modal="addUserModal">&times;</span>
+                <h3>Edit Account</h3>
+                <span class="close" data-modal="editAccountModal">&times;</span>
             </div>
             <div class="modal-body">
-                <form id="addUserForm">
+                <form id="editAccountForm">
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="userFirstName">First Name:</label>
-                            <input type="text" id="userFirstName" name="firstName" required>
+                            <label for="editAccountFirstName">First Name:</label>
+                            <input type="text" id="editAccountFirstName" name="firstName" required>
                         </div>
                         <div class="form-group">
-                            <label for="userLastName">Last Name:</label>
-                            <input type="text" id="userLastName" name="lastName" required>
+                            <label for="editAccountLastName">Last Name:</label>
+                            <input type="text" id="editAccountLastName" name="lastName" required>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="userEmail">Email:</label>
-                            <input type="email" id="userEmail" name="email" required>
+                            <label for="editAccountEmail">Email:</label>
+                            <input type="email" id="editAccountEmail" name="email" required>
                         </div>
                         <div class="form-group">
-                            <label for="userPhone">Phone:</label>
-                            <input type="tel" id="userPhone" name="phone">
+                            <label for="editAccountPhone">Phone:</label>
+                            <input type="tel" id="editAccountPhone" name="phone">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="userPassword">Password:</label>
-                            <input type="password" id="userPassword" name="password" required>
+                            <label for="editAccountPassword">Password (leave empty to keep):</label>
+                            <input type="password" id="editAccountPassword" name="password">
                         </div>
                         <div class="form-group">
-                            <label for="userType">User Type:</label>
-                            <select id="userType" name="userType" required>
+                            <label for="editAccountType">User Type:</label>
+                            <select id="editAccountType" name="userType" required>
                                 <option value="customer">Customer</option>
                                 <option value="store_owner">Store Owner</option>
                                 <option value="admin">Admin</option>
@@ -1205,23 +1248,35 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="userStatus">Status:</label>
-                            <select id="userStatus" name="is_active">
+                            <label for="editAccountStatus">Status:</label>
+                            <select id="editAccountStatus" name="is_active">
                                 <option value="1">Active</option>
                                 <option value="0">Inactive</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="userAddress">Address:</label>
-                            <textarea id="userAddress" name="address" rows="2"></textarea>
+                            <label for="editAccountVerified">Email Verified:</label>
+                            <select id="editAccountVerified" name="is_verified">
+                                <option value="1">Verified</option>
+                                <option value="0">Unverified</option>
+                            </select>
                         </div>
                     </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editAccountAddress">Address:</label>
+                            <textarea id="editAccountAddress" name="address" rows="2"></textarea>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="editAccountId" name="accountId">
                 </form>
             </div>
             <div class="modal-footer">
                 <div class="action-buttons">
-                    <button type="button" class="btn btn-small btn-secondary" data-modal="addUserModal"><i class="fas fa-ban"></i> Cancel</button>
-                    <button type="button" class="btn btn-small btn-primary" id="saveUserBtn"><i class="fas fa-check"></i> Save User</button>
+                    <button type="button" class="btn btn-small btn-secondary" data-modal="editAccountModal"><i class="fas fa-ban"></i> Cancel</button>
+                    <button type="button" class="btn btn-small btn-primary" id="saveAccountBtn"><i class="fas fa-check"></i> Save Account</button>
                 </div>
             </div>
         </div>
@@ -1331,6 +1386,9 @@
                                 <!-- Categories will be loaded dynamically -->
                             </select>
                         </div>
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="storeImageFile">Image Upload:</label>
                             <div class="file-and-preview">
@@ -1338,9 +1396,6 @@
                                 <img id="storeImagePreview" alt="Store Image Preview" style="display:none; max-width:120px; max-height:120px; border-radius:6px; object-fit:cover;">
                             </div>
                         </div>
-                    </div>
-
-                    <div class="form-row">
                         <div class="form-group">
                             <label for="storeAddress">Address:</label>
                             <textarea id="storeAddress" name="address" rows="3"></textarea>

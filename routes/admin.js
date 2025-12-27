@@ -81,12 +81,13 @@ router.get('/inventory-report', authenticateToken, requireAdmin, async (req, res
             SELECT 
                 s.id as store_id,
                 s.name as store_name,
+                s.is_active,
                 COUNT(p.id) as total_products,
                 SUM(p.stock_quantity) as total_stock,
                 SUM(p.stock_quantity * p.price) as total_inventory_value
             FROM stores s
             LEFT JOIN products p ON s.id = p.store_id
-            GROUP BY s.id, s.name
+            GROUP BY s.id, s.name, s.is_active
             ORDER BY s.name
         `);
 
@@ -121,14 +122,12 @@ router.get('/inventory-report', authenticateToken, requireAdmin, async (req, res
 
         const [totalStats] = await req.db.execute(`
             SELECT 
-                COUNT(DISTINCT s.id) as total_stores,
-                COUNT(DISTINCT c.id) as total_categories,
+                (SELECT COUNT(*) FROM stores) as total_stores,
+                (SELECT COUNT(*) FROM categories) as total_categories,
                 COUNT(p.id) as total_products,
                 SUM(p.stock_quantity) as total_stock,
                 SUM(p.stock_quantity * p.price) as total_inventory_value
-            FROM stores s
-            CROSS JOIN categories c
-            LEFT JOIN products p ON s.id = p.store_id AND c.id = p.category_id
+            FROM products p
         `);
 
         return res.json({
@@ -136,6 +135,7 @@ router.get('/inventory-report', authenticateToken, requireAdmin, async (req, res
             store_wise: storeInventory.map(row => ({
                 store_id: row.store_id,
                 store_name: row.store_name,
+                is_active: row.is_active,
                 total_products: Number(row.total_products) || 0,
                 total_stock: Number(row.total_stock) || 0,
                 total_inventory_value: parseFloat(row.total_inventory_value) || 0
