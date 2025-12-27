@@ -216,6 +216,16 @@ function initializeAdmin() {
     } catch (e) { /* ignore */ }
     document.getElementById('addCategoryBtn').addEventListener('click', () => showAddCategoryModal());
     document.getElementById('addRiderBtn').addEventListener('click', () => showAddRiderModal());
+    
+    const addStoreSettlementBtn = document.getElementById('addStoreSettlementBtn');
+    if (addStoreSettlementBtn) {
+        addStoreSettlementBtn.addEventListener('click', () => createStoreSettlement());
+    }
+    
+    const clearStoreSettlementFiltersBtn = document.getElementById('clearStoreSettlementFiltersBtn');
+    if (clearStoreSettlementFiltersBtn) {
+        clearStoreSettlementFiltersBtn.addEventListener('click', () => loadStoreSettlements());
+    }
     let addUnitBtn = document.getElementById('addUnitBtn');
     console.debug('admin:init addUnitBtn present:', !!addUnitBtn);
     if (!addUnitBtn) {

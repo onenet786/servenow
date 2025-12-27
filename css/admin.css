@@ -1416,6 +1416,35 @@ th.sortable.sort-desc::before {
     justify-content: center;
 }
 
+.modal.persistent-modal {
+    pointer-events: none;
+}
+
+.modal.persistent-modal.show {
+    pointer-events: auto;
+}
+
+.modal.persistent-modal.show::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+    pointer-events: none;
+}
+
+.persistent-modal .close-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: #999;
+}
+
+.persistent-modal .close-btn {
+    pointer-events: auto;
+}
+
 .modal-content {
     background-color: white;
     margin: 0 auto;
