@@ -2170,5 +2170,409 @@
             });
         }
     </script>
+
+    <!-- Financial Modals -->
+    
+    <!-- Payment Voucher Modal -->
+    <div id="paymentVoucherModal" class="modal persistent-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Payment Voucher</h2>
+                <button class="close-btn" disabled title="Use Cancel button to close">&times;</button>
+            </div>
+            <form id="paymentVoucherForm">
+                <div class="form-group">
+                    <label>Payee Name</label>
+                    <input type="text" id="payeeName" name="payeeName" required>
+                </div>
+                <div class="form-group">
+                    <label>Payee Type</label>
+                    <select id="payeeType" name="payeeType" required>
+                        <option value="store">Store</option>
+                        <option value="rider">Rider</option>
+                        <option value="vendor">Vendor</option>
+                        <option value="employee">Employee</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Amount (₨)</label>
+                    <input type="number" id="paymentAmount" name="amount" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Purpose</label>
+                    <input type="text" id="paymentPurpose" name="purpose">
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select id="paymentMethodPV" name="paymentMethod" required>
+                        <option value="cash">Cash</option>
+                        <option value="check">Check</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('paymentVoucherModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Voucher</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Receipt Voucher Modal -->
+    <div id="receiptVoucherModal" class="modal persistent-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Receipt Voucher</h2>
+                <button class="close-btn" disabled title="Use Cancel button to close">&times;</button>
+            </div>
+            <form id="receiptVoucherForm">
+                <div class="form-group">
+                    <label>Payer Name</label>
+                    <input type="text" id="payerName" name="payerName" required>
+                </div>
+                <div class="form-group">
+                    <label>Payer Type</label>
+                    <select id="payerType" name="payerType" required>
+                        <option value="customer">Customer</option>
+                        <option value="store">Store</option>
+                        <option value="vendor">Vendor</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Amount (₨)</label>
+                    <input type="number" id="receiptAmount" name="amount" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="receiptDescription" name="description">
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select id="paymentMethodRV" name="paymentMethod" required>
+                        <option value="cash">Cash</option>
+                        <option value="check">Check</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('receiptVoucherModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Voucher</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Transaction Modal -->
+    <div id="transactionModal" class="modal persistent-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Record Transaction</h2>
+                <button class="close-btn" disabled title="Use Cancel button to close">&times;</button>
+            </div>
+            <form id="transactionForm">
+                <div class="form-group">
+                    <label>Amount (₨)</label>
+                    <input type="number" id="transactionAmount" name="amount" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="transactionType" name="type" required>
+                        <option value="income">Income</option>
+                        <option value="expense">Expense</option>
+                        <option value="settlement">Settlement</option>
+                        <option value="refund">Refund</option>
+                        <option value="adjustment">Adjustment</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="transactionDescription" name="description">
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select id="transactionPaymentMethod" name="paymentMethod" required>
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="wallet">Wallet</option>
+                        <option value="check">Check</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('transactionModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Record Transaction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rider Cash Movement Modal -->
+    <div id="riderCashModal" class="modal persistent-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Record Rider Cash Movement</h2>
+                <button class="close-btn" disabled title="Use Cancel button to close">&times;</button>
+            </div>
+            <form id="riderCashForm">
+                <div class="form-group">
+                    <label>Rider ID</label>
+                    <input type="number" id="riderId" name="riderId" required>
+                </div>
+                <div class="form-group">
+                    <label>Movement Type</label>
+                    <select id="movementType" name="movementType" required>
+                        <option value="cash_collection">Cash Collection</option>
+                        <option value="cash_submission">Cash Submission</option>
+                        <option value="advance">Advance</option>
+                        <option value="settlement">Settlement</option>
+                        <option value="adjustment">Adjustment</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Amount (₨)</label>
+                    <input type="number" id="riderCashAmount" name="amount" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="riderCashDescription" name="description">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('riderCashModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Record Movement</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Store Settlement Modal -->
+    <div id="storeSettlementModal" class="modal persistent-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Store Settlement</h2>
+                <button class="close-btn" disabled title="Use Cancel button to close">&times;</button>
+            </div>
+            <form id="storeSettlementForm">
+                <div class="form-group">
+                    <label>Store</label>
+                    <select id="settlementStoreSelect" name="storeId" required>
+                        <option value="">-- Select Store --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Net Amount (₨)</label>
+                    <input type="number" id="settlementAmount" name="netAmount" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select id="settlementPaymentMethod" name="paymentMethod" required>
+                        <option value="cash">Cash</option>
+                        <option value="check">Check</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Period From</label>
+                    <input type="date" id="periodFrom" name="periodFrom">
+                </div>
+                <div class="form-group">
+                    <label>Period To</label>
+                    <input type="date" id="periodTo" name="periodTo">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('storeSettlementModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Settlement</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Generate Report Modal -->
+    <div id="generateReportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Generate Financial Report</h2>
+                <button class="close-btn" onclick="closeModal('generateReportModal')">&times;</button>
+            </div>
+            <form id="generateReportForm">
+                <div class="form-group">
+                    <label>Report Type</label>
+                    <select id="reportTypeModal" name="reportType" required>
+                        <option value="daily_summary">Daily Summary</option>
+                        <option value="weekly_summary">Weekly Summary</option>
+                        <option value="monthly_summary" selected>Monthly Summary</option>
+                        <option value="store_settlement">Store Settlement</option>
+                        <option value="rider_cash_report">Rider Cash Report</option>
+                        <option value="expense_report">Expense Report</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Period From</label>
+                    <input type="date" id="reportPeriodFrom" name="periodFrom">
+                </div>
+                <div class="form-group">
+                    <label>Period To</label>
+                    <input type="date" id="reportPeriodTo" name="periodTo">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('generateReportModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Generate Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Expense Modal -->
+    <div id="expenseModal" class="modal persistent-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Record Expense</h2>
+                <button class="close-btn" disabled title="Use Cancel button to close">&times;</button>
+            </div>
+            <form id="expenseForm">
+                <div class="form-group">
+                    <label>Amount (₨)</label>
+                    <input type="number" id="expenseAmount" name="amount" min="0.01" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="expenseCategory" name="category" required>
+                        <option value="utilities">Utilities</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="office">Office</option>
+                        <option value="travel">Travel</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="expenseDescription" name="description">
+                </div>
+                <div class="form-group">
+                    <label>Vendor Name</label>
+                    <input type="text" id="vendorName" name="vendorName">
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select id="expensePaymentMethod" name="paymentMethod" required>
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="check">Check</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('expenseModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Record Expense</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('show');
+            }
+        });
+    </script>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: #6b7280;
+        }
+
+        .close-btn:hover {
+            color: #1f2937;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .form-actions button {
+            padding: 0.5rem 1rem;
+        }
+    </style>
+
 </body>
 </html>

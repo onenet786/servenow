@@ -6,6 +6,79 @@ let currentStoreSettlements = [];
 let currentExpenses = [];
 let currentReports = [];
 
+const financialModalIds = ['paymentVoucherModal', 'receiptVoucherModal', 'transactionModal', 'riderCashModal', 'storeSettlementModal', 'expenseModal'];
+const formChangedState = {};
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('show');
+}
+
+function closeModal(modalId) {
+    const isFiancialModal = financialModalIds.includes(modalId);
+    if (isFiancialModal && formChangedState[modalId]) {
+        const confirmed = confirm('You have unsaved changes. Are you sure you want to close without saving?');
+        if (!confirmed) return;
+    }
+    document.getElementById(modalId).classList.remove('show');
+    if (isFiancialModal) formChangedState[modalId] = false;
+}
+
+function trackFormChanges(formId, modalId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    
+    form.addEventListener('change', () => {
+        formChangedState[modalId] = true;
+    });
+    
+    form.addEventListener('input', () => {
+        formChangedState[modalId] = true;
+    });
+}
+
+function initializeFinancialForms() {
+    document.getElementById('paymentVoucherForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await submitPaymentVoucher();
+    });
+    trackFormChanges('paymentVoucherForm', 'paymentVoucherModal');
+    
+    document.getElementById('receiptVoucherForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await submitReceiptVoucher();
+    });
+    trackFormChanges('receiptVoucherForm', 'receiptVoucherModal');
+    
+    document.getElementById('transactionForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await submitTransaction();
+    });
+    trackFormChanges('transactionForm', 'transactionModal');
+    
+    document.getElementById('riderCashForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await submitRiderCash();
+    });
+    trackFormChanges('riderCashForm', 'riderCashModal');
+    
+    document.getElementById('storeSettlementForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await submitStoreSettlement();
+    });
+    trackFormChanges('storeSettlementForm', 'storeSettlementModal');
+    
+    document.getElementById('expenseForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await submitExpense();
+    });
+    trackFormChanges('expenseForm', 'expenseModal');
+    
+    document.getElementById('generateReportForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await submitGenerateReport();
+    });
+}
+
 async function loadFinancialDashboard() {
     try {
         const period = document.getElementById('financialPeriodFilter')?.value || 'month';
@@ -385,18 +458,18 @@ function displayReports(reports) {
     }
 }
 
-async function createPaymentVoucher() {
-    const payeeName = prompt('Payee Name:');
-    if (!payeeName) return;
+function createPaymentVoucher() {
+    document.getElementById('paymentVoucherForm').reset();
+    formChangedState['paymentVoucherModal'] = false;
+    openModal('paymentVoucherModal');
+}
 
-    const amount = parseFloat(prompt('Amount:'));
-    if (!amount || amount <= 0) {
-        showError('Validation Error', 'Invalid amount');
-        return;
-    }
-
-    const purpose = prompt('Purpose:');
-    const paymentMethod = prompt('Payment Method (cash/check/bank_transfer):') || 'cash';
+async function submitPaymentVoucher() {
+    const payeeName = document.getElementById('payeeName').value;
+    const payeeType = document.getElementById('payeeType').value;
+    const amount = parseFloat(document.getElementById('paymentAmount').value);
+    const purpose = document.getElementById('paymentPurpose').value;
+    const paymentMethod = document.getElementById('paymentMethodPV').value;
 
     try {
         const response = await fetch(`${API_BASE}/api/financial/payment-vouchers`, {
@@ -407,7 +480,7 @@ async function createPaymentVoucher() {
             },
             body: JSON.stringify({
                 payee_name: payeeName,
-                payee_type: 'other',
+                payee_type: payeeType,
                 amount,
                 purpose,
                 description: '',
@@ -420,6 +493,7 @@ async function createPaymentVoucher() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', 'Payment voucher created successfully');
+            closeModal('paymentVoucherModal');
             loadPaymentVouchers();
         } else {
             showError('Error', data.message);
@@ -430,18 +504,18 @@ async function createPaymentVoucher() {
     }
 }
 
-async function createReceiptVoucher() {
-    const payerName = prompt('Payer Name:');
-    if (!payerName) return;
+function createReceiptVoucher() {
+    document.getElementById('receiptVoucherForm').reset();
+    formChangedState['receiptVoucherModal'] = false;
+    openModal('receiptVoucherModal');
+}
 
-    const amount = parseFloat(prompt('Amount:'));
-    if (!amount || amount <= 0) {
-        showError('Validation Error', 'Invalid amount');
-        return;
-    }
-
-    const description = prompt('Description:');
-    const paymentMethod = prompt('Payment Method (cash/check/bank_transfer):') || 'cash';
+async function submitReceiptVoucher() {
+    const payerName = document.getElementById('payerName').value;
+    const payerType = document.getElementById('payerType').value;
+    const amount = parseFloat(document.getElementById('receiptAmount').value);
+    const description = document.getElementById('receiptDescription').value;
+    const paymentMethod = document.getElementById('paymentMethodRV').value;
 
     try {
         const response = await fetch(`${API_BASE}/api/financial/receipt-vouchers`, {
@@ -452,7 +526,7 @@ async function createReceiptVoucher() {
             },
             body: JSON.stringify({
                 payer_name: payerName,
-                payer_type: 'other',
+                payer_type: payerType,
                 amount,
                 description,
                 details: '',
@@ -465,6 +539,7 @@ async function createReceiptVoucher() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', 'Receipt voucher created successfully');
+            closeModal('receiptVoucherModal');
             loadReceiptVouchers();
         } else {
             showError('Error', data.message);
@@ -472,6 +547,200 @@ async function createReceiptVoucher() {
     } catch (error) {
         console.error('Error creating receipt voucher:', error);
         showError('Error', 'Failed to create receipt voucher');
+    }
+}
+
+function createTransaction() {
+    document.getElementById('transactionForm').reset();
+    formChangedState['transactionModal'] = false;
+    openModal('transactionModal');
+}
+
+async function submitTransaction() {
+    const amount = parseFloat(document.getElementById('transactionAmount').value);
+    const type = document.getElementById('transactionType').value;
+    const description = document.getElementById('transactionDescription').value;
+    const paymentMethod = document.getElementById('transactionPaymentMethod').value;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/financial/transactions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+            },
+            body: JSON.stringify({
+                transaction_type: type,
+                amount,
+                description,
+                payment_method: paymentMethod,
+                category: null
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showSuccess('Success', 'Transaction recorded successfully');
+            closeModal('transactionModal');
+            loadTransactions();
+        } else {
+            showError('Error', data.message);
+        }
+    } catch (error) {
+        console.error('Error creating transaction:', error);
+        showError('Error', 'Failed to create transaction');
+    }
+}
+
+function createRiderCash() {
+    document.getElementById('riderCashForm').reset();
+    formChangedState['riderCashModal'] = false;
+    openModal('riderCashModal');
+}
+
+async function submitRiderCash() {
+    const riderId = parseInt(document.getElementById('riderId').value);
+    const movementType = document.getElementById('movementType').value;
+    const amount = parseFloat(document.getElementById('riderCashAmount').value);
+    const description = document.getElementById('riderCashDescription').value;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/financial/rider-cash`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+            },
+            body: JSON.stringify({
+                rider_id: riderId,
+                movement_type: movementType,
+                amount,
+                description
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showSuccess('Success', 'Cash movement recorded successfully');
+            closeModal('riderCashModal');
+            loadRiderCash();
+        } else {
+            showError('Error', data.message);
+        }
+    } catch (error) {
+        console.error('Error recording rider cash:', error);
+        showError('Error', 'Failed to record cash movement');
+    }
+}
+
+function createStoreSettlement() {
+    document.getElementById('storeSettlementForm').reset();
+    formChangedState['storeSettlementModal'] = false;
+    populateStoresDropdown();
+    openModal('storeSettlementModal');
+}
+
+async function populateStoresDropdown() {
+    try {
+        const response = await fetch(`${API_BASE}/api/stores?admin=1`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+        });
+        const data = await response.json();
+        
+        const select = document.getElementById('settlementStoreSelect');
+        if (select && data.stores) {
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">-- Select Store --</option>';
+            data.stores.forEach(store => {
+                const option = document.createElement('option');
+                option.value = store.id;
+                option.textContent = store.name;
+                select.appendChild(option);
+            });
+            if (currentValue) select.value = currentValue;
+        }
+    } catch (error) {
+        console.error('Error populating stores dropdown:', error);
+    }
+}
+
+async function submitStoreSettlement() {
+    const storeId = parseInt(document.getElementById('settlementStoreSelect').value);
+    const netAmount = parseFloat(document.getElementById('settlementAmount').value);
+    const paymentMethod = document.getElementById('settlementPaymentMethod').value;
+    const periodFrom = document.getElementById('periodFrom').value || null;
+    const periodTo = document.getElementById('periodTo').value || null;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/financial/store-settlements`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+            },
+            body: JSON.stringify({
+                store_id: storeId,
+                net_amount: netAmount,
+                payment_method: paymentMethod,
+                period_from: periodFrom,
+                period_to: periodTo
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showSuccess('Success', 'Settlement created successfully');
+            closeModal('storeSettlementModal');
+            loadStoreSettlements();
+        } else {
+            showError('Error', data.message);
+        }
+    } catch (error) {
+        console.error('Error creating settlement:', error);
+        showError('Error', 'Failed to create settlement');
+    }
+}
+
+function createExpense() {
+    document.getElementById('expenseForm').reset();
+    formChangedState['expenseModal'] = false;
+    openModal('expenseModal');
+}
+
+async function submitExpense() {
+    const category = document.getElementById('expenseCategory').value;
+    const description = document.getElementById('expenseDescription').value;
+    const amount = parseFloat(document.getElementById('expenseAmount').value);
+    const vendorName = document.getElementById('vendorName').value;
+    const paymentMethod = document.getElementById('expensePaymentMethod').value;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/financial/expenses`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+            },
+            body: JSON.stringify({
+                category,
+                description,
+                amount,
+                vendor_name: vendorName,
+                payment_method: paymentMethod
+            })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showSuccess('Success', 'Expense recorded successfully');
+            closeModal('expenseModal');
+            loadExpenses();
+        } else {
+            showError('Error', data.message);
+        }
+    } catch (error) {
+        console.error('Error recording expense:', error);
+        showError('Error', 'Failed to record expense');
     }
 }
 
@@ -595,10 +864,17 @@ async function approveExpense(id) {
     }
 }
 
-async function generateFinancialReport() {
+function generateFinancialReport() {
+    document.getElementById('generateReportForm').reset();
     const reportType = document.getElementById('reportTypeFilter')?.value || 'monthly_summary';
-    const periodFrom = prompt('Period From (YYYY-MM-DD):');
-    const periodTo = prompt('Period To (YYYY-MM-DD):');
+    document.getElementById('reportTypeModal').value = reportType;
+    openModal('generateReportModal');
+}
+
+async function submitGenerateReport() {
+    const reportType = document.getElementById('reportTypeModal').value;
+    const periodFrom = document.getElementById('reportPeriodFrom').value || null;
+    const periodTo = document.getElementById('reportPeriodTo').value || null;
 
     try {
         const response = await fetch(`${API_BASE}/api/financial/reports/generate`, {
@@ -609,14 +885,15 @@ async function generateFinancialReport() {
             },
             body: JSON.stringify({
                 report_type: reportType,
-                period_from: periodFrom || null,
-                period_to: periodTo || null
+                period_from: periodFrom,
+                period_to: periodTo
             })
         });
 
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', 'Report generated successfully');
+            closeModal('generateReportModal');
             loadFinancialReports();
         } else {
             showError('Error', data.message);
@@ -725,36 +1002,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (transactionStatusFilter) transactionStatusFilter.value = '';
         loadTransactions();
     });
-    if (addTransactionBtn) addTransactionBtn.addEventListener('click', () => {
-        const amount = parseFloat(prompt('Amount:'));
-        const type = prompt('Type (income/expense):');
-        const description = prompt('Description:');
-        if (amount && type && description) {
-            fetch(`${API_BASE}/api/financial/transactions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-                },
-                body: JSON.stringify({
-                    transaction_type: type,
-                    amount,
-                    description,
-                    payment_method: 'cash',
-                    category: null
-                })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Success', 'Transaction added');
-                    loadTransactions();
-                } else {
-                    showError('Error', data.message);
-                }
-            });
-        }
-    });
+    if (addTransactionBtn) addTransactionBtn.addEventListener('click', createTransaction);
 
     if (paymentVoucherStatusFilter) paymentVoucherStatusFilter.addEventListener('change', loadPaymentVouchers);
     if (clearPaymentVoucherFiltersBtn) clearPaymentVoucherFiltersBtn.addEventListener('click', () => {
@@ -777,63 +1025,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (riderCashStatusFilter) riderCashStatusFilter.value = '';
         loadRiderCash();
     });
-    if (addRiderCashMovementBtn) addRiderCashMovementBtn.addEventListener('click', () => {
-        const riderId = parseInt(prompt('Rider ID:'));
-        const movementType = prompt('Movement Type (cash_collection/cash_submission/advance):');
-        const amount = parseFloat(prompt('Amount:'));
-        const description = prompt('Description:');
-
-        if (riderId && movementType && amount) {
-            fetch(`${API_BASE}/api/financial/rider-cash`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-                },
-                body: JSON.stringify({ rider_id: riderId, movement_type: movementType, amount, description })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Success', 'Cash movement recorded');
-                    loadRiderCash();
-                } else {
-                    showError('Error', data.message);
-                }
-            });
-        }
-    });
+    if (addRiderCashMovementBtn) addRiderCashMovementBtn.addEventListener('click', createRiderCash);
 
     if (storeSettlementStatusFilter) storeSettlementStatusFilter.addEventListener('change', loadStoreSettlements);
     if (clearStoreSettlementFiltersBtn) clearStoreSettlementFiltersBtn.addEventListener('click', () => {
         if (storeSettlementStatusFilter) storeSettlementStatusFilter.value = '';
         loadStoreSettlements();
     });
-    if (addStoreSettlementBtn) addStoreSettlementBtn.addEventListener('click', () => {
-        const storeId = parseInt(prompt('Store ID:'));
-        const netAmount = parseFloat(prompt('Net Amount:'));
-        const paymentMethod = prompt('Payment Method (cash/check/bank_transfer):');
-
-        if (storeId && netAmount && paymentMethod) {
-            fetch(`${API_BASE}/api/financial/store-settlements`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-                },
-                body: JSON.stringify({ store_id: storeId, net_amount: netAmount, payment_method: paymentMethod })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Success', 'Settlement created');
-                    loadStoreSettlements();
-                } else {
-                    showError('Error', data.message);
-                }
-            });
-        }
-    });
+    if (addStoreSettlementBtn) addStoreSettlementBtn.addEventListener('click', createStoreSettlement);
 
     if (expenseCategoryFilter) expenseCategoryFilter.addEventListener('change', loadExpenses);
     if (expenseStatusFilter) expenseStatusFilter.addEventListener('change', loadExpenses);
@@ -842,32 +1041,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (expenseStatusFilter) expenseStatusFilter.value = '';
         loadExpenses();
     });
-    if (addExpenseBtn) addExpenseBtn.addEventListener('click', () => {
-        const category = prompt('Category (utilities/maintenance/office/travel/marketing):');
-        const description = prompt('Description:');
-        const amount = parseFloat(prompt('Amount:'));
-        const paymentMethod = prompt('Payment Method (cash/card/check/bank_transfer):');
-
-        if (category && amount && paymentMethod) {
-            fetch(`${API_BASE}/api/financial/expenses`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
-                },
-                body: JSON.stringify({ category, description, amount, payment_method: paymentMethod })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showSuccess('Success', 'Expense recorded');
-                    loadExpenses();
-                } else {
-                    showError('Error', data.message);
-                }
-            });
-        }
-    });
+    if (addExpenseBtn) addExpenseBtn.addEventListener('click', createExpense);
 
     if (reportTypeFilter) reportTypeFilter.addEventListener('change', loadFinancialReports);
     if (generateReportBtn) generateReportBtn.addEventListener('click', generateFinancialReport);
@@ -878,7 +1052,26 @@ document.addEventListener('DOMContentLoaded', function() {
             showWarning('No Reports', 'No reports available to export');
         }
     });
+
+    initializeFinancialForms();
+    initializePersistentModalHandlers();
 });
+
+function initializePersistentModalHandlers() {
+    financialModalIds.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal && modal.classList.contains('show')) {
+                    e.stopPropagation();
+                    if (formChangedState[modalId]) {
+                        showWarning('Cannot Close', 'Please use the Cancel button to close this form');
+                    }
+                }
+            });
+        }
+    });
+}
 
 function initializeFinancialManagement() {
     loadFinancialDashboard();
