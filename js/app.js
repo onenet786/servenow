@@ -1045,44 +1045,32 @@ document.addEventListener('DOMContentLoaded', function() {
         if (menuToggle && navMenu) {
             menuToggle.addEventListener('click', function(e) {
                 e.stopPropagation();
-                const isActive = navMenu.classList.toggle('active');
+                navMenu.classList.toggle('active');
                 menuToggle.classList.toggle('active');
-                if (isActive) {
-                    try {
-                        navMenu.style.transform = 'translateY(0)';
-                        navMenu.style.opacity = '1';
-                        navMenu.style.visibility = 'visible';
-                        navMenu.style.display = 'flex';
-                    } catch (e2) { /* ignore */ }
-                } else {
-                    try {
-                        navMenu.style.transform = 'translateY(-100%)';
-                        navMenu.style.opacity = '0';
-                        navMenu.style.visibility = 'hidden';
-                    } catch (e2) { /* ignore */ }
-                }
+                navMenu.style.transform = '';
+                navMenu.style.opacity = '';
+                navMenu.style.visibility = '';
+                navMenu.style.display = '';
             });
             const navLinks = navMenu.querySelectorAll('a');
             navLinks.forEach(link => {
                 link.addEventListener('click', function() {
                     navMenu.classList.remove('active');
                     menuToggle.classList.remove('active');
-                    try {
-                        navMenu.style.transform = 'translateY(-100%)';
-                        navMenu.style.opacity = '0';
-                        navMenu.style.visibility = 'hidden';
-                    } catch (e2) { /* ignore */ }
+                    navMenu.style.transform = '';
+                    navMenu.style.opacity = '';
+                    navMenu.style.visibility = '';
+                    navMenu.style.display = '';
                 });
             });
             document.addEventListener('click', function(event) {
                 if (!navMenu.contains(event.target) && !menuToggle.contains(event.target)) {
                     navMenu.classList.remove('active');
                     menuToggle.classList.remove('active');
-                    try {
-                        navMenu.style.transform = 'translateY(-100%)';
-                        navMenu.style.opacity = '0';
-                        navMenu.style.visibility = 'hidden';
-                    } catch (e2) { /* ignore */ }
+                    navMenu.style.transform = '';
+                    navMenu.style.opacity = '';
+                    navMenu.style.visibility = '';
+                    navMenu.style.display = '';
                 }
             });
         }

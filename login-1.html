@@ -401,7 +401,8 @@
         const navMenu = document.getElementById('navMenu');
 
         if (menuToggle && navMenu) {
-            menuToggle.addEventListener('click', function() {
+            menuToggle.addEventListener('click', function(event) {
+                event.stopPropagation();
                 navMenu.classList.toggle('active');
                 menuToggle.classList.toggle('active');
             });
