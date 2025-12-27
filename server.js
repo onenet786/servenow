@@ -53,20 +53,32 @@ if (process.env.NODE_ENV === 'production') {
 }
 console.log('Morgan request logging configured.');
 
-// Rate limiting
+// Rate limiting - production-safe configuration
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: process.env.NODE_ENV === 'production' ? 300 : 10000, // 300 req/15min for prod, generous for dev
     message: 'Too many requests from this IP, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limiting for health checks and static assets
+        return req.path === '/health' || req.path.match(/\.(js|css|html|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
+    }
+});
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: process.env.NODE_ENV === 'production' ? 5 : 50, // 5 attempts for prod, 50 for dev
+    message: 'Too many login attempts, please try again later.',
+    skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: 'Too many login attempts, please try again later.',
-    skipSuccessfulRequests: true,
+const orderLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute window
+    max: process.env.NODE_ENV === 'production' ? 20 : 100, // Prevent order spam
+    message: 'Too many order requests, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -74,7 +86,8 @@ const authLimiter = rateLimit({
 app.use('/api/', limiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
-console.log('Rate limiting configured.');
+app.use('/api/orders', orderLimiter);
+console.log(`Rate limiting configured for ${process.env.NODE_ENV || 'production'} environment.`);
 
 // CORS configuration - restrict in production
 const corsOptions = {
