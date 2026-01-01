@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+# Exclude heap dumps and build artifacts
+*.hprof
+/build/
+/app/build/
