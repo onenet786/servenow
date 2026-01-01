@@ -134,9 +134,9 @@ class _AutoRechargeSettingsState extends State<AutoRechargeSettings> {
             ),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.info_outline,
-                  color: const Color(0xFF667eea),
+                  color: Color(0xFF667eea),
                   size: 20,
                 ),
                 const SizedBox(width: 12),
@@ -160,7 +160,7 @@ class _AutoRechargeSettingsState extends State<AutoRechargeSettings> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Auto-Recharge',
                     style: TextStyle(
                       fontSize: 16,
@@ -193,7 +193,7 @@ class _AutoRechargeSettingsState extends State<AutoRechargeSettings> {
           ),
           const SizedBox(height: 20),
           if (_isEnabled) ...[
-            Text(
+            const Text(
               'Recharge Amount (PKR)',
               style: TextStyle(
                 fontSize: 14,
@@ -234,7 +234,7 @@ class _AutoRechargeSettingsState extends State<AutoRechargeSettings> {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Threshold Amount (PKR)',
               style: TextStyle(
                 fontSize: 14,

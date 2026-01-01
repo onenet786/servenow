@@ -10,12 +10,12 @@ import 'screens/admin_dashboard_screen.dart';
 import 'screens/rider_dashboard_screen.dart';
 import 'screens/cart_screen.dart';
 import 'screens/checkout_screen.dart';
-import 'screens/wallet_screen.dart';
 import 'screens/inventory_report_screen.dart';
 import 'screens/manage_stores_screen.dart';
 import 'screens/manage_products_screen.dart';
 import 'screens/manage_users_screen.dart';
 import 'screens/manage_riders_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -40,6 +40,18 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Roboto',
           scaffoldBackgroundColor: Colors.grey[50],
           useMaterial3: true,
+          snackBarTheme: const SnackBarThemeData(
+            behavior: SnackBarBehavior.floating,
+            elevation: 2,
+            showCloseIcon: true,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+            contentTextStyle: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
         home: const AuthWrapper(),
         routes: {
@@ -50,7 +62,7 @@ class MyApp extends StatelessWidget {
           '/rider': (context) => const RiderDashboardScreen(),
           '/cart': (context) => const CartScreen(),
           '/checkout': (context) => const CheckoutScreen(),
-          '/wallet': (context) => const WalletScreen(),
+          '/wallet': (context) => const HomeScreen(), // Redirect to home
           '/inventory-report': (context) => const InventoryReportScreen(),
           '/manage-stores': (context) => const ManageStoresScreen(),
           '/manage-products': (context) => const ManageProductsScreen(),
@@ -77,8 +89,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   Future<void> _checkAuth() async {
+    final startTime = DateTime.now();
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.tryAutoLogin();
+
+    final endTime = DateTime.now();
+    final elapsed = endTime.difference(startTime).inMilliseconds;
+    if (elapsed < 2000) {
+      await Future.delayed(Duration(milliseconds: 2000 - elapsed));
+    }
 
     if (!mounted) return;
 
@@ -97,6 +116,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return const SplashScreen();
   }
 }

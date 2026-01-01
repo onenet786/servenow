@@ -17,8 +17,6 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
   List<dynamic> _storeItems = [];
   List<dynamic> _categoryItems = [];
   dynamic _totalStats;
-  String _filterStoreId = '';
-  String _filterCategory = '';
 
   @override
   void initState() {
@@ -43,9 +41,9 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
       _logger.e('Error loading inventory report: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading report: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading report: $e')));
       }
     }
   }
@@ -103,7 +101,7 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.indigo.withOpacity(0.3),
+            color: Colors.indigo.withAlpha((0.3 * 255).round()),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -168,10 +166,7 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
         ),
@@ -235,7 +230,7 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withAlpha((0.1 * 255).round()),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -358,7 +353,7 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withAlpha((0.1 * 255).round()),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -460,19 +455,10 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 12,
-            ),
-          ),
+          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
           Text(
             value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           ),
         ],
       ),

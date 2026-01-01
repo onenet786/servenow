@@ -47,9 +47,9 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
       _logger.e('Error loading products: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading products: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading products: $e')));
       }
     }
   }
@@ -58,8 +58,9 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     final query = _searchController.text.toLowerCase();
     final List<dynamic> filtered = _products.where((product) {
       final name = (product['product_name'] ?? '').toString().toLowerCase();
-      final description =
-          (product['description'] ?? '').toString().toLowerCase();
+      final description = (product['description'] ?? '')
+          .toString()
+          .toLowerCase();
       return name.contains(query) || description.contains(query);
     }).toList();
 
@@ -132,7 +133,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withAlpha((0.1 * 255).round()),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -165,10 +166,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                       const SizedBox(height: 4),
                       Text(
                         product['store_name'] ?? 'Unknown Store',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -189,10 +187,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildInfoColumn('Stock', '${product['stock_quantity'] ?? 0}'),
-                _buildInfoColumn(
-                  'Category',
-                  product['category_name'] ?? '-',
-                ),
+                _buildInfoColumn('Category', product['category_name'] ?? '-'),
               ],
             ),
           ],
@@ -225,19 +220,10 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
         Text(
           value.length > 12 ? '${value.substring(0, 12)}...' : value,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ],
     );

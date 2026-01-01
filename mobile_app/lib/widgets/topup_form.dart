@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:servenow/services/notifier.dart';
 import '../models/payment_method_model.dart';
 
 class TopupForm extends StatefulWidget {
@@ -64,9 +65,7 @@ class _TopupFormState extends State<TopupForm> {
 
     final amount = double.tryParse(_amountController.text);
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid amount')),
-      );
+      Notifier.error(context, 'Please enter a valid amount');
       return;
     }
 

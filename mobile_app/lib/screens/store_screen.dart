@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
 import '../providers/cart_provider.dart';
+import 'package:servenow/services/notifier.dart';
 
 class StoreScreen extends StatefulWidget {
   final int storeId;
@@ -432,19 +433,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                       1,
                                       variant: selectedVariant,
                                     );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Added to cart'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
+                                    Notifier.success(context, 'Added to cart', duration: const Duration(seconds: 1));
                                   } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(e.toString()),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
+                                    Notifier.error(context, e.toString());
                                   }
                                 }
                                 : null,
@@ -613,19 +604,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                   context,
                                   listen: false,
                                 ).addItem(product, 1, variant: selectedVariant);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Added to cart'),
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
+                                Notifier.success(context, 'Added to cart', duration: const Duration(seconds: 1));
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(e.toString()),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
+                                Notifier.error(context, e.toString());
                               }
                             }
                             : null,
