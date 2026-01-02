@@ -23,3 +23,16 @@
 
 # Keep model classes in your app package (adjust package name)
 -keep class com.example.servenow.** { *; }
+
+# Prevent R8 from stripping Google Play Core and Flutter deferred components
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**
+-keep class com.google.android.play.core.splitcompat.SplitCompatApplication { *; }
+-keep class com.google.android.play.core.splitinstall.** { *; }
+-dontwarn com.google.android.play.core.splitinstall.**
+-keep class com.google.android.play.core.tasks.** { *; }
+-dontwarn com.google.android.play.core.tasks.**
+
+# Keep Flutter's Play Store split classes
+-keep class io.flutter.embedding.engine.deferredcomponents.** { *; }
+-keep class io.flutter.embedding.android.FlutterPlayStoreSplitApplication { *; }
