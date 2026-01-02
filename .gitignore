@@ -41,6 +41,8 @@ build/
 tmp/
 temp/
 *.tmp
+*.hprof
+.git-rewrite/
 
 # Mobile app specific
 mobile_app/.dart_tool/
