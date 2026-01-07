@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
-const { sendVerificationEmail } = require("../services/emailService");
+const { sendVerificationEmail, sendWelcomeEmail } = require("../services/emailService");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -98,6 +98,9 @@ router.post(
 
       // Send verification email
       await sendVerificationEmail(email, verificationCode);
+      
+      // Send welcome email
+      await sendWelcomeEmail(email, firstName);
 
       // Emit new_user event to admin
       try {

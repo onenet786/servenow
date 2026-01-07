@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin, requireStoreOwner } = require('../middleware/auth');
+const { sendOrderConfirmationEmail, sendDeliveryConfirmationEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -356,6 +357,18 @@ router.post('/', authenticateToken, async (req, res) => {
             console.error('Socket emit error:', e);
         }
 
+        // Send order confirmation email
+        try {
+            await sendOrderConfirmationEmail(req.user.email, {
+                order_number: order_number,
+                total_amount: grandTotal,
+                delivery_address: delivery_address,
+                payment_method: payment_method
+            });
+        } catch (e) {
+            console.error('Email confirmation error:', e);
+        }
+
         res.status(201).json({
             success: true,
             message: 'Order created successfully',
@@ -432,9 +445,10 @@ router.put('/:id/status', authenticateToken, requireStoreOwner, [
 
         // Check if order exists and user has permission
         const [orders] = await req.db.execute(`
-            SELECT o.*, s.owner_id
+            SELECT o.*, s.owner_id, u.email
             FROM orders o
             LEFT JOIN stores s ON o.store_id = s.id
+            JOIN users u ON o.user_id = u.id
             WHERE o.id = ?
         `, [id]);
 
@@ -459,6 +473,18 @@ router.put('/:id/status', authenticateToken, requireStoreOwner, [
             'UPDATE orders SET status = ? WHERE id = ?',
             [status, id]
         );
+
+        // Send delivery confirmation email if status is delivered
+        if (status === 'delivered') {
+            try {
+                await sendDeliveryConfirmationEmail(order.email, {
+                    order_number: order.order_number,
+                    delivery_address: order.delivery_address
+                });
+            } catch (e) {
+                console.error('Email delivery confirmation error:', e);
+            }
+        }
 
         res.json({
             success: true,
@@ -610,7 +636,10 @@ router.put('/:id/deliver', authenticateToken, async (req, res) => {
 
         // Check if order exists and user has permission (rider or admin)
         const [orders] = await req.db.execute(
-            'SELECT rider_id FROM orders WHERE id = ?',
+            `SELECT o.rider_id, o.order_number, o.delivery_address, u.email 
+             FROM orders o 
+             JOIN users u ON o.user_id = u.id 
+             WHERE o.id = ?`,
             [id]
         );
 
@@ -635,6 +664,16 @@ router.put('/:id/deliver', authenticateToken, async (req, res) => {
             'UPDATE orders SET status = ? WHERE id = ?',
             ['delivered', id]
         );
+
+        // Send delivery confirmation email
+        try {
+            await sendDeliveryConfirmationEmail(order.email, {
+                order_number: order.order_number,
+                delivery_address: order.delivery_address
+            });
+        } catch (e) {
+            console.error('Email delivery confirmation error:', e);
+        }
 
         res.json({
             success: true,
