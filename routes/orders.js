@@ -858,13 +858,16 @@ router.get('/rider/deliveries', authenticateToken, async (req, res) => {
             SELECT o.*, u.first_name, u.last_name, u.phone, s.name as store_name, s.location as store_location
             FROM orders o
             JOIN users u ON o.user_id = u.id
-            JOIN stores s ON o.store_id = s.id
+            LEFT JOIN stores s ON o.store_id = s.id
             WHERE ${whereClause}
             ORDER BY o.created_at DESC
         `, [req.user.id]);
 
         // Fetch items for each delivery
         for (let delivery of deliveries) {
+            if (!delivery.store_id) {
+                delivery.store_name = 'Multiple Stores';
+            }
             const [items] = await req.db.execute(`
                 SELECT oi.*, p.name as product_name, p.image_url
                 FROM order_items oi
