@@ -163,8 +163,6 @@ router.post('/', authenticateToken, async (req, res) => {
             });
         }
 
-        const delivery_fee = 2.99;
-        
         // Generate Order Number: Ordyymmddxxxx
         const now = new Date();
         const yy = String(now.getFullYear()).slice(-2);
@@ -270,6 +268,10 @@ router.post('/', authenticateToken, async (req, res) => {
             preparedItems.push({ productId, quantity, unitPrice, sizeId, unitId, variantLabel });
             itemsSubtotal += unitPrice * quantity;
         }
+
+        // Calculate delivery fee: 70 for the first store, +20 for each additional store
+        const numStores = storeIds.size;
+        const delivery_fee = numStores > 0 ? 70 + (numStores - 1) * 20 : 0;
 
         const grandTotal = itemsSubtotal + delivery_fee;
 
@@ -503,7 +505,8 @@ router.put('/:id/status', authenticateToken, requireStoreOwner, [
 
 // Assign rider to order (Admin only)
 router.put('/:id/assign-rider', authenticateToken, requireAdmin, [
-    body('rider_id').isInt().withMessage('Rider ID must be a valid integer')
+    body('rider_id').isInt().withMessage('Rider ID must be a valid integer'),
+    body('delivery_fee').optional().isFloat({ min: 0 }).withMessage('Delivery fee must be a positive number')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -516,16 +519,18 @@ router.put('/:id/assign-rider', authenticateToken, requireAdmin, [
         }
 
         const { id } = req.params;
-        const { rider_id } = req.body;
+        const { rider_id, delivery_fee } = req.body;
 
         // Check if order exists
-        const [orders] = await req.db.execute('SELECT id FROM orders WHERE id = ?', [id]);
+        const [orders] = await req.db.execute('SELECT id, total_amount, delivery_fee FROM orders WHERE id = ?', [id]);
         if (orders.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Order not found'
             });
         }
+
+        const order = orders[0];
 
         // Check if rider exists and is available
         const [riders] = await req.db.execute(
@@ -542,10 +547,21 @@ router.put('/:id/assign-rider', authenticateToken, requireAdmin, [
         // Set estimated delivery time (current time + 30 minutes)
         const estimatedDelivery = new Date(Date.now() + 30 * 60 * 1000);
 
+        // Calculate new total if delivery fee is provided
+        let newTotal = order.total_amount;
+        let newDeliveryFee = order.delivery_fee;
+
+        if (delivery_fee !== undefined && delivery_fee !== null) {
+            const oldFee = parseFloat(order.delivery_fee || 0);
+            const subtotal = parseFloat(order.total_amount || 0) - oldFee;
+            newDeliveryFee = parseFloat(delivery_fee);
+            newTotal = subtotal + newDeliveryFee;
+        }
+
         // Assign rider and update status
         await req.db.execute(
-            'UPDATE orders SET rider_id = ?, status = ?, estimated_delivery_time = ? WHERE id = ?',
-            [rider_id, 'out_for_delivery', estimatedDelivery, id]
+            'UPDATE orders SET rider_id = ?, status = ?, estimated_delivery_time = ?, delivery_fee = ?, total_amount = ? WHERE id = ?',
+            [rider_id, 'out_for_delivery', estimatedDelivery, newDeliveryFee, newTotal, id]
         );
 
         res.json({
