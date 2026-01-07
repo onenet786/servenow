@@ -2255,6 +2255,7 @@ async function editOrder(orderId) {
 
         // Populate form with current values
         document.getElementById('orderStatus').value = order.status;
+        document.getElementById('deliveryFee').value = order.delivery_fee || '';
         document.getElementById('riderLocation').value = order.rider_location || '';
         document.getElementById('riderLatitude').value = order.rider_latitude || '';
         document.getElementById('riderLongitude').value = order.rider_longitude || '';
@@ -2276,6 +2277,7 @@ async function saveOrder() {
 
     const status = formData.get('status');
     const riderId = formData.get('rider_id') || null;
+    const deliveryFee = formData.get('delivery_fee') || null;
     const riderLocation = formData.get('rider_location') || null;
     const riderLatitude = formData.get('rider_latitude') || null;
     const riderLongitude = formData.get('rider_longitude') || null;
@@ -2295,13 +2297,18 @@ async function saveOrder() {
 
         // Assign rider if selected
         if (riderId) {
+            const assignBody = { rider_id: parseInt(riderId) };
+            if (deliveryFee) {
+                assignBody.delivery_fee = parseFloat(deliveryFee);
+            }
+            
             await fetch(`${API_BASE}/api/orders/${orderId}/assign-rider`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${authToken}`
                 },
-                body: JSON.stringify({ rider_id: parseInt(riderId) })
+                body: JSON.stringify(assignBody)
             });
         }
 
@@ -2337,13 +2344,20 @@ function assignRider(orderId) {
     const riderId = prompt('Enter rider ID to assign:');
     if (!riderId || isNaN(riderId)) return;
 
+    const deliveryFee = prompt('Enter manual delivery fee (optional, leave empty to keep current):');
+    
+    const body = { rider_id: parseInt(riderId) };
+    if (deliveryFee && !isNaN(deliveryFee)) {
+        body.delivery_fee = parseFloat(deliveryFee);
+    }
+
     fetch(`${API_BASE}/api/orders/${orderId}/assign-rider`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({ rider_id: parseInt(riderId) })
+        body: JSON.stringify(body)
     })
     .then(response => response.json())
     .then(data => {

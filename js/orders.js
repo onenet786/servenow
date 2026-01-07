@@ -158,6 +158,10 @@ async function assignRider(orderId) {
                             <option value="">Loading riders...</option>
                         </select>
                     </div>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label for="deliveryFeeInput">Delivery Fee (PKR) (Optional Override):</label>
+                        <input type="number" id="deliveryFeeInput" step="0.01" class="form-control" placeholder="Leave empty for default">
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -202,9 +206,16 @@ async function assignRider(orderId) {
     // Handle assign button
     document.getElementById('assignRiderBtn').addEventListener('click', async function() {
         const riderId = document.getElementById('riderSelect').value;
+        const deliveryFee = document.getElementById('deliveryFeeInput').value;
+        
         if (!riderId) {
             alert('Please select a rider');
             return;
+        }
+
+        const assignBody = { rider_id: parseInt(riderId) };
+        if (deliveryFee && !isNaN(deliveryFee)) {
+            assignBody.delivery_fee = parseFloat(deliveryFee);
         }
 
         try {
@@ -214,7 +225,7 @@ async function assignRider(orderId) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
                 },
-                body: JSON.stringify({ rider_id: parseInt(riderId) })
+                body: JSON.stringify(assignBody)
             });
 
             const data = await response.json();
