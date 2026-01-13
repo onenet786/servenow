@@ -115,7 +115,7 @@ setInterval(() => {
   }
 }, 30000);
 
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     socket: !!io,
@@ -130,7 +130,7 @@ console.log("Express application created.");
 console.log("Setting up middleware...");
 
 // Make io available to routes
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   if (!io) {
     console.error("Socket.io instance (io) is not initialized!");
   }
@@ -216,7 +216,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Security headers middleware
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("X-XSS-Protection", "1; mode=block");
@@ -247,7 +247,7 @@ let pool;
 async function connectDB() {
   console.log("Attempting to connect to database...");
   try {
-    pool = await mysql.createPool({
+    pool = mysql.createPool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
@@ -268,13 +268,13 @@ async function connectDB() {
 }
 
 // Make database pool available to routes
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   req.db = pool;
   next();
 });
 
 // Request logging middleware
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.path} - ${req.ip}`);
   next();
@@ -311,16 +311,16 @@ console.log("Financial routes mounted at /api/financial");
 console.log("All API routes configured.");
 
 // Serve login.html for the root path
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "login.html"));
 });
 
 // Explicit route for data deletion request page (required for Play Store compliance)
-app.get("/data-deletion", (req, res) => {
+app.get("/data-deletion", (_req, res) => {
   res.sendFile(path.join(__dirname, "data-deletion.html"));
 });
 
-app.get("/data-deletion.html", (req, res) => {
+app.get("/data-deletion.html", (_req, res) => {
   res.sendFile(path.join(__dirname, "data-deletion.html"));
 });
 
@@ -359,7 +359,7 @@ console.log("Catch-all handler configured.");
 
 // Error handling middleware
 console.log("Setting up error handling middleware...");
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error(`[${new Date().toISOString()}] Error:`, err.stack);
   logError(`Global Handler (${req.method} ${req.path})`, err);
   res.status(500).json({

@@ -45,8 +45,8 @@ class AuthProvider with ChangeNotifier {
         await _initializeStripe(_token!);
 
         // Connect to Socket.IO for real-time notifications
-        if (_user != null && _user!.id != null) {
-          NotificationService.connect(_user!.id!, _user!.userType ?? 'customer');
+        if (_user != null) {
+          NotificationService.connect(_user!.id, _user!.userType);
         }
       } else {
         throw Exception(data['message'] ?? 'Login failed');
@@ -100,8 +100,8 @@ class AuthProvider with ChangeNotifier {
         }
 
         // Connect to Socket.IO for real-time notifications
-        if (_user != null && _user!.id != null) {
-          NotificationService.connect(_user!.id!, _user!.userType ?? 'customer');
+        if (_user != null) {
+          NotificationService.connect(_user!.id, _user!.userType);
         }
 
         return false;

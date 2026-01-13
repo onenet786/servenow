@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ServeNow - Grocery Delivery</title>
     <link rel="stylesheet" href="css/user.css">
+    <link rel="stylesheet" href="css/utilities.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
@@ -59,8 +60,8 @@
                         <input type="text" id="storeSearch" class="search-input" placeholder="Search products (e.g., Pizza, Milk)">
                     </div>
                     <div class="search-select-wrapper">
-                        <i class="fas fa-filter select-icon" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                        <select id="storeCategoryFilter" class="search-select" style="padding-left: 2.5rem;">
+                        <i class="fas fa-filter select-icon position-absolute transform-y-center ml-1 text-muted"></i>
+                        <select id="storeCategoryFilter" class="search-select input-with-icon" title="Filter stores by category">
                             <option value="">All Categories</option>
                             <!-- Populated dynamically -->
                         </select>
@@ -74,7 +75,7 @@
 
             <div id="categoriesSection">
                 <section class="categories">
-                    <h3 style="margin-bottom: 1rem; font-size: 1.5rem; font-weight: 700;">Shop by Category</h3>
+                    <h3 class="mb-1 text-3xl font-bold">Shop by Category</h3>
                     <div class="category-grid">
                         <!-- Static Fallback Categories -->
                         <div class="category-card">
@@ -109,17 +110,17 @@
                 </section>
             </div>
 
-            <div id="searchResultsSection" class="hidden" style="display: none;">
-                <section class="featured-stores" style="margin-top: 3rem;">
-                    <h3 style="margin-bottom: 1rem; font-size: 1.5rem; font-weight: 700;">Matching Results</h3>
+            <div id="searchResultsSection" class="hidden display-none">
+                <section class="featured-stores mt-3">
+                    <h3 class="mb-1 text-3xl font-bold">Matching Results</h3>
                     <div class="store-grid" id="searchResultsGrid">
                         <!-- Search results will be loaded here -->
                     </div>
                 </section>
             </div>
 
-            <section class="featured-stores" id="allStoresSection" style="margin-top: 3rem;">
-                <h3 style="margin-bottom: 1rem; font-size: 1.5rem; font-weight: 700;">All Stores</h3>
+            <section class="featured-stores" id="allStoresSection" class="mt-3">
+                <h3 class="mb-1 text-3xl font-bold">All Stores</h3>
                 <div class="scroll-wrapper">
                     <button id="scrollLeftBtn" class="scroll-arrow left-arrow" style="display: none;"><i class="fas fa-chevron-left"></i></button>
                     <div class="horizontal-scroll-container" id="allStoresHorizontal">
@@ -136,7 +137,7 @@
     </div>
 
     <!-- Scroll to Top Button -->
-    <button class="scroll-to-top" id="scrollToTop" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" style="position: fixed; bottom: 20px; right: 20px; width: 40px; height: 40px; border-radius: 50%; background: var(--primary); color: white; border: none; box-shadow: var(--shadow); cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 100;">
+    <button class="scroll-to-top" id="scrollToTop" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" title="Scroll to top">
         <i class="fas fa-arrow-up"></i>
     </button>
 

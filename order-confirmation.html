@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Confirmed - ServeNow</title>
     <link rel="stylesheet" href="css/user.css">
+    <link rel="stylesheet" href="css/utilities.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
@@ -50,19 +51,19 @@
                     <div class="confirmation-icon">
                         <i class="fas fa-check-circle"></i>
                     </div>
-                    <h2 style="font-size: 2rem; margin-bottom: 1rem; color: var(--text-main);">Order Placed Successfully!</h2>
-                    <p style="color: var(--text-muted); font-size: 1.1rem;">Thank you for your order. We have received it and will begin processing it soon.</p>
+                    <h2 class="confirmation-title">Order Placed Successfully!</h2>
+                    <p class="confirmation-message">Thank you for your order. We have received it and will begin processing it soon.</p>
                     
                     <div id="orderDetailsBox" class="order-details-box" style="display: none;">
-                        <h4 style="margin-bottom: 1rem; color: var(--text-main);">Order Details</h4>
+                        <h4 class="order-details-title">Order Details</h4>
                         <div id="orderItems"></div>
-                        <div class="order-item-row" style="margin-top: 1rem; font-weight: 700;">
+                        <div class="order-item-row order-item-row-total">
                             <span>Total</span>
                             <span id="orderTotal"></span>
                         </div>
                     </div>
 
-                    <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <div class="confirmation-actions">
                         <a href="orders.html" class="btn btn-secondary">
                             <i class="fas fa-list-alt"></i> View My Orders
                         </a>

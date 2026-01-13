@@ -1342,3 +1342,33 @@ textarea:focus {
 .order-item-row:last-child {
   border-bottom: none;
 }
+
+/* Confirmation Page Styles */
+.confirmation-title {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: var(--text-main);
+}
+
+.confirmation-message {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.order-details-title {
+  margin-bottom: 1rem;
+  color: var(--text-main);
+}
+
+.order-item-row-total {
+  margin-top: 1rem;
+  font-weight: 700;
+}
+
+.confirmation-actions {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}

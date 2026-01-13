@@ -40,27 +40,6 @@ async function ensureOrderItemsSchema(db) {
     }
 }
 
-async function ensureOrdersParentColumn(db) {
-    try {
-        // Try to select the column to check existence (more robust than information_schema)
-        await db.execute('SELECT parent_order_number FROM orders LIMIT 1');
-    } catch (e) {
-        // If error is about missing column, add it
-        if (e.code === 'ER_BAD_FIELD_ERROR' || (e.message && e.message.includes('Unknown column'))) {
-            try {
-                await db.execute('ALTER TABLE orders ADD COLUMN parent_order_number VARCHAR(50) NULL');
-                try {
-                    await db.execute('CREATE INDEX idx_orders_parent_order_number ON orders(parent_order_number)');
-                } catch (idxErr) {
-                    // Ignore index creation error
-                }
-            } catch (alterErr) {
-                console.error('Failed to add parent_order_number column:', alterErr);
-            }
-        }
-    }
-}
-
 async function ensureOrdersStoreIdNullable(db) {
     try {
         // Check if store_id is nullable (simplified: just try to modify it)
@@ -1194,8 +1173,6 @@ router.put('/:id(\\d+)/delivery-fee', authenticateToken, requireAdmin, async (re
                 message: 'Order not found'
             });
         }
-
-        const order = orders[0];
         
         // Get order items to count unique stores and calculate items subtotal
         const [items] = await req.db.execute(`
@@ -1269,7 +1246,7 @@ router.put('/:id(\\d+)/rider-location', authenticateToken, [
         }
 
         const { id } = req.params;
-        const { location, latitude, longitude } = req.body;
+        const { latitude, longitude } = req.body;
 
         // Check if order exists and user has permission (rider or admin)
         const [orders] = await req.db.execute(

@@ -37,7 +37,7 @@ io.on("connection", (socket) => {
 
 **Rooms Created:**
 - `user_123` - for customer order notifications
-- `rider_123` - for rider assignment notifications  
+- `rider_123` - for rider assignment notifications
 - `admin_123` - for admin notifications
 
 ### 2. Client-Side User Identification
@@ -101,7 +101,7 @@ req.io.to(`user_${order.user_id}`).emit('user_notification', {...});
 
 Fixed all HTML files to use local Socket.IO:
 
-- ✓ Changed `https://cdn.socket.io/4.8.1/socket.io.min.js` 
+- ✓ Changed `https://cdn.socket.io/4.8.1/socket.io.min.js`
 - ✓ To `/socket.io/socket.io.js` (local server-provided version)
 - ✓ Applied to: admin.html, checkout.html, store.html
 
@@ -110,17 +110,20 @@ Fixed all HTML files to use local Socket.IO:
 Added comprehensive debugging:
 
 **Server-side:**
+
 ```javascript
 console.log(`[Socket.IO] identify_user received:`, data);
 console.log(`[Orders] Emitting rider_notification to room: rider_123`);
 ```
 
 **Client-side (Web):**
+
 ```javascript
 console.log(`[Socket] Identified as user ${user.id} (${user.user_type})`);
 ```
 
 **Client-side (Mobile):**
+
 ```dart
 debugPrint('[NotificationProvider] User identified: ID=$userId, Type=$userType');
 ```
@@ -132,12 +135,14 @@ debugPrint('[NotificationProvider] User identified: ID=$userId, Type=$userType')
 1. Admin assigns order to rider
 2. Server receives assignment request
 3. Server emits to `rider_<rider_id>` room:
-   ```javascript
-   req.io.to(`rider_${rider_id}`).emit('rider_notification', {
-     order_number: 'ORD-123',
-     message: 'New order assigned: ORD-123'
-   });
-   ```
+
+```javascript
+req.io.to(`rider_${rider_id}`).emit('rider_notification', {
+  order_number: 'ORD-123',
+  message: 'New order assigned: ORD-123'
+});
+```
+
 4. Only clients in the `rider_<rider_id>` room receive it (no filtering needed)
 5. Rider app/web shows notification instantly
 
@@ -146,12 +151,14 @@ debugPrint('[NotificationProvider] User identified: ID=$userId, Type=$userType')
 1. Rider marks delivery complete
 2. Server receives status update
 3. Server emits to `user_<user_id>` room:
-   ```javascript
-   req.io.to(`user_${order.user_id}`).emit('user_notification', {
-     order_number: 'ORD-123',
-     message: 'Your order has been delivered'
-   });
-   ```
+
+```javascript
+req.io.to(`user_${order.user_id}`).emit('user_notification', {
+  order_number: 'ORD-123',
+  message: 'Your order has been delivered'
+});
+```
+
 4. Only the customer receives the notification
 5. User app/web shows notification instantly
 
@@ -169,12 +176,14 @@ debugPrint('[NotificationProvider] User identified: ID=$userId, Type=$userType')
 ### Manual Testing Steps
 
 **For Riders:**
+
 1. Login as rider: `ahmed.rider@servenow.com` / `rider123`
 2. Go to rider dashboard
 3. Admin assigns an order to you
 4. You should see: "New Assignment - New order assigned: ORD-XXX"
 
 **For Customers:**
+
 1. Login as customer: `test@servenow.com` / `password123`
 2. Go to orders page or home
 3. After rider picks up order
@@ -182,6 +191,7 @@ debugPrint('[NotificationProvider] User identified: ID=$userId, Type=$userType')
 5. When rider delivers: "Your order has been delivered"
 
 **For Mobile App:**
+
 1. Login with any user account
 2. Stay on app (keep it open)
 3. Admin assigns order (for rider) or updates order status (for customer)
@@ -214,16 +224,18 @@ debugPrint('[NotificationProvider] User identified: ID=$userId, Type=$userType')
 ### Notifications not appearing?
 
 1. **Check server logs for:**
-   ```
-   [Socket.IO] identify_user received
-   [Orders] Emitting rider_notification to room: rider_123
-   ```
+
+```
+[Socket.IO] identify_user received
+[Orders] Emitting rider_notification to room: rider_123
+```
 
 2. **Check browser console for:**
-   ```
-   [Socket] Connected to server. Socket ID: ...
-   [Socket] Identified as user 123 (rider)
-   ```
+
+```
+[Socket] Connected to server. Socket ID: ...
+[Socket] Identified as user 123 (rider)
+```
 
 3. **Verify:**
    - You're logged in (check localStorage.serveNowUser)
