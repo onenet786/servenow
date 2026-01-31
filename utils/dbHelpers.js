@@ -111,11 +111,60 @@ async function getPaginatedQuery(database, baseQuery, params, page = 1, pageSize
   };
 }
 
+async function generateFinancialTransactionNumber(db) {
+  const date = new Date();
+  const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
+  const [result] = await db.execute('SELECT COUNT(*) as count FROM financial_transactions WHERE DATE(created_at) = CURDATE()');
+  const count = (result[0]?.count || 0) + 1;
+  const randomStr = Math.random().toString(36).substring(2, 5).toUpperCase();
+  return `FIN-${dateStr}-${String(count).padStart(3, '0')}-${randomStr}`;
+}
+
+async function recordFinancialTransaction(db, data) {
+  try {
+    // Check if already exists to avoid double counting
+    if (data.reference_type && data.reference_id) {
+      const [existing] = await db.execute(
+        'SELECT id FROM financial_transactions WHERE reference_type = ? AND reference_id = ?',
+        [data.reference_type, data.reference_id]
+      );
+      if (existing.length > 0) return existing[0].id;
+    }
+
+    const transaction_number = await generateFinancialTransactionNumber(db);
+    const [result] = await db.execute(
+      `INSERT INTO financial_transactions 
+       (transaction_number, transaction_type, category, description, amount, payment_method, related_entity_type, related_entity_id, reference_type, reference_id, notes, created_by, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')`,
+      [
+        transaction_number,
+        data.transaction_type,
+        data.category || null,
+        data.description || null,
+        data.amount,
+        data.payment_method || 'cash',
+        data.related_entity_type || null,
+        data.related_entity_id || null,
+        data.reference_type || null,
+        data.reference_id || null,
+        data.notes || null,
+        data.created_by
+      ]
+    );
+    return result.insertId;
+  } catch (error) {
+    console.error('Error recording financial transaction:', error);
+    return null;
+  }
+}
+
 module.exports = {
   batchLoadOrderItems,
   batchLoadStoreData,
   batchLoadRiderData,
   batchLoadUserData,
   batchLoadProductData,
-  getPaginatedQuery
+  getPaginatedQuery,
+  generateFinancialTransactionNumber,
+  recordFinancialTransaction
 };

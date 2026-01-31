@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { sendSuccess, sendError, sendValidationError, sendServerError, sendNotFound } = require('../utils/response');
+const { recordFinancialTransaction } = require('../utils/dbHelpers');
 
 const router = express.Router();
 
@@ -139,6 +140,22 @@ async function processCardPayment(req, orderId, userId, amount, cardToken, saveC
             [orderId, userId, amount, 'card', 'stripe', paymentIntent.id, status, 
              JSON.stringify(paymentIntent)]
         );
+
+        // Record in Master Ledger if successful
+        if (status === 'success') {
+            await recordFinancialTransaction(req.db, {
+                transaction_type: 'income',
+                category: 'order_payment',
+                description: `Order Payment: Order #${orderId}`,
+                amount: amount,
+                payment_method: 'card',
+                related_entity_type: 'order',
+                related_entity_id: orderId,
+                reference_type: 'payment',
+                reference_id: result.insertId,
+                created_by: userId
+            });
+        }
 
         // 4. Save payment method if requested
         if (saveCard && paymentIntent.payment_method) {
@@ -298,10 +315,34 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
             );
 
             if (payments.length) {
+                const payment = payments[0];
                 await req.db.execute(
                     'UPDATE orders SET payment_status = ?, status = ? WHERE id = ?',
-                    ['paid', 'confirmed', payments[0].order_id]
+                    ['paid', 'confirmed', payment.order_id]
                 );
+
+                // Record in Master Ledger
+                // Need to fetch payment amount and user_id for financial_transactions
+                const [fullPayments] = await req.db.execute(
+                    'SELECT amount, user_id, id FROM payments WHERE transaction_id = ?',
+                    [paymentIntent.id]
+                );
+
+                if (fullPayments.length) {
+                    const p = fullPayments[0];
+                    await recordFinancialTransaction(req.db, {
+                        transaction_type: 'income',
+                        category: 'order_payment',
+                        description: `Order Payment (Webhook): Order #${payment.order_id}`,
+                        amount: p.amount,
+                        payment_method: 'card',
+                        related_entity_type: 'order',
+                        related_entity_id: payment.order_id,
+                        reference_type: 'payment',
+                        reference_id: p.id,
+                        created_by: p.user_id
+                    });
+                }
             }
         }
 
@@ -427,6 +468,20 @@ router.post('/:paymentId/refund', authenticateToken, [
                     'UPDATE refunds SET status = ?, refund_transaction_id = ?, processed_at = NOW() WHERE id = ?',
                     ['processed', refund.id, result.insertId]
                 );
+
+                // Record in Master Ledger (financial_transactions)
+                await recordFinancialTransaction(req.db, {
+                    transaction_type: 'refund',
+                    category: 'order_refund',
+                    description: `Order Refund: Order #${payment.order_id}`,
+                    amount: payment.amount,
+                    payment_method: 'card',
+                    related_entity_type: 'order',
+                    related_entity_id: payment.order_id,
+                    reference_type: 'refund',
+                    reference_id: result.insertId,
+                    created_by: userId
+                });
             } catch (stripeError) {
                 await req.db.execute(
                     'UPDATE refunds SET status = ?, notes = ? WHERE id = ?',

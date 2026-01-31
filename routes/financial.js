@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { recordFinancialTransaction } = require('../utils/dbHelpers');
 
 const router = express.Router();
 
@@ -8,15 +9,6 @@ function generateVoucherNumber(prefix, date = new Date()) {
     const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
     const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `${prefix}-${dateStr}-${randomStr}`;
-}
-
-async function generateTransactionNumber(db) {
-    const date = new Date();
-    const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
-    const [result] = await db.execute('SELECT COUNT(*) as count FROM financial_transactions WHERE DATE(created_at) = CURDATE()');
-    const count = (result[0]?.count || 0) + 1;
-    const randomStr = Math.random().toString(36).substring(2, 5).toUpperCase();
-    return `FIN-${dateStr}-${String(count).padStart(3, '0')}-${randomStr}`;
 }
 
 router.use(authenticateToken);
@@ -138,6 +130,8 @@ router.get('/dashboard', async (req, res) => {
             }
         });
 
+        stats.net_profit = stats.income - (stats.expense + stats.settlement + stats.refund);
+
         res.json({
             success: true,
             stats,
@@ -220,21 +214,32 @@ router.post('/transactions', [
         }
 
         const { transaction_type, category, description, amount, payment_method, reference_type, reference_id, notes } = req.body;
-        const transaction_number = await generateTransactionNumber(req.db);
+        
+        const transactionId = await recordFinancialTransaction(req.db, {
+            transaction_type,
+            category,
+            description,
+            amount,
+            payment_method,
+            reference_type,
+            reference_id,
+            notes,
+            created_by: req.user.id
+        });
 
-        const [result] = await req.db.execute(
-            `INSERT INTO financial_transactions 
-             (transaction_number, transaction_type, category, description, amount, payment_method, reference_type, reference_id, notes, created_by, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')`,
-            [transaction_number, transaction_type, category || null, description || null, amount, payment_method, reference_type || null, reference_id || null, notes || null, req.user.id]
-        );
+        if (!transactionId) {
+            throw new Error('Failed to record transaction');
+        }
+
+        // Get the transaction number for the response
+        const [rows] = await req.db.execute('SELECT transaction_number FROM financial_transactions WHERE id = ?', [transactionId]);
 
         res.status(201).json({
             success: true,
             message: 'Transaction recorded successfully',
             transaction: {
-                id: result.insertId,
-                transaction_number
+                id: transactionId,
+                transaction_number: rows[0]?.transaction_number
             }
         });
     } catch (error) {
@@ -357,6 +362,20 @@ router.put('/payment-vouchers/:id', [
         const { id } = req.params;
         const { payee_name, amount, status, description } = req.body;
 
+        // Get existing voucher data if we're marking it as paid
+        let existingVoucher = null;
+        if (status === 'paid') {
+            const [rows] = await req.db.execute('SELECT * FROM cash_payment_vouchers WHERE id = ?', [id]);
+            if (rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Voucher not found' });
+            }
+            existingVoucher = rows[0];
+            
+            if (existingVoucher.status === 'paid') {
+                return res.status(400).json({ success: false, message: 'Voucher is already marked as paid' });
+            }
+        }
+
         const updates = [];
         const params = [];
 
@@ -397,6 +416,26 @@ router.put('/payment-vouchers/:id', [
             `UPDATE cash_payment_vouchers SET ${updates.join(', ')} WHERE id = ?`,
             params
         );
+
+        // Create financial transaction if status changed to paid
+        if (status === 'paid' && existingVoucher) {
+            const voucherAmount = amount || existingVoucher.amount;
+            const voucherPayee = payee_name || existingVoucher.payee_name;
+            const voucherDescription = description || existingVoucher.description || existingVoucher.purpose || 'Payment via voucher';
+
+            await recordFinancialTransaction(req.db, {
+                transaction_type: 'expense',
+                category: 'payment',
+                description: `Payment to ${voucherPayee}: ${voucherDescription}`,
+                amount: voucherAmount,
+                payment_method: existingVoucher.payment_method,
+                related_entity_type: existingVoucher.payee_type,
+                related_entity_id: existingVoucher.payee_id,
+                reference_type: 'payment_voucher',
+                reference_id: existingVoucher.voucher_number,
+                created_by: req.user.id
+            });
+        }
 
         res.json({
             success: true,
@@ -507,7 +546,7 @@ router.post('/receipt-vouchers', [
 
 router.put('/receipt-vouchers/:id', [
     body('amount').optional().isFloat({ min: 0.01 }),
-    body('status').optional().isIn(['draft', 'pending', 'received', 'cancelled'])
+    body('status').optional().isIn(['draft', 'pending', 'approved', 'received', 'cancelled'])
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -521,6 +560,20 @@ router.put('/receipt-vouchers/:id', [
 
         const { id } = req.params;
         const { payer_name, amount, status, description } = req.body;
+
+        // Get existing voucher data if we're marking it as received
+        let existingVoucher = null;
+        if (status === 'received') {
+            const [rows] = await req.db.execute('SELECT * FROM cash_receipt_vouchers WHERE id = ?', [id]);
+            if (rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Voucher not found' });
+            }
+            existingVoucher = rows[0];
+            
+            if (existingVoucher.status === 'received') {
+                return res.status(400).json({ success: false, message: 'Voucher is already marked as received' });
+            }
+        }
 
         const updates = [];
         const params = [];
@@ -562,6 +615,26 @@ router.put('/receipt-vouchers/:id', [
             `UPDATE cash_receipt_vouchers SET ${updates.join(', ')} WHERE id = ?`,
             params
         );
+
+        // Create financial transaction if status changed to received
+        if (status === 'received' && existingVoucher) {
+            const voucherAmount = amount || existingVoucher.amount;
+            const voucherPayer = payer_name || existingVoucher.payer_name;
+            const voucherDescription = description || existingVoucher.description || 'Receipt via voucher';
+
+            await recordFinancialTransaction(req.db, {
+                transaction_type: 'income',
+                category: 'receipt',
+                description: `Receipt from ${voucherPayer}: ${voucherDescription}`,
+                amount: voucherAmount,
+                payment_method: existingVoucher.payment_method,
+                related_entity_type: existingVoucher.payer_type,
+                related_entity_id: existingVoucher.payer_id,
+                reference_type: 'receipt_voucher',
+                reference_id: existingVoucher.voucher_number,
+                created_by: req.user.id
+            });
+        }
 
         res.json({
             success: true,
@@ -817,9 +890,11 @@ router.put('/rider-cash/:id', [
                 updates.push('approved_by = ?, approved_at = NOW()');
                 params.push(req.user.id);
 
-                // Handle wallet updates based on movement type
+                // Handle wallet updates and financial transactions based on movement type
                 const effectiveAmount = amount || movement.amount;
-                
+                let transactionType = null;
+                let descriptionPrefix = '';
+
                 if (movement.movement_type === 'cash_submission') {
                     // Debit from rider wallet when cash submission is approved
                     await recordRiderWalletTransaction(
@@ -831,6 +906,8 @@ router.put('/rider-cash/:id', [
                         movement.id,
                         movement.movement_type
                     );
+                    transactionType = 'income';
+                    descriptionPrefix = 'Rider Cash Submission';
                 } else if (movement.movement_type === 'settlement') {
                     // Debit from rider wallet for settlements
                     await recordRiderWalletTransaction(
@@ -842,6 +919,8 @@ router.put('/rider-cash/:id', [
                         movement.id,
                         movement.movement_type
                     );
+                    transactionType = 'settlement';
+                    descriptionPrefix = 'Rider Settlement';
                 } else if (movement.movement_type === 'cash_collection') {
                     // Credit to rider wallet for cash collections (rider collected from customer)
                     await recordRiderWalletTransaction(
@@ -853,6 +932,30 @@ router.put('/rider-cash/:id', [
                         movement.id,
                         movement.movement_type
                     );
+                    // Internal movement, no external financial transaction
+                } else if (movement.movement_type === 'advance') {
+                    // Advances are already credited to wallet on POST, but they are expenses
+                    transactionType = 'expense';
+                    descriptionPrefix = 'Rider Advance';
+                }
+
+                // Create financial transaction if applicable
+                if (transactionType) {
+                    const [riderRows] = await req.db.execute('SELECT first_name, last_name FROM riders WHERE id = ?', [movement.rider_id]);
+                    const riderName = riderRows.length > 0 ? `${riderRows[0].first_name} ${riderRows[0].last_name}` : `Rider #${movement.rider_id}`;
+
+                    await recordFinancialTransaction(req.db, {
+                        transaction_type: transactionType,
+                        category: 'rider_cash',
+                        description: `${descriptionPrefix} - ${riderName}: ${movement.description || 'Processed'}`,
+                        amount: effectiveAmount,
+                        payment_method: 'cash',
+                        related_entity_type: 'rider',
+                        related_entity_id: movement.rider_id,
+                        reference_type: 'rider_cash_movement',
+                        reference_id: movement.id,
+                        created_by: req.user.id
+                    });
                 }
             }
         }
@@ -997,6 +1100,20 @@ router.put('/store-settlements/:id', [
         const { id } = req.params;
         const { status, net_amount, notes } = req.body;
 
+        // Get existing settlement data if we're marking it as paid
+        let existingSettlement = null;
+        if (status === 'paid') {
+            const [rows] = await req.db.execute('SELECT * FROM store_settlements WHERE id = ?', [id]);
+            if (rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Settlement not found' });
+            }
+            existingSettlement = rows[0];
+            
+            if (existingSettlement.status === 'paid') {
+                return res.status(400).json({ success: false, message: 'Settlement is already marked as paid' });
+            }
+        }
+
         const updates = [];
         const params = [];
 
@@ -1033,6 +1150,26 @@ router.put('/store-settlements/:id', [
             `UPDATE store_settlements SET ${updates.join(', ')} WHERE id = ?`,
             params
         );
+
+        // Create financial transaction if status changed to paid
+        if (status === 'paid' && existingSettlement) {
+            const settlementAmount = net_amount || existingSettlement.net_amount;
+            const [storeRows] = await req.db.execute('SELECT name FROM stores WHERE id = ?', [existingSettlement.store_id]);
+            const storeName = storeRows.length > 0 ? storeRows[0].name : `Store #${existingSettlement.store_id}`;
+
+            await recordFinancialTransaction(req.db, {
+                transaction_type: 'settlement',
+                category: 'store_settlement',
+                description: `Settlement for ${storeName}: ${existingSettlement.settlement_number}`,
+                amount: settlementAmount,
+                payment_method: existingSettlement.payment_method,
+                related_entity_type: 'store',
+                related_entity_id: existingSettlement.store_id,
+                reference_type: 'store_settlement',
+                reference_id: existingSettlement.settlement_number,
+                created_by: req.user.id
+            });
+        }
 
         res.json({
             success: true,
@@ -1160,6 +1297,20 @@ router.put('/expenses/:id', [
         const { id } = req.params;
         const { status, amount, notes } = req.body;
 
+        // Get existing expense data if we're marking it as paid
+        let existingExpense = null;
+        if (status === 'paid') {
+            const [rows] = await req.db.execute('SELECT * FROM admin_expenses WHERE id = ?', [id]);
+            if (rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Expense not found' });
+            }
+            existingExpense = rows[0];
+            
+            if (existingExpense.status === 'paid') {
+                return res.status(400).json({ success: false, message: 'Expense is already marked as paid' });
+            }
+        }
+
         const updates = [];
         const params = [];
 
@@ -1193,6 +1344,25 @@ router.put('/expenses/:id', [
             `UPDATE admin_expenses SET ${updates.join(', ')} WHERE id = ?`,
             params
         );
+
+        // Create financial transaction if status changed to paid
+        if (status === 'paid' && existingExpense) {
+            const expenseAmount = amount || existingExpense.amount;
+            const expenseDescription = existingExpense.description || 'Admin Expense';
+
+            await recordFinancialTransaction(req.db, {
+                transaction_type: 'expense',
+                category: existingExpense.category,
+                description: `Expense: ${existingExpense.category} - ${expenseDescription}`,
+                amount: expenseAmount,
+                payment_method: existingExpense.payment_method,
+                related_entity_type: 'admin_expense',
+                related_entity_id: existingExpense.id,
+                reference_type: 'admin_expense',
+                reference_id: existingExpense.expense_number,
+                created_by: req.user.id
+            });
+        }
 
         res.json({
             success: true,
@@ -1277,26 +1447,59 @@ router.post('/reports/generate', [
             dateParams
         );
 
-        let total_income = 0, total_expense = 0, total_commissions = 0;
+        let total_income = 0, total_expense = 0, total_settlements = 0, total_refunds = 0, total_adjustments = 0;
 
         transactions.forEach(t => {
-            if (t.transaction_type === 'income') total_income += parseFloat(t.total || 0);
-            if (t.transaction_type === 'expense') total_expense += parseFloat(t.total || 0);
-            if (t.transaction_type === 'settlement') total_commissions += parseFloat(t.total || 0);
+            const amount = parseFloat(t.total || 0);
+            switch (t.transaction_type) {
+                case 'income':
+                    total_income += amount;
+                    break;
+                case 'expense':
+                    total_expense += amount;
+                    break;
+                case 'settlement':
+                    total_settlements += amount;
+                    break;
+                case 'refund':
+                    total_refunds += amount;
+                    break;
+                case 'adjustment':
+                    total_adjustments += amount; // This is vague, but let's assume adjustments are tracked separately
+                    break;
+            }
         });
 
-        const net_profit = total_income - total_expense - total_commissions;
+        const net_profit = total_income - total_expense - total_settlements - total_refunds;
 
         const reportData = {
             transactions: transactions.map(t => ({ type: t.transaction_type, total: t.total })),
-            summary: { total_income, total_expense, total_commissions, net_profit }
+            summary: { 
+                total_income, 
+                total_expense, 
+                total_settlements, 
+                total_refunds,
+                total_adjustments,
+                net_profit 
+            }
         };
 
         const [result] = await req.db.execute(
             `INSERT INTO financial_reports 
              (report_number, report_type, period_from, period_to, total_income, total_expense, total_commissions, net_profit, data, generated_by)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [report_number, report_type, period_from || null, period_to || null, total_income, total_expense, total_commissions, net_profit, JSON.stringify(reportData), req.user.id]
+            [
+                report_number, 
+                report_type, 
+                period_from || null, 
+                period_to || null, 
+                total_income, 
+                total_expense + total_refunds, // Group refunds with expenses for legacy schema compatibility
+                total_settlements, // Store settlements in total_commissions column
+                net_profit, 
+                JSON.stringify(reportData), 
+                req.user.id
+            ]
         );
 
         res.status(201).json({
@@ -1307,7 +1510,7 @@ router.post('/reports/generate', [
                 report_number,
                 total_income,
                 total_expense,
-                total_commissions,
+                total_settlements,
                 net_profit
             }
         });

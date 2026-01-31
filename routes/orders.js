@@ -951,17 +951,29 @@ router.get('/:id(\\d+)', authenticateToken, async (req, res) => {
 // Get all orders (Admin only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const { status, assignment } = req.query;
+        const { status, assignment, startDate, endDate } = req.query;
         let conditions = [];
+        let params = [];
         
         if (status && status !== 'all') {
-            conditions.push(`o.status = '${status}'`);
+            conditions.push(`o.status = ?`);
+            params.push(status);
         }
 
         if (assignment === 'unassigned') {
             conditions.push(`o.rider_id IS NULL AND o.status NOT IN ('delivered', 'cancelled')`);
         } else if (assignment === 'assigned') {
             conditions.push(`o.rider_id IS NOT NULL`);
+        }
+
+        if (startDate) {
+            conditions.push(`DATE(o.created_at) >= ?`);
+            params.push(startDate);
+        }
+
+        if (endDate) {
+            conditions.push(`DATE(o.created_at) <= ?`);
+            params.push(endDate);
         }
 
         let whereClause = '';
@@ -979,7 +991,7 @@ router.get('/', authenticateToken, requireAdmin, async (req, res) => {
             LEFT JOIN riders r ON o.rider_id = r.id
             ${whereClause}
             ORDER BY o.created_at DESC
-        `);
+        `, params);
 
         res.json({
             success: true,

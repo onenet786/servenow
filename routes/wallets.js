@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendValidationError, sendServerError } = require('../utils/response');
 const { logError } = require('../utils/debugLogger');
+const { recordFinancialTransaction } = require('../utils/dbHelpers');
 
 const router = express.Router();
 
@@ -158,6 +159,20 @@ router.post('/topup', authenticateToken, [
             req.db, wallet.id, 'credit', amount, 
             `Top-up via ${paymentMethod}`, 'topup', paymentIntent.id, newBalance
         );
+
+        // Record in Master Ledger (financial_transactions)
+        await recordFinancialTransaction(req.db, {
+            transaction_type: 'income',
+            category: 'wallet_topup',
+            description: `Wallet Top-up: ${req.user.email}`,
+            amount: amount,
+            payment_method: paymentMethod,
+            related_entity_type: 'user',
+            related_entity_id: userId,
+            reference_type: 'wallet_transaction',
+            reference_id: transactionId,
+            created_by: userId
+        });
 
         if (saveCard && paymentIntent.payment_method) {
             const pm = await stripe.paymentMethods.retrieve(paymentIntent.payment_method);

@@ -1,5 +1,6 @@
 const express = require("express");
 const { authenticateToken, requireAdmin } = require("../middleware/auth");
+const { recordFinancialTransaction } = require("../utils/dbHelpers");
 
 const router = express.Router();
 const fs = require("fs");
@@ -1154,7 +1155,7 @@ router.post(
         newBalance,
         walletId,
       ]);
-      await req.db.execute(
+      const [txResult] = await req.db.execute(
         "INSERT INTO wallet_transactions (wallet_id, type, amount, description, balance_after) VALUES (?, ?, ?, ?, ?)",
         [
           walletId,
@@ -1164,6 +1165,20 @@ router.post(
           newBalance,
         ]
       );
+
+      // Record in Master Ledger (financial_transactions)
+      await recordFinancialTransaction(req.db, {
+        transaction_type: type === 'credit' ? 'expense' : 'income',
+        category: 'wallet_adjustment',
+        description: `Admin Wallet Adjustment (${type}): ${reason}`,
+        amount: Math.abs(amount),
+        payment_method: 'wallet',
+        related_entity_type: 'user',
+        related_entity_id: wallet.user_id || wallet.rider_id,
+        reference_type: 'wallet_transaction',
+        reference_id: txResult.insertId,
+        created_by: req.user.id
+      });
 
       return res.json({
         success: true,
