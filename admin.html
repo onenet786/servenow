@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -37,11 +37,8 @@
               >
             </li>
             <li>
-              <a
-                href="admin.html#accounts"
-                class="tab-link"
-                data-tab="accounts"
-                ><i class="fas fa-users"></i> Accounts</a
+              <a href="admin.html#accounts" class="tab-link" data-tab="accounts"
+                ><i class="fas fa-users"></i> User</a
               >
             </li>
             <li>
@@ -257,7 +254,12 @@
               >
             </li>
             <li>
-              <a href="#" onclick="showChangePasswordModal(); return false;"
+              <a
+                href="#"
+                onclick="
+                  showChangePasswordModal();
+                  return false;
+                "
                 ><i class="fas fa-key"></i> Change Password</a
               >
             </li>
@@ -358,7 +360,7 @@
         <!-- Accounts Tab -->
 
         <div id="accounts" class="tab-content">
-          <h2>Accounts Management</h2>
+          <h2>User Management</h2>
 
           <div
             class="stats-grid"
@@ -376,7 +378,7 @@
               >
                 -
               </h3>
-              <p style="font-size: 0.75rem; margin: 0">Total Accounts</p>
+              <p style="font-size: 0.75rem; margin: 0">Total Users</p>
             </div>
             <div class="stat-card" style="padding: 0.5rem 0.5rem">
               <h3
@@ -385,7 +387,7 @@
               >
                 -
               </h3>
-              <p style="font-size: 0.75rem; margin: 0">Active Accounts</p>
+              <p style="font-size: 0.75rem; margin: 0">Active Users</p>
             </div>
             <div class="stat-card" style="padding: 0.5rem 0.5rem">
               <h3
@@ -394,7 +396,7 @@
               >
                 -
               </h3>
-              <p style="font-size: 0.75rem; margin: 0">Inactive Accounts</p>
+              <p style="font-size: 0.75rem; margin: 0">Inactive Users</p>
             </div>
             <div class="stat-card" style="padding: 0.5rem 0.5rem">
               <h3
@@ -403,46 +405,52 @@
               >
                 -
               </h3>
-              <p style="font-size: 0.75rem; margin: 0">Verified Accounts</p>
+              <p style="font-size: 0.75rem; margin: 0">Verified Users</p>
             </div>
           </div>
 
           <button class="btn btn-primary" id="addAccountBtn">
-            Add New Account
+            Add New User
           </button>
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="accountSearch">Search</label>
-                <div class="search-input-wrapper">
-                    <i class="fas fa-search search-icon" style="top: 2.5rem;"></i>
-                    <input type="text" id="accountSearch" class="form-control" placeholder="Search by name or email" style="padding-left: 2.5rem;">
-                </div>
+              <label for="accountSearch">Search</label>
+              <div class="search-input-wrapper">
+                <i class="fas fa-search search-icon" style="top: 2.5rem"></i>
+                <input
+                  type="text"
+                  id="accountSearch"
+                  class="form-control"
+                  placeholder="Search by name or email"
+                  style="padding-left: 2.5rem"
+                />
+              </div>
             </div>
             <div class="filter-group">
-                <label for="accountTypeFilter">Type</label>
-                <select id="accountTypeFilter" class="form-control">
-                    <option value="">All Types</option>
-                    <option value="customer">Customer</option>
-                    <option value="store_owner">Store Owner</option>
-                    <option value="admin">Admin</option>
-                </select>
+              <label for="accountTypeFilter">Type</label>
+              <select id="accountTypeFilter" class="form-control">
+                <option value="">All Types</option>
+                <option value="customer">Customer</option>
+                <option value="store_owner">Store Owner</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="accountStatusFilter">Status</label>
-                <select id="accountStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
+              <label for="accountStatusFilter">Status</label>
+              <select id="accountStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="accountVerifiedFilter">Verified</label>
-                <select id="accountVerifiedFilter" class="form-control">
-                    <option value="">All</option>
-                    <option value="verified">Verified</option>
-                    <option value="unverified">Unverified</option>
-                </select>
+              <label for="accountVerifiedFilter">Verified</label>
+              <select id="accountVerifiedFilter" class="form-control">
+                <option value="">All</option>
+                <option value="verified">Verified</option>
+                <option value="unverified">Unverified</option>
+              </select>
             </div>
             <button class="btn btn-secondary" id="accountClearFiltersBtn">
               <i class="fas fa-times"></i> Clear
@@ -477,14 +485,18 @@
           <h2>Financial Dashboard</h2>
           <div class="filter-controls" style="margin-bottom: 1.5rem">
             <div class="filter-group">
-                <label for="financialPeriodFilter">Period</label>
-                <select id="financialPeriodFilter" class="form-control">
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month" selected>This Month</option>
-                </select>
+              <label for="financialPeriodFilter">Period</label>
+              <select id="financialPeriodFilter" class="form-control">
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month" selected>This Month</option>
+              </select>
             </div>
-            <button class="btn btn-primary" id="refreshFinancialDashboardBtn" style="align-self: flex-end; margin-bottom: 2px;">
+            <button
+              class="btn btn-primary"
+              id="refreshFinancialDashboardBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
               <i class="fas fa-sync-alt"></i> Refresh
             </button>
           </div>
@@ -533,26 +545,28 @@
           </button>
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="transactionTypeFilter">Type</label>
-                <select id="transactionTypeFilter" class="form-control">
-                    <option value="">All Types</option>
-                    <option value="income">Income</option>
-                    <option value="expense">Expense</option>
-                    <option value="settlement">Settlement</option>
-                    <option value="refund">Refund</option>
-                    <option value="adjustment">Adjustment</option>
-                </select>
+              <label for="transactionTypeFilter">Type</label>
+              <select id="transactionTypeFilter" class="form-control">
+                <option value="">All Types</option>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+                <option value="settlement">Settlement</option>
+                <option value="refund">Refund</option>
+                <option value="adjustment">Adjustment</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="transactionStatusFilter">Status</label>
-                <select id="transactionStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
+              <label for="transactionStatusFilter">Status</label>
+              <select id="transactionStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="clearTransactionFiltersBtn">Clear</button>
+            <button class="btn btn-secondary" id="clearTransactionFiltersBtn">
+              Clear
+            </button>
           </div>
           <div class="table-container">
             <table id="transactionsTable">
@@ -582,17 +596,22 @@
           </button>
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="paymentVoucherStatusFilter">Status</label>
-                <select id="paymentVoucherStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="draft">Draft</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="paid">Paid</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
+              <label for="paymentVoucherStatusFilter">Status</label>
+              <select id="paymentVoucherStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="paid">Paid</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="clearPaymentVoucherFiltersBtn">Clear</button>
+            <button
+              class="btn btn-secondary"
+              id="clearPaymentVoucherFiltersBtn"
+            >
+              Clear
+            </button>
           </div>
           <div class="table-container">
             <table id="paymentVouchersTable">
@@ -621,16 +640,21 @@
           </button>
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="receiptVoucherStatusFilter">Status</label>
-                <select id="receiptVoucherStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="draft">Draft</option>
-                    <option value="pending">Pending</option>
-                    <option value="received">Received</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
+              <label for="receiptVoucherStatusFilter">Status</label>
+              <select id="receiptVoucherStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="draft">Draft</option>
+                <option value="pending">Pending</option>
+                <option value="received">Received</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="clearReceiptVoucherFiltersBtn">Clear</button>
+            <button
+              class="btn btn-secondary"
+              id="clearReceiptVoucherFiltersBtn"
+            >
+              Clear
+            </button>
           </div>
           <div class="table-container">
             <table id="receiptVouchersTable">
@@ -659,26 +683,28 @@
           </button>
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="riderCashMovementTypeFilter">Type</label>
-                <select id="riderCashMovementTypeFilter" class="form-control">
-                    <option value="">All Types</option>
-                    <option value="cash_collection">Cash Collection</option>
-                    <option value="cash_submission">Cash Submission</option>
-                    <option value="advance">Advance</option>
-                    <option value="settlement">Settlement</option>
-                    <option value="adjustment">Adjustment</option>
-                </select>
+              <label for="riderCashMovementTypeFilter">Type</label>
+              <select id="riderCashMovementTypeFilter" class="form-control">
+                <option value="">All Types</option>
+                <option value="cash_collection">Cash Collection</option>
+                <option value="cash_submission">Cash Submission</option>
+                <option value="advance">Advance</option>
+                <option value="settlement">Settlement</option>
+                <option value="adjustment">Adjustment</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="riderCashStatusFilter">Status</label>
-                <select id="riderCashStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="completed">Completed</option>
-                    <option value="approved">Approved</option>
-                </select>
+              <label for="riderCashStatusFilter">Status</label>
+              <select id="riderCashStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="approved">Approved</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="clearRiderCashFiltersBtn">Clear</button>
+            <button class="btn btn-secondary" id="clearRiderCashFiltersBtn">
+              Clear
+            </button>
           </div>
           <div class="table-container">
             <table id="riderCashTable">
@@ -707,16 +733,21 @@
           </button>
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="storeSettlementStatusFilter">Status</label>
-                <select id="storeSettlementStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="paid">Paid</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
+              <label for="storeSettlementStatusFilter">Status</label>
+              <select id="storeSettlementStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="paid">Paid</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="clearStoreSettlementFiltersBtn">Clear</button>
+            <button
+              class="btn btn-secondary"
+              id="clearStoreSettlementFiltersBtn"
+            >
+              Clear
+            </button>
           </div>
           <div class="table-container">
             <table id="storeSettlementsTable">
@@ -745,28 +776,30 @@
           </button>
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="expenseCategoryFilter">Category</label>
-                <select id="expenseCategoryFilter" class="form-control">
-                    <option value="">All Categories</option>
-                    <option value="utilities">Utilities</option>
-                    <option value="maintenance">Maintenance</option>
-                    <option value="office">Office</option>
-                    <option value="travel">Travel</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="other">Other</option>
-                </select>
+              <label for="expenseCategoryFilter">Category</label>
+              <select id="expenseCategoryFilter" class="form-control">
+                <option value="">All Categories</option>
+                <option value="utilities">Utilities</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="office">Office</option>
+                <option value="travel">Travel</option>
+                <option value="marketing">Marketing</option>
+                <option value="other">Other</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="expenseStatusFilter">Status</label>
-                <select id="expenseStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="paid">Paid</option>
-                    <option value="rejected">Rejected</option>
-                </select>
+              <label for="expenseStatusFilter">Status</label>
+              <select id="expenseStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="paid">Paid</option>
+                <option value="rejected">Rejected</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="clearExpenseFiltersBtn">Clear</button>
+            <button class="btn btn-secondary" id="clearExpenseFiltersBtn">
+              Clear
+            </button>
           </div>
           <div class="table-container">
             <table id="expensesTable">
@@ -792,17 +825,17 @@
           <h2>Financial Reports</h2>
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="reportTypeFilter">Report Type</label>
-                <select id="reportTypeFilter" class="form-control">
-                    <option value="">All Report Types</option>
-                    <option value="daily_summary">Daily Summary</option>
-                    <option value="weekly_summary">Weekly Summary</option>
-                    <option value="monthly_summary">Monthly Summary</option>
-                    <option value="store_settlement">Store Settlement</option>
-                    <option value="rider_cash_report">Rider Cash Report</option>
-                    <option value="expense_report">Expense Report</option>
-                    <option value="custom">Custom</option>
-                </select>
+              <label for="reportTypeFilter">Report Type</label>
+              <select id="reportTypeFilter" class="form-control">
+                <option value="">All Report Types</option>
+                <option value="daily_summary">Daily Summary</option>
+                <option value="weekly_summary">Weekly Summary</option>
+                <option value="monthly_summary">Monthly Summary</option>
+                <option value="store_settlement">Store Settlement</option>
+                <option value="rider_cash_report">Rider Cash Report</option>
+                <option value="expense_report">Expense Report</option>
+                <option value="custom">Custom</option>
+              </select>
             </div>
             <button class="btn btn-primary" id="generateFinancialReportBtn">
               <i class="fas fa-file-alt"></i> Generate Report
@@ -836,7 +869,10 @@
         <div id="problems" class="tab-content">
           <h2>System Problems & Diagnostics</h2>
 
-          <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1.5rem">
+          <div
+            class="stats-grid"
+            style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1.5rem"
+          >
             <div class="stat-card">
               <h3 id="problemsChecksRun">-</h3>
               <p>Checks Run</p>
@@ -857,16 +893,16 @@
 
           <div class="filter-controls" style="margin-top: 1rem">
             <div class="filter-group">
-                <label for="diagnosticType">Check Type:</label>
-                <select id="diagnosticType" class="form-control">
-                    <option value="all">All Checks</option>
-                    <option value="admin">Admin User</option>
-                    <option value="orphans">Orphan Records</option>
-                    <option value="types">Enum Types</option>
-                    <option value="wallets">Wallets</option>
-                    <option value="tx_ref">Transaction References</option>
-                    <option value="logs_schema">Logs Schema</option>
-                </select>
+              <label for="diagnosticType">Check Type:</label>
+              <select id="diagnosticType" class="form-control">
+                <option value="all">All Checks</option>
+                <option value="admin">Admin User</option>
+                <option value="orphans">Orphan Records</option>
+                <option value="types">Enum Types</option>
+                <option value="wallets">Wallets</option>
+                <option value="tx_ref">Transaction References</option>
+                <option value="logs_schema">Logs Schema</option>
+              </select>
             </div>
             <button class="btn btn-secondary" id="runSingleDiagnosticBtn">
               <i class="fas fa-play"></i> Run Selected
@@ -903,43 +939,68 @@
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="utilUsername">Super Admin Username</label>
-                <input
-                  type="text"
-                  id="utilUsername"
-                  class="form-control"
-                  placeholder="Username"
-                  style="min-width: 180px"
-                />
+              <label for="utilUsername">Super Admin Username</label>
+              <input
+                type="text"
+                id="utilUsername"
+                class="form-control"
+                placeholder="Username"
+                style="min-width: 180px"
+              />
             </div>
             <div class="filter-group">
-                <label for="utilPassword">Super Admin Password</label>
-                <input
-                  type="password"
-                  id="utilPassword"
-                  class="form-control"
-                  placeholder="Password"
-                  style="min-width: 180px"
-                />
+              <label for="utilPassword">Super Admin Password</label>
+              <input
+                type="password"
+                id="utilPassword"
+                class="form-control"
+                placeholder="Password"
+                style="min-width: 180px"
+              />
             </div>
-            <button class="btn btn-primary" id="createBackupBtn" style="align-self: flex-end; margin-bottom: 2px;">
+            <button
+              class="btn btn-primary"
+              id="createBackupBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
               Create Backup
             </button>
-            <button class="btn btn-secondary" id="refreshBackupsBtn" style="align-self: flex-end; margin-bottom: 2px;">
+            <button
+              class="btn btn-secondary"
+              id="refreshBackupsBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
               Refresh List
             </button>
-            <button class="btn btn-warning" id="restoreBackupBtn" style="align-self: flex-end; margin-bottom: 2px;">
+            <button
+              class="btn btn-warning"
+              id="restoreBackupBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
               Restore Selected
             </button>
-            <button class="btn btn-danger" id="clearDatabaseBtn" style="align-self: flex-end; margin-bottom: 2px;">
+            <button
+              class="btn btn-danger"
+              id="clearDatabaseBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
               Clear DB (Keep Admin)
             </button>
-            <button class="btn btn-danger" id="clearDatabaseKeepOneBtn" style="align-self: flex-end; margin-bottom: 2px;">
+            <button
+              class="btn btn-danger"
+              id="clearDatabaseKeepOneBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
               Clear DB (Keep One+Admin)
             </button>
             <span
               id="backupStatus"
-              style="font-size: 0.95rem; color: #666; margin-left: 0.5rem; align-self: center;"
+              style="
+                font-size: 0.95rem;
+                color: #666;
+                margin-left: 0.5rem;
+                align-self: center;
+              "
             ></span>
           </div>
 
@@ -1010,18 +1071,25 @@
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="storeSearch">Search</label>
-                <input type="text" id="storeSearch" class="form-control" placeholder="Search by name or location">
+              <label for="storeSearch">Search</label>
+              <input
+                type="text"
+                id="storeSearch"
+                class="form-control"
+                placeholder="Search by name or location"
+              />
             </div>
             <div class="filter-group">
-                <label for="storeStatusFilter">Status</label>
-                <select id="storeStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
+              <label for="storeStatusFilter">Status</label>
+              <select id="storeStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="storeClearFiltersBtn">Clear</button>
+            <button class="btn btn-secondary" id="storeClearFiltersBtn">
+              Clear
+            </button>
           </div>
 
           <div class="table-container">
@@ -1073,34 +1141,44 @@
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="productSearch">Search</label>
-                <div class="search-input-wrapper">
-                    <i class="fas fa-search search-icon" style="top: 2.5rem;"></i>
-                    <input type="text" id="productSearch" class="form-control" placeholder="Search by name" style="padding-left: 2.5rem;">
-                </div>
+              <label for="productSearch">Search</label>
+              <div class="search-input-wrapper">
+                <i class="fas fa-search search-icon" style="top: 2.5rem"></i>
+                <input
+                  type="text"
+                  id="productSearch"
+                  class="form-control"
+                  placeholder="Search by name"
+                  style="padding-left: 2.5rem"
+                />
+              </div>
             </div>
             <div class="filter-group">
-                <label for="productCategoryFilter">Category</label>
-                <select id="productCategoryFilter" class="form-control">
-                    <option value="">All Categories</option>
-                </select>
+              <label for="productCategoryFilter">Category</label>
+              <select id="productCategoryFilter" class="form-control">
+                <option value="">All Categories</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="productStoreFilter">Store</label>
-                <select id="productStoreFilter" class="form-control">
-                    <option value="">All Stores</option>
-                </select>
+              <label for="productStoreFilter">Store</label>
+              <select id="productStoreFilter" class="form-control">
+                <option value="">All Stores</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="productStatusFilter">Status</label>
-                <select id="productStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="available">Available</option>
-                    <option value="unavailable">Unavailable</option>
-                </select>
+              <label for="productStatusFilter">Status</label>
+              <select id="productStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="available">Available</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="productClearFiltersBtn" style="align-self: flex-end; margin-bottom: 2px;">
-                <i class="fas fa-times"></i> Clear
+            <button
+              class="btn btn-secondary"
+              id="productClearFiltersBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
+              <i class="fas fa-times"></i> Clear
             </button>
           </div>
 
@@ -1141,42 +1219,46 @@
           <!-- Filters -->
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="filterStartDate">From Date</label>
-                <input type="date" id="filterStartDate" class="form-control">
+              <label for="filterStartDate">From Date</label>
+              <input type="date" id="filterStartDate" class="form-control" />
             </div>
             <div class="filter-group">
-                <label for="filterEndDate">To Date</label>
-                <input type="date" id="filterEndDate" class="form-control">
+              <label for="filterEndDate">To Date</label>
+              <input type="date" id="filterEndDate" class="form-control" />
             </div>
             <div class="filter-group">
-                <label for="filterAssignment">Assignment</label>
-                <select id="filterAssignment" class="form-control">
-                    <option value="all">All Assignments</option>
-                    <option value="unassigned">Unassigned</option>
-                    <option value="assigned">Assigned</option>
-                </select>
+              <label for="filterAssignment">Assignment</label>
+              <select id="filterAssignment" class="form-control">
+                <option value="all">All Assignments</option>
+                <option value="unassigned">Unassigned</option>
+                <option value="assigned">Assigned</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="filterRider">Rider</label>
-                <select id="filterRider" class="form-control">
-                    <option value="">All Riders</option>
-                </select>
+              <label for="filterRider">Rider</label>
+              <select id="filterRider" class="form-control">
+                <option value="">All Riders</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="filterStatus">Status</label>
-                <select id="filterStatus" class="form-control">
-                    <option value="">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="preparing">Preparing</option>
-                    <option value="ready">Ready</option>
-                    <option value="out_for_delivery">Out for Delivery</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
+              <label for="filterStatus">Status</label>
+              <select id="filterStatus" class="form-control">
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="preparing">Preparing</option>
+                <option value="ready">Ready</option>
+                <option value="out_for_delivery">Out for Delivery</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="clearFiltersBtn" style="align-self: flex-end; margin-bottom: 2px;">
-                <i class="fas fa-times"></i> Clear
+            <button
+              class="btn btn-secondary"
+              id="clearFiltersBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
+              <i class="fas fa-times"></i> Clear
             </button>
           </div>
 
@@ -1244,33 +1326,35 @@
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="paymentStatusFilter">Status</label>
-                <select id="paymentStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="success">Success</option>
-                    <option value="pending">Pending</option>
-                    <option value="failed">Failed</option>
-                    <option value="refunded">Refunded</option>
-                </select>
+              <label for="paymentStatusFilter">Status</label>
+              <select id="paymentStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="success">Success</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="paymentMethodFilter">Method</label>
-                <select id="paymentMethodFilter" class="form-control">
-                    <option value="">All Methods</option>
-                    <option value="card">Card</option>
-                    <option value="wallet">Wallet</option>
-                    <option value="cash">Cash</option>
-                </select>
+              <label for="paymentMethodFilter">Method</label>
+              <select id="paymentMethodFilter" class="form-control">
+                <option value="">All Methods</option>
+                <option value="card">Card</option>
+                <option value="wallet">Wallet</option>
+                <option value="cash">Cash</option>
+              </select>
             </div>
             <div class="filter-group">
-                <label for="paymentStartDate">Start Date</label>
-                <input type="date" id="paymentStartDate" class="form-control">
+              <label for="paymentStartDate">Start Date</label>
+              <input type="date" id="paymentStartDate" class="form-control" />
             </div>
             <div class="filter-group">
-                <label for="paymentEndDate">End Date</label>
-                <input type="date" id="paymentEndDate" class="form-control">
+              <label for="paymentEndDate">End Date</label>
+              <input type="date" id="paymentEndDate" class="form-control" />
             </div>
-            <button class="btn btn-secondary" id="paymentClearFiltersBtn">Clear</button>
+            <button class="btn btn-secondary" id="paymentClearFiltersBtn">
+              Clear
+            </button>
           </div>
 
           <div class="table-container">
@@ -1328,14 +1412,28 @@
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="walletBalanceMin">Min Balance</label>
-                <input type="number" id="walletBalanceMin" class="form-control" placeholder="Min" step="0.01">
+              <label for="walletBalanceMin">Min Balance</label>
+              <input
+                type="number"
+                id="walletBalanceMin"
+                class="form-control"
+                placeholder="Min"
+                step="0.01"
+              />
             </div>
             <div class="filter-group">
-                <label for="walletBalanceMax">Max Balance</label>
-                <input type="number" id="walletBalanceMax" class="form-control" placeholder="Max" step="0.01">
+              <label for="walletBalanceMax">Max Balance</label>
+              <input
+                type="number"
+                id="walletBalanceMax"
+                class="form-control"
+                placeholder="Max"
+                step="0.01"
+              />
             </div>
-            <button class="btn btn-secondary" id="walletClearFiltersBtn">Clear</button>
+            <button class="btn btn-secondary" id="walletClearFiltersBtn">
+              Clear
+            </button>
           </div>
 
           <div class="table-container">
@@ -1366,19 +1464,19 @@
           <!-- Report Filters -->
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="reportStartDate">Start Date</label>
-                <input type="date" id="reportStartDate" class="form-control">
+              <label for="reportStartDate">Start Date</label>
+              <input type="date" id="reportStartDate" class="form-control" />
             </div>
             <div class="filter-group">
-                <label for="reportEndDate">End Date</label>
-                <input type="date" id="reportEndDate" class="form-control">
+              <label for="reportEndDate">End Date</label>
+              <input type="date" id="reportEndDate" class="form-control" />
             </div>
             <div class="filter-group">
-                <label for="reportRiderFilter">Rider</label>
-                <select id="reportRiderFilter" class="form-control">
-                    <option value="">All Riders</option>
-                    <!-- Riders will be loaded dynamically -->
-                </select>
+              <label for="reportRiderFilter">Rider</label>
+              <select id="reportRiderFilter" class="form-control">
+                <option value="">All Riders</option>
+                <!-- Riders will be loaded dynamically -->
+              </select>
             </div>
             <button class="btn btn-secondary" id="generateOrderReportBtn">
               <i class="fas fa-file-alt"></i> Generate
@@ -1496,13 +1594,13 @@
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="inventoryReportSelect">Select Report</label>
-                <select id="inventoryReportSelect" class="form-control">
-                  <option value="store">Store-wise Inventory</option>
-                  <option value="category">Category-wise Inventory</option>
-                  <option value="breakdown">Store-wise Category Breakdown</option>
-                  <option value="sales">Store Sale-wise</option>
-                </select>
+              <label for="inventoryReportSelect">Select Report</label>
+              <select id="inventoryReportSelect" class="form-control">
+                <option value="store">Store-wise Inventory</option>
+                <option value="category">Category-wise Inventory</option>
+                <option value="breakdown">Store-wise Category Breakdown</option>
+                <option value="sales">Store Sale-wise</option>
+              </select>
             </div>
           </div>
 
@@ -1600,21 +1698,31 @@
 
           <div class="filter-controls">
             <div class="filter-group">
-                <label for="categorySearch">Search</label>
-                <div class="search-input-wrapper">
-                    <i class="fas fa-search search-icon" style="top: 2.5rem;"></i>
-                    <input type="text" id="categorySearch" class="form-control" placeholder="Search by name or description" style="padding-left: 2.5rem;">
-                </div>
+              <label for="categorySearch">Search</label>
+              <div class="search-input-wrapper">
+                <i class="fas fa-search search-icon" style="top: 2.5rem"></i>
+                <input
+                  type="text"
+                  id="categorySearch"
+                  class="form-control"
+                  placeholder="Search by name or description"
+                  style="padding-left: 2.5rem"
+                />
+              </div>
             </div>
             <div class="filter-group">
-                <label for="categoryStatusFilter">Status</label>
-                <select id="categoryStatusFilter" class="form-control">
-                    <option value="">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                </select>
+              <label for="categoryStatusFilter">Status</label>
+              <select id="categoryStatusFilter" class="form-control">
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
             </div>
-            <button class="btn btn-secondary" id="categoryClearFiltersBtn" style="align-self: flex-end; margin-bottom: 2px;">
+            <button
+              class="btn btn-secondary"
+              id="categoryClearFiltersBtn"
+              style="align-self: flex-end; margin-bottom: 2px"
+            >
               <i class="fas fa-times"></i> Clear
             </button>
           </div>
@@ -1739,33 +1847,43 @@
 
           <div id="rider-list-panel" class="rider-subpanel">
             <div class="filter-controls">
-            <div class="filter-group">
+              <div class="filter-group">
                 <label for="riderSearch">Search</label>
                 <div class="search-input-wrapper">
-                    <i class="fas fa-search search-icon" style="top: 2.5rem;"></i>
-                    <input type="text" id="riderSearch" class="form-control" placeholder="Search by name, email, phone" style="padding-left: 2.5rem;">
+                  <i class="fas fa-search search-icon" style="top: 2.5rem"></i>
+                  <input
+                    type="text"
+                    id="riderSearch"
+                    class="form-control"
+                    placeholder="Search by name, email, phone"
+                    style="padding-left: 2.5rem"
+                  />
                 </div>
-            </div>
-            <div class="filter-group">
+              </div>
+              <div class="filter-group">
                 <label for="riderAvailabilityFilter">Availability</label>
                 <select id="riderAvailabilityFilter" class="form-control">
                   <option value="">All Availability</option>
                   <option value="available">Available</option>
                   <option value="unavailable">Unavailable</option>
                 </select>
-            </div>
-            <div class="filter-group">
+              </div>
+              <div class="filter-group">
                 <label for="riderStatusFilter">Status</label>
                 <select id="riderStatusFilter" class="form-control">
                   <option value="">All Status</option>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
+              </div>
+              <button
+                class="btn btn-secondary"
+                id="riderClearFiltersBtn"
+                style="align-self: flex-end; margin-bottom: 2px"
+              >
+                <i class="fas fa-times"></i> Clear
+              </button>
             </div>
-            <button class="btn btn-secondary" id="riderClearFiltersBtn" style="align-self: flex-end; margin-bottom: 2px;">
-              <i class="fas fa-times"></i> Clear
-            </button>
-          </div>
 
             <div class="table-container">
               <table id="ridersTable">
@@ -1797,12 +1915,16 @@
             <h3>Fuel Management</h3>
             <div class="filter-controls">
               <div class="filter-group">
-                  <label for="fuelRiderSelect">Select Rider</label>
-                  <select id="fuelRiderSelect" class="form-control">
-                    <option value="">-- Select Rider --</option>
-                  </select>
+                <label for="fuelRiderSelect">Select Rider</label>
+                <select id="fuelRiderSelect" class="form-control">
+                  <option value="">-- Select Rider --</option>
+                </select>
               </div>
-              <button class="btn btn-secondary" id="refreshFuelBtn" style="align-self: flex-end; margin-bottom: 2px;">
+              <button
+                class="btn btn-secondary"
+                id="refreshFuelBtn"
+                style="align-self: flex-end; margin-bottom: 2px"
+              >
                 Refresh
               </button>
             </div>
@@ -1925,7 +2047,11 @@
                   <option value="">-- Select Rider --</option>
                 </select>
               </div>
-              <button class="btn btn-secondary" id="refreshActiveDeliveriesBtn" style="align-self: flex-end; margin-bottom: 2px;">
+              <button
+                class="btn btn-secondary"
+                id="refreshActiveDeliveriesBtn"
+                style="align-self: flex-end; margin-bottom: 2px"
+              >
                 Refresh
               </button>
             </div>
@@ -1963,7 +2089,11 @@
                   <option value="">-- Select Rider --</option>
                 </select>
               </div>
-              <button class="btn btn-secondary" id="refreshCompletedDeliveriesBtn" style="align-self: flex-end; margin-bottom: 2px;">
+              <button
+                class="btn btn-secondary"
+                id="refreshCompletedDeliveriesBtn"
+                style="align-self: flex-end; margin-bottom: 2px"
+              >
                 Refresh
               </button>
             </div>
@@ -1989,7 +2119,10 @@
           </div>
         </div>
         <footer class="app-footer">
-          <p>© 2025 SERVENOW. All Rights Reserved. Powered by: OneNet Solutions Pakistan</p>
+          <p>
+            © 2025 SERVENOW. All Rights Reserved. Powered by: OneNet Solutions
+            Pakistan
+          </p>
         </footer>
       </main>
     </div>
@@ -1998,37 +2131,81 @@
 
     <!-- Edit Account Modal -->
     <div id="editAccountModal" class="modal">
-      <div class="modal-content" style="max-width: 95%; width: 900px;">
-        <div class="modal-header" style="padding-bottom: 1rem; margin-bottom: 1rem;">
+      <div class="modal-content" style="max-width: 95%; width: 900px">
+        <div
+          class="modal-header"
+          style="padding-bottom: 1rem; margin-bottom: 1rem"
+        >
           <h3>Edit Account</h3>
           <span class="close" data-modal="editAccountModal">&times;</span>
         </div>
-        <div class="modal-body" style="padding: 0;">
+        <div class="modal-body" style="padding: 0">
           <form id="editAccountForm">
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1rem;
+              "
+            >
               <div class="form-group">
                 <label for="editAccountFirstName">First Name:</label>
-                <input type="text" id="editAccountFirstName" name="firstName" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="editAccountFirstName"
+                  name="firstName"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="editAccountLastName">Last Name:</label>
-                <input type="text" id="editAccountLastName" name="lastName" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="editAccountLastName"
+                  name="lastName"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="editAccountEmail">Email:</label>
-                <input type="email" id="editAccountEmail" name="email" required style="width: 100%;" />
+                <input
+                  type="email"
+                  id="editAccountEmail"
+                  name="email"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="editAccountPhone">Phone:</label>
-                <input type="tel" id="editAccountPhone" name="phone" style="width: 100%;" />
+                <input
+                  type="tel"
+                  id="editAccountPhone"
+                  name="phone"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
-                <label for="editAccountPassword">Password (leave empty to keep):</label>
-                <input type="password" id="editAccountPassword" name="password" style="width: 100%;" />
+                <label for="editAccountPassword"
+                  >Password (leave empty to keep):</label
+                >
+                <input
+                  type="password"
+                  id="editAccountPassword"
+                  name="password"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="editAccountType">User Type:</label>
-                <select id="editAccountType" name="userType" required style="width: 100%;">
+                <select
+                  id="editAccountType"
+                  name="userType"
+                  required
+                  style="width: 100%"
+                >
                   <option value="customer">Customer</option>
                   <option value="store_owner">Store Owner</option>
                   <option value="admin">Admin</option>
@@ -2036,33 +2213,64 @@
               </div>
               <div class="form-group">
                 <label for="editAccountStatus">Status:</label>
-                <select id="editAccountStatus" name="is_active" style="width: 100%;">
+                <select
+                  id="editAccountStatus"
+                  name="is_active"
+                  style="width: 100%"
+                >
                   <option value="1">Active</option>
                   <option value="0">Inactive</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="editAccountVerified">Email Verified:</label>
-                <select id="editAccountVerified" name="is_verified" style="width: 100%;">
+                <select
+                  id="editAccountVerified"
+                  name="is_verified"
+                  style="width: 100%"
+                >
                   <option value="1">Verified</option>
                   <option value="0">Unverified</option>
                 </select>
               </div>
             </div>
-            <div style="margin-top: 1rem;">
+            <div style="margin-top: 1rem">
               <div class="form-group">
                 <label for="editAccountAddress">Address:</label>
-                <textarea id="editAccountAddress" name="address" rows="2" style="width: 100%;"></textarea>
+                <textarea
+                  id="editAccountAddress"
+                  name="address"
+                  rows="2"
+                  style="width: 100%"
+                ></textarea>
               </div>
             </div>
             <input type="hidden" id="editAccountId" name="accountId" />
           </form>
         </div>
-        <div class="modal-footer" style="padding-top: 1rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
-          <button type="button" class="btn btn-secondary" data-modal="editAccountModal" style="padding: 0.6rem 1.2rem;">
+        <div
+          class="modal-footer"
+          style="
+            padding-top: 1rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+          "
+        >
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-modal="editAccountModal"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-ban"></i> Cancel
           </button>
-          <button type="button" class="btn btn-primary" id="saveAccountBtn" style="padding: 0.6rem 1.2rem;">
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="saveAccountBtn"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-check"></i> Save Account
           </button>
         </div>
@@ -2126,96 +2334,224 @@
 
     <!-- Add Store Modal -->
     <div id="addStoreModal" class="modal">
-      <div class="modal-content" style="max-width: 95%; width: 1200px; padding: 1.5rem;">
-        <div class="modal-header" style="padding-bottom: 1rem; margin-bottom: 1rem;">
+      <div
+        class="modal-content"
+        style="max-width: 95%; width: 1200px; padding: 1.5rem"
+      >
+        <div
+          class="modal-header"
+          style="padding-bottom: 1rem; margin-bottom: 1rem"
+        >
           <h3>Add New Store</h3>
           <span class="close" data-modal="addStoreModal">&times;</span>
         </div>
-        <div class="modal-body" style="padding: 0; overflow: visible;">
+        <div class="modal-body" style="padding: 0; overflow: visible">
           <form id="addStoreForm">
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 1rem;
+              "
+            >
               <div class="form-group">
                 <label for="storeName">Store Name:</label>
-                <input type="text" id="storeName" name="name" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="storeName"
+                  name="name"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storeOwner">Owner:</label>
-                <input type="text" id="storeOwner" name="owner_name" placeholder="Owner name" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="storeOwner"
+                  name="owner_name"
+                  placeholder="Owner name"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storeLocation">Location:</label>
-                <input type="text" id="storeLocation" name="location" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="storeLocation"
+                  name="location"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storePhone">Phone:</label>
-                <input type="tel" id="storePhone" name="phone" style="width: 100%;" />
+                <input
+                  type="tel"
+                  id="storePhone"
+                  name="phone"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storeEmail">Email:</label>
-                <input type="email" id="storeEmail" name="email" style="width: 100%;" />
+                <input
+                  type="email"
+                  id="storeEmail"
+                  name="email"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storeRating">Rating:</label>
-                <input type="number" id="storeRating" name="rating" step="0.1" min="0" max="5" value="0" style="width: 100%;" />
+                <input
+                  type="number"
+                  id="storeRating"
+                  name="rating"
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  value="0"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storeDeliveryTime">Delivery Time:</label>
-                <input type="text" id="storeDeliveryTime" name="delivery_time" placeholder="e.g., 30-45 mins" style="width: 100%;" />
+                <input
+                  type="text"
+                  id="storeDeliveryTime"
+                  name="delivery_time"
+                  placeholder="e.g., 30-45 mins"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storeStatus">Status:</label>
-                <select id="storeStatus" name="status" style="width: 100%;">
+                <select id="storeStatus" name="status" style="width: 100%">
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="storeOpeningTime">Opening Time:</label>
-                <input type="time" id="storeOpeningTime" name="opening_time" style="width: 100%;" />
+                <input
+                  type="time"
+                  id="storeOpeningTime"
+                  name="opening_time"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storeClosingTime">Closing Time:</label>
-                <input type="time" id="storeClosingTime" name="closing_time" style="width: 100%;" />
+                <input
+                  type="time"
+                  id="storeClosingTime"
+                  name="closing_time"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="storePaymentTerm">Payment Term:</label>
-                <select id="storePaymentTerm" name="payment_term" style="width: 100%;">
+                <select
+                  id="storePaymentTerm"
+                  name="payment_term"
+                  style="width: 100%"
+                >
                   <option value="">Select Payment Term</option>
                   <option value="Cash Only">Cash Only</option>
                   <option value="Cash with Discount">Cash with Discount</option>
                   <option value="Credit">Credit</option>
-                  <option value="Credit with Discount">Credit with Discount</option>
+                  <option value="Credit with Discount">
+                    Credit with Discount
+                  </option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="storeCategory">Category:</label>
-                <select id="storeCategory" name="category_id" style="width: 100%;">
+                <select
+                  id="storeCategory"
+                  name="category_id"
+                  style="width: 100%"
+                >
                   <!-- Categories will be loaded dynamically -->
                 </select>
               </div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 1rem; margin-top: 1rem;">
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 2fr 2fr;
+                gap: 1rem;
+                margin-top: 1rem;
+              "
+            >
               <div class="form-group">
                 <label for="storeImageFile">Image Upload:</label>
-                <input type="file" id="storeImageFile" accept="image/*" style="width: 100%;" />
-                <img id="storeImagePreview" alt="Store Image Preview" style="display: none; max-width: 100px; max-height: 80px; border-radius: 6px; object-fit: cover; margin-top: 0.5rem;" />
+                <input
+                  type="file"
+                  id="storeImageFile"
+                  accept="image/*"
+                  style="width: 100%"
+                />
+                <img
+                  id="storeImagePreview"
+                  alt="Store Image Preview"
+                  style="
+                    display: none;
+                    max-width: 100px;
+                    max-height: 80px;
+                    border-radius: 6px;
+                    object-fit: cover;
+                    margin-top: 0.5rem;
+                  "
+                />
               </div>
               <div class="form-group">
                 <label for="storeAddress">Address:</label>
-                <textarea id="storeAddress" name="address" rows="2" style="width: 100%;"></textarea>
+                <textarea
+                  id="storeAddress"
+                  name="address"
+                  rows="2"
+                  style="width: 100%"
+                ></textarea>
               </div>
               <div class="form-group">
                 <label for="storeDescription">Description:</label>
-                <textarea id="storeDescription" name="description" rows="2" style="width: 100%;"></textarea>
+                <textarea
+                  id="storeDescription"
+                  name="description"
+                  rows="2"
+                  style="width: 100%"
+                ></textarea>
               </div>
             </div>
           </form>
         </div>
-        <div class="modal-footer" style="padding-top: 1rem; margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
-          <button type="button" class="btn btn-secondary" data-modal="addStoreModal" style="padding: 0.6rem 1.2rem;">
+        <div
+          class="modal-footer"
+          style="
+            padding-top: 1rem;
+            margin-top: 1rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+          "
+        >
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-modal="addStoreModal"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-ban"></i> Cancel
           </button>
-          <button type="button" class="btn btn-primary" id="saveStoreBtn" style="padding: 0.6rem 1.2rem;">
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="saveStoreBtn"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-check"></i> Save Store
           </button>
         </div>
@@ -2224,19 +2560,35 @@
 
     <!-- Set Store Priority Modal -->
     <div id="setPriorityModal" class="modal">
-      <div class="modal-content" style="max-width: 95%; width: 500px;">
-        <div class="modal-header" style="padding-bottom: 1rem; margin-bottom: 1rem;">
+      <div class="modal-content" style="max-width: 95%; width: 500px">
+        <div
+          class="modal-header"
+          style="padding-bottom: 1rem; margin-bottom: 1rem"
+        >
           <h3>Set Store Priority</h3>
           <span class="close" data-modal="setPriorityModal">&times;</span>
         </div>
-        <div class="modal-body" style="padding: 0;">
+        <div class="modal-body" style="padding: 0">
           <form id="setPriorityForm">
-            <div style="margin-bottom: 1.5rem;">
-              <p style="color: #718096; margin-bottom: 1rem;"><strong id="priorityStoreName"></strong> - Set priority (1-5) for top stores. Only one store can have each priority level.</p>
+            <div style="margin-bottom: 1.5rem">
+              <p style="color: #718096; margin-bottom: 1rem">
+                <strong id="priorityStoreName"></strong> - Set priority (1-5)
+                for top stores. Only one store can have each priority level.
+              </p>
             </div>
             <div class="form-group">
               <label for="prioritySelect">Priority Level:</label>
-              <select id="prioritySelect" name="priority" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
+              <select
+                id="prioritySelect"
+                name="priority"
+                style="
+                  width: 100%;
+                  padding: 0.75rem;
+                  border: 2px solid #e2e8f0;
+                  border-radius: 8px;
+                  font-size: 1rem;
+                "
+              >
                 <option value="">None (Remove Priority)</option>
                 <option value="1">1 - Highest Priority (Featured)</option>
                 <option value="2">2 - Very High Priority</option>
@@ -2245,15 +2597,36 @@
                 <option value="5">5 - Low Priority</option>
               </select>
             </div>
-            <div id="priorityWarning" style="background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; padding: 1rem; border-radius: 8px; margin-top: 1rem; display: none;"></div>
+            <div
+              id="priorityWarning"
+              style="
+                background: #fef3c7;
+                border: 1px solid #fcd34d;
+                color: #92400e;
+                padding: 1rem;
+                border-radius: 8px;
+                margin-top: 1rem;
+                display: none;
+              "
+            ></div>
           </form>
         </div>
         <div class="modal-footer">
           <div class="action-buttons">
-            <button type="button" class="btn btn-primary" id="savePriorityBtn" style="padding: 0.6rem 1.2rem;">
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="savePriorityBtn"
+              style="padding: 0.6rem 1.2rem"
+            >
               <i class="fas fa-check"></i> Save Priority
             </button>
-            <button type="button" class="btn btn-secondary" data-modal="setPriorityModal" style="padding: 0.6rem 1.2rem;">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-modal="setPriorityModal"
+              style="padding: 0.6rem 1.2rem"
+            >
               <i class="fas fa-ban"></i> Cancel
             </button>
           </div>
@@ -2263,66 +2636,175 @@
 
     <!-- Add Product Modal -->
     <div id="addProductModal" class="modal">
-      <div class="modal-content" style="max-width: 95%; width: 1000px;">
-        <div class="modal-header" style="padding-bottom: 1rem; margin-bottom: 1rem;">
+      <div class="modal-content" style="max-width: 95%; width: 1000px">
+        <div
+          class="modal-header"
+          style="padding-bottom: 1rem; margin-bottom: 1rem"
+        >
           <h3>Add New Product</h3>
           <span class="close" data-modal="addProductModal">&times;</span>
         </div>
-        <div class="modal-body" style="padding: 0;">
+        <div class="modal-body" style="padding: 0">
           <form id="addProductForm">
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1rem;
+              "
+            >
               <div class="form-group">
                 <label for="productName">Product Name:</label>
-                <input type="text" id="productName" name="name" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="productName"
+                  name="name"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="productItem">Use Existing Item:</label>
-                <select id="productItem" name="item_id" style="width: 100%;">
+                <select id="productItem" name="item_id" style="width: 100%">
                   <option value="">None</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="productStore">Store:</label>
-                <select id="productStore" name="store_id" required style="width: 100%;"></select>
+                <select
+                  id="productStore"
+                  name="store_id"
+                  required
+                  style="width: 100%"
+                ></select>
               </div>
               <div class="form-group">
                 <label for="productCategory">Category:</label>
-                <select id="productCategory" name="category_id" style="width: 100%;"></select>
+                <select
+                  id="productCategory"
+                  name="category_id"
+                  style="width: 100%"
+                ></select>
               </div>
 
               <!-- Multiple units / prices toggle -->
-              <div class="form-group" style="grid-column: span 1; display: flex; align-items: flex-end; padding-bottom: 0.5rem;">
-                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0; font-weight: 600; color: #4f46e5;">
+              <div
+                class="form-group"
+                style="
+                  grid-column: span 1;
+                  display: flex;
+                  align-items: flex-end;
+                  padding-bottom: 0.5rem;
+                "
+              >
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    cursor: pointer;
+                    margin-bottom: 0;
+                    font-weight: 600;
+                    color: #4f46e5;
+                  "
+                >
                   <input type="checkbox" id="productHasSizePrices" />
-                  <span id="productVariantsToggleText">Multiple units / prices</span>
+                  <span id="productVariantsToggleText"
+                    >Multiple units / prices</span
+                  >
                 </label>
               </div>
 
               <!-- Measurement Mode Selection -->
-              <div class="form-group" style="grid-column: span 1; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.5rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-                <label style="font-weight: 600; margin-bottom: 0; white-space: nowrap; font-size: 0.875rem;">Mode:</label>
-                <div style="display: flex; gap: 0.75rem;">
-                  <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; margin-bottom: 0; white-space: nowrap; font-size: 0.875rem;">
-                    <input type="radio" name="product_measure_mode" id="productMeasureModeUnit" value="unit" checked /> Unit
+              <div
+                class="form-group"
+                style="
+                  grid-column: span 1;
+                  margin-bottom: 0.5rem;
+                  display: flex;
+                  align-items: center;
+                  gap: 0.75rem;
+                  background: #f8fafc;
+                  padding: 0.5rem;
+                  border-radius: 8px;
+                  border: 1px solid #e2e8f0;
+                "
+              >
+                <label
+                  style="
+                    font-weight: 600;
+                    margin-bottom: 0;
+                    white-space: nowrap;
+                    font-size: 0.875rem;
+                  "
+                  >Mode:</label
+                >
+                <div style="display: flex; gap: 0.75rem">
+                  <label
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 0.25rem;
+                      cursor: pointer;
+                      margin-bottom: 0;
+                      white-space: nowrap;
+                      font-size: 0.875rem;
+                    "
+                  >
+                    <input
+                      type="radio"
+                      name="product_measure_mode"
+                      id="productMeasureModeUnit"
+                      value="unit"
+                      checked
+                    />
+                    Unit
                   </label>
-                  <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer; margin-bottom: 0; white-space: nowrap; font-size: 0.875rem;">
-                    <input type="radio" name="product_measure_mode" id="productMeasureModeSize" value="size" /> Size
+                  <label
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: 0.25rem;
+                      cursor: pointer;
+                      margin-bottom: 0;
+                      white-space: nowrap;
+                      font-size: 0.875rem;
+                    "
+                  >
+                    <input
+                      type="radio"
+                      name="product_measure_mode"
+                      id="productMeasureModeSize"
+                      value="size"
+                    />
+                    Size
                   </label>
                 </div>
               </div>
 
               <!-- Single Measure Section -->
-              <div id="productSingleMeasureSection" style="grid-column: span 3; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-                <div id="productSingleMeasureSelectorsRow" style="display: contents;">
+              <div
+                id="productSingleMeasureSection"
+                style="
+                  grid-column: span 3;
+                  display: grid;
+                  grid-template-columns: repeat(3, 1fr);
+                  gap: 1rem;
+                "
+              >
+                <div
+                  id="productSingleMeasureSelectorsRow"
+                  style="display: contents"
+                >
                   <div class="form-group">
                     <label for="productUnit">Unit:</label>
-                    <select id="productUnit" name="unit_id" style="width: 100%;">
+                    <select id="productUnit" name="unit_id" style="width: 100%">
                       <option value="">Select Unit (Optional)</option>
                     </select>
                   </div>
                   <div class="form-group">
                     <label for="productSize">Size:</label>
-                    <select id="productSize" name="size_id" style="width: 100%;">
+                    <select id="productSize" name="size_id" style="width: 100%">
                       <option value="">Select Size (Optional)</option>
                     </select>
                   </div>
@@ -2330,38 +2812,133 @@
               </div>
 
               <!-- Discount Row (Hidden by default, shown based on store terms) -->
-              <div id="productDiscountRow" style="grid-column: span 3; display: none; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                  <div class="form-group" style="margin-bottom: 0;">
+              <div
+                id="productDiscountRow"
+                style="
+                  grid-column: span 3;
+                  display: none;
+                  background: #fffbeb;
+                  border: 1px solid #fef3c7;
+                  border-radius: 8px;
+                  padding: 1rem;
+                  margin-bottom: 0.5rem;
+                "
+              >
+                <div
+                  style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 1rem;
+                  "
+                >
+                  <div class="form-group" style="margin-bottom: 0">
                     <label for="productDiscountType">Discount Type:</label>
-                    <select id="productDiscountType" name="discount_type" style="width: 100%;">
+                    <select
+                      id="productDiscountType"
+                      name="discount_type"
+                      style="width: 100%"
+                    >
                       <option value="amount">Fixed Amount (PKR)</option>
                       <option value="percent">Percentage (%)</option>
                     </select>
                   </div>
-                  <div class="form-group" style="margin-bottom: 0;">
+                  <div class="form-group" style="margin-bottom: 0">
                     <label for="productDiscountValue">Discount Value:</label>
-                    <input type="number" id="productDiscountValue" name="discount_value" step="0.01" min="0" style="width: 100%;" />
+                    <input
+                      type="number"
+                      id="productDiscountValue"
+                      name="discount_value"
+                      step="0.01"
+                      min="0"
+                      style="width: 100%"
+                    />
                   </div>
                 </div>
               </div>
 
               <!-- Multiple Variants Section -->
-              <div id="productSizePricesSection" style="grid-column: span 3; display: none; margin-top: 0.5rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                  <h4 id="productVariantsSectionTitle" style="margin: 0; color: #1e293b; font-size: 1rem;">Unit prices:</h4>
-                  <button type="button" id="addSizePriceBtn" class="btn btn-small btn-primary">
+              <div
+                id="productSizePricesSection"
+                style="
+                  grid-column: span 3;
+                  display: none;
+                  margin-top: 0.5rem;
+                  background: #fff;
+                  border: 1px solid #e2e8f0;
+                  border-radius: 8px;
+                  padding: 1rem;
+                "
+              >
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1rem;
+                  "
+                >
+                  <h4
+                    id="productVariantsSectionTitle"
+                    style="margin: 0; color: #1e293b; font-size: 1rem"
+                  >
+                    Unit prices:
+                  </h4>
+                  <button
+                    type="button"
+                    id="addSizePriceBtn"
+                    class="btn btn-small btn-primary"
+                  >
                     <i class="fas fa-plus"></i> Add Unit Price
                   </button>
                 </div>
-                <div style="overflow-x: auto;">
-                  <table style="width: 100%; border-collapse: collapse;">
+                <div style="overflow-x: auto">
+                  <table style="width: 100%; border-collapse: collapse">
                     <thead>
-                      <tr style="border-bottom: 2px solid #f1f5f9;">
-                        <th id="productVariantsMeasureHeader" style="text-align: left; padding: 8px; color: #64748b; font-weight: 600;">Unit</th>
-                        <th style="text-align: left; padding: 8px; color: #64748b; font-weight: 600; width: 180px;">Price (PKR)</th>
-                        <th style="text-align: left; padding: 8px; color: #64748b; font-weight: 600; width: 180px;">Cost Price (PKR)</th>
-                        <th style="text-align: center; padding: 8px; color: #64748b; font-weight: 600; width: 100px;">Action</th>
+                      <tr style="border-bottom: 2px solid #f1f5f9">
+                        <th
+                          id="productVariantsMeasureHeader"
+                          style="
+                            text-align: left;
+                            padding: 8px;
+                            color: #64748b;
+                            font-weight: 600;
+                          "
+                        >
+                          Unit
+                        </th>
+                        <th
+                          style="
+                            text-align: left;
+                            padding: 8px;
+                            color: #64748b;
+                            font-weight: 600;
+                            width: 180px;
+                          "
+                        >
+                          Price (PKR)
+                        </th>
+                        <th
+                          style="
+                            text-align: left;
+                            padding: 8px;
+                            color: #64748b;
+                            font-weight: 600;
+                            width: 180px;
+                          "
+                        >
+                          Cost Price (PKR)
+                        </th>
+                        <th
+                          style="
+                            text-align: center;
+                            padding: 8px;
+                            color: #64748b;
+                            font-weight: 600;
+                            width: 100px;
+                          "
+                        >
+                          Action
+                        </th>
                       </tr>
                     </thead>
                     <tbody id="productSizePricesBody">
@@ -2373,35 +2950,96 @@
 
               <div class="form-group">
                 <label for="productPrice">Price (PKR):</label>
-                <input type="number" id="productPrice" name="price" step="0.01" min="0" style="width: 100%;" />
+                <input
+                  type="number"
+                  id="productPrice"
+                  name="price"
+                  step="0.01"
+                  min="0"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="productCostPrice">Cost Price (PKR):</label>
-                <input type="number" id="productCostPrice" name="cost_price" step="0.01" min="0" readonly style="width: 100%; background-color: #f1f5f9;" />
+                <input
+                  type="number"
+                  id="productCostPrice"
+                  name="cost_price"
+                  step="0.01"
+                  min="0"
+                  readonly
+                  style="width: 100%; background-color: #f1f5f9"
+                />
               </div>
               <div class="form-group">
                 <label for="productStock">Stock Quantity:</label>
-                <input type="number" id="productStock" name="stock_quantity" min="0" value="0" style="width: 100%;" />
+                <input
+                  type="number"
+                  id="productStock"
+                  name="stock_quantity"
+                  min="0"
+                  value="0"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="productImageFile">Image Upload:</label>
-                <input type="file" id="productImageFile" name="image_file" accept="image/*" style="width: 100%;" />
-                <img id="productImagePreview" src="" alt="Preview" style="max-height: 48px; border-radius: 6px; display: none; margin-top: 0.5rem;" />
+                <input
+                  type="file"
+                  id="productImageFile"
+                  name="image_file"
+                  accept="image/*"
+                  style="width: 100%"
+                />
+                <img
+                  id="productImagePreview"
+                  src=""
+                  alt="Preview"
+                  style="
+                    max-height: 48px;
+                    border-radius: 6px;
+                    display: none;
+                    margin-top: 0.5rem;
+                  "
+                />
               </div>
             </div>
-            <div style="margin-top: 1rem;">
+            <div style="margin-top: 1rem">
               <div class="form-group">
                 <label for="productDescription">Description:</label>
-                <textarea id="productDescription" name="description" rows="2" style="width: 100%;"></textarea>
+                <textarea
+                  id="productDescription"
+                  name="description"
+                  rows="2"
+                  style="width: 100%"
+                ></textarea>
               </div>
             </div>
           </form>
         </div>
-        <div class="modal-footer" style="padding-top: 1rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
-          <button type="button" class="btn btn-secondary" data-modal="addProductModal" style="padding: 0.6rem 1.2rem;">
+        <div
+          class="modal-footer"
+          style="
+            padding-top: 1rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+          "
+        >
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-modal="addProductModal"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-ban"></i> Cancel
           </button>
-          <button type="button" class="btn btn-primary" id="saveProductBtn" style="padding: 0.6rem 1.2rem;">
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="saveProductBtn"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-check"></i> Save Product
           </button>
         </div>
@@ -2580,68 +3218,185 @@
     </div>
     <!-- Add Rider Modal -->
     <div id="addRiderModal" class="modal">
-      <div class="modal-content" style="max-width: 95%; width: 900px;">
-        <div class="modal-header" style="padding-bottom: 1rem; margin-bottom: 1rem;">
+      <div class="modal-content" style="max-width: 95%; width: 900px">
+        <div
+          class="modal-header"
+          style="padding-bottom: 1rem; margin-bottom: 1rem"
+        >
           <h3>Add New Rider</h3>
           <span class="close" data-modal="addRiderModal">&times;</span>
         </div>
-        <div class="modal-body" style="padding: 0;">
+        <div class="modal-body" style="padding: 0">
           <form id="addRiderForm">
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1rem;
+              "
+            >
               <div class="form-group">
                 <label for="riderFullName">Full Name:</label>
-                <input type="text" id="riderFullName" name="fullName" placeholder="Full Name" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="riderFullName"
+                  name="fullName"
+                  placeholder="Full Name"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="riderFatherName">Father Name:</label>
-                <input type="text" id="riderFatherName" name="fatherName" placeholder="Father's Name" style="width: 100%;" />
+                <input
+                  type="text"
+                  id="riderFatherName"
+                  name="fatherName"
+                  placeholder="Father's Name"
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="riderEmail">Email:</label>
-                <input type="email" id="riderEmail" name="email" required style="width: 100%;" />
+                <input
+                  type="email"
+                  id="riderEmail"
+                  name="email"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="riderPhone">Phone:</label>
-                <input type="tel" id="riderPhone" name="phone" required style="width: 100%;" />
+                <input
+                  type="tel"
+                  id="riderPhone"
+                  name="phone"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="riderPassword">Password:</label>
-                <input type="password" id="riderPassword" name="password" required style="width: 100%;" />
+                <input
+                  type="password"
+                  id="riderPassword"
+                  name="password"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="riderVehicleType">Vehicle Type:</label>
-                <select id="riderVehicleType" name="vehicleType" required style="width: 100%;">
+                <select
+                  id="riderVehicleType"
+                  name="vehicleType"
+                  required
+                  style="width: 100%"
+                >
                   <option value="">Select Vehicle Type</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="riderLicenseNumber">License Number:</label>
-                <input type="text" id="riderLicenseNumber" name="licenseNumber" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="riderLicenseNumber"
+                  name="licenseNumber"
+                  required
+                  style="width: 100%"
+                />
               </div>
               <div class="form-group">
                 <label for="riderIdCardNum">ID Card Number:</label>
-                <input type="text" id="riderIdCardNum" name="idCardNum" placeholder="xxxxx-xxxxxxx-x" inputmode="numeric" pattern="\d{5}-\d{7}-\d" required style="width: 100%;" />
+                <input
+                  type="text"
+                  id="riderIdCardNum"
+                  name="idCardNum"
+                  placeholder="xxxxx-xxxxxxx-x"
+                  inputmode="numeric"
+                  pattern="\d{5}-\d{7}-\d"
+                  required
+                  style="width: 100%"
+                />
               </div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                margin-top: 1rem;
+              "
+            >
               <div class="form-group">
                 <label for="riderImageFile">Rider Image:</label>
-                <input type="file" id="riderImageFile" name="image_file" accept="image/*" style="width: 100%;" />
-                <img id="riderImagePreview" alt="Preview" style="display: none; max-width: 100px; max-height: 80px; border-radius: 6px; margin-top: 0.5rem;" />
+                <input
+                  type="file"
+                  id="riderImageFile"
+                  name="image_file"
+                  accept="image/*"
+                  style="width: 100%"
+                />
+                <img
+                  id="riderImagePreview"
+                  alt="Preview"
+                  style="
+                    display: none;
+                    max-width: 100px;
+                    max-height: 80px;
+                    border-radius: 6px;
+                    margin-top: 0.5rem;
+                  "
+                />
               </div>
               <div class="form-group">
                 <label for="riderIdCardFile">ID Card Image:</label>
-                <input type="file" id="riderIdCardFile" name="id_card_file" accept="image/*" style="width: 100%;" />
-                <img id="riderIdCardPreview" alt="Preview" style="display: none; max-width: 100px; max-height: 80px; border-radius: 6px; margin-top: 0.5rem;" />
+                <input
+                  type="file"
+                  id="riderIdCardFile"
+                  name="id_card_file"
+                  accept="image/*"
+                  style="width: 100%"
+                />
+                <img
+                  id="riderIdCardPreview"
+                  alt="Preview"
+                  style="
+                    display: none;
+                    max-width: 100px;
+                    max-height: 80px;
+                    border-radius: 6px;
+                    margin-top: 0.5rem;
+                  "
+                />
               </div>
             </div>
           </form>
         </div>
-        <div class="modal-footer" style="padding-top: 1rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
-          <button type="button" class="btn btn-secondary" data-modal="addRiderModal" style="padding: 0.6rem 1.2rem;">
+        <div
+          class="modal-footer"
+          style="
+            padding-top: 1rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+          "
+        >
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-modal="addRiderModal"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-ban"></i> Cancel
           </button>
-          <button type="button" class="btn btn-primary" id="saveRiderBtn" style="padding: 0.6rem 1.2rem;">
+          <button
+            type="button"
+            class="btn btn-primary"
+            id="saveRiderBtn"
+            style="padding: 0.6rem 1.2rem"
+          >
             <i class="fas fa-check"></i> Save Rider
           </button>
         </div>
@@ -2673,12 +3428,23 @@
     </div>
 
     <div id="editOrderModal" class="modal">
-      <div class="modal-content" style="max-width: 900px; display: flex; flex-direction: column; max-height: 85vh;">
+      <div
+        class="modal-content"
+        style="
+          max-width: 900px;
+          display: flex;
+          flex-direction: column;
+          max-height: 85vh;
+        "
+      >
         <div class="modal-header">
           <h3>Edit Order</h3>
           <span class="close" data-modal="editOrderModal">&times;</span>
         </div>
-        <div class="modal-body" style="overflow-y: auto; flex: 1; padding: 1.5rem;">
+        <div
+          class="modal-body"
+          style="overflow-y: auto; flex: 1; padding: 1.5rem"
+        >
           <form id="editOrderForm">
             <div class="form-row">
               <div class="form-group">
@@ -2700,44 +3466,131 @@
               </div>
             </div>
 
-            <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 1rem; margin: 1rem 0;">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div
+              style="
+                background: #f0f9ff;
+                border: 1px solid #bfdbfe;
+                border-radius: 6px;
+                padding: 1rem;
+                margin: 1rem 0;
+              "
+            >
+              <div
+                style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem"
+              >
                 <div>
-                  <p style="margin: 0 0 0.5rem 0; color: #475569; font-size: 0.875rem;">Items Subtotal:</p>
-                  <p style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1e293b;" id="itemsSubtotal">PKR 0.00</p>
+                  <p
+                    style="
+                      margin: 0 0 0.5rem 0;
+                      color: #475569;
+                      font-size: 0.875rem;
+                    "
+                  >
+                    Items Subtotal:
+                  </p>
+                  <p
+                    style="
+                      margin: 0;
+                      font-size: 1.125rem;
+                      font-weight: 600;
+                      color: #1e293b;
+                    "
+                    id="itemsSubtotal"
+                  >
+                    PKR 0.00
+                  </p>
                 </div>
                 <div>
-                  <p style="margin: 0 0 0.5rem 0; color: #475569; font-size: 0.875rem;">Delivery Fee (PKR) - Editable:</p>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    id="orderDeliveryFee" 
-                    name="delivery_fee" 
-                    style="font-size: 1.125rem; font-weight: 600; color: #1e293b; width: 100%; border: 1px solid #bfdbfe; border-radius: 4px; padding: 0.5rem; background: #fff;"
+                  <p
+                    style="
+                      margin: 0 0 0.5rem 0;
+                      color: #475569;
+                      font-size: 0.875rem;
+                    "
+                  >
+                    Delivery Fee (PKR) - Editable:
+                  </p>
+                  <input
+                    type="number"
+                    step="0.01"
+                    id="orderDeliveryFee"
+                    name="delivery_fee"
+                    style="
+                      font-size: 1.125rem;
+                      font-weight: 600;
+                      color: #1e293b;
+                      width: 100%;
+                      border: 1px solid #bfdbfe;
+                      border-radius: 4px;
+                      padding: 0.5rem;
+                      background: #fff;
+                    "
                   />
                 </div>
               </div>
-              <div style="border-top: 2px solid #bfdbfe; margin-top: 1rem; padding-top: 1rem;">
-                <label for="orderTotalAmount" style="display: block; margin: 0 0 0.5rem 0; color: #475569; font-size: 0.875rem;">Total Amount (PKR) - Editable:</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  id="orderTotalAmount" 
-                  name="total_amount" 
-                  style="font-size: 1.375rem; font-weight: 700; color: #0369a1; width: 100%; border: 1px solid #bfdbfe; border-radius: 4px; padding: 0.5rem; background: #fff;"
+              <div
+                style="
+                  border-top: 2px solid #bfdbfe;
+                  margin-top: 1rem;
+                  padding-top: 1rem;
+                "
+              >
+                <label
+                  for="orderTotalAmount"
+                  style="
+                    display: block;
+                    margin: 0 0 0.5rem 0;
+                    color: #475569;
+                    font-size: 0.875rem;
+                  "
+                  >Total Amount (PKR) - Editable:</label
+                >
+                <input
+                  type="number"
+                  step="0.01"
+                  id="orderTotalAmount"
+                  name="total_amount"
+                  style="
+                    font-size: 1.375rem;
+                    font-weight: 700;
+                    color: #0369a1;
+                    width: 100%;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 4px;
+                    padding: 0.5rem;
+                    background: #fff;
+                  "
                 />
               </div>
             </div>
-            
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;" />
-            
-            <div style="margin-bottom: 1.5rem;">
-              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b;">Order Items</h4>
-              <div id="orderItemsContainer" style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; background: #fafafa;">
-                <p style="color: #718096; text-align: center; margin: 2rem 0;">Loading items...</p>
+
+            <hr
+              style="
+                margin: 1.5rem 0;
+                border: none;
+                border-top: 1px solid #e2e8f0;
+              "
+            />
+
+            <div style="margin-bottom: 1.5rem">
+              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b">
+                Order Items
+              </h4>
+              <div
+                id="orderItemsContainer"
+                style="
+                  border: 1px solid #e2e8f0;
+                  border-radius: 6px;
+                  padding: 1rem;
+                  background: #fafafa;
+                "
+              >
+                <p style="color: #718096; text-align: center; margin: 2rem 0">
+                  Loading items...
+                </p>
               </div>
             </div>
-            
+
             <div class="form-row">
               <div class="form-group">
                 <label for="orderItemStore">Change Store for Items:</label>
@@ -2746,35 +3599,107 @@
                 </select>
               </div>
             </div>
-            
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;" />
-            
-            <div style="margin-bottom: 1.5rem;">
-              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b;">Add New Item</h4>
-              <p style="margin: 0 0 0.75rem 0; font-size: 0.875rem; color: #718096; background: #f0fdf4; padding: 0.75rem; border-left: 3px solid #10b981; border-radius: 4px;"><i class="fas fa-info-circle"></i> Products are automatically assigned to their store. Delivery charges recalculate based on total unique stores.</p>
-              <div style="display: grid; grid-template-columns: 2fr 120px 100px; gap: 1rem; padding: 1rem; background: #f7fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
-                <div class="form-group" style="margin: 0;">
-                  <label for="addItemProduct" style="font-size: 0.875rem; font-weight: 500;">Select Product:</label>
-                  <select id="addItemProduct" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+
+            <hr
+              style="
+                margin: 1.5rem 0;
+                border: none;
+                border-top: 1px solid #e2e8f0;
+              "
+            />
+
+            <div style="margin-bottom: 1.5rem">
+              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b">
+                Add New Item
+              </h4>
+              <p
+                style="
+                  margin: 0 0 0.75rem 0;
+                  font-size: 0.875rem;
+                  color: #718096;
+                  background: #f0fdf4;
+                  padding: 0.75rem;
+                  border-left: 3px solid #10b981;
+                  border-radius: 4px;
+                "
+              >
+                <i class="fas fa-info-circle"></i> Products are automatically
+                assigned to their store. Delivery charges recalculate based on
+                total unique stores.
+              </p>
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: 2fr 120px 100px;
+                  gap: 1rem;
+                  padding: 1rem;
+                  background: #f7fafc;
+                  border-radius: 6px;
+                  border: 1px solid #e2e8f0;
+                "
+              >
+                <div class="form-group" style="margin: 0">
+                  <label
+                    for="addItemProduct"
+                    style="font-size: 0.875rem; font-weight: 500"
+                    >Select Product:</label
+                  >
+                  <select
+                    id="addItemProduct"
+                    style="
+                      width: 100%;
+                      padding: 0.5rem;
+                      border: 1px solid #e2e8f0;
+                      border-radius: 4px;
+                    "
+                  >
                     <option value="">Choose product...</option>
                   </select>
                 </div>
-                <div class="form-group" style="margin: 0;">
-                  <label for="addItemQuantity" style="font-size: 0.875rem; font-weight: 500;">Quantity:</label>
-                  <input type="number" id="addItemQuantity" value="1" min="1" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;" />
+                <div class="form-group" style="margin: 0">
+                  <label
+                    for="addItemQuantity"
+                    style="font-size: 0.875rem; font-weight: 500"
+                    >Quantity:</label
+                  >
+                  <input
+                    type="number"
+                    id="addItemQuantity"
+                    value="1"
+                    min="1"
+                    style="
+                      width: 100%;
+                      padding: 0.5rem;
+                      border: 1px solid #e2e8f0;
+                      border-radius: 4px;
+                    "
+                  />
                 </div>
-                <div style="display: flex; align-items: flex-end;">
-                  <button type="button" class="btn btn-small btn-primary" id="addItemBtn" style="width: 100%; height: 36px; padding: 0;">
+                <div style="display: flex; align-items: flex-end">
+                  <button
+                    type="button"
+                    class="btn btn-small btn-primary"
+                    id="addItemBtn"
+                    style="width: 100%; height: 36px; padding: 0"
+                  >
                     <i class="fas fa-plus"></i> Add
                   </button>
                 </div>
               </div>
             </div>
-            
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;" />
-            
+
+            <hr
+              style="
+                margin: 1.5rem 0;
+                border: none;
+                border-top: 1px solid #e2e8f0;
+              "
+            />
+
             <div>
-              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b;">Rider Location</h4>
+              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b">
+                Rider Location
+              </h4>
               <div class="form-row">
                 <div class="form-group">
                   <label for="riderLocation">Location Description:</label>
@@ -3395,4 +4320,3 @@
     </style>
   </body>
 </html>
-
