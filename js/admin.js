@@ -478,15 +478,23 @@ function initializeAdmin() {
     if (clearDatabaseKeepOneBtn) clearDatabaseKeepOneBtn.addEventListener('click', clearDatabaseKeepOne);
 
     // Add filter event listeners
-    const filterDate = document.getElementById('filterDate');
+    const filterStartDate = document.getElementById('filterStartDate');
+    const filterEndDate = document.getElementById('filterEndDate');
     const filterRider = document.getElementById('filterRider');
     const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
-    if (filterDate) {
-        filterDate.addEventListener('change', filterOrders);
+    if (filterStartDate) {
+        filterStartDate.addEventListener('change', filterOrders);
+    }
+    if (filterEndDate) {
+        filterEndDate.addEventListener('change', filterOrders);
     }
     if (filterRider) {
         filterRider.addEventListener('change', filterOrders);
+    }
+    const filterStatus = document.getElementById('filterStatus');
+    if (filterStatus) {
+        filterStatus.addEventListener('change', filterOrders);
     }
     const filterAssignment = document.getElementById('filterAssignment');
     if (filterAssignment) {
@@ -584,8 +592,10 @@ function initializeAdmin() {
         const mm = pad(now.getMinutes());
         const todayDate = `${y}-${m}-${d}`;
         const todayDateTime = `${y}-${m}-${d}T${hh}:${mm}`;
-        const fd = document.getElementById('filterDate');
-        if (fd && !fd.value) fd.value = todayDate;
+        const fsd = document.getElementById('filterStartDate');
+        if (fsd && !fsd.value) fsd.value = todayDate;
+        const fed = document.getElementById('filterEndDate');
+        if (fed && !fed.value) fed.value = todayDate;
         const rsd = document.getElementById('reportStartDate');
         if (rsd && !rsd.value) rsd.value = todayDate;
         const red = document.getElementById('reportEndDate');
@@ -2345,18 +2355,33 @@ function displayOrders(orders = currentOrders) {
 }
 
 function filterOrders() {
-    const dateFilter = document.getElementById('filterDate').value;
+    const startDateFilter = document.getElementById('filterStartDate').value;
+    const endDateFilter = document.getElementById('filterEndDate').value;
     const riderFilter = document.getElementById('filterRider').value;
+    const statusFilter = document.getElementById('filterStatus') ? document.getElementById('filterStatus').value : '';
     const assignmentFilter = document.getElementById('filterAssignment') ? document.getElementById('filterAssignment').value : 'all';
     
     let filtered = currentOrders;
     
-    // Filter by date
-    if (dateFilter) {
+    // Filter by date range
+    if (startDateFilter || endDateFilter) {
         filtered = filtered.filter(order => {
             const orderDate = new Date(order.created_at).toLocaleDateString('en-CA');
-            return orderDate === dateFilter;
+            
+            if (startDateFilter && endDateFilter) {
+                return orderDate >= startDateFilter && orderDate <= endDateFilter;
+            } else if (startDateFilter) {
+                return orderDate >= startDateFilter;
+            } else if (endDateFilter) {
+                return orderDate <= endDateFilter;
+            }
+            return true;
         });
+    }
+    
+    // Filter by status
+    if (statusFilter) {
+        filtered = filtered.filter(order => order.status === statusFilter);
     }
     
     // Filter by rider
@@ -2380,8 +2405,11 @@ function filterOrders() {
 }
 
 function clearFilters() {
-    document.getElementById('filterDate').value = '';
+    document.getElementById('filterStartDate').value = '';
+    document.getElementById('filterEndDate').value = '';
     document.getElementById('filterRider').value = '';
+    const statusFilter = document.getElementById('filterStatus');
+    if (statusFilter) statusFilter.value = '';
     const assignmentFilter = document.getElementById('filterAssignment');
     if (assignmentFilter) assignmentFilter.value = 'all';
     displayOrders(currentOrders);

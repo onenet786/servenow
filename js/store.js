@@ -104,18 +104,18 @@ function displayStoreProducts(storeProducts) {
         let variantsHtml = '';
         if (sizeVariants.length > 1) {
             variantsHtml = `
-                <div class="variant-selector" style="margin-bottom: 0.5rem;">
+                <div class="variant-selector">
                     <label class="variant-selector-label" style="display:block;font-size:0.8rem;margin-bottom:0.2rem;">Select variant:</label>
-                    <div class="variant-options" style="display:flex;flex-wrap:wrap;gap:0.2rem;">
+                    <div class="variant-options">
                         ${sizeVariants.map((variant, idx) => `
-                            <label class="variant-option" style="font-size:0.8rem;cursor:pointer;">
+                            <label class="variant-option">
                                 <input type="radio" name="${uniqueId}" value="${idx}" ${idx === 0 ? 'checked' : ''} 
                                     onchange="updateProductPrice(${product.id}, this.value)">
                                 <span>${getVariantLabel(variant)}</span>
                             </label>
                         `).join('')}
                     </div>
-                    <p class="variant-price" id="price-${product.id}" style="font-weight:bold;margin-top:0.5rem;">PKR ${displayPrice.toFixed(2)}</p>
+                    <p class="variant-price" id="price-${product.id}" style="font-weight:bold;">PKR ${displayPrice.toFixed(2)}</p>
                 </div>
             `;
         } else if (sizeVariants.length === 1) {
