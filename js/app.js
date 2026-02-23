@@ -388,7 +388,7 @@ async function loadHomeCategories() {
         .replace(/(^-|-$)/g, "");
 
       // normalize image URL similar to product handling
-      let imageSrc = "/images/servenow.png";
+      let imageSrc = "/images/servenow1.png";
       if (cat.image_url) {
         let url = String(cat.image_url).trim().replace(/\\/g, "/");
         if (
@@ -748,7 +748,7 @@ function displayCart() {
     const step = qtyStepForUnit(item.unitName, item.unitId);
     const isFrac = isFractionalUnit(item.unitName, item.unitId);
 
-    const imgSrc = item.image || "/images/servenow.png";
+    const imgSrc = item.image || "/images/servenow1.png";
 
     const itemElement = document.createElement("div");
     itemElement.className = "cart-item serving-card";
@@ -975,7 +975,7 @@ function renderGlobalDeliveryWidget(status, promotions) {
             (img, idx) =>
               `<div class="promo-widget-item"><img src="${normalizePublicImageUrl(
                 img,
-                "/images/servenow.png"
+                "/images/servenow1.png"
               )}" alt="Promo ${idx + 1}" loading="lazy" decoding="async"></div>`
           )
           .join("")}
@@ -1080,7 +1080,7 @@ async function loadGlobalDeliveryWidget(forceRefresh = false) {
 }
 
 function buildStoreCardHtml(store) {
-  const fallbackImg = "/images/servenow.png";
+  const fallbackImg = "/images/servenow1.png";
   const imageSrc = normalizePublicImageUrl(
     store && store.image_url,
     fallbackImg
@@ -1276,7 +1276,7 @@ async function loadProducts(category) {
         productCard.className = "product-card";
 
         // Normalize image URL: if it's a relative path, prefix with API_BASE
-        let imageSrc = "/images/servenow.png";
+        let imageSrc = "/images/servenow1.png";
         if (product.image_url) {
           // Normalize backslashes and trim
           let url = String(product.image_url).trim().replace(/\\/g, "/");
@@ -1353,7 +1353,7 @@ async function loadProducts(category) {
 // Build img tag string with optional srcset using variants mapping
 function buildImgTag(src, variants, alt, pid, meta) {
   const safeAlt = (alt || "").replace(/"/g, "&quot;");
-  const fallback = "/images/servenow.png";
+  const fallback = "/images/servenow1.png";
   if (variants && typeof variants === "object") {
     // build srcset entries sorted by width
     const entries = Object.keys(variants)
@@ -2116,3 +2116,4 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 });
+
