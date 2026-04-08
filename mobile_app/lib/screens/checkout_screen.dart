@@ -6,6 +6,7 @@ import '../models/cart_item.dart';
 import '../providers/wallet_provider.dart';
 import '../services/api_service.dart';
 import 'package:servenow/services/notifier.dart';
+import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -464,6 +465,66 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  Widget _buildBackdrop() {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFF6EA),
+                Color(0xFFF7D4B7),
+                Color(0xFFF4C29B),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: -80,
+          top: 70,
+          child: _buildBlurOrb(
+            size: 220,
+            colors: const [Color(0xFFFFD58A), Color(0x00FFD58A)],
+          ),
+        ),
+        Positioned(
+          right: -40,
+          top: 130,
+          child: _buildBlurOrb(
+            size: 180,
+            colors: const [Color(0xFFFFB26F), Color(0x00FFB26F)],
+          ),
+        ),
+        Positioned(
+          right: -100,
+          bottom: 30,
+          child: _buildBlurOrb(
+            size: 280,
+            colors: const [Color(0xFFF0A35B), Color(0x00F0A35B)],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBlurOrb({
+    required double size,
+    required List<Color> colors,
+  }) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: colors),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = Provider.of<CartProvider>(context);
@@ -481,16 +542,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
-      appBar: AppBar(title: Text(_tr('Checkout'))),
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: Row(
+          children: [
+            const Icon(Icons.shopping_cart_outlined, size: 22),
+            const SizedBox(width: 10),
+            Text(_tr('Checkout')),
+          ],
+        ),
+      ),
       resizeToAvoidBottomInset: true,
-      body: (_isLoading || _isDeliveryFeeConfigLoading)
+      body: Stack(
+        children: [
+          _buildBackdrop(),
+          (_isLoading || _isDeliveryFeeConfigLoading)
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final isWide = constraints.maxWidth >= 800;
+                  final isWide = constraints.maxWidth >= 760;
                   final sidePadding = isWide
-                      ? (constraints.maxWidth - 800) / 2
+                      ? (constraints.maxWidth - 620) / 2
                       : 0.0;
 
                   final content = Form(
@@ -1110,7 +1183,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           child: ElevatedButton.icon(
                             icon: const Icon(Icons.lock_outline),
                             style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              backgroundColor: CustomerPalette.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                              ),
                             ),
                             onPressed: _submitOrder,
                             label: Text(
@@ -1130,15 +1209,36 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                       16 + sidePadding,
-                      16,
+                      18,
                       16 + sidePadding,
-                      16,
+                      28,
                     ),
-                    child: content,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(34),
+                        color: Colors.white.withValues(alpha: 0.78),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.68),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 26,
+                            offset: const Offset(0, 18),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+                        child: content,
+                      ),
+                    ),
                   );
                 },
               ),
             ),
+        ],
+      ),
     ));
   }
 }

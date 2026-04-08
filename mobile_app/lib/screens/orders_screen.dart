@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
+import 'order_details_screen.dart';
 import '../services/api_service.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
@@ -22,7 +21,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
   List<dynamic> _orders = [];
   String? _error;
   String _statusFilter = 'all';
-  final Set<String> _expandedOrders = {};
   bool _isUrdu = false;
 
   @override
@@ -121,43 +119,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  Future<void> _makeCall(String phoneNumber) async {
-    final cleaned = phoneNumber.trim().replaceAll(RegExp(r'[^0-9+]'), '');
-    final uri = Uri(scheme: 'tel', path: cleaned);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      return;
+  Future<void> _openOrderDetails(Map<String, dynamic> order) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => OrderDetailsScreen(
+          order: order,
+          isUrdu: _isUrdu,
+          userName:
+              '${auth.user?.firstName ?? _tr('Customer')} ${auth.user?.lastName ?? ''}'
+                  .trim(),
+        ),
+      ),
+    );
+    if (updated == true) {
+      _fetchOrders();
     }
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(_tr('Could not launch dialer'))));
-  }
-
-  Future<void> _sendSms(String phoneNumber) async {
-    final cleaned = phoneNumber.trim().replaceAll(RegExp(r'[^0-9+]'), '');
-    final uri = Uri(scheme: 'sms', path: cleaned);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      return;
-    }
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(_tr('Could not launch SMS app'))));
-  }
-
-  Future<void> _openWhatsApp(String phoneNumber) async {
-    final cleanPhone = phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
-    final whatsappUri = Uri.parse('https://wa.me/$cleanPhone');
-    if (await canLaunchUrl(whatsappUri)) {
-      await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
-      return;
-    }
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(_tr('Could not launch WhatsApp'))));
   }
 
   List<dynamic> get _visibleOrders {
@@ -482,13 +459,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final isGroup = order['is_group'] == true;
     final subOrders = (order['sub_orders'] as List?) ?? const [];
     final orderNumber = (order['order_number'] ?? '').toString();
-    final isExpanded = _expandedOrders.contains(orderNumber);
     final status = (order['status'] ?? 'pending').toString();
     final createdAt = DateTime.tryParse((order['created_at'] ?? '').toString());
-    final riderPhone = (order['rider_phone'] ?? '').toString().trim();
-    final storePhone = (order['store_phone'] ?? '').toString().trim();
-    final riderName =
-        "${order['rider_first_name'] ?? ''} ${order['rider_last_name'] ?? ''}".trim();
 
     final deliveryFee = _toDouble(order['delivery_fee']);
     final grandTotal = _toDouble(order['total_amount']);
@@ -604,295 +576,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
-              onPressed: () {
-                setState(() {
-                  if (isExpanded) {
-                    _expandedOrders.remove(orderNumber);
-                  } else {
-                    _expandedOrders.add(orderNumber);
-                  }
-                });
-              },
-              icon: Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
-              label: Text(
-                isExpanded ? _tr('Hide details') : _tr('View details'),
-              ),
-            ),
-          ),
-          if (isExpanded) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: isGroup
-                  ? _buildGroupDetails(subOrders)
-                  : _buildSingleOrderDetails(order),
-            ),
-            if (riderPhone.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: _buildRiderContact(riderName, riderPhone),
-              ),
-            if (storePhone.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: _buildStoreContact(
-                  (order['store_name'] ?? 'Store').toString(),
-                  storePhone,
-                ),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGroupDetails(List subOrders) {
-    if (subOrders.isEmpty) {
-      return Text(_tr('No shipment details available'));
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _tr('Shipments'),
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-        ),
-        const SizedBox(height: 8),
-        ...subOrders.map<Widget>((entry) {
-          final sub = Map<String, dynamic>.from(entry as Map);
-          final items = (sub['items'] as List?) ?? const [];
-          final storePhone = (sub['store_phone'] ?? '').toString().trim();
-          final subtotal = items.fold<double>(0.0, (sum, it) {
-            final item = Map<String, dynamic>.from(it as Map);
-            final qty = _toInt(item['quantity']);
-            final price = _toDouble(item['price']);
-            return sum + (qty * price);
-          });
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF4EA),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFFFDFC9)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        (sub['store_name'] ?? 'Store').toString(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    _buildStatusBadge((sub['status'] ?? 'pending').toString()),
-                  ],
-                ),
-                if (storePhone.isNotEmpty)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () => _makeCall(storePhone),
-                      icon: const Icon(Icons.call_outlined, size: 16),
-                      label: Text(_tr('Call Store')),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-                        minimumSize: const Size(0, 28),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 6),
-                ...items.map<Widget>((it) {
-                  final item = Map<String, dynamic>.from(it as Map);
-                  final qty = _toInt(item['quantity']);
-                  final price = _toDouble(item['price']);
-                  final label = (item['variant_label'] ?? '').toString().trim();
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '$qty x ${item['product_name'] ?? _tr('Items')}${label.isNotEmpty ? ' ($label)' : ''}',
-                            style: const TextStyle(fontSize: 12.5),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _formatPkr(qty * price),
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: CustomerPalette.primaryDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                const Divider(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${_tr('Store')} ${_tr('Total')}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    Text(
-                      _formatPkr(subtotal),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: CustomerPalette.primaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildSingleOrderDetails(Map<String, dynamic> order) {
-    final items = (order['items'] as List?) ?? const [];
-    if (items.isEmpty) {
-      return Text(_tr('No items found for this order'));
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _tr('Items'),
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-        ),
-        const SizedBox(height: 8),
-        ...items.map<Widget>((entry) {
-          final item = Map<String, dynamic>.from(entry as Map);
-          final qty = _toInt(item['quantity']);
-          final price = _toDouble(item['price']);
-          final label = (item['variant_label'] ?? '').toString().trim();
-          return Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF4EA),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    '$qty x ${item['product_name'] ?? _tr('Items')}${label.isNotEmpty ? ' ($label)' : ''}',
-                    style: const TextStyle(fontSize: 12.5),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _formatPkr(qty * price),
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: CustomerPalette.primaryDark,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildRiderContact(String riderName, String riderPhone) {
-    final displayName = riderName.trim().isEmpty ? _tr('Customer') : riderName;
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7EF),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFFDFC9)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Rider: $displayName',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _contactButton(
-                  icon: Icons.call_outlined,
-                  color: Colors.blue,
-                  label: _tr('Call'),
-                  onPressed: () => _makeCall(riderPhone),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _contactButton(
-                  icon: Icons.sms_outlined,
-                  color: Colors.orange,
-                  label: _tr('SMS'),
-                  onPressed: () => _sendSms(riderPhone),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _contactButton(
-                  icon: Icons.chat_outlined,
-                  color: Colors.green,
-                  label: _tr('WhatsApp'),
-                  onPressed: () => _openWhatsApp(riderPhone),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStoreContact(String storeName, String storePhone) {
-    final displayStore =
-        storeName.trim().isEmpty ? _tr('Store') : storeName.trim();
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F0FF),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFDCCEFF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${_tr('Store')}: $displayStore',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: _contactButton(
-              icon: Icons.call_outlined,
-              color: Colors.deepPurple,
-              label: _tr('Call Store'),
-              onPressed: () => _makeCall(storePhone),
+              onPressed: () => _openOrderDetails(order),
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: Text(_tr('View details')),
             ),
           ),
         ],
@@ -1021,40 +707,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  Widget _contactButton({
-    required IconData icon,
-    required Color color,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   String _formatDateTime(DateTime dt) {
     const months = [
       'Jan',
@@ -1074,12 +726,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final hh = dt.hour.toString().padLeft(2, '0');
     final mm = dt.minute.toString().padLeft(2, '0');
     return '${dt.day} $m ${dt.year}, $hh:$mm';
-  }
-
-  int _toInt(dynamic value) {
-    if (value is int) return value;
-    if (value is double) return value.round();
-    return int.tryParse(value.toString()) ?? 0;
   }
 
   double _toDouble(dynamic value) {
