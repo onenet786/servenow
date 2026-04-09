@@ -56,7 +56,10 @@ class _StoreScreenState extends State<StoreScreen> {
 
   Future<void> _refresh() async {
     setState(() {
-      _storeDetailsFuture = ApiService.getStoreDetails(widget.storeId);
+      _storeDetailsFuture = ApiService.getStoreDetails(
+        widget.storeId,
+        forceRefresh: true,
+      );
     });
     await _loadGlobalStatus();
     await _storeDetailsFuture;

@@ -2166,7 +2166,7 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
     );
     const limit = Math.min(
       Math.max(Number.parseInt(String(req.query.limit || "40"), 10) || 40, 5),
-      200,
+      500,
     );
 
     const placeholders = riderIds.map(() => "?").join(", ");

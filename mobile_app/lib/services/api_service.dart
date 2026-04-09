@@ -15,6 +15,18 @@ class ApiServiceException implements Exception {
   String toString() => message;
 }
 
+class _CacheEntry<T> {
+  final T value;
+  final DateTime expiresAt;
+
+  const _CacheEntry({
+    required this.value,
+    required this.expiresAt,
+  });
+
+  bool get isFresh => DateTime.now().isBefore(expiresAt);
+}
+
 class ApiService {
   static final Logger _logger = Logger();
   static const String _defaultBaseUrl = 'https://servenow.pk';
@@ -27,6 +39,11 @@ class ApiService {
       'ServeNow is temporarily unavailable. The site is under maintenance. Please try again shortly.';
   static Future<String?> Function()? refreshAccessToken;
   static Future<String?>? _refreshInFlight;
+  static final Map<String, _CacheEntry<Map<String, dynamic>>> _storesCache = {};
+  static final Map<String, _CacheEntry<Map<String, dynamic>>> _storeDetailsCache =
+      {};
+  static const Duration _storesCacheTtl = Duration(minutes: 2);
+  static const Duration _storeDetailsCacheTtl = Duration(minutes: 2);
 
   static String get baseUrl {
     final configured = _configuredBaseUrl.trim();
@@ -416,6 +433,7 @@ class ApiService {
     String? city,
     String? token,
     bool admin = false,
+    bool forceRefresh = false,
   }) async {
     final query = <String, String>{};
     if (categoryId != null) {
@@ -436,12 +454,22 @@ class ApiService {
       '$baseUrl/api/stores',
     ).replace(queryParameters: query.isEmpty ? null : query);
     _logger.d('ApiService: GET $uri');
+    final cacheKey = '${uri.toString()}|${token?.trim() ?? ''}';
+    final cached = _storesCache[cacheKey];
+    if (!forceRefresh && cached != null && cached.isFresh) {
+      return cached.value;
+    }
     final headers = <String, String>{};
     if (token != null && token.trim().isNotEmpty) {
       headers['Authorization'] = 'Bearer ${token.trim()}';
     }
     final response = await _get(uri, headers: headers.isEmpty ? null : headers);
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    _storesCache[cacheKey] = _CacheEntry<Map<String, dynamic>>(
+      value: data,
+      expiresAt: DateTime.now().add(_storesCacheTtl),
+    );
+    return data;
   }
 
   static Future<List<dynamic>> getCategories() async {
@@ -456,6 +484,7 @@ class ApiService {
     int id, {
     String? token,
     bool admin = false,
+    bool forceRefresh = false,
   }) async {
     final query = <String, String>{};
     if (admin) {
@@ -465,12 +494,22 @@ class ApiService {
       '$baseUrl/api/stores/$id',
     ).replace(queryParameters: query.isEmpty ? null : query);
     _logger.d('ApiService: GET $uri');
+    final cacheKey = '${uri.toString()}|${token?.trim() ?? ''}';
+    final cached = _storeDetailsCache[cacheKey];
+    if (!forceRefresh && cached != null && cached.isFresh) {
+      return cached.value;
+    }
     final headers = <String, String>{};
     if (token != null && token.trim().isNotEmpty) {
       headers['Authorization'] = 'Bearer ${token.trim()}';
     }
     final response = await _get(uri, headers: headers.isEmpty ? null : headers);
-    return _handleResponse(response);
+    final data = _handleResponse(response);
+    _storeDetailsCache[cacheKey] = _CacheEntry<Map<String, dynamic>>(
+      value: data,
+      expiresAt: DateTime.now().add(_storeDetailsCacheTtl),
+    );
+    return data;
   }
 
   static Future<Map<String, dynamic>> getStoreStatusMessage(
@@ -647,6 +686,21 @@ class ApiService {
     );
     final data = _handleResponse(response);
     return data['orders'] ?? [];
+  }
+
+  static Future<Map<String, dynamic>> getOrderDetails(
+    String token,
+    int orderId,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/orders/$orderId');
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return (data['order'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
   }
 
   static Future<Map<String, dynamic>> refreshToken(String refreshToken) async {

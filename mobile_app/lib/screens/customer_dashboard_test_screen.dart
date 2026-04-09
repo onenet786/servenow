@@ -253,44 +253,80 @@ class _CustomerDashboardTestScreenState
     });
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
-      await _resolveLocationContext();
-      Map<String, dynamic>? globalStatus;
-      if (token != null) {
+      final hadResolvedLocation = _userLat != null && _userLng != null;
+      final locationFuture = _resolveLocationContext();
+
+      Future<Map<String, dynamic>?> loadGlobalStatus() async {
+        if (token == null) return null;
         try {
           final global = await ApiService.getGlobalDeliveryStatus(token);
-          globalStatus = (global['status'] is Map<String, dynamic>)
+          return (global['status'] is Map<String, dynamic>)
               ? (global['status'] as Map<String, dynamic>)
               : (global['global_status'] is Map<String, dynamic>)
-              ? (global['global_status'] as Map<String, dynamic>)
-              : global;
-        } catch (_) {}
+                  ? (global['global_status'] as Map<String, dynamic>)
+                  : global;
+        } catch (_) {
+          return null;
+        }
       }
-      Map<String, dynamic>? livePromotions;
-      try {
-        final promotions = await ApiService.getLivePromotions(token);
-        livePromotions = (promotions['live_promotions'] is Map<String, dynamic>)
-            ? (promotions['live_promotions'] as Map<String, dynamic>)
-            : promotions;
-      } catch (_) {}
-      Map<String, dynamic>? customerFlash;
-      Map<String, dynamic>? supportContact;
-      Map<String, dynamic>? appUpdateStatus;
-      if (token != null) {
+
+      Future<Map<String, dynamic>?> loadPromotions() async {
         try {
-          customerFlash = await ApiService.getCustomerFlashMessage(token);
-        } catch (_) {}
-        try {
-          supportContact = await ApiService.getCustomerSupportContact(token);
-        } catch (_) {}
-        try {
-          appUpdateStatus = await _resolveAppUpdateStatus(token);
-        } catch (_) {}
+          final promotions = await ApiService.getLivePromotions(token);
+          return (promotions['live_promotions'] is Map<String, dynamic>)
+              ? (promotions['live_promotions'] as Map<String, dynamic>)
+              : promotions;
+        } catch (_) {
+          return null;
+        }
       }
-      final storesResp = await ApiService.getStores(
-        latitude: _userLat,
-        longitude: _userLng,
-        city: _userCity,
-      );
+
+      Future<Map<String, dynamic>?> loadCustomerFlash() async {
+        if (token == null) return null;
+        try {
+          return await ApiService.getCustomerFlashMessage(token);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      Future<Map<String, dynamic>?> loadSupportContact() async {
+        if (token == null) return null;
+        try {
+          return await ApiService.getCustomerSupportContact(token);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      Future<Map<String, dynamic>?> loadAppUpdateStatus() async {
+        if (token == null) return null;
+        try {
+          return await _resolveAppUpdateStatus(token);
+        } catch (_) {
+          return null;
+        }
+      }
+
+      final futures = await Future.wait<dynamic>([
+        loadGlobalStatus(),
+        loadPromotions(),
+        loadCustomerFlash(),
+        loadSupportContact(),
+        loadAppUpdateStatus(),
+        ApiService.getStores(
+          latitude: _userLat,
+          longitude: _userLng,
+          city: _userCity,
+        ),
+      ]);
+
+      final globalStatus = futures[0] as Map<String, dynamic>?;
+      final livePromotions = futures[1] as Map<String, dynamic>?;
+      final customerFlash = futures[2] as Map<String, dynamic>?;
+      final supportContact = futures[3] as Map<String, dynamic>?;
+      final appUpdateStatus = futures[4] as Map<String, dynamic>?;
+      final storesResp = futures[5] as Map<String, dynamic>;
 
       if (!mounted) return;
       final stores = (storesResp['stores'] as List<dynamic>? ?? []);
@@ -324,6 +360,12 @@ class _CustomerDashboardTestScreenState
         await _maybeShowDailyUpdateReminder(appUpdateStatus);
       }
       _tryShowLaunchFlash();
+
+      final locationChanged = await locationFuture;
+      if (!mounted) return;
+      if (!hadResolvedLocation && locationChanged) {
+        unawaited(_refreshStoresForResolvedLocation());
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -334,20 +376,53 @@ class _CustomerDashboardTestScreenState
     }
   }
 
-  Future<void> _resolveLocationContext() async {
+  Future<void> _refreshStoresForResolvedLocation() async {
     try {
-      if (_userLat != null && _userLng != null) return;
+      final storesResp = await ApiService.getStores(
+        latitude: _userLat,
+        longitude: _userLng,
+        city: _userCity,
+        forceRefresh: true,
+      );
+      if (!mounted) return;
+      final stores = (storesResp['stores'] as List<dynamic>? ?? []);
+      final limited = storesResp['service_limited'] == true;
+      final limitedMessage = (storesResp['service_message'] ?? '')
+          .toString()
+          .trim();
+      setState(() {
+        _allStores = stores;
+        _filteredStores = _computeFilteredStores(
+          query: _searchController.text,
+          categoryKey: _selectedCategory,
+        );
+        _serviceLimitedMessage = limited
+            ? (limitedMessage.isNotEmpty
+                ? limitedMessage
+                : _tr(
+                    'You are not allowed to see Store when you are out of Delivery Area',
+                  ))
+            : null;
+      });
+    } catch (_) {}
+  }
+
+  Future<bool> _resolveLocationContext() async {
+    try {
+      if (_userLat != null && _userLng != null) return false;
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      if (!serviceEnabled) return false;
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        return;
+        return false;
       }
       final position = await Geolocator.getCurrentPosition();
+      final previousLat = _userLat;
+      final previousLng = _userLng;
       _userLat = position.latitude;
       _userLng = position.longitude;
       try {
@@ -364,7 +439,9 @@ class _CustomerDashboardTestScreenState
                   .trim();
         }
       } catch (_) {}
+      return previousLat != _userLat || previousLng != _userLng;
     } catch (_) {}
+    return false;
   }
 
   List<dynamic> _computeFilteredStores({String? query, String? categoryKey}) {
@@ -2337,7 +2414,7 @@ class _CustomerDashboardTestScreenState
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: Text(_tr('Open')),
+                          child: Text(_tr('View')),
                         ),
                       ],
                     ),

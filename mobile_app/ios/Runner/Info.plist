@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>OrderDrop</string>
+	<string>ServeNow</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>OrderDrop</string>
+	<string>ServeNow</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -47,9 +47,21 @@
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>location</string>
 		<string>remote-notification</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ServeNow uses your location to show nearby stores and live rider updates.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ServeNow needs background location for active rider deliveries so admins and customers can track movement live.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>ServeNow needs your location even in the background during active deliveries.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>RiderDeliveryTracking</key>
+		<string>ServeNow uses precise location during active deliveries for live tracking.</string>
+	</dict>
 	<key>NSUserNotificationUsageDescription</key>
-	<string>OrderDrop uses notifications for order and delivery updates.</string>
+	<string>ServeNow uses notifications for order and delivery updates.</string>
 </dict>
 </plist>

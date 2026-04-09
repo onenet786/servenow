@@ -8,6 +8,7 @@ import 'dart:async';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
+import '../services/rider_background_tracking_service.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
 import 'login_screen.dart';
@@ -29,13 +30,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   List<dynamic> _completedDeliveries = [];
   String _currentLocation = 'Getting location...';
   double _walletBalance = 0.0;
-  Timer? _locationTrackingTimer;
   Timer? _assignmentRefreshTimer;
   StreamSubscription<Position>? _locationStreamSubscription;
   final Map<String, String> _locationLabelCache = {};
-  Position? _lastSentPosition;
-  DateTime? _lastLocationSentAt;
-  bool _isSendingLocation = false;
   String _selectedStatsPeriod = 'daily';
   Map<String, dynamic>? _walletStats;
   bool _isLoadingStats = false;
@@ -254,7 +251,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     _tabController.removeListener(_syncTabIndex);
     _tabController.dispose();
     _blinkController.dispose();
-    _locationTrackingTimer?.cancel();
     _assignmentRefreshTimer?.cancel();
     _locationStreamSubscription?.cancel();
     Provider.of<NotificationProvider>(
@@ -356,12 +352,25 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           _completedDeliveries = deliveries;
         }
       });
-      if (status == 'assigned' && deliveries.isNotEmpty) {
-        unawaited(_sendLocationToServer(force: true));
+      if (status == 'assigned') {
+        unawaited(_syncBackgroundTracking(deliveries));
       }
     } catch (e) {
       _logger.e('Error loading $status deliveries: $e');
     }
+  }
+
+  Future<void> _syncBackgroundTracking(List<dynamic> deliveries) async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null || token.trim().isEmpty) return;
+
+    if (deliveries.isEmpty) {
+      await RiderBackgroundTrackingService.instance.stop();
+      return;
+    }
+
+    await RiderBackgroundTrackingService.instance.start(token);
+    await RiderBackgroundTrackingService.instance.syncCurrentLocationNow();
   }
 
   Future<void> _loadWalletBalance(String token) async {
@@ -980,15 +989,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     }
   }
 
-  double _distanceBetweenMeters(Position a, Position b) {
-    return Geolocator.distanceBetween(
-      a.latitude,
-      a.longitude,
-      b.latitude,
-      b.longitude,
-    );
-  }
-
   Future<void> _getCurrentLocation() async {
     try {
       bool serviceEnabled;
@@ -1037,7 +1037,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
 
   void _startLocationTracking() {
     _locationStreamSubscription?.cancel();
-    _locationTrackingTimer?.cancel();
 
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
@@ -1048,77 +1047,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       locationSettings: locationSettings,
     ).listen((position) async {
       await _updateCurrentLocationFromPosition(position);
-      await _sendLocationToServer(position: position);
     });
-
-    _locationTrackingTimer = Timer.periodic(const Duration(seconds: 5), (
-      _,
-    ) async {
-      await _sendLocationToServer(force: true);
-    });
-  }
-
-  Future<void> _sendLocationToServer({
-    Position? position,
-    bool force = false,
-  }) async {
-    try {
-      if (_assignedDeliveries.isEmpty || _isSendingLocation) return;
-
-      final token = Provider.of<AuthProvider>(context, listen: false).token;
-      if (token == null) return;
-
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return;
-      }
-
-      final nextPosition =
-          position ??
-          await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.best,
-            ),
-          );
-
-      final lastSentAt = _lastLocationSentAt;
-      final lastPosition = _lastSentPosition;
-      final movedEnough =
-          lastPosition == null ||
-          _distanceBetweenMeters(lastPosition, nextPosition) >= 2;
-      final staleEnough =
-          lastSentAt == null ||
-          DateTime.now().difference(lastSentAt) >= const Duration(seconds: 5);
-
-      if (!force && !movedEnough && !staleEnough) {
-        return;
-      }
-
-      _isSendingLocation = true;
-      final locationLabel = await _resolveLocationLabel(nextPosition);
-
-      await ApiService.updateRiderLocation(
-        token,
-        latitude: nextPosition.latitude,
-        longitude: nextPosition.longitude,
-        location: locationLabel,
-      );
-
-      _lastSentPosition = nextPosition;
-      _lastLocationSentAt = DateTime.now();
-
-      _logger.d(
-        'Location sent to server: ${nextPosition.latitude}, ${nextPosition.longitude} ($locationLabel)',
-      );
-    } catch (e) {
-      _logger.e('Error sending location to server: $e');
-    } finally {
-      _isSendingLocation = false;
-    }
   }
 
   Future<void> _markAsDelivered(int orderId) async {

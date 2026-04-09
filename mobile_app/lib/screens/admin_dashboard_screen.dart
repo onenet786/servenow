@@ -21,10 +21,12 @@ class _LiveRiderTrackerPayload {
   const _LiveRiderTrackerPayload({
     required this.trails,
     required this.speedsMph,
+    required this.updatedAtByRiderId,
   });
 
   final Map<String, List<latlng.LatLng>> trails;
   final Map<String, double> speedsMph;
+  final Map<String, DateTime> updatedAtByRiderId;
 }
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -43,6 +45,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   static const Duration _liveRiderRefreshInterval = Duration(seconds: 4);
   static const Duration _riderMotionDuration = Duration(milliseconds: 3600);
   static const Duration _liveRiderStaleAfter = Duration(minutes: 10);
+  static const int _liveRiderHistoryHours = 6;
+  static const int _liveRiderHistoryLimit = 320;
   static const List<Color> _riderRoutePalette = [
     Color(0xFF2563EB),
     Color(0xFFDC2626),
@@ -158,7 +162,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   List<Map<String, dynamic>> _extractLiveRiderLocations(List<dynamic> orders) {
     final latestPerRider = <String, Map<String, dynamic>>{};
-    final now = DateTime.now();
 
     for (final raw in orders) {
       if (raw is! Map) continue;
@@ -183,10 +186,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           (order['updated_at'] ?? order['created_at'] ?? '').toString(),
         );
       } catch (_) {}
-      if (now.difference(createdAt.toLocal()) > _liveRiderStaleAfter) {
-        continue;
-      }
-
       final riderName =
           '${order['rider_first_name'] ?? ''} ${order['rider_last_name'] ?? ''}'
               .trim();
@@ -236,6 +235,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (updatedAt == null) return false;
     return DateTime.now().difference(updatedAt.toLocal()) <=
         _liveRiderStaleAfter;
+  }
+
+  List<Map<String, dynamic>> _mergeLiveRiderSnapshot(
+    List<Map<String, dynamic>> riders,
+    _LiveRiderTrackerPayload trackerPayload,
+  ) {
+    return riders.map((rider) {
+      final merged = Map<String, dynamic>.from(rider);
+      final riderId = (merged['riderId'] ?? '').toString().trim();
+      final updatedAt = trackerPayload.updatedAtByRiderId[riderId];
+      if (updatedAt != null) {
+        merged['createdAt'] = updatedAt;
+      }
+      final cachedLabel = _liveLocationNameByRider[riderId];
+      final currentLabel = (merged['locationLabel'] ?? '').toString().trim();
+      if (currentLabel.isEmpty && cachedLabel != null && cachedLabel.isNotEmpty) {
+        merged['locationLabel'] = cachedLabel;
+      }
+      return merged;
+    }).where(_isRiderFresh).toList(growable: false);
   }
 
   DateTime? _parseLiveTrackingTime(dynamic value) {
@@ -293,14 +312,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       return const _LiveRiderTrackerPayload(
         trails: <String, List<latlng.LatLng>>{},
         speedsMph: <String, double>{},
+        updatedAtByRiderId: <String, DateTime>{},
       );
     }
 
     final response = await ApiService.getRiderLocationHistory(
       token,
       riderIds: riderIds,
-      hours: 3,
-      limit: 40,
+      hours: _liveRiderHistoryHours,
+      limit: _liveRiderHistoryLimit,
     );
     final rawHistories =
         (response['histories'] as Map?)?.cast<String, dynamic>() ??
@@ -308,12 +328,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     final trails = <String, List<latlng.LatLng>>{};
     final speedsMph = <String, double>{};
+    final updatedAtByRiderId = <String, DateTime>{};
     for (final rider in riders) {
       final riderId = (rider['riderId'] ?? '').toString().trim();
       if (riderId.isEmpty) continue;
 
       final points = <latlng.LatLng>[];
       final telemetry = <Map<String, dynamic>>[];
+      DateTime? latestUpdatedAt;
       final entries = rawHistories[riderId];
       if (entries is List) {
         for (final raw in entries) {
@@ -328,9 +350,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           if (latitude == null || longitude == null) continue;
           final point = latlng.LatLng(latitude, longitude);
           _appendTrailPoint(points, point);
+          final timestamp = _parseLiveTrackingTime(entry['created_at']);
+          if (timestamp != null &&
+              (latestUpdatedAt == null || timestamp.isAfter(latestUpdatedAt))) {
+            latestUpdatedAt = timestamp;
+          }
           telemetry.add({
             'point': point,
-            'timestamp': _parseLiveTrackingTime(entry['created_at']),
+            'timestamp': timestamp,
           });
         }
       }
@@ -340,9 +367,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (currentLatitude != null && currentLongitude != null) {
         final point = latlng.LatLng(currentLatitude, currentLongitude);
         _appendTrailPoint(points, point);
+        final currentTimestamp = rider['createdAt'] as DateTime?;
+        if (currentTimestamp != null &&
+            (latestUpdatedAt == null ||
+                currentTimestamp.isAfter(latestUpdatedAt))) {
+          latestUpdatedAt = currentTimestamp;
+        }
         telemetry.add({
           'point': point,
-          'timestamp': rider['createdAt'] as DateTime?,
+          'timestamp': currentTimestamp,
         });
       }
 
@@ -353,9 +386,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (speedMph != null) {
         speedsMph[riderId] = speedMph;
       }
+      if (latestUpdatedAt != null) {
+        updatedAtByRiderId[riderId] = latestUpdatedAt;
+      }
     }
 
-    return _LiveRiderTrackerPayload(trails: trails, speedsMph: speedsMph);
+    return _LiveRiderTrackerPayload(
+      trails: trails,
+      speedsMph: speedsMph,
+      updatedAtByRiderId: updatedAtByRiderId,
+    );
   }
 
   void _appendTrailPoint(List<latlng.LatLng> points, latlng.LatLng point) {
@@ -403,6 +443,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final longitude = rider['longitude'] as double?;
     if (latitude == null || longitude == null) return null;
     return latlng.LatLng(latitude, longitude);
+  }
+
+  List<latlng.LatLng> _trailPointsForRider(Map<String, dynamic> rider) {
+    final riderId = (rider['riderId'] ?? '').toString();
+    final points = List<latlng.LatLng>.from(
+      _liveRiderTrails[riderId] ?? const <latlng.LatLng>[],
+    );
+    final displayPoint = _displayPointForRider(rider);
+    if (displayPoint != null) {
+      _appendTrailPoint(points, displayPoint);
+    }
+    return points;
+  }
+
+  List<latlng.LatLng> _sampleTrailBreadcrumbs(
+    List<latlng.LatLng> points, {
+    required bool isFocused,
+  }) {
+    if (points.length < 3) return const <latlng.LatLng>[];
+    final targetCount = isFocused ? 18 : 8;
+    final step = (points.length / targetCount).ceil().clamp(1, points.length);
+    final breadcrumbs = <latlng.LatLng>[];
+    for (var index = 1; index < points.length - 1; index += step) {
+      breadcrumbs.add(points[index]);
+    }
+    return breadcrumbs;
   }
 
   double? _distanceKmForRider(Map<String, dynamic> rider) {
@@ -689,13 +755,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final existingIndex = _liveRiderLocations.indexWhere(
       (rider) => (rider['riderId'] ?? '').toString() == riderId,
     );
-    if (existingIndex < 0) return;
+    if (existingIndex < 0) {
+      unawaited(_loadLiveRiderLocationsOnly());
+      return;
+    }
 
     final updatedRiders = List<Map<String, dynamic>>.from(_liveRiderLocations);
     final rider = Map<String, dynamic>.from(updatedRiders[existingIndex]);
     rider['latitude'] = latitude;
     rider['longitude'] = longitude;
     rider['createdAt'] = updatedAt;
+    final status = (data['status'] ?? '').toString().trim().toLowerCase();
+    if (status.isNotEmpty) {
+      rider['status'] = status;
+    }
     if (locationLabel.isNotEmpty) {
       rider['locationLabel'] = locationLabel;
       _liveLocationNameByRider[riderId] = locationLabel;
@@ -894,7 +967,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           : const _LiveRiderTrackerPayload(
               trails: <String, List<latlng.LatLng>>{},
               speedsMph: <String, double>{},
+              updatedAtByRiderId: <String, DateTime>{},
             );
+      final mergedLiveRiders = allowLiveTracker
+          ? _mergeLiveRiderSnapshot(liveRiders, liveRiderTrackerPayload)
+          : const <Map<String, dynamic>>[];
 
       final now = DateTime.now();
       final todayOrders = orders.where((o) {
@@ -989,9 +1066,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _recentUsersList = recentActivityData['recent_users'] ?? [];
         _recentStoresList = recentActivityData['recent_stores'] ?? [];
         _assignableOrdersList = assignableOrders;
-        _liveRiderLocations = liveRiders
-            .where(_isRiderFresh)
-            .toList(growable: false);
+        _liveRiderLocations = mergedLiveRiders;
         _liveRiderTrails = Map<String, List<latlng.LatLng>>.from(
           liveRiderTrackerPayload.trails,
         );
@@ -1012,7 +1087,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         }
         _isLoading = false;
       });
-      unawaited(_refreshLiveLocationNames(liveRiders));
+      unawaited(_refreshLiveLocationNames(mergedLiveRiders));
     } catch (e) {
       _logger.e('Error loading stats: $e');
       if (mounted) setState(() => _isLoading = false);
@@ -1032,11 +1107,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       );
       final riders = _extractLiveRiderLocations(orders);
       final trackerPayload = await _fetchLiveRiderTrails(token, riders);
+      final mergedRiders = _mergeLiveRiderSnapshot(riders, trackerPayload);
       if (!mounted) return;
       setState(() {
-        _liveRiderLocations = riders
-            .where(_isRiderFresh)
-            .toList(growable: false);
+        _liveRiderLocations = mergedRiders;
         _liveRiderTrails = trackerPayload.trails;
         _liveRiderSpeedsMphById
           ..clear()
@@ -1054,7 +1128,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           _selectedLiveRiderId = null;
         }
       });
-      unawaited(_refreshLiveLocationNames(riders));
+      unawaited(_refreshLiveLocationNames(mergedRiders));
     } catch (e) {
       _logger.w('Live rider refresh skipped: $e');
     }
@@ -2195,9 +2269,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           if (storeLatitude != null && storeLongitude != null) {
             return latlng.LatLng(storeLatitude, storeLongitude);
           }
-          final riderId = (r['riderId'] ?? '').toString();
-          final trail = _liveRiderTrails[riderId];
-          if (trail != null && trail.isNotEmpty) {
+          final trail = _trailPointsForRider(r);
+          if (trail.isNotEmpty) {
             return trail.first;
           }
           return null;
@@ -2210,15 +2283,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         .toList(growable: false);
     final trailCoordinates = riders
         .expand((rider) {
-          final riderId = (rider['riderId'] ?? '').toString();
-          final basePoints = List<latlng.LatLng>.from(
-            _liveRiderTrails[riderId] ?? const <latlng.LatLng>[],
-          );
-          final displayPoint = _displayPointForRider(rider);
-          if (displayPoint != null) {
-            _appendTrailPoint(basePoints, displayPoint);
-          }
-          return basePoints;
+          return _trailPointsForRider(rider);
         })
         .toList(growable: false);
     final mapCoordinates = <latlng.LatLng>[
@@ -2295,13 +2360,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     polylines: riders
                         .map((rider) {
                           final riderId = (rider['riderId'] ?? '').toString();
-                          final points = List<latlng.LatLng>.from(
-                            _liveRiderTrails[riderId] ?? const [],
-                          );
-                          final displayPoint = _displayPointForRider(rider);
-                          if (displayPoint != null) {
-                            _appendTrailPoint(points, displayPoint);
-                          }
+                          final points = _trailPointsForRider(rider);
                           if (points.length < 2) return null;
                           final isSelected = riderId == _selectedLiveRiderId;
                           final routeColor = _routeColorForRider(riderId);
@@ -2316,6 +2375,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           );
                         })
                         .whereType<Polyline>()
+                        .toList(growable: false),
+                  ),
+                if (_liveRiderTrails.isNotEmpty)
+                  MarkerLayer(
+                    markers: riders
+                        .expand((rider) {
+                          final riderId = (rider['riderId'] ?? '').toString();
+                          final routeColor = _routeColorForRider(riderId);
+                          final points = _trailPointsForRider(rider);
+                          final breadcrumbs = _sampleTrailBreadcrumbs(
+                            points,
+                            isFocused: isFocusedTrackingMode,
+                          );
+                          return breadcrumbs.map((point) {
+                            return Marker(
+                              point: point,
+                              width: isFocusedTrackingMode ? 16 : 12,
+                              height: isFocusedTrackingMode ? 16 : 12,
+                              child: IgnorePointer(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: routeColor.withValues(
+                                      alpha: isFocusedTrackingMode ? 0.55 : 0.35,
+                                    ),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.85),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          });
+                        })
                         .toList(growable: false),
                   ),
                 MarkerLayer(

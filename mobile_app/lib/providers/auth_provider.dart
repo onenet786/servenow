@@ -5,6 +5,7 @@ import 'package:logger/logger.dart';
 import 'dart:convert';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/rider_background_tracking_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final Logger _logger = Logger();
@@ -43,6 +44,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> _clearLocalSession({bool clearPushToken = true}) async {
+    await RiderBackgroundTrackingService.instance.stop(clearToken: true);
     _token = null;
     _refreshToken = null;
     _user = null;
@@ -90,6 +92,7 @@ class AuthProvider with ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         if (_token != null) {
           await prefs.setString('token', _token!);
+          await RiderBackgroundTrackingService.instance.updateToken(_token!);
         }
         if (_refreshToken != null && _refreshToken!.isNotEmpty) {
           await prefs.setString('refresh_token', _refreshToken!);
@@ -153,6 +156,7 @@ class AuthProvider with ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         if (_token != null) {
           await prefs.setString('token', _token!);
+          await RiderBackgroundTrackingService.instance.updateToken(_token!);
         }
         if (_refreshToken != null && _refreshToken!.isNotEmpty) {
           await prefs.setString('refresh_token', _refreshToken!);
@@ -406,6 +410,7 @@ class AuthProvider with ChangeNotifier {
         final prefs = await SharedPreferences.getInstance();
         if (_token != null) {
           await prefs.setString('token', _token!);
+          await RiderBackgroundTrackingService.instance.updateToken(_token!);
         }
         await prefs.remove('refresh_token');
         if (_user != null) {
@@ -438,6 +443,7 @@ class AuthProvider with ChangeNotifier {
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token!);
+      await RiderBackgroundTrackingService.instance.updateToken(_token!);
       if (_refreshToken != null && _refreshToken!.trim().isNotEmpty) {
         await prefs.setString('refresh_token', _refreshToken!);
       }

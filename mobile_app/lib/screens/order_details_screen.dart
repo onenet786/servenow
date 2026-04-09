@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
@@ -28,15 +29,131 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Map<String, dynamic>? _supportContact;
   bool _isCancelling = false;
   bool _didUpdateOrder = false;
+  bool _isRefreshingOrder = false;
 
   @override
   void initState() {
     super.initState();
     _order = Map<String, dynamic>.from(widget.order);
+    _setupLiveTracking();
     _loadSupportContact();
+    _refreshOrderDetails(silent: true);
   }
 
   String _tr(String text) => CustomerLanguage.tr(widget.isUrdu, text);
+
+  void _setupLiveTracking() {
+    Provider.of<NotificationProvider>(context, listen: false).addEventListener(
+      this,
+      _handleLiveEvent,
+    );
+  }
+
+  void _handleLiveEvent(Map<String, dynamic> event) {
+    if (!mounted || !_isEventRelevant(event)) return;
+
+    final type =
+        (event['type'] ?? event['event'] ?? '').toString().trim().toLowerCase();
+    if (type == 'rider_location_update') {
+      _applyLiveRiderLocation(event);
+      return;
+    }
+
+    if (type == 'order_status_update' ||
+        type == 'order_completed' ||
+        type == 'payment_status_update' ||
+        type == 'refresh_orders') {
+      _refreshOrderDetails(silent: true);
+    }
+  }
+
+  bool _isEventRelevant(Map<String, dynamic> event) {
+    final currentOrderId = _toNullableInt(_order['id']);
+    final currentRiderId = _toNullableInt(_order['rider_id']);
+    final currentOrderNumber = (_order['order_number'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    final eventOrderId = _toNullableInt(event['order_id'] ?? event['id']);
+    if (currentOrderId != null && eventOrderId != null) {
+      return currentOrderId == eventOrderId;
+    }
+
+    final orderIds = event['order_ids'];
+    if (currentOrderId != null && orderIds is List) {
+      for (final entry in orderIds) {
+        if (_toNullableInt(entry) == currentOrderId) {
+          return true;
+        }
+      }
+    }
+
+    final eventOrderNumber = (event['order_number'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    if (currentOrderNumber.isNotEmpty && eventOrderNumber.isNotEmpty) {
+      return currentOrderNumber == eventOrderNumber;
+    }
+
+    final eventRiderId = _toNullableInt(event['rider_id']);
+    if (currentRiderId != null && eventRiderId != null) {
+      final isActiveOrder = !_isClosedStatus(
+        (_order['status'] ?? '').toString().toLowerCase(),
+      );
+      return isActiveOrder && currentRiderId == eventRiderId;
+    }
+
+    return false;
+  }
+
+  void _applyLiveRiderLocation(Map<String, dynamic> event) {
+    final location = (event['location'] ?? '').toString().trim();
+    final latitude = event['latitude'];
+    final longitude = event['longitude'];
+
+    setState(() {
+      if (location.isNotEmpty) {
+        _order['rider_location'] = location;
+      }
+      if (latitude != null) {
+        _order['rider_latitude'] = latitude;
+      }
+      if (longitude != null) {
+        _order['rider_longitude'] = longitude;
+      }
+      _didUpdateOrder = true;
+    });
+  }
+
+  Future<void> _refreshOrderDetails({bool silent = false}) async {
+    if (_isRefreshingOrder) return;
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    final orderId = _toNullableInt(_order['id']);
+    if (token == null || token.trim().isEmpty || orderId == null) return;
+
+    _isRefreshingOrder = true;
+    try {
+      final latestOrder = await ApiService.getOrderDetails(token, orderId);
+      if (!mounted || latestOrder.isEmpty) return;
+      setState(() {
+        _order = {
+          ..._order,
+          ...latestOrder,
+        };
+        _didUpdateOrder = true;
+      });
+    } catch (e) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${_tr('Failed to refresh order')}: $e')),
+        );
+      }
+    } finally {
+      _isRefreshingOrder = false;
+    }
+  }
 
   Future<void> _loadSupportContact() async {
     try {
@@ -129,7 +246,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   Future<void> _showTrackingSheet() async {
     final status = (_order['status'] ?? 'pending').toString();
-    final riderLocation = (_order['rider_location'] ?? '').toString().trim();
+    final riderLocation = _riderLocationLabel;
     final deliveryTime = (_order['delivery_time'] ?? '').toString().trim();
 
     showModalBottomSheet<void>(
@@ -157,6 +274,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       ? riderLocation
                       : _tr('Live rider location is not available yet.'),
                 ),
+                if (_lastTrackingUpdate.isNotEmpty)
+                  _infoRow(_tr('Last Updated'), _lastTrackingUpdate),
               ],
             ),
           ),
@@ -287,6 +406,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final address = (_order['delivery_address'] ?? '').toString().trim();
     final specialInstructions =
         (_order['special_instructions'] ?? '').toString().trim();
+    final riderLocation = _riderLocationLabel;
 
     return Directionality(
       textDirection: CustomerLanguage.textDirection(widget.isUrdu),
@@ -418,6 +538,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                   ),
                                   if (deliveryTime.isNotEmpty)
                                     _infoRow(_tr('Preferred Time'), deliveryTime),
+                                  if (riderLocation.isNotEmpty)
+                                    _infoRow(_tr('Rider Location'), riderLocation),
                                   if (address.isNotEmpty)
                                     _infoRow(_tr('Address'), address),
                                   if (specialInstructions.isNotEmpty)
@@ -663,6 +785,46 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     return _tr(status.toUpperCase().replaceAll('_', ' '));
   }
 
+  String get _riderLocationLabel {
+    final label = (_order['rider_location'] ?? '').toString().trim();
+    if (label.isNotEmpty) return label;
+
+    final latitude = _toNullableDouble(_order['rider_latitude']);
+    final longitude = _toNullableDouble(_order['rider_longitude']);
+    if (latitude == null || longitude == null) return '';
+    return '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
+  }
+
+  String get _lastTrackingUpdate {
+    final raw = (_order['updated_at'] ?? _order['created_at'] ?? '')
+        .toString()
+        .trim();
+    if (raw.isEmpty) return '';
+    final parsed = DateTime.tryParse(raw)?.toLocal();
+    if (parsed == null) return raw;
+
+    final minutes = parsed.minute.toString().padLeft(2, '0');
+    final seconds = parsed.second.toString().padLeft(2, '0');
+    return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')} ${parsed.hour.toString().padLeft(2, '0')}:$minutes:$seconds';
+  }
+
+  bool _isClosedStatus(String status) {
+    return status == 'delivered' || status == 'cancelled';
+  }
+
+  int? _toNullableInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.round();
+    return int.tryParse(value.toString());
+  }
+
+  double? _toNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
   int _toInt(dynamic value) {
     if (value is int) return value;
     if (value is double) return value.round();
@@ -680,5 +842,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       return 'PKR ${amount.toInt()}';
     }
     return 'PKR ${amount.toStringAsFixed(2)}';
+  }
+
+  @override
+  void dispose() {
+    Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    ).removeEventListener(this);
+    super.dispose();
   }
 }
