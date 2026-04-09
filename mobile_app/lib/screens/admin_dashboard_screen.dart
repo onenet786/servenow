@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
 import '../services/notifier.dart';
+import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
 import 'customer_tile_demo_screen.dart';
@@ -72,11 +73,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int _todayTotal = 0;
   int _todayDelivered = 0;
   int _todayPending = 0;
-  int _todayCancelled = 0;
 
   int _allTotal = 0;
   int _allDelivered = 0;
-  int _allPending = 0;
   int _allCancelled = 0;
 
   int _activeUsers = 0;
@@ -978,11 +977,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _todayTotal = todayOrders.length;
         _todayDelivered = countStatus(todayOrders, 'delivered');
         _todayPending = countPendingLike(todayOrders);
-        _todayCancelled = countStatus(todayOrders, 'cancelled');
 
         _allTotal = orders.length;
         _allDelivered = countStatus(orders, 'delivered');
-        _allPending = countPendingLike(orders);
         _allCancelled = countStatus(orders, 'cancelled');
 
         _activeUsers = activeUsers;
@@ -1104,7 +1101,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
-        backgroundColor: const Color(0xFFE8F5EC),
+        backgroundColor: CustomerPalette.background,
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.white.withValues(alpha: 0.78),
@@ -1178,9 +1175,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(
-                                        0xFF6AA6A0,
-                                      ).withValues(alpha: 0.18),
+                                      color: CustomerPalette.primary.withValues(
+                                        alpha: 0.16,
+                                      ),
                                       blurRadius: 36,
                                       offset: const Offset(0, 18),
                                     ),
@@ -1239,7 +1236,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFD9F1C8), Color(0xFFCDEDE2), Color(0xFFCDE1FF)],
+              colors: [Color(0xFFFFF4E8), Color(0xFFFFF9F4), Color(0xFFFBE4D1)],
             ),
           ),
         ),
@@ -1248,7 +1245,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           left: -60,
           child: _buildBackdropOrb(
             size: 240,
-            colors: const [Color(0x80B7E26A), Color(0x00B7E26A)],
+            colors: const [Color(0x66E9B44C), Color(0x00E9B44C)],
           ),
         ),
         Positioned(
@@ -1256,7 +1253,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           right: -40,
           child: _buildBackdropOrb(
             size: 220,
-            colors: const [Color(0x7098D8D3), Color(0x0098D8D3)],
+            colors: const [Color(0x55D9783A), Color(0x00D9783A)],
           ),
         ),
         Positioned(
@@ -1264,7 +1261,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           right: 30,
           child: _buildBackdropOrb(
             size: 180,
-            colors: const [Color(0x60A5C9FF), Color(0x00A5C9FF)],
+            colors: const [Color(0x44B75B27), Color(0x00B75B27)],
           ),
         ),
       ],
@@ -1295,12 +1292,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildOverviewHeader(authProvider),
-        if (showInlineQuickMenu) ...[
-          const SizedBox(height: 14),
-          _buildAdminMiniActions(context),
-        ],
-        const SizedBox(height: 18),
+        if (showInlineQuickMenu) _buildAdminMiniActions(context),
+        if (showInlineQuickMenu) const SizedBox(height: 18),
         _buildOverviewSummaryGrid(isWide: isWide, isMedium: isMedium),
         if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
           const SizedBox(height: 18),
@@ -1309,90 +1302,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         const SizedBox(height: 18),
         _buildRecentActivityPanel(),
       ],
-    );
-  }
-
-  Widget _buildOverviewHeader(AuthProvider authProvider) {
-    final firstName = (authProvider.user?.firstName ?? '').trim();
-    final lastName = (authProvider.user?.lastName ?? '').trim();
-    final fullName = '$firstName $lastName'.trim();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.58),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Dashboard Overview',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF16263E),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Track orders, users, riders, and live operational activity in one place.',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    height: 1.35,
-                    color: Colors.blueGrey.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.88),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0xFFDCE6EE)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: const Color(0xFFE8EEF8),
-                  child: Text(
-                    firstName.isNotEmpty
-                        ? firstName.substring(0, 1).toUpperCase()
-                        : 'A',
-                    style: const TextStyle(
-                      color: Color(0xFF334155),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  fullName.isNotEmpty ? fullName : 'Admin User',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF334155),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: Color(0xFF64748B),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1408,13 +1317,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'ServeNow',
             style: TextStyle(
               fontSize: 26,
               height: 0.95,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF18253B),
+              color: CustomerPalette.textDark,
             ),
           ),
           const SizedBox(height: 6),
@@ -1493,19 +1402,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           gradient: selected
-              ? const LinearGradient(
-                  colors: [Color(0xFFA5DD52), Color(0xFF82C739)],
+              ? LinearGradient(
+                  colors: [CustomerPalette.accent, CustomerPalette.primary],
                 )
               : null,
           color: selected ? null : Colors.white.withValues(alpha: 0.72),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? const Color(0xFF7DBA33) : const Color(0xFFDDE5EA),
+            color: selected
+                ? CustomerPalette.primaryDark
+                : const Color(0xFFDDE5EA),
           ),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF8AC73C).withValues(alpha: 0.22),
+                    color: CustomerPalette.primary.withValues(alpha: 0.22),
                     blurRadius: 16,
                     offset: const Offset(0, 8),
                   ),
@@ -1517,7 +1428,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             Icon(
               icon,
               size: 19,
-              color: selected ? Colors.white : const Color(0xFF64748B),
+              color: selected ? Colors.white : CustomerPalette.primaryDark,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1525,7 +1436,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 label,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : const Color(0xFF475569),
+                  color: selected ? Colors.white : CustomerPalette.textDark,
                 ),
               ),
             ),
@@ -1581,19 +1492,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE9F7D8),
+                    color: const Color(0xFFFFE8D2),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(action.icon, color: const Color(0xFF5E9820)),
+                  child: Icon(action.icon, color: CustomerPalette.primaryDark),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   action.label,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF334155),
+                    color: CustomerPalette.textDark,
                   ),
                 ),
               ],
@@ -1612,38 +1523,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _buildOverviewMetricCard(
         title: "Today's Orders",
         value: _todayTotal.toString(),
-        accent: const Color(0xFF6DBB37),
+        accent: CustomerPalette.primary,
         icon: Icons.show_chart_rounded,
-        subtitle: '${_todayDelivered} delivered today',
-        trendLabel: '+${_todayPending} pending',
-        visual: _buildMiniTrendLine(const Color(0xFF6DBB37)),
+        subtitle: '$_todayDelivered delivered today',
+        trendLabel: '+$_todayPending pending',
+        visual: _buildMiniTrendLine(CustomerPalette.primary),
       ),
       _buildOverviewMetricCard(
         title: 'All Orders',
         value: _allTotal.toString(),
-        accent: const Color(0xFF4A90E2),
+        accent: CustomerPalette.primaryDark,
         icon: Icons.bar_chart_rounded,
-        subtitle: '${_allCancelled} cancelled overall',
-        trendLabel: '${_allDelivered} delivered',
-        visual: _buildMiniBarChart(const Color(0xFF4A90E2)),
+        subtitle: '$_allCancelled cancelled overall',
+        trendLabel: '$_allDelivered delivered',
+        visual: _buildMiniBarChart(CustomerPalette.primaryDark),
       ),
       _buildOverviewMetricCard(
         title: 'Active Users',
         value: _activeUsers.toString(),
-        accent: const Color(0xFFF58A1F),
+        accent: CustomerPalette.accent,
         icon: Icons.pie_chart_outline_rounded,
-        subtitle: '${_todayLogins} logged in today',
-        trendLabel: '${_todayPending} awaiting attention',
+        subtitle: '$_todayLogins logged in today',
+        trendLabel: '$_todayPending awaiting attention',
         visual: _buildMiniDonut(
-          primary: const Color(0xFFF58A1F),
-          secondary: const Color(0xFF4A90E2),
-          tertiary: const Color(0xFFB5D96B),
+          primary: CustomerPalette.accent,
+          secondary: CustomerPalette.primary,
+          tertiary: const Color(0xFFFFE5BF),
         ),
       ),
       _buildOverviewMetricCard(
         title: 'Operations Pulse',
         value: '${_recentOrdersList.length}',
-        accent: const Color(0xFF809A22),
+        accent: const Color(0xFFC96A2B),
         icon: Icons.local_shipping_rounded,
         subtitle:
             '${_recentUsersList.length} new users | ${_recentStoresList.length} stores',
@@ -1750,7 +1661,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ),
           const SizedBox(height: 12),
-          Expanded(child: visual),
+          SizedBox(height: 84, child: visual),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1850,8 +1761,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Container(
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF58A1F),
+                decoration: BoxDecoration(
+                  color: CustomerPalette.primary,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1863,8 +1774,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     value: value,
                     minHeight: 8,
                     backgroundColor: const Color(0xFFE8EDF2),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFFF58A1F),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      CustomerPalette.primary,
                     ),
                   ),
                 ),
@@ -1894,12 +1805,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Recent Activity',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF1E293B),
+              color: CustomerPalette.textDark,
             ),
           ),
           const SizedBox(height: 6),
@@ -2079,70 +1990,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  Widget _buildStatGrid({
-    required int total,
-    required int delivered,
-    required int pending,
-    required int cancelled,
-  }) {
-    final cards = [
-      (
-        title: _tr('Total'),
-        value: total.toString(),
-        icon: Icons.shopping_cart,
-        gradient: [Colors.blue.shade400, Colors.blue.shade700],
-      ),
-      (
-        title: _tr('Delivered'),
-        value: delivered.toString(),
-        icon: Icons.check_circle,
-        gradient: [Colors.green.shade400, Colors.green.shade700],
-      ),
-      (
-        title: _tr('Pending'),
-        value: pending.toString(),
-        icon: Icons.pending_actions,
-        gradient: [Colors.orange.shade400, Colors.orange.shade700],
-      ),
-      (
-        title: _tr('Cancelled'),
-        value: cancelled.toString(),
-        icon: Icons.cancel,
-        gradient: [Colors.red.shade400, Colors.red.shade700],
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const spacing = 8.0;
-        final width = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : MediaQuery.of(context).size.width;
-        final cardWidth = (((width - (spacing * 3)) / 4).clamp(
-          62.0,
-          140.0,
-        )).toDouble();
-        return Row(
-          children: [
-            for (var i = 0; i < cards.length; i++) ...[
-              SizedBox(
-                width: cardWidth,
-                child: _buildStatCard(
-                  title: cards[i].title,
-                  value: cards[i].value,
-                  icon: cards[i].icon,
-                  color: cards[i].gradient.first,
-                  gradient: cards[i].gradient,
-                ),
-              ),
-              if (i != cards.length - 1) const SizedBox(width: spacing),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildLiveRiderTrackerSection() {
     final allRiders = _liveRiderLocations;
     final hasSelectedRider =
@@ -2315,6 +2162,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildLiveMapSurface(List<Map<String, dynamic>> riders) {
+    return GestureDetector(
+      onDoubleTap: () => _openFullScreenLiveRiderTracker(riders),
+      child: _buildLiveMapSurfaceContent(
+        riders,
+        mapController: _liveRiderMapController,
+        isFullscreen: false,
+      ),
+    );
+  }
+
+  Widget _buildLiveMapSurfaceContent(
+    List<Map<String, dynamic>> riders, {
+    required MapController mapController,
+    required bool isFullscreen,
+  }) {
     final focusedRider = riders.length == 1 ? riders.first : null;
     final isFocusedTrackingMode = focusedRider != null;
     final selectedRiderName = _selectedLiveRiderId == null
@@ -2373,17 +2235,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: SizedBox(
-        height: isFocusedTrackingMode ? 430 : 280,
+        height: isFullscreen ? null : (isFocusedTrackingMode ? 430 : 280),
         child: Stack(
           children: [
             FlutterMap(
               key: ValueKey(
-                'live-rider-map-$mapKey-${_selectedLiveRiderId ?? 'all'}',
+                'live-rider-map-$mapKey-${_selectedLiveRiderId ?? 'all'}-${isFullscreen ? 'fullscreen' : 'inline'}',
               ),
-              mapController: _liveRiderMapController,
+              mapController: mapController,
               options: MapOptions(
                 initialCenter: fallbackCenter,
-                initialZoom: isFocusedTrackingMode ? 15 : 6,
+                initialZoom: isFullscreen
+                    ? (isFocusedTrackingMode ? 16 : 7)
+                    : (isFocusedTrackingMode ? 15 : 6),
                 initialCameraFit: mapCoordinates.isEmpty
                     ? null
                     : CameraFit.coordinates(
@@ -2595,9 +2459,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(color: const Color(0xFFD7E3F4)),
                       ),
-                      child: const Text(
-                        'Tap a rider pin',
-                        style: TextStyle(
+                      child: Text(
+                        isFullscreen
+                            ? 'Tap a rider pin'
+                            : 'Double tap for fullscreen',
+                        style: const TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
                           color: Colors.black87,
@@ -2610,6 +2476,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _openFullScreenLiveRiderTracker(
+    List<Map<String, dynamic>> riders,
+  ) async {
+    final fullscreenController = MapController();
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(12),
+          backgroundColor: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 28,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Live Rider Tracker',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _buildLiveMapSurfaceContent(
+                        riders,
+                        mapController: fullscreenController,
+                        isFullscreen: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -3947,96 +3876,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildVisitorsGrid() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            title: 'Currently Login',
-            value: _activeUsers.toString(),
-            icon: Icons.person,
-            color: Colors.purple,
-            gradient: [Colors.purple.shade400, Colors.purple.shade700],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildStatCard(
-            title: "Today's Logins",
-            value: _todayLogins.toString(),
-            icon: Icons.people_alt,
-            color: Colors.teal,
-            gradient: [Colors.teal.shade400, Colors.teal.shade700],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-    required List<Color> gradient,
-  }) {
-    return Container(
-      height: 59,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: gradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.3),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: Colors.white, size: 16),
-              ),
-            ],
-          ),
-          Text(
-            title,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-        ],
       ),
     );
   }

@@ -2095,7 +2095,7 @@ class _CustomerDashboardTestScreenState
 
   Widget _buildStoreSection(int crossAxisCount) {
     final effectiveCrossAxisCount = crossAxisCount.clamp(2, 3);
-    final storeCardHeight = effectiveCrossAxisCount >= 3 ? 229.5 : 243.0;
+    final storeCardHeight = effectiveCrossAxisCount >= 3 ? 255.0 : 272.0;
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 56),
@@ -2192,7 +2192,7 @@ class _CustomerDashboardTestScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: 128,
+              height: 112,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2239,11 +2239,11 @@ class _CustomerDashboardTestScreenState
               ),
             ),
             Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
                       (store['name'] ?? _tr('Unknown Store')).toString(),
                       maxLines: 2,
@@ -2255,16 +2255,16 @@ class _CustomerDashboardTestScreenState
                         height: 1.1,
                       ),
                     ),
-                    const SizedBox(height: 1),
+                    const SizedBox(height: 2),
                     Text(
                       (store['location'] ?? '').toString(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 11.5,
                         color: Colors.black54,
                         fontWeight: FontWeight.w600,
-                        height: 1.1,
+                        height: 1.2,
                       ),
                     ),
                     const Spacer(),
@@ -2279,7 +2279,7 @@ class _CustomerDashboardTestScreenState
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
                     ],
                     Row(
                       children: [
