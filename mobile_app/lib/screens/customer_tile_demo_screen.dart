@@ -302,7 +302,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
   double _productAspectRatioForWidth(double width) {
     if (width >= 1100) return 0.82;
     if (width >= 820) return 0.76;
-    return 0.6;
+    return 0.54;
   }
 
   @override
@@ -817,7 +817,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
       clipBehavior: Clip.none,
       children: [
         Container(
-          padding: const EdgeInsets.fromLTRB(14, 28, 14, 14),
+          padding: const EdgeInsets.fromLTRB(14, 24, 14, 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             gradient: LinearGradient(
@@ -844,40 +844,40 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
               _buildMediaFrame(
                 title: product.name,
                 imageUrl: imageUrl,
-                size: 76,
+                size: 70,
                 accent: theme.accent,
                 soft: theme.soft,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 product.name,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: 16.5,
+                  fontSize: 15.5,
                   color: Color(0xFF11385D),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 _productSubtitle(product),
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
-                  fontSize: 11.5,
+                  fontSize: 11,
                   color: Color(0xFF5B6F7F),
                 ),
               ),
               if (previewLabels.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Wrap(
                   alignment: WrapAlignment.center,
                   spacing: 6,
-                  runSpacing: 6,
+                  runSpacing: 4,
                   children: [
                     ...previewLabels.map(_buildVariantChip),
                     if (variantLabels.length > previewLabels.length)
@@ -887,7 +887,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
                   ],
                 ),
               ],
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               if (product.hasActiveOffer || product.offerBadge?.trim().isNotEmpty == true)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -910,7 +910,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
               const Spacer(),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 7),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   gradient: const LinearGradient(
@@ -923,7 +923,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: 18,
+                    fontSize: 16,
                     color: Colors.white,
                   ),
                 ),

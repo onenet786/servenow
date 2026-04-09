@@ -18,6 +18,7 @@ class ApiServiceException implements Exception {
 class ApiService {
   static final Logger _logger = Logger();
   static const String _defaultBaseUrl = 'https://servenow.pk';
+  static const String _localDebugBaseUrl = 'http://127.0.0.1:3002';
   static const String _configuredBaseUrl = String.fromEnvironment(
     'SERVENOW_API_BASE_URL',
     defaultValue: '',
@@ -38,6 +39,10 @@ class ApiService {
       final isLocalWebHost =
           host == 'localhost' || host == '127.0.0.1' || host == '0.0.0.0';
 
+      if (isLocalWebHost) {
+        return _localDebugBaseUrl;
+      }
+
       if (!isLocalWebHost && Uri.base.host.trim().isNotEmpty) {
         return Uri.base.origin.replaceFirst(RegExp(r'\/+$'), '');
       }
@@ -47,11 +52,13 @@ class ApiService {
 
     if (kDebugMode && !kIsWeb) {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2:3002';
+        // 10.0.2.2 only works on the Android emulator. Use the live API by
+        // default so physical devices can connect without extra setup.
+        return _defaultBaseUrl;
       } else if (Platform.isIOS) {
-        return 'http://127.0.0.1:3002';
+        return _localDebugBaseUrl;
       } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        return 'http://127.0.0.1:3002';
+        return _localDebugBaseUrl;
       }
     }
 

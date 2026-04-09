@@ -20,6 +20,7 @@ val hasReleaseKeystore = keystorePropertiesFile.exists() &&
 android {
     namespace = "com.onenetsol.servenow"
     compileSdk = flutter.compileSdkVersion
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

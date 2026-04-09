@@ -2072,7 +2072,8 @@ router.put(
       const [activeOrders] = await req.db.execute(
         `SELECT id
          FROM orders
-         WHERE rider_id = ? AND status = 'out_for_delivery'`,
+         WHERE rider_id = ?
+           AND status IN ('confirmed', 'preparing', 'ready', 'ready_for_pickup', 'picked_up', 'out_for_delivery')`,
         [riderId],
       );
 
@@ -2085,10 +2086,12 @@ router.put(
         const updateSql = resolvedLocation
           ? `UPDATE orders
              SET rider_latitude = ?, rider_longitude = ?, rider_location = ?
-             WHERE rider_id = ? AND status = 'out_for_delivery'`
+             WHERE rider_id = ?
+               AND status IN ('confirmed', 'preparing', 'ready', 'ready_for_pickup', 'picked_up', 'out_for_delivery')`
           : `UPDATE orders
              SET rider_latitude = ?, rider_longitude = ?
-             WHERE rider_id = ? AND status = 'out_for_delivery'`;
+             WHERE rider_id = ?
+               AND status IN ('confirmed', 'preparing', 'ready', 'ready_for_pickup', 'picked_up', 'out_for_delivery')`;
         const updateParams = resolvedLocation
           ? [latitude, longitude, resolvedLocation, riderId]
           : [latitude, longitude, riderId];

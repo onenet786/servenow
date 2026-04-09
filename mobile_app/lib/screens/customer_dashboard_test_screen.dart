@@ -25,7 +25,8 @@ class CustomerDashboardTestScreen extends StatefulWidget {
       _CustomerDashboardTestScreenState();
 }
 
-class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScreen> {
+class _CustomerDashboardTestScreenState
+    extends State<CustomerDashboardTestScreen> {
   List<dynamic> _allStores = [];
   List<dynamic> _filteredStores = [];
   bool _isLoading = true;
@@ -84,20 +85,24 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     const translations = <String, String>{
       'ServeNow Support': 'سروناؤ سپورٹ',
       'Contact Us': 'ہم سے رابطہ کریں',
-      'Support contact is not configured yet.': 'ابھی سپورٹ رابطہ معلومات شامل نہیں کی گئی ہیں۔',
+      'Support contact is not configured yet.':
+          'ابھی سپورٹ رابطہ معلومات شامل نہیں کی گئی ہیں۔',
       'Choose how you want to contact us.': 'رابطے کا طریقہ منتخب کریں۔',
       'Email': 'ای میل',
       'Update Required': 'اپ ڈیٹ ضروری ہے',
       'Update Available': 'اپ ڈیٹ دستیاب ہے',
-      'A new version of ServeNow is available.': 'سروناؤ کا نیا ورژن دستیاب ہے۔',
-      'A newer version of ServeNow is available.': 'سروناؤ کا نیا ورژن دستیاب ہے۔',
+      'A new version of ServeNow is available.':
+          'سروناؤ کا نیا ورژن دستیاب ہے۔',
+      'A newer version of ServeNow is available.':
+          'سروناؤ کا نیا ورژن دستیاب ہے۔',
       'Installed': 'انسٹال شدہ',
       'Latest': 'تازہ ترین',
       'Unknown': 'نامعلوم',
       'Update Now': 'ابھی اپ ڈیٹ کریں',
       'Hide': 'چھپائیں',
       'ServeNow Flash Message': 'سروناؤ اہم پیغام',
-      'Check latest updates in ServeNow.': 'سروناؤ کی تازہ ترین معلومات دیکھیں۔',
+      'Check latest updates in ServeNow.':
+          'سروناؤ کی تازہ ترین معلومات دیکھیں۔',
       'Check latest promotions and events.': 'تازہ پروموشنز اور ایونٹس دیکھیں۔',
       'Flash Message': 'اہم پیغام',
       'OK': 'ٹھیک ہے',
@@ -118,7 +123,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
       'English': 'English',
       'Urdu': 'اردو',
       'Selected': 'منتخب',
-      'You are not allowed to see Store when you are out of Delivery Area': 'ڈیلیوری ایریا سے باہر ہونے پر آپ دکانیں نہیں دیکھ سکتے۔',
+      'You are not allowed to see Store when you are out of Delivery Area':
+          'ڈیلیوری ایریا سے باہر ہونے پر آپ دکانیں نہیں دیکھ سکتے۔',
     };
     if (_isUrdu && translations.containsKey(english)) {
       return translations[english]!;
@@ -143,7 +149,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               children: [
                 Text(
                   _tr('Select Language'),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 ListTile(
@@ -252,8 +261,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
           globalStatus = (global['status'] is Map<String, dynamic>)
               ? (global['status'] as Map<String, dynamic>)
               : (global['global_status'] is Map<String, dynamic>)
-                  ? (global['global_status'] as Map<String, dynamic>)
-                  : global;
+              ? (global['global_status'] as Map<String, dynamic>)
+              : global;
         } catch (_) {}
       }
       Map<String, dynamic>? livePromotions;
@@ -286,7 +295,9 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
       if (!mounted) return;
       final stores = (storesResp['stores'] as List<dynamic>? ?? []);
       final limited = storesResp['service_limited'] == true;
-      final limitedMessage = (storesResp['service_message'] ?? '').toString().trim();
+      final limitedMessage = (storesResp['service_message'] ?? '')
+          .toString()
+          .trim();
       setState(() {
         _allStores = stores;
         _filteredStores = _computeFilteredStores(
@@ -302,8 +313,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
         _scheduleLivePromotionsRefresh(livePromotions);
         _serviceLimitedMessage = limited
             ? (limitedMessage.isNotEmpty
-                ? limitedMessage
-                : _tr('You are not allowed to see Store when you are out of Delivery Area'))
+                  ? limitedMessage
+                  : _tr(
+                      'You are not allowed to see Store when you are out of Delivery Area',
+                    ))
             : null;
         _isLoading = false;
       });
@@ -344,7 +357,9 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
         );
         if (places.isNotEmpty) {
           _userCity =
-              (places.first.locality ?? places.first.subAdministrativeArea ?? '')
+              (places.first.locality ??
+                      places.first.subAdministrativeArea ??
+                      '')
                   .toString()
                   .trim();
         }
@@ -352,10 +367,7 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     } catch (_) {}
   }
 
-  List<dynamic> _computeFilteredStores({
-    String? query,
-    String? categoryKey,
-  }) {
+  List<dynamic> _computeFilteredStores({String? query, String? categoryKey}) {
     final search = (query ?? _searchController.text).trim().toLowerCase();
     final selectedCategory = categoryKey ?? _selectedCategory;
     return _allStores.where((store) {
@@ -363,7 +375,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
       final location = (store['location'] ?? '').toString().toLowerCase();
       final category = (store['category_name'] ?? '').toString().trim();
       final categoryLabel = _normalizeCategoryKey(category);
-      final matchesSearch = search.isEmpty ||
+      final matchesSearch =
+          search.isEmpty ||
           name.contains(search) ||
           location.contains(search) ||
           category.toLowerCase().contains(search);
@@ -529,7 +542,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               children: [
                 Text(
                   name.isEmpty ? _tr('Contact Us') : name,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -570,7 +586,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                     contentPadding: EdgeInsets.zero,
                     leading: const CircleAvatar(
                       backgroundColor: Color(0xFFEFF3FF),
-                      child: Icon(Icons.email_outlined, color: CustomerPalette.primary),
+                      child: Icon(
+                        Icons.email_outlined,
+                        color: CustomerPalette.primary,
+                      ),
                     ),
                     title: Text(_tr('Email')),
                     subtitle: Text(email),
@@ -593,14 +612,17 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
       if (cleaned.isEmpty) return const <int>[0];
       return cleaned
           .split('.')
-          .map((part) => int.tryParse(part.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0)
+          .map(
+            (part) => int.tryParse(part.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0,
+          )
           .toList();
     }
 
     final currentParts = parseParts(current);
     final targetParts = parseParts(target);
-    final maxLen =
-        currentParts.length > targetParts.length ? currentParts.length : targetParts.length;
+    final maxLen = currentParts.length > targetParts.length
+        ? currentParts.length
+        : targetParts.length;
     for (int i = 0; i < maxLen; i++) {
       final a = i < currentParts.length ? currentParts[i] : 0;
       final b = i < targetParts.length ? targetParts[i] : 0;
@@ -621,8 +643,9 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     } catch (_) {}
 
     final latestVersion = (status['latest_version'] ?? '').toString().trim();
-    final minimumSupportedVersion =
-        (status['minimum_supported_version'] ?? '').toString().trim();
+    final minimumSupportedVersion = (status['minimum_supported_version'] ?? '')
+        .toString()
+        .trim();
     final installedComparableVersion = installedVersion.isEmpty
         ? ''
         : (installedBuild.isNotEmpty
@@ -631,8 +654,13 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     final updateAvailable =
         latestVersion.isNotEmpty &&
         _compareVersionStrings(installedComparableVersion, latestVersion) < 0;
-    final forcedByVersion = minimumSupportedVersion.isNotEmpty &&
-        _compareVersionStrings(installedComparableVersion, minimumSupportedVersion) < 0;
+    final forcedByVersion =
+        minimumSupportedVersion.isNotEmpty &&
+        _compareVersionStrings(
+              installedComparableVersion,
+              minimumSupportedVersion,
+            ) <
+            0;
     final reminderHour =
         int.tryParse((status['reminder_hour'] ?? '12').toString()) ?? 12;
 
@@ -643,17 +671,19 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
       'installed_comparable_version': installedComparableVersion,
       'update_available': updateAvailable,
       'force_update_active':
-          (status['force_update'] == true || status['force_update'] == 1) || forcedByVersion,
+          (status['force_update'] == true || status['force_update'] == 1) ||
+          forcedByVersion,
       'reminder_hour': reminderHour.clamp(0, 23),
     };
   }
 
   Future<void> _openAppUpdateLink([Map<String, dynamic>? status]) async {
     final update = status ?? _appUpdateStatus ?? const <String, dynamic>{};
-    final url = (update['play_store_url'] ??
-            'https://play.google.com/store/apps/details?id=com.onenetsol.servenow')
-        .toString()
-        .trim();
+    final url =
+        (update['play_store_url'] ??
+                'https://play.google.com/store/apps/details?id=com.onenetsol.servenow')
+            .toString()
+            .trim();
     if (url.isEmpty) return;
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -661,7 +691,9 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     }
   }
 
-  Future<void> _maybeShowDailyUpdateReminder(Map<String, dynamic> status) async {
+  Future<void> _maybeShowDailyUpdateReminder(
+    Map<String, dynamic> status,
+  ) async {
     return;
   }
 
@@ -672,11 +704,14 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
   Widget _buildAppUpdateBanner() {
     final status = _appUpdateStatus ?? const <String, dynamic>{};
     final latestVersion = (status['latest_version'] ?? '').toString().trim();
-    final installedVersion = (status['installed_version'] ?? '').toString().trim();
-    final forceUpdate = status['force_update_active'] == true;
-    final message = (status['message'] ?? _tr('A new version of ServeNow is available.'))
+    final installedVersion = (status['installed_version'] ?? '')
         .toString()
         .trim();
+    final forceUpdate = status['force_update_active'] == true;
+    final message =
+        (status['message'] ?? _tr('A new version of ServeNow is available.'))
+            .toString()
+            .trim();
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -695,15 +730,22 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  forceUpdate ? _tr('Update Required') : _tr('Update Available'),
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  forceUpdate
+                      ? _tr('Update Required')
+                      : _tr('Update Available'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            message.isNotEmpty ? message : _tr('A newer version of ServeNow is available.'),
+            message.isNotEmpty
+                ? message
+                : _tr('A newer version of ServeNow is available.'),
             style: const TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
@@ -732,10 +774,7 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                 TextButton(
                   onPressed: () {
                     setState(() {
-                      _appUpdateStatus = {
-                        ...status,
-                        'update_available': false,
-                      };
+                      _appUpdateStatus = {...status, 'update_available': false};
                     });
                   },
                   child: Text(_tr('Hide')),
@@ -842,13 +881,15 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
   Map<String, dynamic>? _promotionFlashData() {
     final flash = _customerFlashMessage;
     if (flash != null && _toBool(flash['is_enabled'])) {
-      final isVisible = _toBool(flash['is_visible']) ||
+      final isVisible =
+          _toBool(flash['is_visible']) ||
           (_toBool(flash['is_window_active']) &&
               (_toBool(flash['is_target_matched']) ||
                   (flash['notification_target'] ?? 'all').toString() == 'all'));
       if (isVisible) {
-        final title =
-            (flash['title'] ?? _tr('ServeNow Flash Message')).toString().trim();
+        final title = (flash['title'] ?? _tr('ServeNow Flash Message'))
+            .toString()
+            .trim();
         final message = (flash['status_message'] ?? '').toString().trim();
         final imageUrl = ApiService.getImageUrl(
           (flash['image_url'] ?? '').toString().trim(),
@@ -872,11 +913,14 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     if (!_toBool(promo['is_window_active']) && !_isGlobalWindowActive(promo)) {
       return null;
     }
-    final title = (promo['title'] ?? _tr('ServeNow Flash Message')).toString().trim();
+    final title = (promo['title'] ?? _tr('ServeNow Flash Message'))
+        .toString()
+        .trim();
     final message = _livePromotionMessage().trim();
     final images = _promotionImages();
-    final imageUrl =
-        images.isNotEmpty ? ApiService.getImageUrl(images.first) : '';
+    final imageUrl = images.isNotEmpty
+        ? ApiService.getImageUrl(images.first)
+        : '';
     final signature =
         '${promo['id'] ?? ''}|${promo['updated_at'] ?? ''}|$title|$message|$imageUrl';
 
@@ -900,13 +944,15 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     if (signature.isNotEmpty && _launchFlashSignature != signature) {
       _launchFlashSignature = signature;
       try {
-        Provider.of<app_notif.NotificationProvider>(context, listen: false)
-            .addNotification(
-              title: (flash['title'] ?? _tr('ServeNow Flash Message')).toString(),
-              message: (flash['message'] ?? '').toString(),
-              type: 'promotion',
-              icon: 'campaign',
-            );
+        Provider.of<app_notif.NotificationProvider>(
+          context,
+          listen: false,
+        ).addNotification(
+          title: (flash['title'] ?? _tr('ServeNow Flash Message')).toString(),
+          message: (flash['message'] ?? '').toString(),
+          type: 'promotion',
+          icon: 'campaign',
+        );
       } catch (_) {}
     }
 
@@ -950,7 +996,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.campaign, color: CustomerPalette.primary),
+                      const Icon(
+                        Icons.campaign,
+                        color: CustomerPalette.primary,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -976,10 +1025,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                               tween: Tween(begin: 0.92, end: 1.0),
                               duration: const Duration(milliseconds: 800),
                               curve: Curves.easeOutBack,
-                              builder: (context, scale, child) => Transform.scale(
-                                scale: scale,
-                                child: child,
-                              ),
+                              builder: (context, scale, child) =>
+                                  Transform.scale(scale: scale, child: child),
                               child: Image.network(
                                 imageUrl,
                                 fit: BoxFit.cover,
@@ -1033,7 +1080,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        );
         return FadeTransition(
           opacity: curved,
           child: ScaleTransition(
@@ -1202,7 +1252,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               ),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
-                title: Text(_tr('Logout'), style: const TextStyle(color: Colors.red)),
+                title: Text(
+                  _tr('Logout'),
+                  style: const TextStyle(color: Colors.red),
+                ),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   Provider.of<AuthProvider>(context, listen: false).logout();
@@ -1263,7 +1316,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                               if (user != null) _buildWelcomeText(user),
                               if (user != null) _buildHeroCard(user),
                               _buildSearchField(),
-                              if (_categoryOptions.length > 1) _buildCategoryStrip(),
+                              if (_categoryOptions.length > 1)
+                                _buildCategoryStrip(),
                               if (_showAppUpdateBanner())
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
@@ -1302,11 +1356,7 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFF6EA),
-                Color(0xFFF7D4B7),
-                Color(0xFFF4C29B),
-              ],
+              colors: [Color(0xFFFFF6EA), Color(0xFFF7D4B7), Color(0xFFF4C29B)],
             ),
           ),
         ),
@@ -1346,10 +1396,7 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     );
   }
 
-  Widget _buildBlurOrb({
-    required double size,
-    required List<Color> colors,
-  }) {
+  Widget _buildBlurOrb({required double size, required List<Color> colors}) {
     return IgnorePointer(
       child: Container(
         width: size,
@@ -1397,8 +1444,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                     right: 0,
                     top: 0,
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: CustomerPalette.primaryDark,
                         borderRadius: BorderRadius.circular(999),
@@ -1450,11 +1499,12 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
   }
 
   Widget _buildWelcomeText(User user) {
+    final fullName = '${user.firstName} ${user.lastName}'.trim();
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
       child: Center(
         child: Text(
-          '${_tr('Welcome')}, ${user.firstName}',
+          '${_tr('Welcome')}, ${fullName.isNotEmpty ? fullName : _tr('ServeNow Customer')}',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -1467,16 +1517,13 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
 
   Widget _buildHeroCard(User user) {
     final cartCount = context.watch<CartProvider>().itemCount;
+    final locationLabel = _userCity?.isNotEmpty == true
+        ? _userCity!
+        : _tr('Home');
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
       child: Column(
         children: [
-          Image.asset(
-            'assets/icon/servenow_brand_logo.png',
-            height: 98,
-            fit: BoxFit.contain,
-          ),
-          const SizedBox(height: 8),
           Text(
             _userCity?.isNotEmpty == true
                 ? '${_tr('Ref Area')}: $_userCity'
@@ -1489,22 +1536,27 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
             ),
           ),
           const SizedBox(height: 14),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 10,
-            runSpacing: 10,
+          Row(
             children: [
-              _buildMetricPill(
-                icon: Icons.storefront_rounded,
-                label: '${_allStores.length} ${_tr('Stores')}',
+              Expanded(
+                child: _buildMetricPill(
+                  icon: Icons.storefront_rounded,
+                  label: '${_allStores.length} ${_tr('Stores')}',
+                ),
               ),
-              _buildMetricPill(
-                icon: Icons.shopping_cart_checkout_rounded,
-                label: '$cartCount ${_tr('My Cart')}',
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricPill(
+                  icon: Icons.shopping_cart_checkout_rounded,
+                  label: '$cartCount ${_tr('My Cart')}',
+                ),
               ),
-              _buildMetricPill(
-                icon: Icons.place_rounded,
-                label: _userCity?.isNotEmpty == true ? _userCity! : _tr('Home'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricPill(
+                  icon: Icons.place_rounded,
+                  label: locationLabel,
+                ),
               ),
             ],
           ),
@@ -1551,11 +1603,9 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     );
   }
 
-  Widget _buildMetricPill({
-    required IconData icon,
-    required String label,
-  }) {
+  Widget _buildMetricPill({required IconData icon, required String label}) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.8),
@@ -1565,15 +1615,18 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
         ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: CustomerPalette.primaryDark),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              color: CustomerPalette.textDark,
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: CustomerPalette.textDark,
+              ),
             ),
           ),
         ],
@@ -1606,9 +1659,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                 final item = items[index];
                 if (item['type'] == 'promotion') {
                   final promoImages = _promotionImages();
-                  final promoTitle = (_livePromotions?['title'] ?? _tr('Live Promotions'))
-                      .toString()
-                      .trim();
+                  final promoTitle =
+                      (_livePromotions?['title'] ?? _tr('Live Promotions'))
+                          .toString()
+                          .trim();
                   final promoMessage = _livePromotionMessage();
                   final bg = promoImages.isNotEmpty
                       ? ApiService.getImageUrl(promoImages.first)
@@ -1622,9 +1676,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                           Image.network(
                             bg,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, error, stackTrace) => Container(
-                              color: CustomerPalette.primaryDark,
-                            ),
+                            errorBuilder: (_, error, stackTrace) =>
+                                Container(color: CustomerPalette.primaryDark),
                           )
                         else
                           Container(color: CustomerPalette.primaryDark),
@@ -1889,8 +1942,10 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               borderSide: BorderSide.none,
               borderRadius: BorderRadius.circular(18),
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
           ),
         ),
       ),
@@ -1964,7 +2019,9 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w700,
                         color: CustomerPalette.textDark,
                       ),
                     ),
@@ -2038,6 +2095,7 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
 
   Widget _buildStoreSection(int crossAxisCount) {
     final effectiveCrossAxisCount = crossAxisCount.clamp(2, 3);
+    final storeCardHeight = effectiveCrossAxisCount >= 3 ? 229.5 : 243.0;
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 56),
@@ -2085,7 +2143,7 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: effectiveCrossAxisCount,
-                childAspectRatio: 0.76,
+                mainAxisExtent: storeCardHeight,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -2100,18 +2158,22 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
 
   Widget _buildStoreCard(dynamic store) {
     final bool isOpen = store['is_open'] == true || store['is_open'] == 1;
-    final String closedReason = (store['status_message'] ?? '').toString().trim();
+    final String closedReason = (store['status_message'] ?? '')
+        .toString()
+        .trim();
     final String imageUrl = ApiService.getImageUrl(store['image_url']);
     final String deliveryLabel =
         ((store['delivery_time'] ?? '').toString().trim()).isNotEmpty
-            ? '${store['delivery_time']} min'
-            : '${_formatTimeOnly(store['opening_time'])} - ${_formatTimeOnly(store['closing_time'])}';
+        ? '${store['delivery_time']} min'
+        : '${_formatTimeOnly(store['opening_time'])} - ${_formatTimeOnly(store['closing_time'])}';
 
     return InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (ctx) => StoreScreen(storeId: store['id'])),
+          MaterialPageRoute(
+            builder: (ctx) => StoreScreen(storeId: store['id']),
+          ),
         );
       },
       child: Container(
@@ -2129,8 +2191,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: 6,
+            SizedBox(
+              height: 128,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2142,7 +2204,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                         ? Image.network(
                             imageUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (ctx, err, _) => _buildStoreFallback(),
+                            errorBuilder: (ctx, err, _) =>
+                                _buildStoreFallback(),
                           )
                         : _buildStoreFallback(),
                   ),
@@ -2176,59 +2239,60 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               ),
             ),
             Expanded(
-              flex: 5,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                     Text(
                       (store['name'] ?? _tr('Unknown Store')).toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: CustomerPalette.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      (store['location'] ?? '').toString(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: CustomerPalette.textDark,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      (store['location'] ?? '').toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
                         color: Colors.black54,
                         fontWeight: FontWeight.w600,
-                        height: 1.25,
+                        height: 1.1,
                       ),
                     ),
                     const Spacer(),
                     if (!isOpen && closedReason.isNotEmpty) ...[
                       Text(
                         closedReason,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: Color(0xFFC62828),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 3),
                     ],
                     Row(
                       children: [
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 9,
+                              horizontal: 8,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color:
-                                  CustomerPalette.accent.withValues(alpha: 0.18),
+                              color: CustomerPalette.accent.withValues(
+                                alpha: 0.18,
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Row(
@@ -2245,7 +2309,7 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       color: CustomerPalette.primaryDark,
                                     ),
@@ -2266,8 +2330,8 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
                             );
                           },
                           style: FilledButton.styleFrom(
-                            minimumSize: const Size(0, 42),
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            minimumSize: const Size(0, 34),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
                             backgroundColor: CustomerPalette.primary,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
@@ -2431,8 +2495,9 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                color:
-                    active ? CustomerPalette.primaryDark : Colors.grey.shade600,
+                color: active
+                    ? CustomerPalette.primaryDark
+                    : Colors.grey.shade600,
               ),
             ),
           ],
@@ -2449,6 +2514,4 @@ class _CustomerDashboardTestScreenState extends State<CustomerDashboardTestScree
     }
     return time.toString();
   }
-
 }
-

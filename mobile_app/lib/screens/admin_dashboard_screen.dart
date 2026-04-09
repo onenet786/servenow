@@ -143,6 +143,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return _liveRiderTrackerEmails.contains(normalized);
   }
 
+  bool _isLiveTrackableOrderStatus(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'confirmed':
+      case 'preparing':
+      case 'ready':
+      case 'ready_for_pickup':
+      case 'picked_up':
+      case 'out_for_delivery':
+        return true;
+      default:
+        return false;
+    }
+  }
+
   List<Map<String, dynamic>> _extractLiveRiderLocations(List<dynamic> orders) {
     final latestPerRider = <String, Map<String, dynamic>>{};
     final now = DateTime.now();
@@ -151,15 +165,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (raw is! Map) continue;
       final order = raw.cast<String, dynamic>();
       final status = (order['status'] ?? '').toString().toLowerCase();
-      if (status != 'out_for_delivery' && status != 'picked_up') continue;
+      if (!_isLiveTrackableOrderStatus(status)) continue;
 
       final riderId = (order['rider_id'] ?? '').toString().trim();
       if (riderId.isEmpty) continue;
 
-      final latitude =
-          double.tryParse((order['rider_latitude'] ?? '').toString());
-      final longitude =
-          double.tryParse((order['rider_longitude'] ?? '').toString());
+      final latitude = double.tryParse(
+        (order['rider_latitude'] ?? '').toString(),
+      );
+      final longitude = double.tryParse(
+        (order['rider_longitude'] ?? '').toString(),
+      );
       if (latitude == null || longitude == null) continue;
 
       DateTime createdAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -205,9 +221,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     final items = latestPerRider.values.toList()
       ..sort((a, b) {
-        final aAt = a['createdAt'] as DateTime? ??
+        final aAt =
+            a['createdAt'] as DateTime? ??
             DateTime.fromMillisecondsSinceEpoch(0);
-        final bAt = b['createdAt'] as DateTime? ??
+        final bAt =
+            b['createdAt'] as DateTime? ??
             DateTime.fromMillisecondsSinceEpoch(0);
         return bAt.compareTo(aAt);
       });
@@ -302,10 +320,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         for (final raw in entries) {
           if (raw is! Map) continue;
           final entry = raw.cast<String, dynamic>();
-          final latitude =
-              double.tryParse((entry['latitude'] ?? '').toString());
-          final longitude =
-              double.tryParse((entry['longitude'] ?? '').toString());
+          final latitude = double.tryParse(
+            (entry['latitude'] ?? '').toString(),
+          );
+          final longitude = double.tryParse(
+            (entry['longitude'] ?? '').toString(),
+          );
           if (latitude == null || longitude == null) continue;
           final point = latlng.LatLng(latitude, longitude);
           _appendTrailPoint(points, point);
@@ -320,10 +340,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final currentLongitude = rider['longitude'] as double?;
       if (currentLatitude != null && currentLongitude != null) {
         final point = latlng.LatLng(currentLatitude, currentLongitude);
-        _appendTrailPoint(
-          points,
-          point,
-        );
+        _appendTrailPoint(points, point);
         telemetry.add({
           'point': point,
           'timestamp': rider['createdAt'] as DateTime?,
@@ -446,16 +463,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   String _formatPlacemarkLabel(Placemark placemark) {
-    final parts = <String?>[
-      placemark.street,
-      placemark.subLocality,
-      placemark.locality,
-      placemark.subAdministrativeArea,
-      placemark.administrativeArea,
-    ]
-        .map((value) => (value ?? '').trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
+    final parts =
+        <String?>[
+              placemark.street,
+              placemark.subLocality,
+              placemark.locality,
+              placemark.subAdministrativeArea,
+              placemark.administrativeArea,
+            ]
+            .map((value) => (value ?? '').trim())
+            .where((value) => value.isNotEmpty)
+            .toList();
 
     final deduped = <String>[];
     for (final part in parts) {
@@ -485,7 +503,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return _shortCoordinateLabel(livePoint);
   }
 
-  Future<void> _refreshLiveLocationNames(List<Map<String, dynamic>> riders) async {
+  Future<void> _refreshLiveLocationNames(
+    List<Map<String, dynamic>> riders,
+  ) async {
     for (final rider in riders) {
       final riderId = (rider['riderId'] ?? '').toString().trim();
       final point = _displayPointForRider(rider);
@@ -513,7 +533,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         final label = placemarks.isNotEmpty
             ? _formatPlacemarkLabel(placemarks.first)
             : '';
-        final finalLabel = label.isNotEmpty ? label : _shortCoordinateLabel(point);
+        final finalLabel = label.isNotEmpty
+            ? label
+            : _shortCoordinateLabel(point);
         _reverseGeocodeCache[key] = finalLabel;
         if (mounted) {
           setState(() {
@@ -611,7 +633,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       );
 
       final current = _displayedRiderPositions[riderId];
-      final samePoint = current != null &&
+      final samePoint =
+          current != null &&
           (current.latitude - next.latitude).abs() < 0.0000001 &&
           (current.longitude - next.longitude).abs() < 0.0000001;
       if (!samePoint) {
@@ -632,9 +655,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (selectedId == null || selectedId.isEmpty) return;
 
     final rider = _liveRiderLocations.cast<Map<String, dynamic>?>().firstWhere(
-          (item) => item?['riderId'].toString() == selectedId,
-          orElse: () => null,
-        );
+      (item) => item?['riderId'].toString() == selectedId,
+      orElse: () => null,
+    );
     if (rider == null) return;
 
     final point = _displayPointForRider(rider);
@@ -657,13 +680,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         .trim();
     if (riderId.isEmpty) return;
 
-    final latitude =
-        double.tryParse((data['latitude'] ?? '').toString());
-    final longitude =
-        double.tryParse((data['longitude'] ?? '').toString());
+    final latitude = double.tryParse((data['latitude'] ?? '').toString());
+    final longitude = double.tryParse((data['longitude'] ?? '').toString());
     if (latitude == null || longitude == null) return;
 
-    final updatedAt = _parseLiveTrackingTime(data['updated_at']) ?? DateTime.now();
+    final updatedAt =
+        _parseLiveTrackingTime(data['updated_at']) ?? DateTime.now();
     final locationLabel = (data['location'] ?? '').toString().trim();
     final existingIndex = _liveRiderLocations.indexWhere(
       (rider) => (rider['riderId'] ?? '').toString() == riderId,
@@ -688,7 +710,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     if (!mounted) return;
     setState(() {
-      _liveRiderLocations = updatedRiders.where(_isRiderFresh).toList(growable: false);
+      _liveRiderLocations = updatedRiders
+          .where(_isRiderFresh)
+          .toList(growable: false);
       _liveRiderTrails = trails;
       _syncAnimatedRiderLocations(_liveRiderLocations);
     });
@@ -835,7 +859,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) return;
-      final currentUser = Provider.of<AuthProvider>(context, listen: false).user;
+      final currentUser = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).user;
       final currentUserId = currentUser?.id;
       final allowLiveTracker = _canViewLiveRiderTracker(currentUser?.email);
 
@@ -854,11 +881,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final recentActivityData = results[2] as Map<String, dynamic>;
       final liveRiders = allowLiveTracker
           ? _extractLiveRiderLocations(
-              orders.where((o) {
-                if (o is! Map) return false;
-                final status = (o['status'] ?? '').toString().toLowerCase();
-                return status == 'out_for_delivery' || status == 'picked_up';
-              }).toList(growable: false),
+              orders
+                  .where((o) {
+                    if (o is! Map) return false;
+                    final status = (o['status'] ?? '').toString().toLowerCase();
+                    return _isLiveTrackableOrderStatus(status);
+                  })
+                  .toList(growable: false),
             )
           : const <Map<String, dynamic>>[];
       final liveRiderTrackerPayload = allowLiveTracker
@@ -963,8 +992,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _recentUsersList = recentActivityData['recent_users'] ?? [];
         _recentStoresList = recentActivityData['recent_stores'] ?? [];
         _assignableOrdersList = assignableOrders;
-        _liveRiderLocations =
-            liveRiders.where(_isRiderFresh).toList(growable: false);
+        _liveRiderLocations = liveRiders
+            .where(_isRiderFresh)
+            .toList(growable: false);
         _liveRiderTrails = Map<String, List<latlng.LatLng>>.from(
           liveRiderTrackerPayload.trails,
         );
@@ -1000,7 +1030,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       final orders = await ApiService.getOrders(
         token,
-        status: 'out_for_delivery',
         includeItemsCount: false,
         includeStoreStatuses: false,
       );
@@ -1008,8 +1037,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final trackerPayload = await _fetchLiveRiderTrails(token, riders);
       if (!mounted) return;
       setState(() {
-        _liveRiderLocations =
-            riders.where(_isRiderFresh).toList(growable: false);
+        _liveRiderLocations = riders
+            .where(_isRiderFresh)
+            .toList(growable: false);
         _liveRiderTrails = trackerPayload.trails;
         _liveRiderSpeedsMphById
           ..clear()
@@ -1068,14 +1098,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final mediaWidth = MediaQuery.of(context).size.width;
+    final useBottomQuickMenu = mediaWidth < 920;
 
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
-        backgroundColor: Colors.grey[100],
+        backgroundColor: const Color(0xFFE8F5EC),
         appBar: AppBar(
           elevation: 0,
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.white.withValues(alpha: 0.78),
           iconTheme: const IconThemeData(color: Colors.black87),
           title: Text(
             _tr('Admin Dashboard'),
@@ -1100,85 +1132,812 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ],
         ),
         drawer: _buildDrawer(context, authProvider),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-            child: _buildQuickMenu(context),
-          ),
-        ),
+        bottomNavigationBar: useBottomQuickMenu
+            ? SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                  child: _buildQuickMenu(context),
+                ),
+              )
+            : null,
         body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? Stack(
+                children: [
+                  _buildDashboardBackdrop(),
+                  const Center(child: CircularProgressIndicator()),
+                ],
+              )
             : RefreshIndicator(
                 onRefresh: _loadStats,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text(
-                        _tr("Today's Orders"),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _buildStatGrid(
-                        total: _todayTotal,
-                        delivered: _todayDelivered,
-                        pending: _todayPending,
-                        cancelled: _todayCancelled,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _tr('All Orders'),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _buildStatGrid(
-                        total: _allTotal,
-                        delivered: _allDelivered,
-                        pending: _allPending,
-                        cancelled: _allCancelled,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _tr("Today's Visitors"),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _buildVisitorsGrid(),
-                      if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
-                        const SizedBox(height: 20),
-                        _buildLiveRiderTrackerSection(),
-                      ],
-                      const SizedBox(height: 32),
-                      Text(
-                        _tr('Recent Activity'),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildActivityFilter(),
-                      const SizedBox(height: 16),
-                      _buildRecentActivityList(),
-                    ],
-                  ),
+                child: Stack(
+                  children: [
+                    _buildDashboardBackdrop(),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth >= 1080;
+                        final isMedium = constraints.maxWidth >= 760;
+                        return SingleChildScrollView(
+                          padding: EdgeInsets.fromLTRB(
+                            isWide ? 28 : 16,
+                            18,
+                            isWide ? 28 : 16,
+                            useBottomQuickMenu ? 96 : 28,
+                          ),
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1320),
+                              child: Container(
+                                padding: EdgeInsets.all(isWide ? 20 : 14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(34),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF6AA6A0,
+                                      ).withValues(alpha: 0.18),
+                                      blurRadius: 36,
+                                      offset: const Offset(0, 18),
+                                    ),
+                                  ],
+                                ),
+                                child: isWide
+                                    ? Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          SizedBox(
+                                            width: 236,
+                                            child: _buildAdminSidePanel(
+                                              context,
+                                              authProvider,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 18),
+                                          Expanded(
+                                            child: _buildAdminOverviewContent(
+                                              context,
+                                              authProvider,
+                                              isWide: true,
+                                              isMedium: true,
+                                              showInlineQuickMenu: false,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : _buildAdminOverviewContent(
+                                        context,
+                                        authProvider,
+                                        isWide: false,
+                                        isMedium: isMedium,
+                                        showInlineQuickMenu:
+                                            !useBottomQuickMenu,
+                                      ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildDashboardBackdrop() {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFD9F1C8), Color(0xFFCDEDE2), Color(0xFFCDE1FF)],
+            ),
+          ),
+        ),
+        Positioned(
+          top: -90,
+          left: -60,
+          child: _buildBackdropOrb(
+            size: 240,
+            colors: const [Color(0x80B7E26A), Color(0x00B7E26A)],
+          ),
+        ),
+        Positioned(
+          top: 120,
+          right: -40,
+          child: _buildBackdropOrb(
+            size: 220,
+            colors: const [Color(0x7098D8D3), Color(0x0098D8D3)],
+          ),
+        ),
+        Positioned(
+          bottom: -30,
+          right: 30,
+          child: _buildBackdropOrb(
+            size: 180,
+            colors: const [Color(0x60A5C9FF), Color(0x00A5C9FF)],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBackdropOrb({
+    required double size,
+    required List<Color> colors,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: colors),
+      ),
+    );
+  }
+
+  Widget _buildAdminOverviewContent(
+    BuildContext context,
+    AuthProvider authProvider, {
+    required bool isWide,
+    required bool isMedium,
+    required bool showInlineQuickMenu,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildOverviewHeader(authProvider),
+        if (showInlineQuickMenu) ...[
+          const SizedBox(height: 14),
+          _buildAdminMiniActions(context),
+        ],
+        const SizedBox(height: 18),
+        _buildOverviewSummaryGrid(isWide: isWide, isMedium: isMedium),
+        if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
+          const SizedBox(height: 18),
+          _buildSoftPanel(child: _buildLiveRiderTrackerSection()),
+        ],
+        const SizedBox(height: 18),
+        _buildRecentActivityPanel(),
+      ],
+    );
+  }
+
+  Widget _buildOverviewHeader(AuthProvider authProvider) {
+    final firstName = (authProvider.user?.firstName ?? '').trim();
+    final lastName = (authProvider.user?.lastName ?? '').trim();
+    final fullName = '$firstName $lastName'.trim();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Dashboard Overview',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF16263E),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Track orders, users, riders, and live operational activity in one place.',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.35,
+                    color: Colors.blueGrey.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFFDCE6EE)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: const Color(0xFFE8EEF8),
+                  child: Text(
+                    firstName.isNotEmpty
+                        ? firstName.substring(0, 1).toUpperCase()
+                        : 'A',
+                    style: const TextStyle(
+                      color: Color(0xFF334155),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  fullName.isNotEmpty ? fullName : 'Admin User',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Color(0xFF64748B),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminSidePanel(BuildContext context, AuthProvider authProvider) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          const Text(
+            'ServeNow',
+            style: TextStyle(
+              fontSize: 26,
+              height: 0.95,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF18253B),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'ADMIN CONTROL',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w800,
+              color: Colors.blueGrey.shade500,
+            ),
+          ),
+          const SizedBox(height: 18),
+          _buildSideMenuEntry(
+            icon: Icons.dashboard_rounded,
+            label: 'Dashboard',
+            selected: true,
+            onTap: () {},
+          ),
+          const SizedBox(height: 10),
+          _buildSideMenuEntry(
+            icon: Icons.receipt_long_rounded,
+            label: 'Orders',
+            onTap: _openManageOrdersForAssignment,
+          ),
+          const SizedBox(height: 10),
+          _buildSideMenuEntry(
+            icon: Icons.inventory_2_rounded,
+            label: 'Products',
+            onTap: () => Navigator.of(context).pushNamed('/manage-products'),
+          ),
+          const SizedBox(height: 10),
+          _buildSideMenuEntry(
+            icon: Icons.storefront_rounded,
+            label: 'Stores',
+            onTap: () => Navigator.of(context).pushNamed('/manage-stores'),
+          ),
+          const SizedBox(height: 10),
+          _buildSideMenuEntry(
+            icon: Icons.bar_chart_rounded,
+            label: 'Reports',
+            onTap: () => Navigator.of(context).pushNamed('/inventory-report'),
+          ),
+          const SizedBox(height: 10),
+          _buildSideMenuEntry(
+            icon: Icons.settings_rounded,
+            label: 'Settings',
+            onTap: _openStoreStatusMessageDialog,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Quick access',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: Colors.blueGrey.shade700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildAdminMiniActions(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSideMenuEntry({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool selected = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [Color(0xFFA5DD52), Color(0xFF82C739)],
+                )
+              : null,
+          color: selected ? null : Colors.white.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? const Color(0xFF7DBA33) : const Color(0xFFDDE5EA),
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF8AC73C).withValues(alpha: 0.22),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 19,
+              color: selected ? Colors.white : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : const Color(0xFF475569),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminMiniActions(BuildContext context) {
+    final actions = [
+      (
+        icon: Icons.store_mall_directory_rounded,
+        label: 'Stores',
+        onTap: () => Navigator.of(context).pushNamed('/manage-stores'),
+      ),
+      (
+        icon: Icons.shopping_bag_rounded,
+        label: 'Products',
+        onTap: () => Navigator.of(context).pushNamed('/manage-products'),
+      ),
+      (
+        icon: Icons.receipt_long_rounded,
+        label: 'Orders',
+        onTap: _openManageOrdersForAssignment,
+      ),
+      (
+        icon: Icons.campaign_rounded,
+        label: 'Status',
+        onTap: _openStoreStatusMessageDialog,
+      ),
+    ];
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: actions.map((action) {
+        return InkWell(
+          onTap: action.onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: 104,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFDDE5EA)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE9F7D8),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(action.icon, color: const Color(0xFF5E9820)),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  action.label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildOverviewSummaryGrid({
+    required bool isWide,
+    required bool isMedium,
+  }) {
+    final cards = [
+      _buildOverviewMetricCard(
+        title: "Today's Orders",
+        value: _todayTotal.toString(),
+        accent: const Color(0xFF6DBB37),
+        icon: Icons.show_chart_rounded,
+        subtitle: '${_todayDelivered} delivered today',
+        trendLabel: '+${_todayPending} pending',
+        visual: _buildMiniTrendLine(const Color(0xFF6DBB37)),
+      ),
+      _buildOverviewMetricCard(
+        title: 'All Orders',
+        value: _allTotal.toString(),
+        accent: const Color(0xFF4A90E2),
+        icon: Icons.bar_chart_rounded,
+        subtitle: '${_allCancelled} cancelled overall',
+        trendLabel: '${_allDelivered} delivered',
+        visual: _buildMiniBarChart(const Color(0xFF4A90E2)),
+      ),
+      _buildOverviewMetricCard(
+        title: 'Active Users',
+        value: _activeUsers.toString(),
+        accent: const Color(0xFFF58A1F),
+        icon: Icons.pie_chart_outline_rounded,
+        subtitle: '${_todayLogins} logged in today',
+        trendLabel: '${_todayPending} awaiting attention',
+        visual: _buildMiniDonut(
+          primary: const Color(0xFFF58A1F),
+          secondary: const Color(0xFF4A90E2),
+          tertiary: const Color(0xFFB5D96B),
+        ),
+      ),
+      _buildOverviewMetricCard(
+        title: 'Operations Pulse',
+        value: '${_recentOrdersList.length}',
+        accent: const Color(0xFF809A22),
+        icon: Icons.local_shipping_rounded,
+        subtitle:
+            '${_recentUsersList.length} new users | ${_recentStoresList.length} stores',
+        trendLabel: '${_assignableOrdersList.length} orders need assignment',
+        visual: _buildMiniLeaderboard(),
+      ),
+    ];
+
+    if (isWide) {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: cards.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.5,
+        ),
+        itemBuilder: (_, index) => cards[index],
+      );
+    }
+
+    if (isMedium) {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: cards.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.18,
+        ),
+        itemBuilder: (_, index) => cards[index],
+      );
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < cards.length; i++) ...[
+          cards[i],
+          if (i != cards.length - 1) const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildOverviewMetricCard({
+    required String title,
+    required String value,
+    required Color accent,
+    required IconData icon,
+    required String subtitle,
+    required String trendLabel,
+    required Widget visual,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ),
+              Icon(icon, color: accent, size: 20),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 34,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.blueGrey.shade600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(child: visual),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.arrow_upward_rounded, size: 15, color: accent),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  trendLabel,
+                  style: TextStyle(
+                    color: accent,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniTrendLine(Color color) {
+    return CustomPaint(
+      painter: _SimpleTrendPainter(color: color),
+      child: const SizedBox.expand(),
+    );
+  }
+
+  Widget _buildMiniBarChart(Color color) {
+    final bars = [0.18, 0.34, 0.26, 0.42, 0.57, 0.35, 0.48, 0.74];
+    return Align(
+      alignment: Alignment.bottomLeft,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: bars.map((heightFactor) {
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Container(
+                height: 72 * heightFactor,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildMiniDonut({
+    required Color primary,
+    required Color secondary,
+    required Color tertiary,
+  }) {
+    return Center(
+      child: SizedBox(
+        width: 86,
+        height: 86,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CircularProgressIndicator(
+              value: 0.78,
+              strokeWidth: 14,
+              backgroundColor: secondary.withValues(alpha: 0.14),
+              valueColor: AlwaysStoppedAnimation<Color>(primary),
+            ),
+            Center(
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: tertiary.withValues(alpha: 0.24),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniLeaderboard() {
+    final bars = [0.72, 0.48, 0.83, 0.34];
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: bars.map((value) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF58A1F),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: value,
+                    minHeight: 8,
+                    backgroundColor: const Color(0xFFE8EDF2),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFFF58A1F),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildRecentActivityPanel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Recent Activity',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Review the latest operations and jump directly into order management.',
+            style: TextStyle(
+              color: Colors.blueGrey.shade600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: _buildActivityFilter(),
+          ),
+          const SizedBox(height: 14),
+          _buildRecentActivityList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSoftPanel({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 
@@ -1306,7 +2065,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: Text(_tr('Logout'), style: const TextStyle(color: Colors.red)),
+            title: Text(
+              _tr('Logout'),
+              style: const TextStyle(color: Colors.red),
+            ),
             onTap: () {
               authProvider.logout();
               Navigator.of(context).pushReplacementNamed('/login');
@@ -1390,10 +2152,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         );
     final riders = hasSelectedRider
         ? allRiders
-            .where(
-              (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
-            )
-            .toList(growable: false)
+              .where(
+                (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
+              )
+              .toList(growable: false)
         : allRiders;
     final focusedRider = riders.length == 1 ? riders.first : null;
 
@@ -1435,7 +2197,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _tr('Auto-refreshing rider positions for active deliveries'),
+                      _tr(
+                        'Auto-refreshing rider positions for active deliveries',
+                      ),
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
@@ -1482,10 +2246,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     ),
                     ...allRiders.map((rider) {
                       final riderId = (rider['riderId'] ?? '').toString();
-                      final riderName =
-                          (rider['riderName'] ?? _tr('Rider')).toString();
-                      final orderNumber =
-                          (rider['orderNumber'] ?? '').toString();
+                      final riderName = (rider['riderName'] ?? _tr('Rider'))
+                          .toString();
+                      final orderNumber = (rider['orderNumber'] ?? '')
+                          .toString();
                       return DropdownMenuItem<String>(
                         value: riderId,
                         child: Text(
@@ -1499,8 +2263,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ],
                   onChanged: (value) {
                     setState(() {
-                      _selectedLiveRiderId =
-                          value == null || value == '__all__' ? null : value;
+                      _selectedLiveRiderId = value == null || value == '__all__'
+                          ? null
+                          : value;
                     });
                   },
                 ),
@@ -1555,12 +2320,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final selectedRiderName = _selectedLiveRiderId == null
         ? null
         : _liveRiderLocations
-            .where(
-              (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
-            )
-            .map((rider) => (rider['riderName'] ?? 'this rider').toString())
-            .cast<String?>()
-            .firstOrNull;
+              .where(
+                (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
+              )
+              .map((rider) => (rider['riderName'] ?? 'this rider').toString())
+              .cast<String?>()
+              .firstOrNull;
     final startCoordinates = riders
         .map((r) {
           final storeLatitude = r['storeLatitude'] as double?;
@@ -1581,25 +2346,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         .map((r) => _displayPointForRider(r))
         .whereType<latlng.LatLng>()
         .toList(growable: false);
-    final trailCoordinates = riders.expand((rider) {
-      final riderId = (rider['riderId'] ?? '').toString();
-      final basePoints = List<latlng.LatLng>.from(
-        _liveRiderTrails[riderId] ?? const <latlng.LatLng>[],
-      );
-      final displayPoint = _displayPointForRider(rider);
-      if (displayPoint != null) {
-        _appendTrailPoint(basePoints, displayPoint);
-      }
-      return basePoints;
-    }).toList(growable: false);
+    final trailCoordinates = riders
+        .expand((rider) {
+          final riderId = (rider['riderId'] ?? '').toString();
+          final basePoints = List<latlng.LatLng>.from(
+            _liveRiderTrails[riderId] ?? const <latlng.LatLng>[],
+          );
+          final displayPoint = _displayPointForRider(rider);
+          if (displayPoint != null) {
+            _appendTrailPoint(basePoints, displayPoint);
+          }
+          return basePoints;
+        })
+        .toList(growable: false);
     final mapCoordinates = <latlng.LatLng>[
       ...startCoordinates,
       ...trailCoordinates,
       ...coordinates,
     ];
-    final mapKey = riders
-        .map((rider) => rider['riderId'].toString())
-        .join('_');
+    final mapKey = riders.map((rider) => rider['riderId'].toString()).join('_');
 
     final fallbackCenter = mapCoordinates.isNotEmpty
         ? mapCoordinates.first
@@ -1623,16 +2388,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     ? null
                     : CameraFit.coordinates(
                         coordinates: mapCoordinates,
-                        padding: EdgeInsets.fromLTRB(
-                          44,
-                          56,
-                          44,
-                          48,
-                        ),
+                        padding: EdgeInsets.fromLTRB(44, 56, 44, 48),
                         maxZoom: isFocusedTrackingMode ? 16 : 15,
                       ),
                 interactionOptions: const InteractionOptions(
-                  flags: InteractiveFlag.drag |
+                  flags:
+                      InteractiveFlag.drag |
                       InteractiveFlag.pinchZoom |
                       InteractiveFlag.doubleTapZoom,
                 ),
@@ -1684,9 +2445,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             points: points,
                             color: isSelected
                                 ? routeColor
-                                : routeColor.withValues(
-                                    alpha: 0.52,
-                                  ),
+                                : routeColor.withValues(alpha: 0.52),
                             strokeWidth: isFocusedTrackingMode
                                 ? 6
                                 : (isSelected ? 5 : 3.5),
@@ -1700,7 +2459,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     final riderId = (rider['riderId'] ?? '').toString();
                     final isSelected = riderId == _selectedLiveRiderId;
                     final routeColor = _routeColorForRider(riderId);
-                    final displayPoint = _displayPointForRider(rider) ??
+                    final displayPoint =
+                        _displayPointForRider(rider) ??
                         latlng.LatLng(
                           (rider['latitude'] as double?) ?? 0,
                           (rider['longitude'] as double?) ?? 0,
@@ -1763,9 +2523,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.94),
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: const Color(0xFFD7E3F4),
-                            ),
+                            border: Border.all(color: const Color(0xFFD7E3F4)),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.08),
@@ -1860,7 +2618,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required Color accentColor,
   }) {
     final riderName = (rider['riderName'] ?? 'Rider').toString().trim();
-    final initial = riderName.isEmpty ? 'R' : String.fromCharCode(riderName.runes.first);
+    final initial = riderName.isEmpty
+        ? 'R'
+        : String.fromCharCode(riderName.runes.first);
     final speedLabel = _speedLabelForRider(rider);
 
     return SizedBox(
@@ -2442,10 +3202,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
                 children: [
                   TextSpan(
                     text: '$label: ',
@@ -3842,5 +4599,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       '${activity['title'] ?? "Activity Details"}\n$detailsStr',
       duration: const Duration(seconds: 5),
     );
+  }
+}
+
+class _SimpleTrendPainter extends CustomPainter {
+  _SimpleTrendPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [color.withValues(alpha: 0.24), color.withValues(alpha: 0.02)],
+      ).createShader(Offset.zero & size);
+
+    final strokePaint = Paint()
+      ..color = color
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final points = <Offset>[
+      Offset(size.width * 0.05, size.height * 0.72),
+      Offset(size.width * 0.26, size.height * 0.44),
+      Offset(size.width * 0.46, size.height * 0.56),
+      Offset(size.width * 0.66, size.height * 0.74),
+      Offset(size.width * 0.84, size.height * 0.48),
+      Offset(size.width * 0.95, size.height * 0.18),
+    ];
+
+    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
+    for (var i = 1; i < points.length; i++) {
+      linePath.lineTo(points[i].dx, points[i].dy);
+    }
+
+    final fillPath = Path.from(linePath)
+      ..lineTo(points.last.dx, size.height)
+      ..lineTo(points.first.dx, size.height)
+      ..close();
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(linePath, strokePaint);
+
+    final pointPaint = Paint()..color = color;
+    for (final point in points) {
+      canvas.drawCircle(point, 3.5, pointPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SimpleTrendPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
