@@ -25,6 +25,9 @@ class RiderBackgroundTrackingService {
   double? _lastLatitude;
   double? _lastLongitude;
   DateTime? _lastSentAt;
+  double? _pendingLatitude;
+  double? _pendingLongitude;
+  bool _pendingForce = false;
 
   Future<void> updateToken(String token) async {
     final trimmedToken = token.trim();
@@ -125,6 +128,22 @@ class RiderBackgroundTrackingService {
     );
   }
 
+  Future<void> syncPosition(
+    Position position, {
+    bool force = false,
+  }) async {
+    if (kIsWeb) return;
+    final token = await _loadTokenIfEnabled();
+    if (token == null) return;
+
+    await _sendCoordinates(
+      token,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      force: force,
+    );
+  }
+
   Future<void> _handleLocationUpdate(Location location) async {
     final token = await _loadTokenIfEnabled();
     if (token == null) return;
@@ -163,7 +182,12 @@ class RiderBackgroundTrackingService {
     required double longitude,
     bool force = false,
   }) async {
-    if (_isSending) return;
+    if (_isSending) {
+      _pendingLatitude = latitude;
+      _pendingLongitude = longitude;
+      _pendingForce = _pendingForce || force;
+      return;
+    }
 
     final movedEnough =
         _lastLatitude == null ||
@@ -204,6 +228,24 @@ class RiderBackgroundTrackingService {
       await prefs.setString(_lastSentAtKey, _lastSentAt!.toIso8601String());
     } finally {
       _isSending = false;
+
+      final pendingLatitude = _pendingLatitude;
+      final pendingLongitude = _pendingLongitude;
+      final pendingForce = _pendingForce;
+      _pendingLatitude = null;
+      _pendingLongitude = null;
+      _pendingForce = false;
+
+      if (pendingLatitude != null && pendingLongitude != null) {
+        unawaited(
+          _sendCoordinates(
+            token,
+            latitude: pendingLatitude,
+            longitude: pendingLongitude,
+            force: pendingForce,
+          ),
+        );
+      }
     }
   }
 }

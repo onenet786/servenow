@@ -90,10 +90,11 @@ const REQUEST_CACHE_TTL = 5000;
 const MAX_RETRIES = 3;
 
 async function fetchWithBackoff(url, options = {}, retryCount = 0) {
-    const cacheKey = url;
+    const method = String(options.method || 'GET').toUpperCase();
+    const cacheKey = `${method}:${url}`;
     const now = Date.now();
-    
-    if (requestCache[cacheKey] && now - requestCache[cacheKey].time < REQUEST_CACHE_TTL) {
+
+    if (method === 'GET' && requestCache[cacheKey] && now - requestCache[cacheKey].time < REQUEST_CACHE_TTL) {
         return Promise.resolve(requestCache[cacheKey].response.clone());
     }
     
@@ -109,7 +110,7 @@ async function fetchWithBackoff(url, options = {}, retryCount = 0) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        if (response.ok) {
+        if (method === 'GET' && response.ok) {
             requestCache[cacheKey] = { response: response.clone(), time: now };
         }
         

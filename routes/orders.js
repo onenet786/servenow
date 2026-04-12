@@ -546,6 +546,14 @@ function isCoordinateOnlyLocationLabel(value) {
   return /^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/.test(text);
 }
 
+function resolveFastRiderLocationLabel(latitude, longitude, location) {
+  const trimmedLocation = String(location || "").trim();
+  if (trimmedLocation && !isCoordinateOnlyLocationLabel(trimmedLocation)) {
+    return trimmedLocation;
+  }
+  return formatCoordinateLocationLabel(latitude, longitude);
+}
+
 function buildRiderReverseGeocodeKey(latitude, longitude) {
   const lat = Number.parseFloat(latitude);
   const lng = Number.parseFloat(longitude);
@@ -2071,10 +2079,11 @@ router.put(
 
       const { latitude, longitude } = req.body;
       const location = String(req.body.location || "").trim() || null;
-      const resolvedLocation =
-        (!location || isCoordinateOnlyLocationLabel(location))
-          ? await reverseGeocodeRiderLocation(latitude, longitude)
-          : location;
+      const resolvedLocation = resolveFastRiderLocationLabel(
+        latitude,
+        longitude,
+        location,
+      );
       const riderId = req.user.id;
 
       await ensureRiderLocationColumns(req.db);
@@ -2128,6 +2137,10 @@ router.put(
           orderIds,
         }),
       );
+
+      if (!location || isCoordinateOnlyLocationLabel(location)) {
+        reverseGeocodeRiderLocation(latitude, longitude).catch(() => {});
+      }
 
       res.json({
         success: true,
@@ -4160,10 +4173,8 @@ router.put(
       const { latitude, longitude } = req.body;
       const location = String(req.body.location || "").trim() || null;
       const resolvedLocation =
-        latitude !== undefined &&
-        longitude !== undefined &&
-        (!location || isCoordinateOnlyLocationLabel(location))
-          ? await reverseGeocodeRiderLocation(latitude, longitude)
+        latitude !== undefined && longitude !== undefined
+          ? resolveFastRiderLocationLabel(latitude, longitude, location)
           : location;
 
       // Check if order exists and user has permission (rider or admin)
@@ -4216,6 +4227,10 @@ router.put(
             ),
           }),
         );
+
+        if (!location || isCoordinateOnlyLocationLabel(location)) {
+          reverseGeocodeRiderLocation(latitude, longitude).catch(() => {});
+        }
       }
 
       res.json({

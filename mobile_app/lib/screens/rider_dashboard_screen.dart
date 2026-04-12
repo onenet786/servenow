@@ -1047,6 +1047,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       locationSettings: locationSettings,
     ).listen((position) async {
       await _updateCurrentLocationFromPosition(position);
+      if (_assignedDeliveries.isNotEmpty) {
+        await RiderBackgroundTrackingService.instance.syncPosition(position);
+      }
     });
   }
 

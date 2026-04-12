@@ -21,12 +21,24 @@ class _LiveRiderTrackerPayload {
   const _LiveRiderTrackerPayload({
     required this.trails,
     required this.speedsMph,
+    required this.startedAtByRiderId,
     required this.updatedAtByRiderId,
   });
 
   final Map<String, List<latlng.LatLng>> trails;
   final Map<String, double> speedsMph;
+  final Map<String, DateTime> startedAtByRiderId;
   final Map<String, DateTime> updatedAtByRiderId;
+}
+
+class _StandbyRiderSnapshot {
+  const _StandbyRiderSnapshot({
+    required this.riders,
+    required this.trackerPayload,
+  });
+
+  final List<Map<String, dynamic>> riders;
+  final _LiveRiderTrackerPayload trackerPayload;
 }
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -37,7 +49,11 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  static const latlng.LatLng _defaultTrackerCenter = latlng.LatLng(
+    31.5204,
+    74.3587,
+  );
   static const Set<String> _liveRiderTrackerEmails = {
     'admin@servenow.com',
     'nazir@servenow.pk',
@@ -73,6 +89,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   final Map<String, double> _liveRiderSpeedsMphById = {};
   final Map<String, String> _reverseGeocodeCache = {};
   final Set<String> _pendingReverseGeocodeKeys = {};
+  String? _liveTrackerBoundEmail;
+  String _liveTrackerDebugSummary = 'Tracker idle';
 
   int _todayTotal = 0;
   int _todayDelivered = 0;
@@ -94,6 +112,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   String? _selectedLiveRiderId;
   String _selectedActivityType = 'orders';
   bool _isUrdu = false;
+  bool _showStandbyRiders = false;
 
   Future<void> _loadLanguagePreference() async {
     final isUrdu = await CustomerLanguage.loadIsUrdu();
@@ -178,7 +197,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final longitude = double.tryParse(
         (order['rider_longitude'] ?? '').toString(),
       );
-      if (latitude == null || longitude == null) continue;
+      final storeLatitude = double.tryParse(
+        (order['store_latitude'] ?? '').toString(),
+      );
+      final storeLongitude = double.tryParse(
+        (order['store_longitude'] ?? '').toString(),
+      );
+      final hasLiveCoordinates = latitude != null && longitude != null;
+      final hasStoreCoordinates =
+          storeLatitude != null && storeLongitude != null;
 
       DateTime createdAt = DateTime.fromMillisecondsSinceEpoch(0);
       try {
@@ -204,15 +231,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         'orderNumber': (order['order_number'] ?? '').toString(),
         'storeName': (order['store_name'] ?? '').toString(),
         'locationLabel': (order['rider_location'] ?? '').toString().trim(),
-        'storeLatitude': double.tryParse(
-          (order['store_latitude'] ?? '').toString(),
-        ),
-        'storeLongitude': double.tryParse(
-          (order['store_longitude'] ?? '').toString(),
-        ),
+        'storeLatitude': storeLatitude,
+        'storeLongitude': storeLongitude,
         'status': status,
         'latitude': latitude,
         'longitude': longitude,
+        'hasLiveCoordinates': hasLiveCoordinates,
         'createdAt': createdAt,
       };
     }
@@ -231,6 +255,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   bool _isRiderFresh(Map<String, dynamic> rider) {
+    final status = (rider['status'] ?? '').toString().trim().toLowerCase();
+    final hasCoordinates =
+        (rider['latitude'] as double?) != null &&
+        (rider['longitude'] as double?) != null;
+    final hasStoreCoordinates =
+        (rider['storeLatitude'] as double?) != null &&
+        (rider['storeLongitude'] as double?) != null;
+
+    if (_isLiveTrackableOrderStatus(status) && (hasCoordinates || hasStoreCoordinates)) {
+      return true;
+    }
+
     final updatedAt = rider['createdAt'] as DateTime?;
     if (updatedAt == null) return false;
     return DateTime.now().difference(updatedAt.toLocal()) <=
@@ -244,7 +280,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return riders.map((rider) {
       final merged = Map<String, dynamic>.from(rider);
       final riderId = (merged['riderId'] ?? '').toString().trim();
+      final startedAt = trackerPayload.startedAtByRiderId[riderId];
       final updatedAt = trackerPayload.updatedAtByRiderId[riderId];
+      if (startedAt != null) {
+        merged['startedAt'] = startedAt;
+      }
       if (updatedAt != null) {
         merged['createdAt'] = updatedAt;
       }
@@ -254,7 +294,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         merged['locationLabel'] = cachedLabel;
       }
       return merged;
-    }).where(_isRiderFresh).toList(growable: false);
+    }).toList(growable: false);
   }
 
   DateTime? _parseLiveTrackingTime(dynamic value) {
@@ -312,22 +352,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       return const _LiveRiderTrackerPayload(
         trails: <String, List<latlng.LatLng>>{},
         speedsMph: <String, double>{},
+        startedAtByRiderId: <String, DateTime>{},
         updatedAtByRiderId: <String, DateTime>{},
       );
     }
 
-    final response = await ApiService.getRiderLocationHistory(
-      token,
-      riderIds: riderIds,
-      hours: _liveRiderHistoryHours,
-      limit: _liveRiderHistoryLimit,
-    );
+    Map<String, dynamic> response;
+    try {
+      response = await ApiService.getRiderLocationHistory(
+        token,
+        riderIds: riderIds,
+        hours: _liveRiderHistoryHours,
+        limit: _liveRiderHistoryLimit,
+      );
+    } catch (e) {
+      _logger.w('Live rider history unavailable, falling back to order coordinates: $e');
+      return const _LiveRiderTrackerPayload(
+        trails: <String, List<latlng.LatLng>>{},
+        speedsMph: <String, double>{},
+        startedAtByRiderId: <String, DateTime>{},
+        updatedAtByRiderId: <String, DateTime>{},
+      );
+    }
     final rawHistories =
         (response['histories'] as Map?)?.cast<String, dynamic>() ??
         const <String, dynamic>{};
 
     final trails = <String, List<latlng.LatLng>>{};
     final speedsMph = <String, double>{};
+    final startedAtByRiderId = <String, DateTime>{};
     final updatedAtByRiderId = <String, DateTime>{};
     for (final rider in riders) {
       final riderId = (rider['riderId'] ?? '').toString().trim();
@@ -335,6 +388,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       final points = <latlng.LatLng>[];
       final telemetry = <Map<String, dynamic>>[];
+      DateTime? earliestUpdatedAt;
       DateTime? latestUpdatedAt;
       final entries = rawHistories[riderId];
       if (entries is List) {
@@ -351,6 +405,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           final point = latlng.LatLng(latitude, longitude);
           _appendTrailPoint(points, point);
           final timestamp = _parseLiveTrackingTime(entry['created_at']);
+          if (timestamp != null &&
+              (earliestUpdatedAt == null || timestamp.isBefore(earliestUpdatedAt))) {
+            earliestUpdatedAt = timestamp;
+          }
           if (timestamp != null &&
               (latestUpdatedAt == null || timestamp.isAfter(latestUpdatedAt))) {
             latestUpdatedAt = timestamp;
@@ -369,6 +427,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _appendTrailPoint(points, point);
         final currentTimestamp = rider['createdAt'] as DateTime?;
         if (currentTimestamp != null &&
+            (earliestUpdatedAt == null ||
+                currentTimestamp.isBefore(earliestUpdatedAt))) {
+          earliestUpdatedAt = currentTimestamp;
+        }
+        if (currentTimestamp != null &&
             (latestUpdatedAt == null ||
                 currentTimestamp.isAfter(latestUpdatedAt))) {
           latestUpdatedAt = currentTimestamp;
@@ -386,6 +449,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (speedMph != null) {
         speedsMph[riderId] = speedMph;
       }
+      if (earliestUpdatedAt != null) {
+        startedAtByRiderId[riderId] = earliestUpdatedAt;
+      }
       if (latestUpdatedAt != null) {
         updatedAtByRiderId[riderId] = latestUpdatedAt;
       }
@@ -394,6 +460,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return _LiveRiderTrackerPayload(
       trails: trails,
       speedsMph: speedsMph,
+      startedAtByRiderId: startedAtByRiderId,
       updatedAtByRiderId: updatedAtByRiderId,
     );
   }
@@ -438,11 +505,185 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return null;
   }
 
+  String _riderDisplayNameFromRecord(Map<String, dynamic> rider) {
+    final fullName = (rider['full_name'] ?? '').toString().trim();
+    if (fullName.isNotEmpty) return fullName;
+    final firstName = (rider['first_name'] ?? '').toString().trim();
+    final lastName = (rider['last_name'] ?? '').toString().trim();
+    final combined = '$firstName $lastName'.trim();
+    if (combined.isNotEmpty) return combined;
+    return 'Rider #${(rider['id'] ?? '').toString()}';
+  }
+
+  Future<_StandbyRiderSnapshot> _fetchStandbyRiders(
+    String token,
+    List<Map<String, dynamic>> existingRiders,
+  ) async {
+    if (!_showStandbyRiders) {
+      return const _StandbyRiderSnapshot(
+        riders: <Map<String, dynamic>>[],
+        trackerPayload: _LiveRiderTrackerPayload(
+          trails: <String, List<latlng.LatLng>>{},
+          speedsMph: <String, double>{},
+          startedAtByRiderId: <String, DateTime>{},
+          updatedAtByRiderId: <String, DateTime>{},
+        ),
+      );
+    }
+
+    try {
+      final riderRecords = await ApiService.getRiders(token);
+      final existingIds = existingRiders
+          .map((rider) => (rider['riderId'] ?? '').toString().trim())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      final standbyRecords = riderRecords.where((raw) {
+        if (raw is! Map) return false;
+        final rider = raw.cast<String, dynamic>();
+        final riderId = (rider['id'] ?? '').toString().trim();
+        if (riderId.isEmpty || existingIds.contains(riderId)) return false;
+        final isActive = rider['is_active'] == true || rider['is_active'] == 1;
+        return isActive;
+      }).map((raw) => (raw as Map).cast<String, dynamic>()).toList(growable: false);
+
+      if (standbyRecords.isEmpty) {
+        return const _StandbyRiderSnapshot(
+          riders: <Map<String, dynamic>>[],
+          trackerPayload: _LiveRiderTrackerPayload(
+            trails: <String, List<latlng.LatLng>>{},
+            speedsMph: <String, double>{},
+            startedAtByRiderId: <String, DateTime>{},
+            updatedAtByRiderId: <String, DateTime>{},
+          ),
+        );
+      }
+
+      final riderIds = standbyRecords
+          .map((rider) => (rider['id'] ?? '').toString().trim())
+          .where((id) => id.isNotEmpty)
+          .toList(growable: false);
+
+      final historyResponse = await ApiService.getRiderLocationHistory(
+        token,
+        riderIds: riderIds,
+        hours: 12,
+        limit: 120,
+      );
+
+      final rawHistories =
+          (historyResponse['histories'] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{};
+      final trails = <String, List<latlng.LatLng>>{};
+      final speeds = <String, double>{};
+      final startedAtByRiderId = <String, DateTime>{};
+      final updatedAtByRiderId = <String, DateTime>{};
+      final standbyRiders = <Map<String, dynamic>>[];
+
+      for (final rider in standbyRecords) {
+        final riderId = (rider['id'] ?? '').toString().trim();
+        final entries = rawHistories[riderId];
+        if (entries is! List || entries.isEmpty) continue;
+
+        final points = <latlng.LatLng>[];
+        final telemetry = <Map<String, dynamic>>[];
+        DateTime? earliestUpdatedAt;
+        DateTime? latestUpdatedAt;
+
+        for (final raw in entries) {
+          if (raw is! Map) continue;
+          final entry = raw.cast<String, dynamic>();
+          final latitude = double.tryParse((entry['latitude'] ?? '').toString());
+          final longitude = double.tryParse((entry['longitude'] ?? '').toString());
+          if (latitude == null || longitude == null) continue;
+          final point = latlng.LatLng(latitude, longitude);
+          _appendTrailPoint(points, point);
+          final timestamp = _parseLiveTrackingTime(entry['created_at']);
+          if (timestamp != null &&
+              (earliestUpdatedAt == null || timestamp.isBefore(earliestUpdatedAt))) {
+            earliestUpdatedAt = timestamp;
+          }
+          telemetry.add({'point': point, 'timestamp': timestamp});
+          if (timestamp != null &&
+              (latestUpdatedAt == null || timestamp.isAfter(latestUpdatedAt))) {
+            latestUpdatedAt = timestamp;
+          }
+        }
+
+        if (points.isEmpty) continue;
+
+        trails[riderId] = points;
+        final speedMph = _estimateRiderSpeedMph(telemetry);
+        if (speedMph != null) {
+          speeds[riderId] = speedMph;
+        }
+        if (earliestUpdatedAt != null) {
+          startedAtByRiderId[riderId] = earliestUpdatedAt;
+        }
+        if (latestUpdatedAt != null) {
+          updatedAtByRiderId[riderId] = latestUpdatedAt;
+        }
+
+        final latestPoint = points.last;
+        standbyRiders.add({
+          'riderId': riderId,
+          'riderName': _riderDisplayNameFromRecord(rider),
+          'orderNumber': '',
+          'storeName': 'No active order',
+          'locationLabel': '',
+          'storeLatitude': null,
+          'storeLongitude': null,
+          'status': 'available',
+          'latitude': latestPoint.latitude,
+          'longitude': latestPoint.longitude,
+          'hasLiveCoordinates': true,
+          'startedAt': earliestUpdatedAt,
+          'createdAt': latestUpdatedAt ?? DateTime.now(),
+        });
+      }
+
+      return _StandbyRiderSnapshot(
+        riders: standbyRiders,
+        trackerPayload: _LiveRiderTrackerPayload(
+          trails: trails,
+          speedsMph: speeds,
+          startedAtByRiderId: startedAtByRiderId,
+          updatedAtByRiderId: updatedAtByRiderId,
+        ),
+      );
+    } catch (e) {
+      _logger.w('Standby rider tracking unavailable: $e');
+      return const _StandbyRiderSnapshot(
+        riders: <Map<String, dynamic>>[],
+        trackerPayload: _LiveRiderTrackerPayload(
+          trails: <String, List<latlng.LatLng>>{},
+          speedsMph: <String, double>{},
+          startedAtByRiderId: <String, DateTime>{},
+          updatedAtByRiderId: <String, DateTime>{},
+        ),
+      );
+    }
+  }
+
   latlng.LatLng? _resolveRiderCurrentPoint(Map<String, dynamic> rider) {
     final latitude = rider['latitude'] as double?;
     final longitude = rider['longitude'] as double?;
-    if (latitude == null || longitude == null) return null;
-    return latlng.LatLng(latitude, longitude);
+    if (latitude != null && longitude != null) {
+      return latlng.LatLng(latitude, longitude);
+    }
+
+    final storeLatitude = rider['storeLatitude'] as double?;
+    final storeLongitude = rider['storeLongitude'] as double?;
+    if (storeLatitude != null && storeLongitude != null) {
+      return latlng.LatLng(storeLatitude, storeLongitude);
+    }
+
+    final riderId = (rider['riderId'] ?? '').toString();
+    final trail = _liveRiderTrails[riderId];
+    if (trail != null && trail.isNotEmpty) {
+      return trail.last;
+    }
+    return null;
   }
 
   List<latlng.LatLng> _trailPointsForRider(Map<String, dynamic> rider) {
@@ -495,6 +736,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (minutes == null) return '-';
     if (minutes <= 1) return '1 min';
     return '$minutes mins';
+  }
+
+  int? _travelMinutesForRider(Map<String, dynamic> rider) {
+    final startedAt = rider['startedAt'] as DateTime?;
+    if (startedAt == null) return null;
+    final minutes = DateTime.now().difference(startedAt.toLocal()).inMinutes;
+    if (minutes < 0) return null;
+    return minutes;
+  }
+
+  bool _shouldWarnPickupDelay(Map<String, dynamic> rider) {
+    final status = (rider['status'] ?? '').toString().trim().toLowerCase();
+    final minutes = _travelMinutesForRider(rider);
+    if (minutes == null) return false;
+    const pickupStatuses = {
+      'available',
+      'confirmed',
+      'preparing',
+      'ready',
+      'ready_for_pickup',
+    };
+    return pickupStatuses.contains(status) && minutes > 8;
+  }
+
+  String _formatTravelMinutes(int? minutes) {
+    if (minutes == null) return '-';
+    if (minutes < 60) return '$minutes min';
+    final hours = minutes ~/ 60;
+    final remaining = minutes % 60;
+    if (remaining == 0) return '${hours}h';
+    return '${hours}h ${remaining}m';
   }
 
   String _formatLiveUpdatedLabel(DateTime? value) {
@@ -552,12 +824,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return deduped.take(3).join(', ');
   }
 
+  bool _isCoordinateOnlyLocationLabel(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    return RegExp(r'^-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$').hasMatch(trimmed);
+  }
+
+  bool _isPlusCodeLocationLabel(String value) {
+    final trimmed = value.trim().toUpperCase();
+    if (trimmed.isEmpty) return false;
+    return RegExp(
+      r'^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}(?:\s+.+)?$',
+    ).hasMatch(trimmed);
+  }
+
+  bool _shouldHideMachineLocationLabel(String value) {
+    return _isCoordinateOnlyLocationLabel(value) || _isPlusCodeLocationLabel(value);
+  }
+
   String _liveLocationLabelForRider(Map<String, dynamic> rider) {
     final riderId = (rider['riderId'] ?? '').toString().trim();
     final livePoint = _displayPointForRider(rider);
     final serverLabel = (rider['locationLabel'] ?? '').toString().trim();
-    if (serverLabel.isNotEmpty) {
+    final hasLiveCoordinates = rider['hasLiveCoordinates'] == true;
+    if (serverLabel.isNotEmpty && !_shouldHideMachineLocationLabel(serverLabel)) {
       return serverLabel;
+    }
+    if (!hasLiveCoordinates) {
+      final storeName = (rider['storeName'] ?? '').toString().trim();
+      if (storeName.isNotEmpty) {
+        return 'Awaiting rider GPS near $storeName';
+      }
+      return 'Awaiting rider GPS';
     }
     if (riderId.isNotEmpty) {
       final cached = _liveLocationNameByRider[riderId];
@@ -771,7 +1069,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
     if (locationLabel.isNotEmpty) {
       rider['locationLabel'] = locationLabel;
-      _liveLocationNameByRider[riderId] = locationLabel;
+      if (!_shouldHideMachineLocationLabel(locationLabel)) {
+        _liveLocationNameByRider[riderId] = locationLabel;
+      }
     }
     updatedRiders[existingIndex] = rider;
 
@@ -782,17 +1082,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     if (!mounted) return;
     setState(() {
-      _liveRiderLocations = updatedRiders
-          .where(_isRiderFresh)
-          .toList(growable: false);
+      _liveRiderLocations = updatedRiders.toList(growable: false);
       _liveRiderTrails = trails;
       _syncAnimatedRiderLocations(_liveRiderLocations);
     });
+    unawaited(_refreshLiveLocationNames(_liveRiderLocations));
   }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _riderMotionController = AnimationController(
       vsync: this,
       duration: _riderMotionDuration,
@@ -804,6 +1104,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _liveStatsTimer?.cancel();
     _liveRiderTimer?.cancel();
     _graceAlertTimer?.cancel();
@@ -815,6 +1116,52 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       listen: false,
     ).removeEventListener(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureLiveTrackerReady();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _ensureLiveTrackerReady(forceRefresh: true);
+    }
+  }
+
+  void _ensureLiveTrackerReady({bool forceRefresh = false}) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final email = auth.user?.email?.trim().toLowerCase();
+    final canView = _canViewLiveRiderTracker(email);
+
+    if (!canView) {
+      _liveTrackerBoundEmail = null;
+      _liveRiderTimer?.cancel();
+      _liveRiderTimer = null;
+      if (mounted) {
+        setState(() {
+          _liveTrackerDebugSummary = 'Tracker hidden for this account';
+        });
+      }
+      return;
+    }
+
+    final shouldRebind =
+        forceRefresh ||
+        _liveTrackerBoundEmail != email ||
+        _liveRiderTimer == null ||
+        !_liveRiderTimer!.isActive;
+    if (!shouldRebind) return;
+
+    _liveTrackerBoundEmail = email;
+    _liveRiderTimer?.cancel();
+    _liveRiderTimer = Timer.periodic(_liveRiderRefreshInterval, (_) {
+      if (!mounted) return;
+      _loadLiveRiderLocationsOnly();
+    });
+    unawaited(_loadLiveRiderLocationsOnly());
   }
 
   void _setupLiveRefresh() {
@@ -848,13 +1195,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _loadVisitorStatsOnly();
     });
 
-    final email = auth.user?.email;
-    if (_canViewLiveRiderTracker(email)) {
-      _liveRiderTimer = Timer.periodic(_liveRiderRefreshInterval, (_) {
-        if (!mounted) return;
-        _loadLiveRiderLocationsOnly();
-      });
-    }
+    _ensureLiveTrackerReady();
 
     _graceAlertTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) return;
@@ -962,15 +1303,54 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   .toList(growable: false),
             )
           : const <Map<String, dynamic>>[];
-      final liveRiderTrackerPayload = allowLiveTracker
-          ? await _fetchLiveRiderTrails(token, liveRiders)
-          : const _LiveRiderTrackerPayload(
-              trails: <String, List<latlng.LatLng>>{},
-              speedsMph: <String, double>{},
-              updatedAtByRiderId: <String, DateTime>{},
+      _LiveRiderTrackerPayload liveRiderTrackerPayload =
+          const _LiveRiderTrackerPayload(
+            trails: <String, List<latlng.LatLng>>{},
+            speedsMph: <String, double>{},
+            startedAtByRiderId: <String, DateTime>{},
+            updatedAtByRiderId: <String, DateTime>{},
+          );
+      if (allowLiveTracker) {
+        liveRiderTrackerPayload = await _fetchLiveRiderTrails(
+          token,
+          liveRiders,
+        );
+      }
+      final standbySnapshot = allowLiveTracker
+          ? await _fetchStandbyRiders(token, liveRiders)
+          : const _StandbyRiderSnapshot(
+              riders: <Map<String, dynamic>>[],
+              trackerPayload: _LiveRiderTrackerPayload(
+                trails: <String, List<latlng.LatLng>>{},
+                speedsMph: <String, double>{},
+                startedAtByRiderId: <String, DateTime>{},
+                updatedAtByRiderId: <String, DateTime>{},
+              ),
             );
+      final combinedRiders = <Map<String, dynamic>>[
+        ...liveRiders,
+        ...standbySnapshot.riders,
+      ];
+      final combinedTrackerPayload = _LiveRiderTrackerPayload(
+        trails: {
+          ...liveRiderTrackerPayload.trails,
+          ...standbySnapshot.trackerPayload.trails,
+        },
+        speedsMph: {
+          ...liveRiderTrackerPayload.speedsMph,
+          ...standbySnapshot.trackerPayload.speedsMph,
+        },
+        startedAtByRiderId: {
+          ...liveRiderTrackerPayload.startedAtByRiderId,
+          ...standbySnapshot.trackerPayload.startedAtByRiderId,
+        },
+        updatedAtByRiderId: {
+          ...liveRiderTrackerPayload.updatedAtByRiderId,
+          ...standbySnapshot.trackerPayload.updatedAtByRiderId,
+        },
+      );
       final mergedLiveRiders = allowLiveTracker
-          ? _mergeLiveRiderSnapshot(liveRiders, liveRiderTrackerPayload)
+          ? _mergeLiveRiderSnapshot(combinedRiders, combinedTrackerPayload)
           : const <Map<String, dynamic>>[];
 
       final now = DateTime.now();
@@ -1067,12 +1447,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _recentStoresList = recentActivityData['recent_stores'] ?? [];
         _assignableOrdersList = assignableOrders;
         _liveRiderLocations = mergedLiveRiders;
+        _liveTrackerDebugSummary =
+            'Orders ${orders.length} | Trackable ${combinedRiders.length} | Visible ${mergedLiveRiders.length}';
         _liveRiderTrails = Map<String, List<latlng.LatLng>>.from(
-          liveRiderTrackerPayload.trails,
+          combinedTrackerPayload.trails,
         );
         _liveRiderSpeedsMphById
           ..clear()
-          ..addAll(liveRiderTrackerPayload.speedsMph);
+          ..addAll(combinedTrackerPayload.speedsMph);
         _syncAnimatedRiderLocations(_liveRiderLocations);
         _liveLocationNameByRider.removeWhere(
           (key, _) => !_liveRiderLocations.any(
@@ -1090,7 +1472,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       unawaited(_refreshLiveLocationNames(mergedLiveRiders));
     } catch (e) {
       _logger.e('Error loading stats: $e');
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _liveTrackerDebugSummary = 'Stats load failed';
+        });
+      }
     }
   }
 
@@ -1098,7 +1485,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final token = auth.token;
-      if (token == null || !_canViewLiveRiderTracker(auth.user?.email)) return;
+      if (token == null || !_canViewLiveRiderTracker(auth.user?.email)) {
+        return;
+      }
 
       final orders = await ApiService.getOrders(
         token,
@@ -1107,14 +1496,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       );
       final riders = _extractLiveRiderLocations(orders);
       final trackerPayload = await _fetchLiveRiderTrails(token, riders);
-      final mergedRiders = _mergeLiveRiderSnapshot(riders, trackerPayload);
+      final standbySnapshot = await _fetchStandbyRiders(token, riders);
+      final combinedRiders = <Map<String, dynamic>>[
+        ...riders,
+        ...standbySnapshot.riders,
+      ];
+      final combinedTrackerPayload = _LiveRiderTrackerPayload(
+        trails: {
+          ...trackerPayload.trails,
+          ...standbySnapshot.trackerPayload.trails,
+        },
+        speedsMph: {
+          ...trackerPayload.speedsMph,
+          ...standbySnapshot.trackerPayload.speedsMph,
+        },
+        startedAtByRiderId: {
+          ...trackerPayload.startedAtByRiderId,
+          ...standbySnapshot.trackerPayload.startedAtByRiderId,
+        },
+        updatedAtByRiderId: {
+          ...trackerPayload.updatedAtByRiderId,
+          ...standbySnapshot.trackerPayload.updatedAtByRiderId,
+        },
+      );
+      final mergedRiders = _mergeLiveRiderSnapshot(
+        combinedRiders,
+        combinedTrackerPayload,
+      );
       if (!mounted) return;
       setState(() {
         _liveRiderLocations = mergedRiders;
-        _liveRiderTrails = trackerPayload.trails;
+        _liveTrackerDebugSummary =
+            'Refresh riders ${combinedRiders.length} | Visible ${mergedRiders.length}';
+        _liveRiderTrails = combinedTrackerPayload.trails;
         _liveRiderSpeedsMphById
           ..clear()
-          ..addAll(trackerPayload.speedsMph);
+          ..addAll(combinedTrackerPayload.speedsMph);
         _syncAnimatedRiderLocations(_liveRiderLocations);
         _liveLocationNameByRider.removeWhere(
           (key, _) => !_liveRiderLocations.any(
@@ -1131,6 +1548,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       unawaited(_refreshLiveLocationNames(mergedRiders));
     } catch (e) {
       _logger.w('Live rider refresh skipped: $e');
+      if (mounted) {
+        setState(() {
+          _liveTrackerDebugSummary = 'Live refresh failed';
+        });
+      }
     }
   }
 
@@ -2137,9 +2559,59 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD7E3F4)),
+                ),
+                child: Text(
+                  _liveTrackerDebugSummary,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                value: _showStandbyRiders,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text(
+                  'Show riders without assigned orders',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Track office-to-pickup travel from latest rider location logs.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11.5),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _showStandbyRiders = value ?? false;
+                  });
+                  unawaited(_loadLiveRiderLocationsOnly());
+                },
+              ),
               const SizedBox(height: 12),
               if (allRiders.isNotEmpty) ...[
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: hasSelectedRider
                       ? _selectedLiveRiderId
                       : '__all__',
@@ -2173,15 +2645,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           .toString();
                       return DropdownMenuItem<String>(
                         value: riderId,
-                        child: Text(
-                          orderNumber.isEmpty
-                              ? riderName
-                              : '$riderName - $orderNumber',
-                          overflow: TextOverflow.ellipsis,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            orderNumber.isEmpty
+                                ? riderName
+                                : '$riderName - $orderNumber',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       );
                     }),
                   ],
+                  selectedItemBuilder: (context) {
+                    return [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _tr('All riders'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      ...allRiders.map((rider) {
+                        final riderName =
+                            (rider['riderName'] ?? _tr('Rider')).toString();
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            riderName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }),
+                    ];
+                  },
                   onChanged: (value) {
                     setState(() {
                       _selectedLiveRiderId = value == null || value == '__all__'
@@ -2295,7 +2795,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     final fallbackCenter = mapCoordinates.isNotEmpty
         ? mapCoordinates.first
-        : const latlng.LatLng(30.3753, 69.3451);
+        : _defaultTrackerCenter;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
@@ -2419,10 +2919,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     final routeColor = _routeColorForRider(riderId);
                     final displayPoint =
                         _displayPointForRider(rider) ??
-                        latlng.LatLng(
-                          (rider['latitude'] as double?) ?? 0,
-                          (rider['longitude'] as double?) ?? 0,
-                        );
+                        _resolveRiderStartPoint(rider);
+                    if (displayPoint == null) return null;
                     return Marker(
                       point: displayPoint,
                       width: isFocusedTrackingMode ? 160 : 110,
@@ -2449,16 +2947,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               ),
                       ),
                     );
-                  }).toList(),
+                  }).whereType<Marker>().toList(growable: false),
                 ),
               ],
-            ),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: _selectedLiveRiderId == null && riders.length > 1
-                  ? _buildRouteLegend(riders)
-                  : const SizedBox.shrink(),
             ),
             Positioned(
               top: 12,
@@ -2516,57 +3007,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     )
                   : const SizedBox.shrink(),
             ),
-            if (focusedRider == null)
-              Positioned(
-                left: 12,
-                right: 12,
-                bottom: 10,
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: const Color(0xFFD7E3F4)),
-                      ),
-                      child: const Text(
-                        'Map data OpenStreetMap contributors',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: const Color(0xFFD7E3F4)),
-                      ),
-                      child: Text(
-                        isFullscreen
-                            ? 'Tap a rider pin'
-                            : 'Double tap for fullscreen',
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
@@ -2796,6 +3236,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final orderNumber = (rider['orderNumber'] ?? '').toString().trim();
     final distanceKm = _distanceKmForRider(rider);
     final etaMinutes = _etaMinutesForRider(rider);
+    final travelMinutes = _travelMinutesForRider(rider);
+    final pickupWarning = _shouldWarnPickupDelay(rider);
     final trailPoints = _liveRiderTrails[riderId]?.length ?? 1;
 
     return Container(
@@ -2905,6 +3347,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 icon: Icons.schedule_rounded,
                 label: _formatEtaMinutes(etaMinutes),
               ),
+              _buildTrackingMetricPill(
+                icon: pickupWarning
+                    ? Icons.warning_amber_rounded
+                    : Icons.timelapse_rounded,
+                label: _formatTravelMinutes(travelMinutes),
+                backgroundColor: pickupWarning
+                    ? const Color(0xFFFEE2E2)
+                    : const Color(0xFFF8FAFC),
+                borderColor: pickupWarning
+                    ? const Color(0xFFFCA5A5)
+                    : const Color(0xFFE5E7EB),
+                textColor: pickupWarning
+                    ? const Color(0xFFB91C1C)
+                    : const Color(0xFF1F2937),
+              ),
             ],
           ),
         ],
@@ -2915,25 +3372,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Widget _buildTrackingMetricPill({
     required IconData icon,
     required String label,
+    Color backgroundColor = const Color(0xFFF8FAFC),
+    Color borderColor = const Color(0xFFE5E7EB),
+    Color textColor = const Color(0xFF1F2937),
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF475569)),
+          Icon(icon, size: 14, color: textColor),
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1F2937),
+              color: textColor,
             ),
           ),
         ],
@@ -3148,6 +3608,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final assignedOrder = orderNumber.isEmpty ? 'Not assigned' : orderNumber;
     final distanceKm = _distanceKmForRider(rider);
     final etaMinutes = _etaMinutesForRider(rider);
+    final travelMinutes = _travelMinutesForRider(rider);
+    final pickupWarning = _shouldWarnPickupDelay(rider);
 
     showModalBottomSheet<void>(
       context: context,
@@ -3200,6 +3662,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   _tr('ETA'),
                   _formatEtaMinutes(etaMinutes),
                 ),
+                _buildLiveDetailRow(
+                  pickupWarning
+                      ? Icons.warning_amber_rounded
+                      : Icons.timelapse_rounded,
+                  'Travel Time',
+                  _formatTravelMinutes(travelMinutes),
+                ),
                 _buildLiveDetailRow(Icons.place, _tr('Location'), liveLocation),
                 _buildLiveDetailRow(
                   Icons.explore,
@@ -3251,6 +3720,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final trailPoints = _liveRiderTrails[riderId]?.length ?? 1;
     final distanceKm = _distanceKmForRider(rider);
     final etaMinutes = _etaMinutesForRider(rider);
+    final travelMinutes = _travelMinutesForRider(rider);
+    final pickupWarning = _shouldWarnPickupDelay(rider);
     final isSelected = riderId == _selectedLiveRiderId;
 
     return GestureDetector(
@@ -3342,6 +3813,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               style: const TextStyle(
                 fontSize: 10.5,
                 color: Colors.black54,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              'Travel: ${_formatTravelMinutes(travelMinutes)}',
+              style: TextStyle(
+                fontSize: 10.5,
+                color: pickupWarning
+                    ? const Color(0xFFB91C1C)
+                    : Colors.black54,
                 fontWeight: FontWeight.w700,
               ),
             ),
