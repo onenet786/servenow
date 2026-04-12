@@ -2811,6 +2811,7 @@ function switchTab(tabName) {
             loadProblemsDiagnostics();
             break;
     }
+
 }
 
 // Open a sub-panel inside the Riders tab (either 'list' or 'fuel')

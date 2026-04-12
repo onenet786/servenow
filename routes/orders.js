@@ -493,6 +493,18 @@ async function ensureRiderLocationLogsTable(db) {
   }
 }
 
+const ACTIVE_RIDER_DELIVERY_STATUSES = [
+  "confirmed",
+  "preparing",
+  "ready",
+  "ready_for_pickup",
+  "picked_up",
+  "out_for_delivery",
+];
+const ACTIVE_RIDER_DELIVERY_STATUS_SQL = ACTIVE_RIDER_DELIVERY_STATUSES.map(
+  (status) => `'${status}'`,
+).join(", ");
+
 function buildRiderLocationUpdatePayload({
   riderId,
   latitude,
@@ -1859,8 +1871,7 @@ router.get("/rider/deliveries", authenticateToken, async (req, res) => {
     const { status } = req.query;
     let whereClause = "o.rider_id = ?";
     if (status === "assigned") {
-      whereClause +=
-        " AND o.status IN ('out_for_delivery', 'confirmed', 'preparing', 'ready')";
+      whereClause += ` AND o.status IN (${ACTIVE_RIDER_DELIVERY_STATUS_SQL})`;
     } else if (status === "completed") {
       whereClause += " AND o.status = 'delivered'";
     }
@@ -1942,8 +1953,7 @@ router.get(
 
       let whereClause = "o.rider_id = ?";
       if (status === "assigned") {
-        whereClause +=
-          " AND o.status IN ('out_for_delivery', 'confirmed', 'preparing', 'ready')";
+        whereClause += ` AND o.status IN (${ACTIVE_RIDER_DELIVERY_STATUS_SQL})`;
       } else if (status === "completed") {
         whereClause += " AND o.status = 'delivered'";
       }
@@ -2073,7 +2083,7 @@ router.put(
         `SELECT id
          FROM orders
          WHERE rider_id = ?
-           AND status IN ('confirmed', 'preparing', 'ready', 'ready_for_pickup', 'picked_up', 'out_for_delivery')`,
+           AND status IN (${ACTIVE_RIDER_DELIVERY_STATUS_SQL})`,
         [riderId],
       );
 
@@ -2087,11 +2097,11 @@ router.put(
           ? `UPDATE orders
              SET rider_latitude = ?, rider_longitude = ?, rider_location = ?
              WHERE rider_id = ?
-               AND status IN ('confirmed', 'preparing', 'ready', 'ready_for_pickup', 'picked_up', 'out_for_delivery')`
+               AND status IN (${ACTIVE_RIDER_DELIVERY_STATUS_SQL})`
           : `UPDATE orders
              SET rider_latitude = ?, rider_longitude = ?
              WHERE rider_id = ?
-               AND status IN ('confirmed', 'preparing', 'ready', 'ready_for_pickup', 'picked_up', 'out_for_delivery')`;
+               AND status IN (${ACTIVE_RIDER_DELIVERY_STATUS_SQL})`;
         const updateParams = resolvedLocation
           ? [latitude, longitude, resolvedLocation, riderId]
           : [latitude, longitude, riderId];

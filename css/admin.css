@@ -2185,6 +2185,7 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
+
 .orders-date-stack {
   display: flex;
   flex-direction: column;
@@ -2237,9 +2238,7 @@ textarea:focus {
 }
 
 .status-confirmed,
-.status-ready,
-.status-ready_for_pickup,
-.status-picked_up {
+.status-ready {
   background-color: #e0f2fe;
   color: #075985;
   padding: 0.25rem 0.75rem;
