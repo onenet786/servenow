@@ -290,7 +290,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final whatsapp = (support['whatsapp'] ?? phone).toString().trim();
     final email = (support['email'] ?? '').toString().trim();
     if (phone.isEmpty && whatsapp.isEmpty && email.isEmpty) {
-      final fallbackPhone = (_order['store_phone'] ?? _order['rider_phone'] ?? '')
+      final fallbackPhone = (_order['rider_phone'] ?? '')
           .toString()
           .trim();
       if (fallbackPhone.isNotEmpty) {
@@ -642,13 +642,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           ),
                                         )
                                       : Text(_tr('Cancel Order')),
-                                ),
-                                TextButton(
-                                  onPressed: () => _makeCall(
-                                    (_order['store_phone'] ?? _order['rider_phone'] ?? '')
-                                        .toString(),
-                                  ),
-                                  child: Text(_tr('Call Store')),
                                 ),
                                 TextButton(
                                   onPressed: _contactSupport,
