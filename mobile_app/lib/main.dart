@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,11 +37,70 @@ import 'theme/customer_palette.dart';
 import 'services/notifier.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final FlutterLocalNotificationsPlugin _backgroundLocalNotifications =
+    FlutterLocalNotificationsPlugin();
+bool _backgroundNotificationsInitialized = false;
+
+Future<void> _ensureBackgroundNotificationsReady() async {
+  if (_backgroundNotificationsInitialized || kIsWeb) return;
+
+  const settings = InitializationSettings(
+    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    iOS: DarwinInitializationSettings(),
+  );
+
+  await _backgroundLocalNotifications.initialize(settings);
+  await _backgroundLocalNotifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          NotificationProvider.androidChannelId,
+          NotificationProvider.androidChannelName,
+          description: NotificationProvider.androidChannelDescription,
+          importance: Importance.max,
+        ),
+      );
+
+  _backgroundNotificationsInitialized = true;
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp();
+    await _ensureBackgroundNotificationsReady();
+
+    if (message.notification != null) {
+      return;
+    }
+
+    final title =
+        message.data['title']?.toString().trim().isNotEmpty == true
+            ? message.data['title']!.toString().trim()
+            : 'ServeNow Notification';
+    final body = message.data['message']?.toString().trim() ?? '';
+    if (body.isEmpty) return;
+
+    const notificationDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        NotificationProvider.androidChannelId,
+        NotificationProvider.androidChannelName,
+        channelDescription: NotificationProvider.androidChannelDescription,
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+      iOS: DarwinNotificationDetails(),
+    );
+
+    await _backgroundLocalNotifications.show(
+      message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+      title,
+      body,
+      notificationDetails,
+    );
   } catch (_) {}
 }
 
@@ -49,6 +109,7 @@ Future<void> main() async {
   if (!kIsWeb) {
     try {
       await Firebase.initializeApp();
+      await _ensureBackgroundNotificationsReady();
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     } catch (_) {}
   }

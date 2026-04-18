@@ -51,6 +51,11 @@ class Notification {
 }
 
 class NotificationProvider with ChangeNotifier {
+  static const String androidChannelId = 'servenow_channel';
+  static const String androidChannelName = 'ServeNow Notifications';
+  static const String androidChannelDescription =
+      'Order updates and app notifications';
+
   socket_io.Socket? _socket;
   bool _isSocketInitializing = false;
   final GlobalKey<NavigatorState> navigatorKey;
@@ -93,6 +98,18 @@ class NotificationProvider with ChangeNotifier {
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            androidChannelId,
+            androidChannelName,
+            description: androidChannelDescription,
+            importance: Importance.max,
+          ),
+        );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
     await _initFirebaseMessaging();
   }
@@ -116,7 +133,7 @@ class NotificationProvider with ChangeNotifier {
     bool persistUntilDismissed = false,
     Map<String, dynamic>? payload,
   }) {
-    final key = '${title.trim()}|${message.trim()}|$type|$icon';
+    final key = '${title.trim()}|${message.trim()}|$type';
     final now = DateTime.now();
     if (_lastNotificationKey == key &&
         _lastNotificationAt != null &&
@@ -608,11 +625,24 @@ class NotificationProvider with ChangeNotifier {
 
       if (currentUserId == userId) {
         debugPrint('[NotificationProvider] Showing user notification');
+        final notificationType =
+            (data['type'] ?? 'info').toString().trim().toLowerCase();
+        final isCustomerFlash = notificationType == 'customer_flash_message';
+        final title =
+            isCustomerFlash
+                ? (data['title'] ?? 'ServeNow Update').toString()
+                : (data['title'] ?? 'Order Update').toString();
+        final message =
+            isCustomerFlash
+                ? (data['message'] ?? 'Please check the latest update.').toString()
+                : (data['message'] ?? 'Your order has been updated.').toString();
         addNotification(
-          title: 'Order Update',
-          message: data['message'] ?? 'Your order has been updated.',
-          type: 'info',
-          icon: 'inventory_2',
+          title: title,
+          message: message,
+          type: notificationType.isEmpty ? 'info' : notificationType,
+          icon: isCustomerFlash ? 'campaign' : 'inventory_2',
+          payload:
+              data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : null,
         );
       } else {
         debugPrint(
@@ -701,8 +731,9 @@ class NotificationProvider with ChangeNotifier {
   }) async {
     try {
       final androidDetails = AndroidNotificationDetails(
-        'servenow_channel',
-        'ServeNow Notifications',
+        androidChannelId,
+        androidChannelName,
+        channelDescription: androidChannelDescription,
         importance: Importance.max,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',

@@ -373,9 +373,9 @@ class _StoreScreenState extends State<StoreScreen> {
                             ),
                           ),
                         Card(
-                          elevation: 4,
+                          elevation: 2,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
+                            borderRadius: BorderRadius.circular(22),
                           ),
                           clipBehavior: Clip.antiAlias,
                           child: Column(
@@ -407,12 +407,12 @@ class _StoreScreenState extends State<StoreScreen> {
                               ),
                               if (!isOpen && closedReason.isNotEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
                                   child: Text(
                                     closedReason,
                                     style: TextStyle(
                                       color: Colors.red.shade700,
-                                      fontSize: 12,
+                                      fontSize: 11.5,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -422,37 +422,37 @@ class _StoreScreenState extends State<StoreScreen> {
                               ).isNotEmpty)
                                 Image.network(
                                   ApiService.getImageUrl(store['image_url']),
-                                  height: 200,
+                                  height: 140,
                                   width: double.infinity,
                                   fit: BoxFit.cover,
                                   errorBuilder: (ctx, err, _) => Container(
-                                    height: 200,
+                                    height: 140,
                                     color: Colors.grey[300],
                                     child: const Icon(
                                       Icons.store,
-                                      size: 80,
+                                      size: 64,
                                       color: Colors.grey,
                                     ),
                                   ),
                                 ),
                               Padding(
-                                padding: const EdgeInsets.all(16.0),
+                                padding: const EdgeInsets.all(12.0),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       store['name'],
                                       style: const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 6),
                                     Row(
                                       children: [
                                         const Icon(
-                                          Icons.location_on,
-                                          size: 16,
+                                          Icons.location_on_rounded,
+                                          size: 15,
                                           color: Colors.grey,
                                         ),
                                         const SizedBox(width: 4),
@@ -461,17 +461,19 @@ class _StoreScreenState extends State<StoreScreen> {
                                             store['location'],
                                             style: const TextStyle(
                                               color: Colors.grey,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 6),
                                     Row(
                                       children: [
                                         const Icon(
                                           Icons.access_time,
-                                          size: 16,
+                                          size: 15,
                                           color: Colors.green,
                                         ),
                                         const SizedBox(width: 4),
@@ -479,14 +481,14 @@ class _StoreScreenState extends State<StoreScreen> {
                                           'Open: ${_formatTimeOnly(store['opening_time'])}',
                                           style: const TextStyle(
                                             color: Colors.grey,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
-                                        const SizedBox(width: 16),
+                                        const SizedBox(width: 12),
                                         const Icon(
                                           Icons.timer_off,
-                                          size: 16,
+                                          size: 15,
                                           color: Colors.red,
                                         ),
                                         const SizedBox(width: 4),
@@ -494,26 +496,27 @@ class _StoreScreenState extends State<StoreScreen> {
                                           'Close: ${_formatTimeOnly(store['closing_time'])}',
                                           style: const TextStyle(
                                             color: Colors.grey,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 6),
                                     if (store['rating'] != null)
                                       Row(
                                         children: [
                                           const Icon(
-                                            Icons.star,
-                                            size: 16,
+                                            Icons.star_rounded,
+                                            size: 15,
                                             color: Colors.amber,
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
                                             '${store['rating']}',
                                             style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                           ),
                                         ],

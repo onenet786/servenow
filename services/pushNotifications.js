@@ -189,7 +189,11 @@ async function sendPushToUser(
       title: normalizeString(title, 120) || "ServeNow",
       body: normalizeString(message, 500),
     },
-    data: toStringMap(data),
+    data: toStringMap({
+      title: normalizeString(title, 120) || "ServeNow",
+      message: normalizeString(message, 500),
+      ...data,
+    }),
     android: {
       priority: "high",
       collapseKey: collapseKey || undefined,

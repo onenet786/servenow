@@ -1390,9 +1390,7 @@ class _CustomerDashboardTestScreenState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _buildTopBar(),
-                              if (user != null) _buildWelcomeText(user),
                               if (user != null) _buildHeroCard(user),
-                              _buildSearchField(),
                               if (_categoryOptions.length > 1)
                                 _buildCategoryStrip(),
                               if (_showAppUpdateBanner())
@@ -1408,6 +1406,7 @@ class _CustomerDashboardTestScreenState
                               if (_serviceLimitedMessage != null)
                                 _buildServiceLimitWarning(),
                               _buildBannerSection(),
+                              _buildSearchField(),
                               _buildStoreSection(crossAxisCount),
                             ],
                           ),
@@ -1575,138 +1574,214 @@ class _CustomerDashboardTestScreenState
     );
   }
 
-  Widget _buildWelcomeText(User user) {
-    final fullName = '${user.firstName} ${user.lastName}'.trim();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-      child: Center(
-        child: Text(
-          '${_tr('Welcome')}, ${fullName.isNotEmpty ? fullName : _tr('ServeNow Customer')}',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: CustomerPalette.primaryDark,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildHeroCard(User user) {
     final cartCount = context.watch<CartProvider>().itemCount;
+    final fullName = '${user.firstName} ${user.lastName}'.trim();
+    final userName =
+        fullName.isNotEmpty ? fullName : _tr('ServeNow Customer');
     final locationLabel = _userCity?.isNotEmpty == true
         ? _userCity!
         : _tr('Home');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
-      child: Column(
-        children: [
-          Text(
-            _userCity?.isNotEmpty == true
-                ? '${_tr('Ref Area')}: $_userCity'
-                : 'Groceries, food & more',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.black54,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
+      padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.82),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: CustomerPalette.primary.withValues(alpha: 0.12),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricPill(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: CustomerPalette.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    userName.substring(0, 1).toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: CustomerPalette.primaryDark,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_tr('Welcome')}, $userName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: CustomerPalette.textDark,
+                        ),
+                      ),
+                      Text(
+                        _userCity?.isNotEmpty == true
+                            ? '${_tr('Ref Area')}: $_userCity'
+                            : 'Groceries, food & more',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: CustomerPalette.accent.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.shopping_cart_checkout_rounded,
+                        size: 12,
+                        color: CustomerPalette.primaryDark,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        '$cartCount',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: CustomerPalette.primaryDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 5,
+              children: [
+                _buildMetricPill(
                   icon: Icons.storefront_rounded,
                   label: '${_allStores.length} ${_tr('Stores')}',
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricPill(
-                  icon: Icons.shopping_cart_checkout_rounded,
-                  label: '$cartCount ${_tr('My Cart')}',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricPill(
+                _buildMetricPill(
                   icon: Icons.place_rounded,
                   label: locationLabel,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).pushNamed('/orders'),
-                  icon: const Icon(Icons.shopping_bag_outlined, size: 18),
-                  label: Text(_tr('My Orders')),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: CustomerPalette.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(context).pushNamed('/orders'),
+                    icon: const Icon(Icons.shopping_bag_outlined, size: 14),
+                    label: Text(_tr('My Orders')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: CustomerPalette.primary,
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(vertical: 0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _showSupportOptions,
-                  icon: const Icon(Icons.support_agent_rounded, size: 18),
-                  label: Text(_tr('Contact Us')),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: CustomerPalette.primaryDark,
-                    side: BorderSide(
-                      color: CustomerPalette.primary.withValues(alpha: 0.3),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: Colors.white.withValues(alpha: 0.75),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _showSupportOptions,
+                    icon: const Icon(Icons.support_agent_rounded, size: 14),
+                    label: Text(_tr('Contact Us')),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: CustomerPalette.primaryDark,
+                      side: BorderSide(
+                        color: CustomerPalette.primary.withValues(alpha: 0.3),
+                      ),
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(vertical: 0),
+                      backgroundColor: Colors.white.withValues(alpha: 0.75),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildMetricPill({required IconData icon, required String label}) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: CustomerPalette.primary.withValues(alpha: 0.18),
         ),
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: CustomerPalette.primaryDark),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: CustomerPalette.textDark,
+      child: IntrinsicWidth(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: CustomerPalette.primaryDark),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: CustomerPalette.textDark,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1986,16 +2061,16 @@ class _CustomerDashboardTestScreenState
 
   Widget _buildSearchField() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 14, 4, 0),
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -2017,11 +2092,11 @@ class _CustomerDashboardTestScreenState
             fillColor: Colors.white,
             border: OutlineInputBorder(
               borderSide: BorderSide.none,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
             ),
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
+              horizontal: 14,
+              vertical: 12,
             ),
           ),
         ),
@@ -2172,7 +2247,7 @@ class _CustomerDashboardTestScreenState
 
   Widget _buildStoreSection(int crossAxisCount) {
     final effectiveCrossAxisCount = crossAxisCount.clamp(2, 3);
-    final storeCardHeight = effectiveCrossAxisCount >= 3 ? 255.0 : 272.0;
+    final storeCardHeight = effectiveCrossAxisCount >= 3 ? 168.0 : 176.0;
     if (_isLoading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 56),
@@ -2187,7 +2262,7 @@ class _CustomerDashboardTestScreenState
     }
 
     return Padding(
-      padding: const EdgeInsets.only(top: 18),
+      padding: const EdgeInsets.only(top: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2195,7 +2270,7 @@ class _CustomerDashboardTestScreenState
             title: _tr('Popular Stores'),
             subtitle: _tr('Tap any store to browse its live products'),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           if (_filteredStores.isEmpty)
             Container(
               width: double.infinity,
@@ -2242,10 +2317,10 @@ class _CustomerDashboardTestScreenState
     final String deliveryLabel =
         ((store['delivery_time'] ?? '').toString().trim()).isNotEmpty
         ? '${store['delivery_time']} min'
-        : '${_formatTimeOnly(store['opening_time'])} - ${_formatTimeOnly(store['closing_time'])}';
+        : '${_formatTimeOnly(store['opening_time'])}-${_formatTimeOnly(store['closing_time'])}';
 
     return InkWell(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(20),
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -2256,12 +2331,15 @@ class _CustomerDashboardTestScreenState
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.black.withValues(alpha: 0.04),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 10),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -2269,13 +2347,13 @@ class _CustomerDashboardTestScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              height: 112,
+              height: 74,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
+                      top: Radius.circular(20),
                     ),
                     child: imageUrl.isNotEmpty
                         ? Image.network(
@@ -2287,12 +2365,12 @@ class _CustomerDashboardTestScreenState
                         : _buildStoreFallback(),
                   ),
                   Positioned(
-                    left: 10,
-                    top: 10,
+                    left: 8,
+                    top: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                        horizontal: 9,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
                         color: isOpen
@@ -2303,7 +2381,7 @@ class _CustomerDashboardTestScreenState
                       child: Text(
                         isOpen ? _tr('OPEN') : _tr('CLOSED'),
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 9.5,
                           fontWeight: FontWeight.w800,
                           color: isOpen
                               ? const Color(0xFF2E7D32)
@@ -2317,76 +2395,78 @@ class _CustomerDashboardTestScreenState
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+                padding: const EdgeInsets.fromLTRB(9, 7, 9, 3),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       (store['name'] ?? _tr('Unknown Store')).toString(),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
                         color: CustomerPalette.textDark,
-                        height: 1.1,
+                        height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       (store['location'] ?? '').toString(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 10,
                         color: Colors.black54,
                         fontWeight: FontWeight.w600,
                         height: 1.2,
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 4),
                     if (!isOpen && closedReason.isNotEmpty) ...[
                       Text(
                         closedReason,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 10,
+                          fontSize: 9.5,
                           color: Color(0xFFC62828),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                     ],
+                    const Spacer(),
                     Row(
                       children: [
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 6,
+                              horizontal: 6,
+                              vertical: 4,
                             ),
                             decoration: BoxDecoration(
                               color: CustomerPalette.accent.withValues(
                                 alpha: 0.18,
                               ),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             child: Row(
                               children: [
                                 const Icon(
                                   Icons.schedule_rounded,
-                                  size: 16,
+                                  size: 12,
                                   color: CustomerPalette.primaryDark,
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     deliveryLabel,
                                     maxLines: 1,
+                                    softWrap: false,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      fontSize: 10,
+                                      fontSize: 8.5,
                                       fontWeight: FontWeight.w700,
                                       color: CustomerPalette.primaryDark,
                                     ),
@@ -2407,11 +2487,16 @@ class _CustomerDashboardTestScreenState
                             );
                           },
                           style: FilledButton.styleFrom(
-                            minimumSize: const Size(0, 34),
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            minimumSize: const Size(52, 24),
+                            maximumSize: const Size(58, 24),
+                            padding: const EdgeInsets.symmetric(horizontal: 0),
                             backgroundColor: CustomerPalette.primary,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                           child: Text(_tr('View')),
@@ -2451,16 +2536,17 @@ class _CustomerDashboardTestScreenState
     return SafeArea(
       top: false,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(18, 0, 18, 10),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        constraints: const BoxConstraints(minHeight: 58),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.14),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -2514,9 +2600,9 @@ class _CustomerDashboardTestScreenState
     final active = _bottomIndex == index;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2525,40 +2611,40 @@ class _CustomerDashboardTestScreenState
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  width: 44,
-                  height: 44,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
                     color: active
                         ? CustomerPalette.primary
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     icon,
-                    size: 22,
+                    size: 18,
                     color: active ? Colors.white : Colors.grey.shade600,
                   ),
                 ),
                 if (badgeCount > 0)
                   Positioned(
-                    right: -9,
-                    top: -7,
+                    right: -8,
+                    top: -6,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
+                        horizontal: 4,
                         vertical: 1,
                       ),
                       decoration: BoxDecoration(
                         color: CustomerPalette.primaryDark,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(9),
                       ),
-                      constraints: const BoxConstraints(minWidth: 16),
+                      constraints: const BoxConstraints(minWidth: 14),
                       child: Text(
                         badgeCount > 99 ? '99+' : '$badgeCount',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 9,
+                          fontSize: 8,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -2566,11 +2652,10 @@ class _CustomerDashboardTestScreenState
                   ),
               ],
             ),
-            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 9,
                 fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                 color: active
                     ? CustomerPalette.primaryDark
