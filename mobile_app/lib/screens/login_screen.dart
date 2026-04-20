@@ -43,6 +43,46 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String _languageLabel() => _isUrdu ? 'اردو' : 'EN';
 
+  Widget _socialSignupButton({
+    required String badge,
+    required Color borderColor,
+    required Color badgeColor,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: 72,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.black87,
+          side: BorderSide(color: borderColor),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: badgeColor,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            badge,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showLanguageOptions() async {
     if (!mounted) return;
     showModalBottomSheet<void>(
@@ -150,19 +190,70 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _continueWithGoogle() async {
+    try {
+      await Provider.of<AuthProvider>(context, listen: false).loginWithGoogle();
+
+      if (!mounted) return;
+
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (auth.isAdmin) {
+        Navigator.of(context).pushReplacementNamed('/admin');
+      } else if (auth.isRider) {
+        Navigator.of(context).pushReplacementNamed('/rider');
+      } else if (auth.isStoreOwner) {
+        Navigator.of(context).pushReplacementNamed('/store_owner');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        Notifier.error(context, e.toString());
+      }
+    }
+  }
+
+  Future<void> _continueWithFacebook() async {
+    try {
+      await Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).loginWithFacebook();
+
+      if (!mounted) return;
+
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (auth.isAdmin) {
+        Navigator.of(context).pushReplacementNamed('/admin');
+      } else if (auth.isRider) {
+        Navigator.of(context).pushReplacementNamed('/rider');
+      } else if (auth.isStoreOwner) {
+        Navigator.of(context).pushReplacementNamed('/store_owner');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        Notifier.error(context, e.toString());
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final heroHeight = screenHeight * 0.28;
 
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
         backgroundColor: Colors.white,
-        body: SingleChildScrollView(
+        body: SafeArea(
           child: Column(
             children: [
               Container(
-                height: MediaQuery.of(context).size.height * 0.35,
+                height: heroHeight,
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
@@ -174,18 +265,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(60),
+                    bottomLeft: Radius.circular(48),
                   ),
                 ),
                 child: Stack(
                   children: [
                     Positioned(
-                      top: 18,
-                      left: _isUrdu ? 20 : null,
-                      right: _isUrdu ? null : 20,
+                      top: 14,
+                      left: _isUrdu ? 16 : null,
+                      right: _isUrdu ? null : 16,
                       child: OutlinedButton.icon(
                         onPressed: _showLanguageOptions,
-                        icon: const Icon(Icons.language, size: 18),
+                        icon: const Icon(Icons.language, size: 16),
                         label: Text(
                           _languageLabel(),
                           style: const TextStyle(fontWeight: FontWeight.w700),
@@ -199,20 +290,24 @@ class _LoginScreenState extends State<LoginScreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
                           ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
                     Center(
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(24),
                         child: Image.asset(
                           'assets/icon/servenow_brand_logo.png',
-                          height: 150,
+                          height: heroHeight * 0.62,
                           fit: BoxFit.contain,
                           errorBuilder: (ctx, err, stack) => const Text(
                             'ServeNow',
                             style: TextStyle(
-                              fontSize: 32,
+                              fontSize: 28,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
@@ -223,13 +318,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       Text(
                         _tr('Welcome Back'),
                         style: theme.textTheme.headlineMedium?.copyWith(
@@ -244,7 +340,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: Colors.black54,
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 20),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
@@ -269,7 +365,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 14),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
@@ -300,25 +396,28 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? _tr('Please enter password')
                             : null,
                       ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pushNamed('/forgot-password');
-                          },
-                          child: Text(
-                            _tr('Forgot Password?'),
-                            style: const TextStyle(
-                              color: CustomerPalette.primaryDark,
-                              fontWeight: FontWeight.bold,
+                      SizedBox(
+                        height: 38,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/forgot-password');
+                            },
+                            child: Text(
+                              _tr('Forgot Password?'),
+                              style: const TextStyle(
+                                color: CustomerPalette.primaryDark,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
+                        height: 52,
                         child: Selector<AuthProvider, bool>(
                           selector: (_, auth) => auth.isLoading,
                           builder: (context, isLoading, child) {
@@ -339,7 +438,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : Text(
                                       _tr('LOGIN'),
                                       style: const TextStyle(
-                                        fontSize: 18,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 1.2,
                                       ),
@@ -348,10 +447,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
-                        height: 52,
+                        height: 48,
                         child: Selector<AuthProvider, bool>(
                           selector: (_, auth) => auth.isLoading,
                           builder: (context, isLoading, child) {
@@ -379,7 +478,47 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(color: Colors.grey.shade300),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              _tr('Or sign up with'),
+                              style: const TextStyle(
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(color: Colors.grey.shade300),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _socialSignupButton(
+                            badge: 'G',
+                            borderColor: const Color(0xFFE5E7EB),
+                            badgeColor: const Color(0xFFDB4437),
+                            onTap: _continueWithGoogle,
+                          ),
+                          const SizedBox(width: 12),
+                          _socialSignupButton(
+                            badge: 'f',
+                            borderColor: const Color(0xFFE5E7EB),
+                            badgeColor: const Color(0xFF1877F2),
+                            onTap: _continueWithFacebook,
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -402,7 +541,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

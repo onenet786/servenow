@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:logger/logger.dart';
 import 'dart:convert';
 import '../models/user.dart';
@@ -120,6 +123,136 @@ class AuthProvider with ChangeNotifier {
         await _syncRiderTrackingSession();
       } else {
         throw Exception(data['message'] ?? 'Login failed');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loginWithGoogle() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      if (kIsWeb) {
+        throw Exception(
+          'Google sign in is not configured for web yet. Please use mobile app login for now.',
+        );
+      }
+
+      final googleSignIn = GoogleSignIn(
+        scopes: <String>['email', 'profile'],
+      );
+      await googleSignIn.signOut();
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        throw Exception('Google sign in was cancelled.');
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken?.trim();
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception('Google sign in did not return a valid ID token.');
+      }
+
+      final data = await ApiService.googleLogin(idToken);
+      if (data['success'] == true || data['token'] != null) {
+        _token = data['token'];
+        _refreshToken = data['refresh_token'];
+        if (data['user'] != null) {
+          _user = User.fromJson(data['user']);
+        }
+
+        final prefs = await SharedPreferences.getInstance();
+        if (_token != null) {
+          await prefs.setString('token', _token!);
+          await RiderBackgroundTrackingService.instance.updateToken(_token!);
+        }
+        if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+          await prefs.setString('refresh_token', _refreshToken!);
+        }
+        if (_user != null) {
+          await prefs.setString('user', jsonEncode(_user!.toJson()));
+        }
+
+        _sessionExpired = false;
+        if (!isGuest) {
+          await _initializeStripe(_token!);
+        }
+        await _syncRiderTrackingSession();
+      } else {
+        throw Exception(data['message'] ?? 'Google login failed');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loginWithFacebook() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      if (kIsWeb) {
+        throw Exception(
+          'Facebook sign in is not configured for web yet. Please use mobile app login for now.',
+        );
+      }
+
+      await FacebookAuth.instance.logOut();
+      final result = await FacebookAuth.instance.login(
+        permissions: <String>['email', 'public_profile'],
+      );
+
+      if (result.status != LoginStatus.success) {
+        final message = result.message?.trim();
+        throw Exception(
+          message != null && message.isNotEmpty
+              ? message
+              : 'Facebook sign in was cancelled.',
+        );
+      }
+
+      final accessToken = result.accessToken?.tokenString.trim();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception(
+          'Facebook sign in did not return a valid access token.',
+        );
+      }
+
+      final data = await ApiService.facebookLogin(accessToken);
+      if (data['success'] == true || data['token'] != null) {
+        _token = data['token'];
+        _refreshToken = data['refresh_token'];
+        if (data['user'] != null) {
+          _user = User.fromJson(data['user']);
+        }
+
+        final prefs = await SharedPreferences.getInstance();
+        if (_token != null) {
+          await prefs.setString('token', _token!);
+          await RiderBackgroundTrackingService.instance.updateToken(_token!);
+        }
+        if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+          await prefs.setString('refresh_token', _refreshToken!);
+        }
+        if (_user != null) {
+          await prefs.setString('user', jsonEncode(_user!.toJson()));
+        }
+
+        _sessionExpired = false;
+        if (!isGuest) {
+          await _initializeStripe(_token!);
+        }
+        await _syncRiderTrackingSession();
+      } else {
+        throw Exception(data['message'] ?? 'Facebook login failed');
       }
     } catch (e) {
       rethrow;

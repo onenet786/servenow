@@ -1,5 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
+const axios = require("axios");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
@@ -136,6 +137,87 @@ function buildGuestProfileFromToken(user) {
     phone: null,
     address: null,
     date_of_birth: null,
+  };
+}
+
+async function verifyGoogleIdToken(idToken) {
+  const trimmed = String(idToken || "").trim();
+  if (!trimmed) {
+    throw new Error("Google ID token is required");
+  }
+
+  const response = await axios.get(
+    "https://oauth2.googleapis.com/tokeninfo",
+    {
+      params: { id_token: trimmed },
+      timeout: 10000,
+    }
+  );
+
+  const payload = response.data || {};
+  const issuer = String(payload.iss || "").trim();
+  if (
+    issuer !== "accounts.google.com" &&
+    issuer !== "https://accounts.google.com"
+  ) {
+    throw new Error("Invalid Google token issuer");
+  }
+
+  const email = String(payload.email || "").trim().toLowerCase();
+  if (!email) {
+    throw new Error("Google account email not available");
+  }
+
+  const emailVerified =
+    String(payload.email_verified || "").trim().toLowerCase() === "true";
+  if (!emailVerified) {
+    throw new Error("Google account email is not verified");
+  }
+
+  const configuredClientId = String(process.env.GOOGLE_CLIENT_ID || "").trim();
+  const aud = String(payload.aud || "").trim();
+  if (configuredClientId && aud && aud !== configuredClientId) {
+    throw new Error("Google token audience mismatch");
+  }
+
+  return {
+    googleId: String(payload.sub || "").trim(),
+    email,
+    firstName: String(payload.given_name || "").trim(),
+    lastName: String(payload.family_name || "").trim(),
+    fullName: String(payload.name || "").trim(),
+    picture: String(payload.picture || "").trim(),
+  };
+}
+
+async function verifyFacebookAccessToken(accessToken) {
+  const trimmed = String(accessToken || "").trim();
+  if (!trimmed) {
+    throw new Error("Facebook access token is required");
+  }
+
+  const response = await axios.get("https://graph.facebook.com/me", {
+    params: {
+      fields: "id,email,first_name,last_name,name",
+      access_token: trimmed,
+    },
+    timeout: 10000,
+  });
+
+  const payload = response.data || {};
+  const email = String(payload.email || "").trim().toLowerCase();
+  if (!email) {
+    throw new Error(
+      "Facebook account email not available. Please allow email permission."
+    );
+  }
+
+  return {
+    facebookId: String(payload.id || "").trim(),
+    email,
+    firstName: String(payload.first_name || "").trim(),
+    lastName: String(payload.last_name || "").trim(),
+    fullName: String(payload.name || "").trim(),
   };
 }
 
@@ -746,6 +828,305 @@ router.post(
       return res.status(500).json({
         success: false,
         message: "Login failed",
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.post(
+  "/google-mobile",
+  [body("id_token").notEmpty().withMessage("Google ID token is required")],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const googleUser = await verifyGoogleIdToken(req.body.id_token);
+
+      const [riders] = await req.db.execute(
+        "SELECT id FROM riders WHERE email = ? AND is_active = true LIMIT 1",
+        [googleUser.email]
+      );
+      if (riders.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "This Google account belongs to a rider account. Please use rider login.",
+        });
+      }
+
+      const [users] = await req.db.execute(
+        "SELECT * FROM users WHERE email = ? LIMIT 1",
+        [googleUser.email]
+      );
+
+      let user = users[0] || null;
+      if (user && !isTrue(user.is_active)) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account is inactive. Please contact support.",
+        });
+      }
+
+      if (!user) {
+        const firstName =
+          googleUser.firstName ||
+          googleUser.fullName.split(" ").filter(Boolean)[0] ||
+          "Google";
+        const fullParts = googleUser.fullName.split(" ").filter(Boolean);
+        const lastName =
+          googleUser.lastName ||
+          (fullParts.length > 1 ? fullParts.slice(1).join(" ") : "User");
+        const generatedPassword = await bcrypt.hash(
+          crypto.randomBytes(24).toString("hex"),
+          10
+        );
+
+        const [result] = await req.db.execute(
+          `INSERT INTO users (first_name, last_name, email, phone, address, password, user_type, is_verified, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            firstName,
+            lastName,
+            googleUser.email,
+            null,
+            null,
+            generatedPassword,
+            "customer",
+            true,
+            true,
+          ]
+        );
+
+        const [createdUsers] = await req.db.execute(
+          "SELECT * FROM users WHERE id = ? LIMIT 1",
+          [result.insertId]
+        );
+        user = createdUsers[0] || {
+          id: result.insertId,
+          first_name: firstName,
+          last_name: lastName,
+          email: googleUser.email,
+          user_type: "customer",
+          phone: null,
+          address: null,
+          date_of_birth: null,
+        };
+      } else if (!isTrue(user.is_verified)) {
+        await req.db.execute(
+          "UPDATE users SET is_verified = 1, verification_code = NULL, verification_expires_at = NULL WHERE id = ?",
+          [user.id]
+        );
+        user.is_verified = 1;
+      }
+
+      const token = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          user_type: user.user_type,
+          first_name: user.first_name,
+          last_name: user.last_name,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: ACCESS_TOKEN_EXPIRE }
+      );
+      const refreshToken = await issueRefreshToken(req.db, {
+        userId: user.id,
+        userType: user.user_type,
+        deviceId: req.body.device_id || null,
+      });
+
+      try {
+        const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+        await req.db.execute(
+          "INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)",
+          [user.id, user.user_type, ip]
+        );
+      } catch (e) {
+        console.error("Google login log error:", e);
+      }
+
+      return res.json({
+        success: true,
+        message: "Google login successful",
+        token,
+        refresh_token: refreshToken,
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          date_of_birth: user.date_of_birth || null,
+          email: user.email,
+          user_type: user.user_type,
+          phone: user.phone || null,
+          address: user.address || null,
+        },
+      });
+    } catch (error) {
+      console.error("Google mobile login error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Google login failed",
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.post(
+  "/facebook-mobile",
+  [
+    body("access_token")
+      .notEmpty()
+      .withMessage("Facebook access token is required"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const facebookUser = await verifyFacebookAccessToken(
+        req.body.access_token
+      );
+
+      const [riders] = await req.db.execute(
+        "SELECT id FROM riders WHERE email = ? AND is_active = true LIMIT 1",
+        [facebookUser.email]
+      );
+      if (riders.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "This Facebook account belongs to a rider account. Please use rider login.",
+        });
+      }
+
+      const [users] = await req.db.execute(
+        "SELECT * FROM users WHERE email = ? LIMIT 1",
+        [facebookUser.email]
+      );
+
+      let user = users[0] || null;
+      if (user && !isTrue(user.is_active)) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account is inactive. Please contact support.",
+        });
+      }
+
+      if (!user) {
+        const firstName =
+          facebookUser.firstName ||
+          facebookUser.fullName.split(" ").filter(Boolean)[0] ||
+          "Facebook";
+        const fullParts = facebookUser.fullName.split(" ").filter(Boolean);
+        const lastName =
+          facebookUser.lastName ||
+          (fullParts.length > 1 ? fullParts.slice(1).join(" ") : "User");
+        const generatedPassword = await bcrypt.hash(
+          crypto.randomBytes(24).toString("hex"),
+          10
+        );
+
+        const [result] = await req.db.execute(
+          `INSERT INTO users (first_name, last_name, email, phone, address, password, user_type, is_verified, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            firstName,
+            lastName,
+            facebookUser.email,
+            null,
+            null,
+            generatedPassword,
+            "customer",
+            true,
+            true,
+          ]
+        );
+
+        const [createdUsers] = await req.db.execute(
+          "SELECT * FROM users WHERE id = ? LIMIT 1",
+          [result.insertId]
+        );
+        user = createdUsers[0] || {
+          id: result.insertId,
+          first_name: firstName,
+          last_name: lastName,
+          email: facebookUser.email,
+          user_type: "customer",
+          phone: null,
+          address: null,
+          date_of_birth: null,
+        };
+      } else if (!isTrue(user.is_verified)) {
+        await req.db.execute(
+          "UPDATE users SET is_verified = 1, verification_code = NULL, verification_expires_at = NULL WHERE id = ?",
+          [user.id]
+        );
+        user.is_verified = 1;
+      }
+
+      const token = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+          user_type: user.user_type,
+          first_name: user.first_name,
+          last_name: user.last_name,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: ACCESS_TOKEN_EXPIRE }
+      );
+      const refreshToken = await issueRefreshToken(req.db, {
+        userId: user.id,
+        userType: user.user_type,
+        deviceId: req.body.device_id || null,
+      });
+
+      try {
+        const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+        await req.db.execute(
+          "INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)",
+          [user.id, user.user_type, ip]
+        );
+      } catch (e) {
+        console.error("Facebook login log error:", e);
+      }
+
+      return res.json({
+        success: true,
+        message: "Facebook login successful",
+        token,
+        refresh_token: refreshToken,
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          date_of_birth: user.date_of_birth || null,
+          email: user.email,
+          user_type: user.user_type,
+          phone: user.phone || null,
+          address: user.address || null,
+        },
+      });
+    } catch (error) {
+      console.error("Facebook mobile login error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Facebook login failed",
         error: error.message,
       });
     }

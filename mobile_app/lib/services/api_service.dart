@@ -239,6 +239,32 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> googleLogin(
+    String idToken,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/auth/google-mobile');
+    _logger.d('ApiService: POST $uri');
+    final response = await _post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'id_token': idToken}),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> facebookLogin(
+    String accessToken,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/auth/facebook-mobile');
+    _logger.d('ApiService: POST $uri');
+    final response = await _post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'access_token': accessToken}),
+    );
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> guestLogin() async {
     final uri = Uri.parse('$baseUrl/api/auth/guest-login');
     _logger.d('ApiService: POST $uri');
