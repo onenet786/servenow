@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -137,9 +136,11 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      if (kIsWeb) {
+      if (kIsWeb ||
+          (defaultTargetPlatform != TargetPlatform.android &&
+              defaultTargetPlatform != TargetPlatform.iOS)) {
         throw Exception(
-          'Google sign in is not configured for web yet. Please use mobile app login for now.',
+          'Google sign in is available only on Android/iPhone builds right now.',
         );
       }
 
@@ -185,74 +186,6 @@ class AuthProvider with ChangeNotifier {
         await _syncRiderTrackingSession();
       } else {
         throw Exception(data['message'] ?? 'Google login failed');
-      }
-    } catch (e) {
-      rethrow;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> loginWithFacebook() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      if (kIsWeb) {
-        throw Exception(
-          'Facebook sign in is not configured for web yet. Please use mobile app login for now.',
-        );
-      }
-
-      await FacebookAuth.instance.logOut();
-      final result = await FacebookAuth.instance.login(
-        permissions: <String>['email', 'public_profile'],
-      );
-
-      if (result.status != LoginStatus.success) {
-        final message = result.message?.trim();
-        throw Exception(
-          message != null && message.isNotEmpty
-              ? message
-              : 'Facebook sign in was cancelled.',
-        );
-      }
-
-      final accessToken = result.accessToken?.tokenString.trim();
-      if (accessToken == null || accessToken.isEmpty) {
-        throw Exception(
-          'Facebook sign in did not return a valid access token.',
-        );
-      }
-
-      final data = await ApiService.facebookLogin(accessToken);
-      if (data['success'] == true || data['token'] != null) {
-        _token = data['token'];
-        _refreshToken = data['refresh_token'];
-        if (data['user'] != null) {
-          _user = User.fromJson(data['user']);
-        }
-
-        final prefs = await SharedPreferences.getInstance();
-        if (_token != null) {
-          await prefs.setString('token', _token!);
-          await RiderBackgroundTrackingService.instance.updateToken(_token!);
-        }
-        if (_refreshToken != null && _refreshToken!.isNotEmpty) {
-          await prefs.setString('refresh_token', _refreshToken!);
-        }
-        if (_user != null) {
-          await prefs.setString('user', jsonEncode(_user!.toJson()));
-        }
-
-        _sessionExpired = false;
-        if (!isGuest) {
-          await _initializeStripe(_token!);
-        }
-        await _syncRiderTrackingSession();
-      } else {
-        throw Exception(data['message'] ?? 'Facebook login failed');
       }
     } catch (e) {
       rethrow;

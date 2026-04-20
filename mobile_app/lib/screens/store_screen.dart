@@ -305,11 +305,12 @@ class _StoreScreenState extends State<StoreScreen> {
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFFFF6EC),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFFF6EC),
         elevation: 0,
         scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: CustomerPalette.textDark,
         title: Text(
           _tr('Store Details'),

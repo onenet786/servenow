@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "123484088318",
+    "project_id": "onenetsol-servenow",
+    "storage_bucket": "onenetsol-servenow.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123484088318:android:6ca4f50bdb7f9daa96c2af",
+        "android_client_info": {
+          "package_name": "com.onenetsol.servenow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCznyZG8HU0IfJiNNy5GXhRNeaeFy7gkSo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

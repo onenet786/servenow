@@ -570,7 +570,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return Directionality(
         textDirection: CustomerLanguage.textDirection(_isUrdu),
         child: Scaffold(
-          appBar: AppBar(title: Text(_tr('Checkout'))),
+          backgroundColor: const Color(0xFFFFF6EC),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFFFFF6EC),
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            surfaceTintColor: Colors.transparent,
+            foregroundColor: CustomerPalette.textDark,
+            title: Text(
+              _tr('Checkout'),
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: CustomerPalette.textDark,
+              ),
+            ),
+          ),
           body: Center(child: Text(_tr('Your cart is empty'))),
         ),
       );
@@ -579,11 +593,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFFFF6EC),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFFFF6EC),
         elevation: 0,
         scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: CustomerPalette.textDark,
         title: Row(
           children: [
