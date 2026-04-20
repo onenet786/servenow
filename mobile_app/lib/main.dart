@@ -25,6 +25,7 @@ import 'screens/manage_stores_screen.dart';
 import 'screens/manage_products_screen.dart';
 import 'screens/manage_users_screen.dart';
 import 'screens/manage_riders_screen.dart';
+import 'screens/rider_history_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/store_balances_screen.dart';
@@ -291,6 +292,7 @@ class MyApp extends StatelessWidget {
           '/manage-products': (context) => const ManageProductsScreen(),
           '/manage-users': (context) => const ManageUsersScreen(),
           '/manage-riders': (context) => const ManageRidersScreen(),
+          '/rider-history': (context) => const RiderHistoryScreen(),
           '/change-password': (context) => const ChangePasswordScreen(),
           '/forgot-password': (context) => const ForgotPasswordScreen(),
           '/ui-test-home': (context) => const UiTestHomeScreen(),

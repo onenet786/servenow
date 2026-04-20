@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/user.dart';
@@ -27,6 +28,8 @@ class CustomerDashboardTestScreen extends StatefulWidget {
 
 class _CustomerDashboardTestScreenState
     extends State<CustomerDashboardTestScreen> {
+  static const String _launchFlashSeenSignatureKey =
+      'customer_launch_flash_seen_signature';
   List<dynamic> _allStores = [];
   List<dynamic> _filteredStores = [];
   bool _isLoading = true;
@@ -1011,13 +1014,23 @@ class _CustomerDashboardTestScreenState
     };
   }
 
-  void _tryShowLaunchFlash() {
+  Future<void> _tryShowLaunchFlash() async {
     if (!mounted || _launchFlashShown) return;
     final flash = _promotionFlashData();
     if (flash == null) return;
-    _launchFlashShown = true;
 
     final signature = (flash['signature'] ?? '').toString();
+    if (signature.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final seenSignature = prefs.getString(_launchFlashSeenSignatureKey) ?? '';
+      if (seenSignature == signature) {
+        _launchFlashShown = true;
+        _launchFlashSignature = signature;
+        return;
+      }
+    }
+
+    _launchFlashShown = true;
     if (signature.isNotEmpty && _launchFlashSignature != signature) {
       _launchFlashSignature = signature;
       try {
@@ -1033,6 +1046,20 @@ class _CustomerDashboardTestScreenState
       } catch (_) {}
     }
 
+    final imageUrl = (flash['imageUrl'] ?? '').toString().trim();
+    if (imageUrl.isNotEmpty) {
+      try {
+        await precacheImage(NetworkImage(imageUrl), context).timeout(
+          const Duration(seconds: 2),
+        );
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    if (signature.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_launchFlashSeenSignatureKey, signature);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _showLaunchFlashDialog(flash);
@@ -1372,13 +1399,13 @@ class _CustomerDashboardTestScreenState
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(36),
-                          color: Colors.white.withValues(alpha: 0.76),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.7),
-                          ),
+                          color: Colors.white.withValues(alpha: 0.9),
+                          border: Border.all(color: CustomerPalette.border),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.12),
+                              color: CustomerPalette.primaryDark.withValues(
+                                alpha: 0.14,
+                              ),
                               blurRadius: 28,
                               offset: const Offset(0, 18),
                             ),
@@ -1432,7 +1459,11 @@ class _CustomerDashboardTestScreenState
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFFFF6EA), Color(0xFFF7D4B7), Color(0xFFF4C29B)],
+              colors: [
+                Color(0xFFFFF6EC),
+                Color(0xFFFFD8B5),
+                Color(0xFFF7B070),
+              ],
             ),
           ),
         ),
@@ -1441,7 +1472,7 @@ class _CustomerDashboardTestScreenState
           top: 60,
           child: _buildBlurOrb(
             size: 220,
-            colors: const [Color(0xFFFFD58A), Color(0x00FFD58A)],
+            colors: const [Color(0x66F2B134), Color(0x00F2B134)],
           ),
         ),
         Positioned(
@@ -1449,7 +1480,7 @@ class _CustomerDashboardTestScreenState
           top: 120,
           child: _buildBlurOrb(
             size: 170,
-            colors: const [Color(0xFFFFB26F), Color(0x00FFB26F)],
+            colors: const [Color(0x55147D7E), Color(0x00147D7E)],
           ),
         ),
         Positioned(
@@ -1457,7 +1488,7 @@ class _CustomerDashboardTestScreenState
           bottom: 40,
           child: _buildBlurOrb(
             size: 280,
-            colors: const [Color(0xFFF0A35B), Color(0x00F0A35B)],
+            colors: const [Color(0x55C9475B), Color(0x00C9475B)],
           ),
         ),
         Positioned(
@@ -1465,7 +1496,7 @@ class _CustomerDashboardTestScreenState
           bottom: 120,
           child: _buildBlurOrb(
             size: 190,
-            colors: const [Color(0xFFFFE0B8), Color(0x00FFE0B8)],
+            colors: const [Color(0x44FFF2C9), Color(0x00FFF2C9)],
           ),
         ),
       ],
@@ -1556,13 +1587,21 @@ class _CustomerDashboardTestScreenState
       decoration: BoxDecoration(
         color: solid
             ? CustomerPalette.primaryDark
-            : Colors.white.withValues(alpha: 0.82),
+            : Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: solid
               ? CustomerPalette.primaryDark
-              : CustomerPalette.primary.withValues(alpha: 0.2),
+              : CustomerPalette.border,
         ),
+        boxShadow: [
+          if (!solid)
+            BoxShadow(
+              color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+        ],
       ),
       child: IconButton(
         icon: Icon(
@@ -1587,15 +1626,13 @@ class _CustomerDashboardTestScreenState
       child: Container(
         padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.82),
+          color: Colors.white.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: CustomerPalette.primary.withValues(alpha: 0.12),
-          ),
+          border: Border.all(color: CustomerPalette.border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 16,
+              color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
+              blurRadius: 18,
               offset: const Offset(0, 8),
             ),
           ],
@@ -1609,7 +1646,7 @@ class _CustomerDashboardTestScreenState
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: CustomerPalette.primary.withValues(alpha: 0.14),
+                    color: CustomerPalette.secondary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
@@ -1644,7 +1681,7 @@ class _CustomerDashboardTestScreenState
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Colors.black54,
+                          color: CustomerPalette.textMuted,
                           fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1658,7 +1695,10 @@ class _CustomerDashboardTestScreenState
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: CustomerPalette.accent.withValues(alpha: 0.18),
+                    color: CustomerPalette.highlight.withValues(alpha: 0.1),
+                    border: Border.all(
+                      color: CustomerPalette.highlight.withValues(alpha: 0.18),
+                    ),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
@@ -1667,7 +1707,7 @@ class _CustomerDashboardTestScreenState
                       const Icon(
                         Icons.shopping_cart_checkout_rounded,
                         size: 12,
-                        color: CustomerPalette.primaryDark,
+                        color: CustomerPalette.highlight,
                       ),
                       const SizedBox(width: 3),
                       Text(
@@ -1675,8 +1715,8 @@ class _CustomerDashboardTestScreenState
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
-                          color: CustomerPalette.primaryDark,
-                        ),
+                           color: CustomerPalette.highlight,
+                         ),
                       ),
                     ],
                   ),
@@ -1727,13 +1767,13 @@ class _CustomerDashboardTestScreenState
                     icon: const Icon(Icons.support_agent_rounded, size: 14),
                     label: Text(_tr('Contact Us')),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: CustomerPalette.primaryDark,
-                      side: BorderSide(
-                        color: CustomerPalette.primary.withValues(alpha: 0.3),
-                      ),
-                      minimumSize: const Size(0, 38),
-                      padding: const EdgeInsets.symmetric(vertical: 0),
-                      backgroundColor: Colors.white.withValues(alpha: 0.75),
+                       foregroundColor: CustomerPalette.secondaryDark,
+                       side: const BorderSide(color: CustomerPalette.secondary),
+                       minimumSize: const Size(0, 38),
+                       padding: const EdgeInsets.symmetric(vertical: 0),
+                       backgroundColor: CustomerPalette.secondary.withValues(
+                         alpha: 0.08,
+                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(13),
                       ),
@@ -1756,11 +1796,9 @@ class _CustomerDashboardTestScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.8),
+        color: CustomerPalette.secondary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: CustomerPalette.primary.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: CustomerPalette.secondary.withValues(alpha: 0.18)),
       ),
       child: IntrinsicWidth(
         child: Row(
@@ -2276,7 +2314,7 @@ class _CustomerDashboardTestScreenState
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.82),
+                color: Colors.white.withValues(alpha: 0.94),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Text(
@@ -2330,15 +2368,15 @@ class _CustomerDashboardTestScreenState
       },
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
+          color: Colors.white.withValues(alpha: 0.98),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: CustomerPalette.border,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 14,
+              color: CustomerPalette.primaryDark.withValues(alpha: 0.1),
+              blurRadius: 16,
               offset: const Offset(0, 8),
             ),
           ],
@@ -2417,10 +2455,10 @@ class _CustomerDashboardTestScreenState
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 10,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                      ),
+                          color: CustomerPalette.textMuted,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                        ),
                     ),
                     const SizedBox(height: 4),
                     if (!isOpen && closedReason.isNotEmpty) ...[
@@ -2446,8 +2484,13 @@ class _CustomerDashboardTestScreenState
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: CustomerPalette.accent.withValues(
-                                alpha: 0.18,
+                              color: CustomerPalette.secondary.withValues(
+                                alpha: 0.1,
+                              ),
+                              border: Border.all(
+                                color: CustomerPalette.secondary.withValues(
+                                  alpha: 0.18,
+                                ),
                               ),
                               borderRadius: BorderRadius.circular(10),
                             ),
@@ -2456,7 +2499,7 @@ class _CustomerDashboardTestScreenState
                                 const Icon(
                                   Icons.schedule_rounded,
                                   size: 12,
-                                  color: CustomerPalette.primaryDark,
+                                  color: CustomerPalette.secondaryDark,
                                 ),
                                 const SizedBox(width: 4),
                                 Expanded(
@@ -2468,8 +2511,8 @@ class _CustomerDashboardTestScreenState
                                     style: const TextStyle(
                                       fontSize: 8.5,
                                       fontWeight: FontWeight.w700,
-                                      color: CustomerPalette.primaryDark,
-                                    ),
+                                       color: CustomerPalette.secondaryDark,
+                                     ),
                                   ),
                                 ),
                               ],
@@ -2540,11 +2583,12 @@ class _CustomerDashboardTestScreenState
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         constraints: const BoxConstraints(minHeight: 58),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.94),
+          color: Colors.white.withValues(alpha: 0.97),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: CustomerPalette.border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.14),
+              color: CustomerPalette.primaryDark.withValues(alpha: 0.12),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),

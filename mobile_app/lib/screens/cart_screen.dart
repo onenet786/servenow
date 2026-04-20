@@ -63,6 +63,63 @@ class _CartScreenState extends State<CartScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
+  Widget _buildBackdrop() {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFF6EC),
+                Color(0xFFFFD8B5),
+                Color(0xFFF7B070),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: -70,
+          top: 60,
+          child: _buildBlurOrb(
+            size: 220,
+            colors: const [Color(0x66F2B134), Color(0x00F2B134)],
+          ),
+        ),
+        Positioned(
+          right: -30,
+          bottom: 80,
+          child: _buildBlurOrb(
+            size: 220,
+            colors: const [Color(0x55C9475B), Color(0x00C9475B)],
+          ),
+        ),
+        Positioned(
+          right: -50,
+          top: 110,
+          child: _buildBlurOrb(
+            size: 170,
+            colors: const [Color(0x55147D7E), Color(0x00147D7E)],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBlurOrb({required double size, required List<Color> colors}) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: colors),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<CartProvider>(
@@ -83,46 +140,84 @@ class _CartScreenState extends State<CartScreen> {
         return Directionality(
           textDirection: CustomerLanguage.textDirection(_isUrdu),
           child: Scaffold(
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
-            title: Text(_tr('Your Cart')),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            foregroundColor: CustomerPalette.textDark,
+            title: Text(
+              _tr('Your Cart'),
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: CustomerPalette.textDark,
+              ),
+            ),
             actions: [
               if (cart.items.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(_tr('Clear Cart?')),
-                        content: Text(
-                          _tr('Are you sure you want to remove all items?'),
+                Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.86),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: CustomerPalette.primary.withValues(alpha: 0.18),
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(_tr('Clear Cart?')),
+                          content: Text(
+                            _tr('Are you sure you want to remove all items?'),
+                          ),
+                          actions: [
+                            TextButton(
+                              child: Text(_tr('No')),
+                              onPressed: () => Navigator.of(ctx).pop(),
+                            ),
+                            TextButton(
+                              child: Text(_tr('Yes')),
+                              onPressed: () {
+                                cart.clear();
+                                Navigator.of(ctx).pop();
+                              },
+                            ),
+                          ],
                         ),
-                        actions: [
-                          TextButton(
-                            child: Text(_tr('No')),
-                            onPressed: () => Navigator.of(ctx).pop(),
-                          ),
-                          TextButton(
-                            child: Text(_tr('Yes')),
-                            onPressed: () {
-                              cart.clear();
-                              Navigator.of(ctx).pop();
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
             ],
           ),
-          body: RefreshIndicator(
+          body: Stack(
+            children: [
+              _buildBackdrop(),
+              RefreshIndicator(
             onRefresh: _refresh,
             child: cart.items.isEmpty
                 ? Center(
-                    child: Text(
-                      _tr('Your cart is empty'),
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: CustomerPalette.border),
+                      ),
+                      child: Text(
+                        _tr('Your cart is empty'),
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   )
                 : Column(
@@ -152,6 +247,14 @@ class _CartScreenState extends State<CartScreen> {
                                 horizontal: 15,
                                 vertical: 4,
                               ),
+                               color: Colors.white.withValues(alpha: 0.97),
+                               elevation: 2,
+                               shape: RoundedRectangleBorder(
+                                 borderRadius: BorderRadius.circular(18),
+                               ),
+                               shadowColor: CustomerPalette.primaryDark.withValues(
+                                 alpha: 0.12,
+                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
                                 child: Column(
@@ -169,11 +272,11 @@ class _CartScreenState extends State<CartScreen> {
                                     const SizedBox(height: 4),
                                     Text(
                                       item.product.storeName ?? _tr('Unknown Store'),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: CustomerPalette.primaryDark,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                       style: const TextStyle(
+                                         fontSize: 12,
+                                         color: CustomerPalette.secondaryDark,
+                                         fontWeight: FontWeight.w500,
+                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -272,8 +375,16 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                     Card(
                       margin: const EdgeInsets.all(15),
+                       color: Colors.white.withValues(alpha: 0.98),
+                       elevation: 2,
+                       shape: RoundedRectangleBorder(
+                         borderRadius: BorderRadius.circular(20),
+                       ),
+                       shadowColor: CustomerPalette.primaryDark.withValues(
+                         alpha: 0.12,
+                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(14),
                         child: Column(
                           children: [
                             Row(
@@ -291,8 +402,8 @@ class _CartScreenState extends State<CartScreen> {
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: CustomerPalette.primaryDark,
-                                  ),
+                                     color: CustomerPalette.secondaryDark,
+                                   ),
                                 ),
                               ],
                             ),
@@ -329,6 +440,10 @@ class _CartScreenState extends State<CartScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             backgroundColor: CustomerPalette.primary,
                             foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(999),
+                            ),
                           ),
                           onPressed: () {
                             final auth = Provider.of<AuthProvider>(
@@ -351,6 +466,8 @@ class _CartScreenState extends State<CartScreen> {
                   ],
             ),
           ),
+            ],
+          ),
           bottomNavigationBar: _buildBottomBar(),
         ));
       },
@@ -365,12 +482,15 @@ class _CartScreenState extends State<CartScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: CustomerPalette.accent.withValues(alpha: 0.16),
+        color: CustomerPalette.secondary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: CustomerPalette.secondary.withValues(alpha: 0.18),
+        ),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: CustomerPalette.primaryDark),
+          Icon(icon, size: 16, color: CustomerPalette.secondaryDark),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
@@ -382,14 +502,14 @@ class _CartScreenState extends State<CartScreen> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: CustomerPalette.primaryDark,
+                    color: CustomerPalette.secondaryDark,
                   ),
                 ),
                 Text(
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade700,
+                    color: CustomerPalette.textMuted,
                   ),
                 ),
               ],
@@ -407,13 +527,14 @@ class _CartScreenState extends State<CartScreen> {
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: CustomerPalette.card,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white.withValues(alpha: 0.97),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: CustomerPalette.border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: CustomerPalette.primaryDark.withValues(alpha: 0.12),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),

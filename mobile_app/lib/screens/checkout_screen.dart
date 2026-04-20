@@ -26,7 +26,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressController = TextEditingController();
   final _instructionsController = TextEditingController();
   String _paymentMethod = 'cash';
-  String? _selectedDeliveryTime;
+  String? _selectedDeliveryTime = 'asap';
   bool _isLoading = false;
   bool _isDeliveryFeeConfigLoading = true;
   double? _walletBalance;
@@ -59,6 +59,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   String _tr(String text) => CustomerLanguage.tr(_isUrdu, text);
+
+  OutlineInputBorder _fieldBorder([Color? color]) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: color ?? CustomerPalette.primary.withValues(alpha: 0.18),
+      ),
+    );
+  }
+
+  Widget _sectionCard({required Widget child}) {
+    return Card(
+      elevation: 2,
+      color: Colors.white.withValues(alpha: 0.98),
+      shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: child,
+      ),
+    );
+  }
 
   Future<void> _promptGuestRegistration() async {
     final shouldRegister = await showDialog<bool>(
@@ -167,24 +189,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     String? subtitle,
   }) {
     final isSelected = _paymentMethod == value;
-    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: () => setState(() => _paymentMethod = value),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? scheme.primary : Colors.grey.shade300,
+            color:
+                isSelected
+                    ? CustomerPalette.secondary
+                    : CustomerPalette.border,
             width: isSelected ? 2 : 1,
           ),
           color: isSelected
-              ? scheme.primaryContainer.withAlpha((0.25 * 255).round())
-              : Colors.transparent,
+              ? CustomerPalette.secondary.withValues(alpha: 0.1)
+              : Colors.white.withValues(alpha: 0.92),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? scheme.primary : Colors.grey[700]),
+            Icon(
+              icon,
+              color:
+                  isSelected
+                      ? CustomerPalette.secondaryDark
+                      : CustomerPalette.textDark,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -194,7 +224,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     _tr(title),
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? scheme.primary : null,
+                      color:
+                          isSelected
+                              ? CustomerPalette.secondaryDark
+                              : CustomerPalette.textDark,
                     ),
                   ),
                   if (subtitle != null)
@@ -202,7 +235,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         _tr(subtitle),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: CustomerPalette.textMuted,
+                        ),
                       ),
                     ),
                 ],
@@ -210,6 +246,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             Radio<String>(
               value: value,
+              activeColor: CustomerPalette.secondary,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ],
@@ -474,9 +511,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFFFFF6EA),
-                Color(0xFFF7D4B7),
-                Color(0xFFF4C29B),
+                Color(0xFFFFF6EC),
+                Color(0xFFFFD8B5),
+                Color(0xFFF7B070),
               ],
             ),
           ),
@@ -486,7 +523,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           top: 70,
           child: _buildBlurOrb(
             size: 220,
-            colors: const [Color(0xFFFFD58A), Color(0x00FFD58A)],
+            colors: const [Color(0x66F2B134), Color(0x00F2B134)],
           ),
         ),
         Positioned(
@@ -494,7 +531,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           top: 130,
           child: _buildBlurOrb(
             size: 180,
-            colors: const [Color(0xFFFFB26F), Color(0x00FFB26F)],
+            colors: const [Color(0x55147D7E), Color(0x00147D7E)],
           ),
         ),
         Positioned(
@@ -502,7 +539,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           bottom: 30,
           child: _buildBlurOrb(
             size: 280,
-            colors: const [Color(0xFFF0A35B), Color(0x00F0A35B)],
+            colors: const [Color(0x55C9475B), Color(0x00C9475B)],
           ),
         ),
       ],
@@ -544,11 +581,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: CustomerPalette.textDark,
         title: Row(
           children: [
-            const Icon(Icons.shopping_cart_outlined, size: 22),
+            const Icon(
+              Icons.shopping_cart_outlined,
+              size: 22,
+              color: CustomerPalette.textDark,
+            ),
             const SizedBox(width: 10),
-            Text(_tr('Checkout')),
+            Text(
+              _tr('Checkout'),
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: CustomerPalette.textDark,
+              ),
+            ),
           ],
         ),
       ),
@@ -616,13 +667,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           },
                         ),
                         // Order Summary Card
-                        Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                        _sectionCard(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -892,18 +937,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                 ),
                               ],
                             ),
-                          ),
                         ),
                         const SizedBox(height: 16),
 
                         // Delivery Details Card
-                        Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                        _sectionCard(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -929,7 +967,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 2,
                                     ),
-                                    border: const OutlineInputBorder(),
+                                    filled: true,
+                                    fillColor: CustomerPalette.background,
+                                    border: _fieldBorder(),
+                                    enabledBorder: _fieldBorder(),
+                                    focusedBorder: _fieldBorder(
+                                      CustomerPalette.primary,
+                                    ),
                                     prefixIcon: const Icon(Icons.person),
                                   ),
                                   validator: (value) {
@@ -948,7 +992,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 2,
                                     ),
-                                    border: const OutlineInputBorder(),
+                                    filled: true,
+                                    fillColor: CustomerPalette.background,
+                                    border: _fieldBorder(),
+                                    enabledBorder: _fieldBorder(),
+                                    focusedBorder: _fieldBorder(
+                                      CustomerPalette.primary,
+                                    ),
                                     prefixIcon: const Icon(Icons.phone),
                                   ),
                                   keyboardType: TextInputType.phone,
@@ -968,7 +1018,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 2,
                                     ),
-                                    border: const OutlineInputBorder(),
+                                    filled: true,
+                                    fillColor: CustomerPalette.background,
+                                    border: _fieldBorder(),
+                                    enabledBorder: _fieldBorder(),
+                                    focusedBorder: _fieldBorder(
+                                      CustomerPalette.primary,
+                                    ),
                                     prefixIcon: const Icon(Icons.location_on),
                                   ),
                                   maxLines: 2,
@@ -988,7 +1044,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 2,
                                     ),
-                                    border: const OutlineInputBorder(),
+                                    filled: true,
+                                    fillColor: CustomerPalette.background,
+                                    border: _fieldBorder(),
+                                    enabledBorder: _fieldBorder(),
+                                    focusedBorder: _fieldBorder(
+                                      CustomerPalette.primary,
+                                    ),
                                     prefixIcon: const Icon(Icons.access_time),
                                   ),
                                   items: [
@@ -1024,26 +1086,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       maxLines: 2,
                                     ),
-                                    border: const OutlineInputBorder(),
+                                    filled: true,
+                                    fillColor: CustomerPalette.background,
+                                    border: _fieldBorder(),
+                                    enabledBorder: _fieldBorder(),
+                                    focusedBorder: _fieldBorder(
+                                      CustomerPalette.primary,
+                                    ),
                                     prefixIcon: const Icon(Icons.note),
                                   ),
                                   maxLines: 2,
                                 ),
                               ],
                             ),
-                          ),
                         ),
 
                         const SizedBox(height: 16),
 
                         // Payment Method Card
-                        Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                        _sectionCard(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -1174,7 +1235,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                   ),
                               ],
                             ),
-                          ),
                         ),
 
                         const SizedBox(height: 24),
@@ -1216,13 +1276,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(34),
-                        color: Colors.white.withValues(alpha: 0.78),
+                        color: Colors.white.withValues(alpha: 0.9),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.68),
+                          color: CustomerPalette.border,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
+                            color: CustomerPalette.primaryDark.withValues(
+                              alpha: 0.14,
+                            ),
                             blurRadius: 26,
                             offset: const Offset(0, 18),
                           ),

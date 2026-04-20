@@ -33,6 +33,16 @@ class AuthProvider with ChangeNotifier {
   bool get isGuest => _user?.isGuest == true || _user?.userType == 'guest';
   bool get sessionExpired => _sessionExpired;
 
+  Future<void> _syncRiderTrackingSession() async {
+    final token = _token?.trim();
+    if (_user?.userType == 'rider' && token != null && token.isNotEmpty) {
+      await RiderBackgroundTrackingService.instance.start(token);
+      await RiderBackgroundTrackingService.instance.syncCurrentLocationNow();
+      return;
+    }
+    await RiderBackgroundTrackingService.instance.stop();
+  }
+
   bool _isUnauthorizedError(Object error) {
     final message = error.toString().toLowerCase();
     return message.contains('invalid or expired token') ||
@@ -107,6 +117,7 @@ class AuthProvider with ChangeNotifier {
         if (!isGuest) {
           await _initializeStripe(_token!);
         }
+        await _syncRiderTrackingSession();
       } else {
         throw Exception(data['message'] ?? 'Login failed');
       }
@@ -166,6 +177,7 @@ class AuthProvider with ChangeNotifier {
         }
 
         _sessionExpired = false;
+        await _syncRiderTrackingSession();
 
         return false;
       } else {
@@ -360,6 +372,7 @@ class AuthProvider with ChangeNotifier {
               _user = User.fromJson(data['user']);
               await prefs.setString('user', jsonEncode(_user!.toJson()));
             }
+            await _syncRiderTrackingSession();
           } catch (refreshError) {
             _logger.w('Profile fetch failed after refresh: $refreshError');
           }
@@ -372,6 +385,7 @@ class AuthProvider with ChangeNotifier {
       }
     }
 
+    await _syncRiderTrackingSession();
     notifyListeners();
   }
 
@@ -418,6 +432,7 @@ class AuthProvider with ChangeNotifier {
         }
 
         _sessionExpired = false;
+        await _syncRiderTrackingSession();
       } else {
         throw Exception(data['message'] ?? 'Guest login failed');
       }
@@ -448,6 +463,7 @@ class AuthProvider with ChangeNotifier {
         await prefs.setString('refresh_token', _refreshToken!);
       }
       _sessionExpired = false;
+      await _syncRiderTrackingSession();
       notifyListeners();
       return _token;
     } catch (e) {

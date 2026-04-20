@@ -783,6 +783,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return 'Last updated $hour:$minute $suffix';
   }
 
+  String _formatTrackerMoment(DateTime? value) {
+    if (value == null) return '-';
+    final local = value.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final suffix = local.hour >= 12 ? 'pm' : 'am';
+    return '$hour:$minute $suffix';
+  }
+
   String? _speedLabelForRider(Map<String, dynamic> rider) {
     final riderId = (rider['riderId'] ?? '').toString().trim();
     final speedMph = _liveRiderSpeedsMphById[riderId];
@@ -2446,6 +2455,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             },
           ),
           ListTile(
+            leading: const Icon(Icons.route),
+            title: const Text('Ride History'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/rider-history');
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.inventory),
             title: Text(_tr('Inventory Reports')),
             onTap: () {
@@ -2501,6 +2518,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               .toList(growable: false)
         : allRiders;
     final focusedRider = riders.length == 1 ? riders.first : null;
+    var totalTrailPoints = 0;
+    var delayedRiders = 0;
+    DateTime? latestUpdate;
+    for (final rider in allRiders) {
+      final riderId = (rider['riderId'] ?? '').toString();
+      totalTrailPoints += _liveRiderTrails[riderId]?.length ?? 0;
+      if (_shouldWarnPickupDelay(rider)) {
+        delayedRiders += 1;
+      }
+      final updatedAt = rider['createdAt'] as DateTime?;
+      if (updatedAt != null &&
+          (latestUpdate == null || updatedAt.isAfter(latestUpdate))) {
+        latestUpdate = updatedAt;
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2514,11 +2546,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFFFFF), Color(0xFFF8FBFF)],
+            ),
             borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFD7E3F4)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
+                color: const Color(0xFF1D4ED8).withValues(alpha: 0.08),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -2529,6 +2566,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             children: [
               Row(
                 children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.two_wheeler,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
                   Container(
                     width: 12,
                     height: 12,
@@ -2557,6 +2612,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildTrackingMetricPill(
+                    icon: Icons.two_wheeler,
+                    label: '${allRiders.length} riders live',
+                    backgroundColor: const Color(0xFFECFDF5),
+                    borderColor: const Color(0xFF86EFAC),
+                    textColor: const Color(0xFF166534),
+                  ),
+                  _buildTrackingMetricPill(
+                    icon: Icons.route_rounded,
+                    label: '$totalTrailPoints route points',
+                    backgroundColor: const Color(0xFFEFF6FF),
+                    borderColor: const Color(0xFFBFDBFE),
+                    textColor: const Color(0xFF1D4ED8),
+                  ),
+                  _buildTrackingMetricPill(
+                    icon: Icons.update_rounded,
+                    label: _formatTrackerMoment(latestUpdate),
+                    backgroundColor: const Color(0xFFFFFBEB),
+                    borderColor: const Color(0xFFFCD34D),
+                    textColor: const Color(0xFFB45309),
+                  ),
+                  if (delayedRiders > 0)
+                    _buildTrackingMetricPill(
+                      icon: Icons.warning_amber_rounded,
+                      label: '$delayedRiders delayed',
+                      backgroundColor: const Color(0xFFFEE2E2),
+                      borderColor: const Color(0xFFFCA5A5),
+                      textColor: const Color(0xFFB91C1C),
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -3120,7 +3211,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
-                        Icons.local_shipping_rounded,
+                        Icons.two_wheeler,
                         size: 16,
                         color: Color(0xFF0F766E),
                       ),
@@ -3193,13 +3284,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ],
               ),
               child: Center(
-                child: Text(
-                  initial.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.two_wheeler,
+                      size: 40,
+                      color: Colors.white,
+                    ),
+                    Positioned(
+                      right: 10,
+                      bottom: 10,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.42),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          initial.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -3239,6 +3356,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final travelMinutes = _travelMinutesForRider(rider);
     final pickupWarning = _shouldWarnPickupDelay(rider);
     final trailPoints = _liveRiderTrails[riderId]?.length ?? 1;
+    final startedAt = rider['startedAt'] as DateTime?;
+    final updatedAt = rider['createdAt'] as DateTime?;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
@@ -3332,11 +3451,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             runSpacing: 8,
             children: [
               _buildTrackingMetricPill(
-                icon: Icons.pin_outlined,
+                icon: Icons.play_circle_outline_rounded,
+                label: 'Started ${_formatTrackerMoment(startedAt)}',
+                backgroundColor: const Color(0xFFFFFBEB),
+                borderColor: const Color(0xFFFDE68A),
+                textColor: const Color(0xFF92400E),
+              ),
+              _buildTrackingMetricPill(
+                icon: Icons.update_rounded,
+                label: 'Updated ${_formatTrackerMoment(updatedAt)}',
+                backgroundColor: const Color(0xFFEFF6FF),
+                borderColor: const Color(0xFFBFDBFE),
+                textColor: const Color(0xFF1D4ED8),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildTrackingMetricPill(
+                icon: Icons.assignment_turned_in_outlined,
                 label: orderNumber.isEmpty ? 'Order unassigned' : orderNumber,
               ),
               _buildTrackingMetricPill(
-                icon: Icons.timeline_rounded,
+                icon: Icons.route_rounded,
                 label: '${trailPoints.toString()} points',
               ),
               _buildTrackingMetricPill(
@@ -3522,7 +3662,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.delivery_dining,
+                  Icons.two_wheeler,
                   size: 10,
                   color: Colors.white,
                 ),
@@ -3643,12 +3783,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
                 _buildLiveDetailRow(Icons.storefront, 'Store', storeName),
                 _buildLiveDetailRow(
-                  Icons.local_shipping,
+                  Icons.two_wheeler,
                   _tr('Status'),
                   status.isEmpty ? 'Live' : status,
                 ),
                 _buildLiveDetailRow(
-                  Icons.timeline,
+                  Icons.play_circle_outline_rounded,
+                  'Tracking Start',
+                  _formatTrackerMoment(rider['startedAt'] as DateTime?),
+                ),
+                _buildLiveDetailRow(
+                  Icons.update_rounded,
+                  'Last Update',
+                  _formatTrackerMoment(rider['createdAt'] as DateTime?),
+                ),
+                _buildLiveDetailRow(
+                  Icons.route,
                   _tr('Trail Points'),
                   trailPoints.toString(),
                 ),

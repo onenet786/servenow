@@ -482,12 +482,40 @@ async function ensureRiderLocationLogsTable(db) {
       CREATE TABLE IF NOT EXISTS rider_location_logs (
         id INT PRIMARY KEY AUTO_INCREMENT,
         rider_id INT NOT NULL,
+        order_id INT NULL,
         latitude DECIMAL(10, 8) NOT NULL,
         longitude DECIMAL(11, 8) NOT NULL,
+        location_label VARCHAR(255) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_rider_location_logs_rider_created (rider_id, created_at)
+        INDEX idx_rider_location_logs_rider_created (rider_id, created_at),
+        INDEX idx_rider_location_logs_order_created (order_id, created_at)
       )
     `);
+    const hasOrderId = await hasColumn(
+      db,
+      "rider_location_logs",
+      "order_id",
+    );
+    if (!hasOrderId) {
+      await db.execute(
+        "ALTER TABLE rider_location_logs ADD COLUMN order_id INT NULL AFTER rider_id",
+      );
+      try {
+        await db.execute(
+          "CREATE INDEX idx_rider_location_logs_order_created ON rider_location_logs(order_id, created_at)",
+        );
+      } catch (_) {}
+    }
+    const hasLocationLabel = await hasColumn(
+      db,
+      "rider_location_logs",
+      "location_label",
+    );
+    if (!hasLocationLabel) {
+      await db.execute(
+        "ALTER TABLE rider_location_logs ADD COLUMN location_label VARCHAR(255) NULL AFTER longitude",
+      );
+    }
   } catch (e) {
     console.error("Failed to ensure rider_location_logs table:", e);
   }
@@ -2087,6 +2115,7 @@ router.put(
       const riderId = req.user.id;
 
       await ensureRiderLocationColumns(req.db);
+      await ensureRiderLocationLogsTable(req.db);
 
       const [activeOrders] = await req.db.execute(
         `SELECT id
@@ -2119,12 +2148,30 @@ router.put(
 
       // Also store in a rider location log table if available
       try {
-        await req.db.execute(
-          `INSERT INTO rider_location_logs (rider_id, latitude, longitude) VALUES (?, ?, ?)`,
-          [riderId, latitude, longitude],
-        );
+        if (orderIds.length > 0) {
+          const placeholders = orderIds.map(() => "(?, ?, ?, ?, ?)").join(", ");
+          const insertParams = [];
+          for (const orderId of orderIds) {
+            insertParams.push(
+              riderId,
+              orderId,
+              latitude,
+              longitude,
+              resolvedLocation,
+            );
+          }
+          await req.db.execute(
+            `INSERT INTO rider_location_logs (rider_id, order_id, latitude, longitude, location_label) VALUES ${placeholders}`,
+            insertParams,
+          );
+        } else {
+          await req.db.execute(
+            `INSERT INTO rider_location_logs (rider_id, order_id, latitude, longitude, location_label) VALUES (?, NULL, ?, ?, ?)`,
+            [riderId, latitude, longitude, resolvedLocation],
+          );
+        }
       } catch (e) {
-        // Table might not exist yet, that's okay
+        console.error("Failed to insert rider location log:", e);
       }
 
       emitRiderLocationUpdate(
@@ -2185,16 +2232,16 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
 
     const hours = Math.min(
       Math.max(Number.parseInt(String(req.query.hours || "3"), 10) || 3, 1),
-      24,
+      24 * 45,
     );
     const limit = Math.min(
       Math.max(Number.parseInt(String(req.query.limit || "40"), 10) || 40, 5),
-      500,
+      2500,
     );
 
     const placeholders = riderIds.map(() => "?").join(", ");
     const [rows] = await req.db.execute(
-      `SELECT rider_id, latitude, longitude, created_at
+      `SELECT rider_id, order_id, latitude, longitude, location_label, created_at
        FROM rider_location_logs
        WHERE rider_id IN (${placeholders})
          AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
@@ -2211,8 +2258,13 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
       const key = String(row.rider_id);
       if (!histories[key]) histories[key] = [];
       histories[key].push({
+        order_id:
+          row.order_id === null || row.order_id === undefined
+            ? null
+            : Number.parseInt(String(row.order_id), 10),
         latitude: Number.parseFloat(row.latitude),
         longitude: Number.parseFloat(row.longitude),
+        location_label: String(row.location_label || "").trim(),
         created_at: row.created_at,
       });
     }

@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../models/cart_item.dart';
 import 'package:servenow/services/notifier.dart';
+import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
 
 class StoreScreen extends StatefulWidget {
@@ -173,6 +174,63 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
+  Widget _buildBackdrop() {
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFF6EC),
+                Color(0xFFFFD8B5),
+                Color(0xFFF7B070),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: -70,
+          top: 40,
+          child: _buildBlurOrb(
+            size: 210,
+            colors: const [Color(0x66F2B134), Color(0x00F2B134)],
+          ),
+        ),
+        Positioned(
+          right: -30,
+          top: 120,
+          child: _buildBlurOrb(
+            size: 170,
+            colors: const [Color(0x55147D7E), Color(0x00147D7E)],
+          ),
+        ),
+        Positioned(
+          right: -90,
+          bottom: 40,
+          child: _buildBlurOrb(
+            size: 240,
+            colors: const [Color(0x55C9475B), Color(0x00C9475B)],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBlurOrb({required double size, required List<Color> colors}) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(colors: colors),
+        ),
+      ),
+    );
+  }
+
   void _addToCart(
     BuildContext context,
     Product product,
@@ -247,27 +305,56 @@ class _StoreScreenState extends State<StoreScreen> {
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text(_tr('Store Details')),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: CustomerPalette.textDark,
+        title: Text(
+          _tr('Store Details'),
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            color: CustomerPalette.textDark,
+          ),
+        ),
         actions: [
           Consumer<CartProvider>(
             builder: (ctx, cart, child) => Stack(
               alignment: Alignment.center,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.shopping_cart),
-                  onPressed: () {
-                    Navigator.of(context).pushNamed('/cart');
-                  },
+                Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: CustomerPalette.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    onPressed: () {
+                      Navigator.of(context).pushNamed('/cart');
+                    },
+                  ),
                 ),
                 if (cart.itemCount > 0)
                   Positioned(
                     right: 8,
-                    top: 8,
+                    top: 6,
                     child: Container(
-                      padding: const EdgeInsets.all(2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: CustomerPalette.primaryDark,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       constraints: const BoxConstraints(
@@ -289,7 +376,10 @@ class _StoreScreenState extends State<StoreScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
+      body: Stack(
+        children: [
+          _buildBackdrop(),
+          FutureBuilder<Map<String, dynamic>>(
         future: _storeDetailsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -336,14 +426,14 @@ class _StoreScreenState extends State<StoreScreen> {
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: isGlobalBlocked
-                                  ? Colors.red.shade50
-                                  : Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white.withValues(alpha: 0.96),
+                              borderRadius: BorderRadius.circular(18),
                               border: Border.all(
                                 color: isGlobalBlocked
                                     ? Colors.red.shade200
-                                    : Colors.orange.shade200,
+                                    : CustomerPalette.secondary.withValues(
+                                        alpha: 0.28,
+                                      ),
                               ),
                             ),
                             child: Row(
@@ -376,6 +466,10 @@ class _StoreScreenState extends State<StoreScreen> {
                           elevation: 2,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(22),
+                          ),
+                          color: Colors.white.withValues(alpha: 0.98),
+                          shadowColor: CustomerPalette.primaryDark.withValues(
+                            alpha: 0.12,
                           ),
                           clipBehavior: Clip.antiAlias,
                           child: Column(
@@ -460,9 +554,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                           child: Text(
                                             store['location'],
                                             style: const TextStyle(
-                                              color: Colors.grey,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
+                                      color: CustomerPalette.textMuted,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
                                             ),
                                           ),
                                         ),
@@ -480,9 +574,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                         Text(
                                           'Open: ${_formatTimeOnly(store['opening_time'])}',
                                           style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
+                                              color: CustomerPalette.textMuted,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                         const SizedBox(width: 12),
@@ -495,9 +589,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                         Text(
                                           'Close: ${_formatTimeOnly(store['closing_time'])}',
                                           style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
+                                              color: CustomerPalette.textMuted,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                       ],
@@ -536,9 +630,10 @@ class _StoreScreenState extends State<StoreScreen> {
                     padding: EdgeInsets.symmetric(horizontal: 16.0),
                     child: Text(
                       _tr('Products'),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: CustomerPalette.textDark,
                       ),
                     ),
                   ),
@@ -588,6 +683,8 @@ class _StoreScreenState extends State<StoreScreen> {
           );
         },
       ),
+        ],
+      ),
     ));
   }
 
@@ -628,6 +725,8 @@ class _StoreScreenState extends State<StoreScreen> {
       return Card(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        color: Colors.white.withValues(alpha: 0.98),
+        shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -765,9 +864,9 @@ class _StoreScreenState extends State<StoreScreen> {
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: isSelected
-                                              ? Colors.blue
-                                              : Colors.black87,
-                                        ),
+                                               ? CustomerPalette.secondary
+                                               : Colors.black87,
+                                         ),
                                       ),
                                     ],
                                   ),
@@ -792,7 +891,7 @@ class _StoreScreenState extends State<StoreScreen> {
                                   ),
                           style: ElevatedButton.styleFrom(
                             padding: EdgeInsets.zero,
-                            backgroundColor: Colors.blueAccent,
+                            backgroundColor: CustomerPalette.primary,
                             foregroundColor: Colors.white,
                             textStyle: const TextStyle(
                               fontSize: 12,
@@ -818,7 +917,9 @@ class _StoreScreenState extends State<StoreScreen> {
 
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: Colors.white.withValues(alpha: 0.98),
+      shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -828,7 +929,7 @@ class _StoreScreenState extends State<StoreScreen> {
             width: double.infinity,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
+                top: Radius.circular(16),
               ),
               child: ApiService.getImageUrl(product.imageUrl).isNotEmpty
                   ? Image.network(
@@ -949,8 +1050,8 @@ class _StoreScreenState extends State<StoreScreen> {
                                       ? FontWeight.bold
                                       : FontWeight.normal,
                                   color: isSelected
-                                      ? Colors.blue
-                                      : Colors.grey[700],
+                                      ? CustomerPalette.secondary
+                                      : CustomerPalette.textMuted,
                                 ),
                               ),
                             ],
@@ -967,10 +1068,10 @@ class _StoreScreenState extends State<StoreScreen> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: CustomerPalette.primary,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       elevation: 0,
                     ),

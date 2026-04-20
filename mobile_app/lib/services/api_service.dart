@@ -57,10 +57,10 @@ class ApiService {
           host == 'localhost' || host == '127.0.0.1' || host == '0.0.0.0';
 
       if (isLocalWebHost) {
-        return _localDebugBaseUrl;
+        return _defaultBaseUrl;
       }
 
-      if (!isLocalWebHost && Uri.base.host.trim().isNotEmpty) {
+      if (Uri.base.host.trim().isNotEmpty) {
         return Uri.base.origin.replaceFirst(RegExp(r'\/+$'), '');
       }
 

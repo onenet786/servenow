@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../providers/auth_provider.dart';
@@ -22,6 +23,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _launchFlashSeenSignatureKey =
+      'customer_launch_flash_seen_signature';
   List<dynamic> _allStores = [];
   List<dynamic> _filteredStores = [];
   bool _isLoading = true;
@@ -622,13 +625,23 @@ class _HomeScreenState extends State<HomeScreen> {
     };
   }
 
-  void _tryShowLaunchFlash() {
+  Future<void> _tryShowLaunchFlash() async {
     if (!mounted || _launchFlashShown) return;
     final flash = _promotionFlashData();
     if (flash == null) return;
-    _launchFlashShown = true;
 
     final signature = (flash['signature'] ?? '').toString();
+    if (signature.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final seenSignature = prefs.getString(_launchFlashSeenSignatureKey) ?? '';
+      if (seenSignature == signature) {
+        _launchFlashShown = true;
+        _launchFlashSignature = signature;
+        return;
+      }
+    }
+
+    _launchFlashShown = true;
     if (signature.isNotEmpty && _launchFlashSignature != signature) {
       _launchFlashSignature = signature;
       try {
@@ -642,6 +655,20 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {}
     }
 
+    final imageUrl = (flash['imageUrl'] ?? '').toString().trim();
+    if (imageUrl.isNotEmpty) {
+      try {
+        await precacheImage(NetworkImage(imageUrl), context).timeout(
+          const Duration(seconds: 2),
+        );
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    if (signature.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_launchFlashSeenSignatureKey, signature);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _showLaunchFlashDialog(flash);
