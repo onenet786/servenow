@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ServeNow Next | Login</title>
+    <link rel="icon" type="image/png" href="/images/servenow_brand_logo.png" />
+    <link rel="stylesheet" href="/next/assets/app.css" />
+    <link rel="stylesheet" href="/next/assets/auth.css" />
+  </head>
+  <body>
+    <div class="auth-page">
+      <aside class="auth-brand">
+        <div class="auth-brand-card">
+          <div class="auth-brand-top">
+            <img src="/images/servenow_brand_logo.png" alt="ServeNow" />
+            <div>
+              <p class="eyebrow">Alternative App</p>
+              <h1>ServeNow Next</h1>
+            </div>
+          </div>
+          <div class="stack">
+            <h2>Proper page-based sign in for the alternate web app.</h2>
+            <p>Use your live ServeNow account to open the customer, rider, store-owner, or admin workspace in `/next`.</p>
+          </div>
+          <ul class="auth-feature-list">
+            <li>Customer, rider, store-owner, and admin roles use the same secure backend.</li>
+            <li>This auth flow is separate from the current site UI and built for future testing.</li>
+            <li>Password reset and email verification are available here too.</li>
+          </ul>
+        </div>
+        <p><a href="/next/" class="secondary-button">Back to ServeNow Next</a></p>
+      </aside>
+
+      <main class="auth-main">
+        <section class="auth-panel">
+          <section class="status-banner hidden" id="statusBanner"></section>
+          <div class="auth-panel-copy">
+            <p class="eyebrow">Login</p>
+            <h2>Welcome back</h2>
+            <p>Sign in to continue to your role workspace.</p>
+          </div>
+
+          <form class="checkout-form" id="loginForm">
+            <label>
+              <span>Email</span>
+              <input type="email" name="email" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" name="password" required />
+            </label>
+            <button class="primary-button" type="submit">Login</button>
+          </form>
+
+          <div class="auth-links">
+            <a href="/next/forgot-password">Forgot password?</a>
+            <a href="/next/register">Create an account</a>
+            <a href="/next/verify-email">Verify email</a>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/next/assets/auth.js"></script>
+  </body>
+</html>

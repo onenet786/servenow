@@ -507,12 +507,21 @@ class NotificationProvider with ChangeNotifier {
       _emitSocketEvent('new_order', data);
       debugPrint('Socket: new_order received');
       if (_authProvider?.isAdmin == true) {
+        final storeName = (data['store_name'] ?? '').toString().trim();
+        final storeNames = (data['store_names'] ?? '').toString().trim();
+        final customMessage = (data['message'] ?? '').toString().trim();
+        final fallbackStore = storeName.isNotEmpty
+            ? storeName
+            : (storeNames.isNotEmpty ? storeNames : 'Store');
         addNotification(
           title: 'New Order Placed',
-          message:
-              'Order #${data['order_number']} received. Total: PKR ${data['total_amount']}',
+          message: customMessage.isNotEmpty
+              ? customMessage
+              : '$fallbackStore - PKR ${data['total_amount']}',
           type: 'success',
           icon: 'shopping_bag',
+          payload:
+              data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : null,
         );
       }
     });

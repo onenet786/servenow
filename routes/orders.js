@@ -145,6 +145,30 @@ function formatVariantLabel(sizeLabel, unitName, unitAbbreviation) {
   return safeSize || safeUnit || null;
 }
 
+async function getAdminPushRecipients(db) {
+  try {
+    const [rows] = await db.execute(
+      `SELECT id, user_type
+       FROM users
+       WHERE LOWER(COALESCE(user_type, '')) IN ('admin', 'standard_user')`
+    );
+    return (rows || [])
+      .map((row) => ({
+        id: Number.parseInt(String(row.id), 10),
+        user_type: String(row.user_type || "").trim().toLowerCase(),
+      }))
+      .filter(
+        (row) =>
+          Number.isInteger(row.id) &&
+          row.id > 0 &&
+          (row.user_type === "admin" || row.user_type === "standard_user")
+      );
+  } catch (error) {
+    console.error("[Orders] Failed to load admin push recipients:", error);
+    return [];
+  }
+}
+
 async function getCustomerSupportContact(db) {
   await ensureSystemSettingsTable(db);
   const [settingRows] = await db.execute(
@@ -1263,6 +1287,8 @@ router.post("/", authenticateToken, async (req, res) => {
       itemsSubtotal += unitPrice * quantity;
     }
 
+    let adminStoreNames = [];
+
     // Enforce store open/closed hours before proceeding
     const storeIdArray = Array.from(storeIds).filter(Boolean);
     if (storeIdArray.length > 0) {
@@ -1287,6 +1313,10 @@ router.post("/", authenticateToken, async (req, res) => {
         if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
         return h + m / 60.0;
       };
+
+      adminStoreNames = storeRows
+        .map((s) => String(s.name || "").trim())
+        .filter(Boolean);
 
       for (const s of storeRows) {
         if (!s.is_active) {
@@ -1435,6 +1465,15 @@ router.post("/", authenticateToken, async (req, res) => {
       );
     }
 
+    const adminStoreSummary =
+      adminStoreNames.length > 1
+        ? adminStoreNames.join(", ")
+        : adminStoreNames[0] || "Unknown Store";
+    const adminOrderMessage =
+      adminStoreNames.length > 1
+        ? `${adminStoreSummary} | PKR ${grandTotal}`
+        : `${adminStoreSummary} - PKR ${grandTotal}`;
+
     // Emit new_order event to admin
     try {
       const fs = require("fs");
@@ -1458,6 +1497,9 @@ router.post("/", authenticateToken, async (req, res) => {
           order_number: order_number,
           total_amount: grandTotal,
           store_id: orderStoreId,
+          store_name: adminStoreSummary,
+          store_names: adminStoreNames,
+          message: adminOrderMessage,
           created_at: new Date(),
           user_id: req.user.id,
         });
@@ -1508,6 +1550,32 @@ router.post("/", authenticateToken, async (req, res) => {
         }
       } else {
         logEvent(`WARNING: req.io missing for order ${order_number}`);
+      }
+
+      const adminRecipients = await getAdminPushRecipients(req.db);
+      for (const adminRecipient of adminRecipients) {
+        try {
+          await sendPushToUser(req.db, {
+            userId: adminRecipient.id,
+            userType: adminRecipient.user_type,
+            title: "New Order Received",
+            message: adminOrderMessage,
+            data: {
+              type: "new_order",
+              order_id: orderId,
+              order_number: order_number,
+              store_name: adminStoreSummary,
+              store_names: adminStoreNames.join(", "),
+              total_amount: String(grandTotal),
+            },
+            collapseKey: "admin_new_order",
+          });
+        } catch (pushError) {
+          console.error(
+            `[Orders] Failed sending admin push for ${order_number} to user ${adminRecipient.id}:`,
+            pushError.message || pushError,
+          );
+        }
       }
     } catch (e) {
       console.error("Socket emit error:", e);
@@ -1675,6 +1743,8 @@ router.post(
         });
       }
       const store = stores[0];
+      const adminStoreSummary = String(store.name || "Unknown Store").trim();
+      const adminOrderMessage = `${adminStoreSummary} - PKR ${totalAmount}`;
       if (!store.is_active) {
         return res.status(400).json({
           success: false,
@@ -1823,9 +1893,37 @@ router.post(
             order_number: orderNumber,
             total_amount: totalAmount,
             store_id: storeId,
+            store_name: adminStoreSummary,
+            store_names: [adminStoreSummary],
+            message: adminOrderMessage,
             created_at: new Date(),
             user_id: customerId,
           });
+        }
+        const adminRecipients = await getAdminPushRecipients(req.db);
+        for (const adminRecipient of adminRecipients) {
+          try {
+            await sendPushToUser(req.db, {
+              userId: adminRecipient.id,
+              userType: adminRecipient.user_type,
+              title: "New Order Received",
+              message: adminOrderMessage,
+              data: {
+                type: "new_order",
+                order_id: orderId,
+                order_number: orderNumber,
+                store_name: adminStoreSummary,
+                store_names: adminStoreSummary,
+                total_amount: String(totalAmount),
+              },
+              collapseKey: "admin_new_order",
+            });
+          } catch (pushError) {
+            console.error(
+              `[Orders] Failed sending admin push for manual order ${orderNumber} to user ${adminRecipient.id}:`,
+              pushError.message || pushError,
+            );
+          }
         }
       } catch (_) {}
 

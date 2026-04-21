@@ -290,6 +290,7 @@ console.log("Middleware setup complete.");
 console.log("Setting up static file serving...");
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/images", express.static(path.join(__dirname, "images")));
+app.use("/next", express.static(path.join(__dirname, "webapp_v2"), { etag: true }));
 console.log("Static files configured for /uploads and /images paths.");
 
 // Database connection pool
@@ -379,6 +380,35 @@ app.get("/data-deletion", (req, res) => {
 
 app.get("/data-deletion.html", (req, res) => {
   res.sendFile(path.join(__dirname, "data-deletion.html"));
+});
+
+// Dedicated route for the redesigned web experience.
+app.get("/next", (req, res) => {
+  res.sendFile(path.join(__dirname, "webapp_v2", "index.html"));
+});
+
+app.get("/next/", (req, res) => {
+  res.sendFile(path.join(__dirname, "webapp_v2", "index.html"));
+});
+
+app.get("/next/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "webapp_v2", "login.html"));
+});
+
+app.get("/next/register", (req, res) => {
+  res.sendFile(path.join(__dirname, "webapp_v2", "register.html"));
+});
+
+app.get("/next/forgot-password", (req, res) => {
+  res.sendFile(path.join(__dirname, "webapp_v2", "forgot-password.html"));
+});
+
+app.get("/next/reset-password", (req, res) => {
+  res.sendFile(path.join(__dirname, "webapp_v2", "reset-password.html"));
+});
+
+app.get("/next/verify-email", (req, res) => {
+  res.sendFile(path.join(__dirname, "webapp_v2", "verify-email.html"));
 });
 
 // Caching strategy for frontend assets

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ServeNow Next | Verify Email</title>
+    <link rel="icon" type="image/png" href="/images/servenow_brand_logo.png" />
+    <link rel="stylesheet" href="/next/assets/app.css" />
+    <link rel="stylesheet" href="/next/assets/auth.css" />
+  </head>
+  <body>
+    <div class="auth-page">
+      <aside class="auth-brand">
+        <div class="auth-brand-card">
+          <div class="auth-brand-top">
+            <img src="/images/servenow_brand_logo.png" alt="ServeNow" />
+            <div>
+              <p class="eyebrow">Verification</p>
+              <h1>ServeNow Next</h1>
+            </div>
+          </div>
+          <div class="stack">
+            <h2>Verify your email address before signing in.</h2>
+            <p>Enter the six-digit verification code sent by the live backend email service.</p>
+          </div>
+        </div>
+        <p><a href="/next/login" class="secondary-button">Back to login</a></p>
+      </aside>
+
+      <main class="auth-main">
+        <section class="auth-panel">
+          <section class="status-banner hidden" id="statusBanner"></section>
+          <div class="auth-panel-copy">
+            <p class="eyebrow">Verify Email</p>
+            <h2>Confirm your account</h2>
+            <p>If you did not receive a code, you can resend it from this page.</p>
+          </div>
+
+          <form class="checkout-form" id="verifyEmailForm">
+            <label>
+              <span>Email</span>
+              <input id="verifyEmail" type="email" name="email" required />
+            </label>
+            <label>
+              <span>Verification code</span>
+              <input type="text" name="code" minlength="6" maxlength="6" required />
+            </label>
+            <div class="auth-inline">
+              <button class="primary-button" type="submit">Verify email</button>
+              <button class="ghost-button" id="resendCodeBtn" type="button">Resend code</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <script src="/next/assets/auth.js"></script>
+  </body>
+</html>

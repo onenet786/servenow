@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ServeNow Next | Full Alternative Web App</title>
+    <meta
+      name="description"
+      content="A full alternative web app for ServeNow that keeps the current site untouched while reusing the live backend."
+    />
+    <link rel="icon" type="image/png" href="/images/servenow_brand_logo.png" />
+    <link rel="stylesheet" href="/next/assets/app.css" />
+    <script src="https://js.stripe.com/v3/"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div>
+          <div class="brand">
+            <img src="/images/servenow_brand_logo.png" alt="ServeNow" />
+            <div>
+              <p class="eyebrow">Alternative App</p>
+              <h1>ServeNow Next</h1>
+            </div>
+          </div>
+
+          <nav class="sidebar-nav">
+            <div class="nav-group-label">Customer</div>
+            <button class="nav-link active" data-route="home" type="button">
+              <span>Home</span>
+            </button>
+            <button class="nav-link" data-route="stores" type="button">
+              <span>Stores</span>
+            </button>
+            <button class="nav-link" data-route="cart" type="button">
+              <span>Cart</span>
+              <strong id="sidebarCartCount">0</strong>
+            </button>
+            <button class="nav-link" data-route="orders" type="button">
+              <span>Orders</span>
+            </button>
+            <button class="nav-link" data-route="wallet" type="button">
+              <span>Wallet</span>
+            </button>
+            <button class="nav-link" data-route="profile" type="button">
+              <span>Profile</span>
+            </button>
+
+            <div class="nav-group-label hidden" id="riderNavLabel">Rider</div>
+            <div class="role-nav hidden" id="riderNav">
+              <button class="nav-link" data-route="rider-dashboard" type="button">
+                <span>Rider Dashboard</span>
+              </button>
+              <button class="nav-link" data-route="rider-financial" type="button">
+                <span>Rider Financials</span>
+              </button>
+            </div>
+
+            <div class="nav-group-label hidden" id="storeOwnerNavLabel">Store Owner</div>
+            <div class="role-nav hidden" id="storeOwnerNav">
+              <button class="nav-link" data-route="store-dashboard" type="button">
+                <span>Store Dashboard</span>
+              </button>
+              <button class="nav-link" data-route="store-financial" type="button">
+                <span>Store Financials</span>
+              </button>
+            </div>
+
+            <div class="nav-group-label hidden" id="adminNavLabel">Admin</div>
+            <div class="role-nav hidden" id="adminNav">
+              <button class="nav-link" data-route="admin-dashboard" type="button">
+                <span>Dashboard</span>
+              </button>
+              <button class="nav-link" data-route="admin-orders" type="button">
+                <span>Orders</span>
+              </button>
+              <button class="nav-link" data-route="admin-stores" type="button">
+                <span>Stores</span>
+              </button>
+              <button class="nav-link" data-route="admin-users" type="button">
+                <span>Users</span>
+              </button>
+              <button class="nav-link" data-route="admin-products" type="button">
+                <span>Products</span>
+              </button>
+              <button class="nav-link" data-route="admin-riders" type="button">
+                <span>Riders</span>
+              </button>
+              <button class="nav-link" data-route="admin-catalog" type="button">
+                <span>Catalog Setup</span>
+              </button>
+              <button class="nav-link" data-route="admin-permissions" type="button">
+                <span>Permissions</span>
+              </button>
+              <button class="nav-link" data-route="admin-payments" type="button">
+                <span>Payments</span>
+              </button>
+              <button class="nav-link" data-route="admin-wallets" type="button">
+                <span>Wallets</span>
+              </button>
+              <button class="nav-link" data-route="admin-financial" type="button">
+                <span>Financial</span>
+              </button>
+            </div>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <a class="secondary-button" href="/">Open current app</a>
+        </div>
+      </aside>
+
+      <div class="main-shell">
+        <header class="topbar">
+          <button class="menu-toggle" id="menuToggle" type="button" aria-label="Toggle navigation">
+            <span></span>
+            <span></span>
+          </button>
+
+          <div class="topbar-search">
+            <input id="globalSearch" type="search" placeholder="Search stores or products" />
+          </div>
+
+          <div class="topbar-actions">
+            <button class="ghost-button" id="guestLoginBtn" type="button">Guest Login</button>
+            <button class="primary-button" id="authActionBtn" type="button">Login</button>
+          </div>
+        </header>
+
+        <main class="content">
+          <section class="hero">
+            <div class="hero-copy">
+              <p class="eyebrow">Alternative first</p>
+              <h2>A full working web app alternative built on your live backend.</h2>
+              <p>
+                `/next` stays separate from the current site while this version grows into a complete
+                customer, rider, store-owner, and admin alternative for testing.
+              </p>
+              <div class="hero-actions">
+                <button class="primary-button" data-route-jump="stores" type="button">Browse Stores</button>
+                <button class="ghost-button" data-route-jump="profile" type="button">Open Workspace</button>
+              </div>
+            </div>
+            <div class="hero-panel">
+              <div class="metric">
+                <span id="heroStoreCount">0</span>
+                <small>stores loaded</small>
+              </div>
+              <div class="metric">
+                <span id="heroCartCount">0</span>
+                <small>items in cart</small>
+              </div>
+              <div class="metric">
+                <span id="heroAuthState">Guest</span>
+                <small>session status</small>
+              </div>
+            </div>
+          </section>
+
+          <section class="status-banner hidden" id="statusBanner"></section>
+
+          <section class="view active" id="homeView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Discover</p>
+                <h3>Featured stores</h3>
+              </div>
+              <button class="text-button" data-route-jump="stores" type="button">See all</button>
+            </div>
+            <div class="card-grid" id="featuredStores"></div>
+          </section>
+
+          <section class="view" id="storesView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Marketplace</p>
+                <h3>All stores</h3>
+              </div>
+            </div>
+            <div class="toolbar">
+              <input id="storeSearchInput" type="search" placeholder="Search by store name or location" />
+              <button class="ghost-button" id="clearSearchBtn" type="button">Clear</button>
+            </div>
+            <div class="card-grid" id="storesGrid"></div>
+          </section>
+
+          <section class="view" id="storeDetailView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Store detail</p>
+                <h3 id="storeDetailTitle">Store</h3>
+              </div>
+              <button class="text-button" id="backToStoresBtn" type="button">Back to stores</button>
+            </div>
+            <div id="storeDetailContent" class="stack"></div>
+          </section>
+
+          <section class="view" id="cartView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Cart</p>
+                <h3>Your active order</h3>
+              </div>
+            </div>
+            <div class="checkout-layout">
+              <div class="panel" id="cartItemsPanel"></div>
+              <aside class="panel summary-panel" id="cartSummaryPanel"></aside>
+            </div>
+          </section>
+
+          <section class="view" id="ordersView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Orders</p>
+                <h3>Track your orders</h3>
+              </div>
+            </div>
+            <div class="toolbar">
+              <div class="segmented">
+                <button class="segmented-btn active" data-order-filter="all" type="button">All</button>
+                <button class="segmented-btn" data-order-filter="pending" type="button">Pending</button>
+                <button class="segmented-btn" data-order-filter="completed" type="button">Completed</button>
+              </div>
+            </div>
+            <div class="stack">
+              <div class="panel" id="supportPanel"></div>
+              <div class="stack" id="ordersPanel"></div>
+            </div>
+          </section>
+
+          <section class="view" id="walletView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Wallet</p>
+                <h3>Balance, top up, and transfers</h3>
+              </div>
+            </div>
+            <div class="stack" id="walletPanel"></div>
+          </section>
+
+          <section class="view" id="profileView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Profile</p>
+                <h3>Account and security</h3>
+              </div>
+            </div>
+            <div class="account-grid" id="profilePanel"></div>
+          </section>
+
+          <section class="view" id="riderDashboardView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Rider</p>
+                <h3>Delivery workspace</h3>
+              </div>
+            </div>
+            <div class="stack" id="riderDashboardPanel"></div>
+          </section>
+
+          <section class="view" id="riderFinancialView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Rider</p>
+                <h3>Wallet and financial history</h3>
+              </div>
+            </div>
+            <div class="stack" id="riderFinancialPanel"></div>
+          </section>
+
+          <section class="view" id="storeDashboardView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Store Owner</p>
+                <h3>Orders and status control</h3>
+              </div>
+            </div>
+            <div class="stack" id="storeDashboardPanel"></div>
+          </section>
+
+          <section class="view" id="storeFinancialView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Store Owner</p>
+                <h3>Financials and campaigns</h3>
+              </div>
+            </div>
+            <div class="stack" id="storeFinancialPanel"></div>
+          </section>
+
+          <section class="view" id="adminDashboardView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Dashboard overview</h3>
+              </div>
+            </div>
+            <div class="stack">
+              <div class="summary-grid" id="adminStatsPanel"></div>
+              <div class="panel" id="adminRecentPanel"></div>
+            </div>
+          </section>
+
+          <section class="view" id="adminOrdersView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Orders management</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminOrdersPanel"></div>
+          </section>
+
+          <section class="view" id="adminStoresView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Stores management</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminStoresPanel"></div>
+          </section>
+
+          <section class="view" id="adminUsersView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Users management</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminUsersPanel"></div>
+          </section>
+
+          <section class="view" id="adminProductsView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Products management</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminProductsPanel"></div>
+          </section>
+
+          <section class="view" id="adminRidersView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Riders management</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminRidersPanel"></div>
+          </section>
+
+          <section class="view" id="adminCatalogView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Categories, units, and sizes</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminCatalogPanel"></div>
+          </section>
+
+          <section class="view" id="adminPermissionsView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Permission groups</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminPermissionsPanel"></div>
+          </section>
+
+          <section class="view" id="adminPaymentsView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Payments</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminPaymentsPanel"></div>
+          </section>
+
+          <section class="view" id="adminWalletsView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Wallets</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminWalletsPanel"></div>
+          </section>
+
+          <section class="view" id="adminFinancialView">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Admin</p>
+                <h3>Financial dashboard and reports</h3>
+              </div>
+            </div>
+            <div class="stack" id="adminFinancialPanel"></div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <dialog class="auth-modal" id="authModal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Authentication</p>
+            <h3 id="authModalTitle">Login</h3>
+          </div>
+          <button class="icon-button" id="closeAuthModalBtn" type="button" aria-label="Close">x</button>
+        </div>
+
+        <div class="tab-row">
+          <button class="tab-button active" data-auth-tab="login" type="button">Login</button>
+          <button class="tab-button" data-auth-tab="register" type="button">Register</button>
+        </div>
+
+        <form class="auth-form active" id="loginForm">
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input type="password" name="password" required />
+          </label>
+          <button class="primary-button" type="submit">Login</button>
+        </form>
+
+        <form class="auth-form" id="registerForm">
+          <div class="form-two">
+            <label>
+              <span>First name</span>
+              <input type="text" name="firstName" required />
+            </label>
+            <label>
+              <span>Last name</span>
+              <input type="text" name="lastName" required />
+            </label>
+          </div>
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" required />
+          </label>
+          <div class="form-two">
+            <label>
+              <span>Phone</span>
+              <input type="tel" name="phone" />
+            </label>
+            <label>
+              <span>Address</span>
+              <input type="text" name="address" />
+            </label>
+          </div>
+          <label>
+            <span>Password</span>
+            <input type="password" name="password" minlength="6" required />
+          </label>
+          <button class="primary-button" type="submit">Create account</button>
+        </form>
+      </div>
+    </dialog>
+
+    <script type="module" src="/next/assets/app.js"></script>
+  </body>
+</html>

@@ -1,6 +1,10 @@
 const express = require("express");
 const { authenticateToken, requireAdmin, requireStaffAccess, requirePermission } = require("../middleware/auth");
 const { recordFinancialTransaction } = require("../utils/dbHelpers");
+const {
+  ensurePushDeviceTokensTable,
+  getPushServiceStatus,
+} = require("../services/pushNotifications");
 
 const router = express.Router();
 const fs = require("fs");
@@ -230,6 +234,58 @@ router.get(
       return res.status(500).json({
         success: false,
         message: "Failed to load delivery fee settings",
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/push-notification-status",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      await ensurePushDeviceTokensTable(req.db);
+
+      const [rows] = await req.db.execute(
+        `SELECT
+           u.id,
+           u.first_name,
+           u.last_name,
+           u.email,
+           LOWER(COALESCE(u.user_type, '')) AS user_type,
+           COUNT(CASE WHEN pdt.is_active = 1 THEN 1 END) AS active_tokens,
+           MAX(CASE WHEN pdt.is_active = 1 THEN pdt.last_seen_at END) AS last_seen_at
+         FROM users u
+         LEFT JOIN push_device_tokens pdt
+           ON pdt.user_id = u.id
+          AND LOWER(COALESCE(pdt.user_type, '')) = LOWER(COALESCE(u.user_type, ''))
+         WHERE LOWER(COALESCE(u.user_type, '')) IN ('admin', 'standard_user')
+         GROUP BY u.id, u.first_name, u.last_name, u.email, u.user_type
+         ORDER BY active_tokens DESC, u.id ASC`
+      );
+
+      const admins = (rows || []).map((row) => ({
+        id: row.id,
+        name: `${row.first_name || ""} ${row.last_name || ""}`.trim(),
+        email: row.email || "",
+        user_type: row.user_type || "",
+        active_tokens: Number(row.active_tokens || 0),
+        last_seen_at: row.last_seen_at || null,
+      }));
+
+      return res.json({
+        success: true,
+        push_service: getPushServiceStatus(),
+        admin_devices: admins,
+        active_admin_count: admins.filter((admin) => admin.active_tokens > 0).length,
+      });
+    } catch (error) {
+      console.error("Push notification status error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to load push notification status",
         error: error.message,
       });
     }
