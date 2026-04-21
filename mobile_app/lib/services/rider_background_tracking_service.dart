@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:background_location_2/background_location.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,6 +49,15 @@ class RiderBackgroundTrackingService {
     if (_isTogglingService) return;
     _isTogglingService = true;
     try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
       if (!_listenerAttached) {
         BackgroundLocation.getLocationUpdates((location) {
           unawaited(_handleLocationUpdate(location));
@@ -76,6 +86,9 @@ class RiderBackgroundTrackingService {
           startOnBoot: false,
         );
       }
+    } on PlatformException {
+      // Rider login should not fail just because runtime location permission
+      // has not been granted yet. The dashboard can request it later.
     } finally {
       _isTogglingService = false;
     }
@@ -106,26 +119,30 @@ class RiderBackgroundTrackingService {
     final token = await _loadTokenIfEnabled();
     if (token == null) return;
 
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
 
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+        ),
+      );
+      await _sendCoordinates(
+        token,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        force: true,
+      );
+    } on PlatformException {
       return;
     }
-
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-      ),
-    );
-    await _sendCoordinates(
-      token,
-      latitude: position.latitude,
-      longitude: position.longitude,
-      force: true,
-    );
   }
 
   Future<void> syncPosition(
