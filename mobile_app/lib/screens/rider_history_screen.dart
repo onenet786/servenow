@@ -297,24 +297,21 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
             endOfDay: end,
           );
 
-          DateTime? routeStart = previousRouteEnd == null
-              ? createdAt
-              : previousRouteEnd.add(const Duration(seconds: 1));
-          if (routeStart == null) {
-            routeStart = start;
-          }
+          DateTime routeStart =
+              previousRouteEnd?.add(const Duration(seconds: 1)) ??
+              createdAt ??
+              start;
           if (createdAt != null && createdAt.isAfter(routeStart)) {
             routeStart = createdAt;
           }
 
-          DateTime? routeEnd = updatedAt;
-          if (routeEnd == null) {
-            routeEnd = i + 1 < riderOrders.length
-                ? ((riderOrders[i + 1]['updated_at'] as DateTime?) ??
-                      (riderOrders[i + 1]['created_at'] as DateTime?))
-                    ?.subtract(const Duration(seconds: 1))
-                : end;
-          }
+          DateTime? routeEnd =
+              updatedAt ??
+              (i + 1 < riderOrders.length
+                  ? ((riderOrders[i + 1]['updated_at'] as DateTime?) ??
+                            (riderOrders[i + 1]['created_at'] as DateTime?))
+                        ?.subtract(const Duration(seconds: 1))
+                  : end);
           if (routeEnd != null && routeEnd.isBefore(routeStart)) {
             routeEnd = routeStart.add(const Duration(minutes: 90));
           }
@@ -327,7 +324,7 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
             routePoints = points.where((entry) {
               final timestamp = entry.timestamp;
               if (timestamp == null) return false;
-              if (timestamp.isBefore(routeStart!)) return false;
+              if (timestamp.isBefore(routeStart)) return false;
               if (routeEnd != null && timestamp.isAfter(routeEnd)) return false;
               return true;
             }).toList(growable: false);
@@ -576,7 +573,6 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
         const <latlng.LatLng>[];
     final selectedDistance =
         selectedRoute == null ? 0.0 : _distanceKmForPoints(selectedRoute.points);
-    final startedAt = selectedRoute?.createdAt;
     final endedAt =
         selectedRoute?.points.isNotEmpty == true
             ? selectedRoute!.points.last.timestamp

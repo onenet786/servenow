@@ -1033,6 +1033,7 @@ class _CustomerDashboardTestScreenState
     _launchFlashShown = true;
     if (signature.isNotEmpty && _launchFlashSignature != signature) {
       _launchFlashSignature = signature;
+      if (!mounted) return;
       try {
         Provider.of<app_notif.NotificationProvider>(
           context,
@@ -1048,6 +1049,7 @@ class _CustomerDashboardTestScreenState
 
     final imageUrl = (flash['imageUrl'] ?? '').toString().trim();
     if (imageUrl.isNotEmpty) {
+      if (!mounted) return;
       try {
         await precacheImage(NetworkImage(imageUrl), context).timeout(
           const Duration(seconds: 2),

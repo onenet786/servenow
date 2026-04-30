@@ -644,6 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _launchFlashShown = true;
     if (signature.isNotEmpty && _launchFlashSignature != signature) {
       _launchFlashSignature = signature;
+      if (!mounted) return;
       try {
         Provider.of<app_notif.NotificationProvider>(context, listen: false)
             .addNotification(
@@ -657,6 +658,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final imageUrl = (flash['imageUrl'] ?? '').toString().trim();
     if (imageUrl.isNotEmpty) {
+      if (!mounted) return;
       try {
         await precacheImage(NetworkImage(imageUrl), context).timeout(
           const Duration(seconds: 2),

@@ -386,6 +386,99 @@ router.get(
   }
 );
 
+router.get(
+  "/daily-sales-summary",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      const requestedDate = String(req.query.date || "").trim();
+      const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+        ? requestedDate
+        : new Date().toISOString().slice(0, 10);
+      const canViewDashboard =
+        req.user.user_type === "admin" ||
+        (await hasPermission(req, "menu_dashboard")) ||
+        (await hasPermission(req, "report_sales"));
+      if (!canViewDashboard) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: dashboard or sales report access required",
+        });
+      }
+
+      const [summaryRows] = await req.db.execute(`
+        SELECT
+          COUNT(*) AS total_orders,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'delivered' THEN 1 ELSE 0 END) AS delivered_orders,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) <> 'cancelled' THEN COALESCE(total_amount, 0) ELSE 0 END) AS gross_sales,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'delivered' THEN COALESCE(total_amount, 0) ELSE 0 END) AS delivered_sales,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) <> 'cancelled' THEN COALESCE(delivery_fee, 0) ELSE 0 END) AS delivery_fees,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(payment_method, ''))) = 'cash'
+                    AND LOWER(TRIM(COALESCE(status, ''))) = 'delivered'
+                   THEN COALESCE(total_amount, 0) ELSE 0 END) AS cash_sales,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(payment_method, ''))) <> 'cash'
+                    AND LOWER(TRIM(COALESCE(status, ''))) = 'delivered'
+                   THEN COALESCE(total_amount, 0) ELSE 0 END) AS digital_sales,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(payment_method, ''))) = 'cash'
+                    AND LOWER(TRIM(COALESCE(status, ''))) = 'delivered'
+                    AND rider_id IS NOT NULL
+                   THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(delivery_fee, 0), 0) ELSE 0 END) AS rider_cash
+        FROM orders
+        WHERE DATE(created_at) = ?
+      `, [targetDate]);
+
+      const [riderRows] = await req.db.execute(`
+        SELECT
+          o.rider_id,
+          CONCAT(COALESCE(r.first_name, 'Rider'), ' ', COALESCE(r.last_name, CONCAT('#', o.rider_id))) AS rider_name,
+          COUNT(*) AS orders,
+          SUM(GREATEST(COALESCE(o.total_amount, 0) - COALESCE(o.delivery_fee, 0), 0)) AS rider_cash
+        FROM orders o
+        LEFT JOIN riders r ON r.id = o.rider_id
+        WHERE DATE(o.created_at) = ?
+          AND o.rider_id IS NOT NULL
+          AND LOWER(TRIM(COALESCE(o.payment_method, ''))) = 'cash'
+          AND LOWER(TRIM(COALESCE(o.status, ''))) = 'delivered'
+        GROUP BY o.rider_id, r.first_name, r.last_name
+        ORDER BY rider_cash DESC
+        LIMIT 8
+      `, [targetDate]);
+
+      const summary = summaryRows[0] || {};
+      const money = (value) => Number(Number(value || 0).toFixed(2));
+
+      return res.json({
+        success: true,
+        summary: {
+          date: targetDate,
+          total_orders: Number(summary.total_orders || 0),
+          delivered_orders: Number(summary.delivered_orders || 0),
+          gross_sales: money(summary.gross_sales),
+          delivered_sales: money(summary.delivered_sales),
+          delivery_fees: money(summary.delivery_fees),
+          cash_sales: money(summary.cash_sales),
+          digital_sales: money(summary.digital_sales),
+          rider_cash: money(summary.rider_cash),
+        },
+        rider_cash_breakdown: riderRows.map((row) => ({
+          rider_id: row.rider_id,
+          rider_name: String(row.rider_name || `Rider #${row.rider_id}`).trim(),
+          orders: Number(row.orders || 0),
+          rider_cash: money(row.rider_cash),
+        })),
+      });
+    } catch (error) {
+      console.error("Daily sales summary error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch daily sales summary",
+        error: error.message,
+      });
+    }
+  }
+);
+
 // Recent Activity Endpoint
 router.get(
   "/recent-activity",
