@@ -5639,6 +5639,26 @@ function displayStoreReportDetails(details, storeId) {
     }
 }
 
+function closeStoreReportDetailsModal() {
+    const storeSelect = document.getElementById('storeReportSelect');
+    const shouldReloadAllStores = storeSelect && storeSelect.value && storeSelect.value !== 'all';
+
+    if (storeSelect) {
+        storeSelect.value = 'all';
+    }
+
+    if (typeof hideModal === 'function') {
+        hideModal('storeReportDetailsModal');
+    } else {
+        const modal = document.getElementById('storeReportDetailsModal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    if (shouldReloadAllStores) {
+        loadStoreReports();
+    }
+}
+
 function displayStoreReports(stores) {
     const tbody = document.getElementById('storeReportsTableBody');
     if (!tbody) return;
@@ -5673,19 +5693,15 @@ function displayStoreReports(stores) {
             <td>Rs  ${paid.toFixed(2)}</td>
             <td style="color: ${pending > 0 ? 'orange' : 'inherit'}">Rs  ${pending.toFixed(2)}</td>
         `;
-        row.title = 'Click to view store details';
+        row.title = 'Double-click to view store details';
         row.style.cursor = 'pointer';
-        row.addEventListener('click', () => {
+        row.addEventListener('dblclick', () => {
             const storeSelect = document.getElementById('storeReportSelect');
             if (storeSelect) storeSelect.value = String(s.id);
             loadStoreReports();
         });
         if (pending > 0) {
-            row.title = 'Click to view store details. Double-click to view due orders.';
-            row.addEventListener('dblclick', (event) => {
-                event.stopPropagation();
-                showStoreDueOrders(s);
-            });
+            row.title = 'Double-click to view store details';
         }
         tbody.appendChild(row);
     });
