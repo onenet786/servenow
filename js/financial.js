@@ -364,7 +364,7 @@ function initializeFinancialForms() {
     
     document.getElementById('storeSettlementForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (typeof validateForm === 'function' && !validateForm('storeSettlementForm')) return;
+        if (!isSettlementMultiStoreMode() && typeof validateForm === 'function' && !validateForm('storeSettlementForm')) return;
         await submitStoreSettlement();
     });
     trackFormChanges('storeSettlementForm', 'storeSettlementModal');
@@ -502,7 +502,7 @@ async function submitAddBank() {
 
 async function loadFinancialDashboard() {
     try {
-        const period = document.getElementById('financialPeriodFilter')?.value || 'month';
+        const period = document.getElementById('financialPeriodFilter')?.value || 'all';
         const response = await fetch(`${API_BASE}/api/financial/dashboard?period=${period}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
         });
@@ -698,7 +698,7 @@ async function loadFinancialDashboardStoreWise() {
     if (!tbody) return;
     try {
         await loadFinancialDashboardStoreFilters();
-        const period = document.getElementById('financialPeriodFilter')?.value || 'month';
+        const period = document.getElementById('financialPeriodFilter')?.value || 'all';
         const storeId = document.getElementById('fdStoreFilter')?.value || 'all';
         const paymentTermFilter = (document.getElementById('fdPaymentTermFilter')?.value || 'all').toLowerCase().trim();
         const pendingFilter = document.getElementById('fdPendingFilter')?.value || 'all';
@@ -1227,6 +1227,12 @@ function displayExpenses(expenses) {
 function setupStoreSettlementListeners() {
     const storeSelect = document.getElementById('settlementStoreSelect');
     const autoCalcCheckbox = document.getElementById('autoCalculateSettlement');
+    const wholeDataMode = document.getElementById('settlementWholeDataMode');
+    const datePeriodMode = document.getElementById('settlementDatePeriodMode');
+    const periodFrom = document.getElementById('periodFrom');
+    const periodTo = document.getElementById('periodTo');
+    const multiStoreMode = document.getElementById('settlementMultiStoreMode');
+    const selectAllDueStores = document.getElementById('settlementSelectAllDueStores');
     
     if (storeSelect && storeSelect.dataset.boundStoreSettlementListeners === '1') {
         return;
@@ -1234,6 +1240,7 @@ function setupStoreSettlementListeners() {
 
     if (storeSelect) {
         storeSelect.addEventListener('change', () => {
+            syncSettlementDueStoreChecks(storeSelect.value);
             if (autoCalcCheckbox && autoCalcCheckbox.checked) {
                 loadUnsettledItems(storeSelect.value);
             }
@@ -1259,13 +1266,73 @@ function setupStoreSettlementListeners() {
             }
         });
     }
+
+    multiStoreMode?.addEventListener('change', () => {
+        updateSettlementMultiMode();
+        syncSettlementDueStoreChecks(storeSelect?.value || '');
+    });
+
+    selectAllDueStores?.addEventListener('change', () => {
+        const checked = !!selectAllDueStores.checked;
+        if (checked && multiStoreMode) {
+            multiStoreMode.checked = true;
+            updateSettlementMultiMode();
+        }
+        document.querySelectorAll('.settlement-due-store-checkbox').forEach((checkbox) => {
+            checkbox.checked = checked;
+        });
+    });
+
+    const reloadForPeriodChange = () => {
+        updateSettlementPeriodInputs();
+        if (storeSelect?.value && autoCalcCheckbox?.checked) {
+            loadUnsettledItems(storeSelect.value);
+        }
+        loadSettlementDueStores();
+    };
+
+    wholeDataMode?.addEventListener('change', reloadForPeriodChange);
+    datePeriodMode?.addEventListener('change', reloadForPeriodChange);
+    periodFrom?.addEventListener('change', reloadForPeriodChange);
+    periodTo?.addEventListener('change', reloadForPeriodChange);
+}
+
+function isSettlementMultiStoreMode() {
+    return !!document.getElementById('settlementMultiStoreMode')?.checked;
+}
+
+function updateSettlementMultiMode() {
+    const multi = isSettlementMultiStoreMode();
+    const storeSelect = document.getElementById('settlementStoreSelect');
+    const amountInput = document.getElementById('settlementAmount');
+    const autoCalcCheckbox = document.getElementById('autoCalculateSettlement');
+    const selectAllDueStores = document.getElementById('settlementSelectAllDueStores');
+
+    if (storeSelect) storeSelect.required = !multi;
+    if (amountInput && multi) {
+        amountInput.value = '';
+        amountInput.readOnly = true;
+    }
+    if (autoCalcCheckbox && multi) {
+        autoCalcCheckbox.checked = true;
+    }
+    if (!multi && selectAllDueStores) {
+        selectAllDueStores.checked = false;
+    }
 }
 
 async function loadUnsettledItems(storeId) {
     if (!storeId) return;
     
     try {
-        const response = await fetch(`${API_BASE}/api/financial/store-settlements/unsettled-items?store_id=${storeId}`, {
+        const params = new URLSearchParams({ store_id: storeId });
+        const range = getSettlementDateRangeForRequest();
+        if (range.period_from && range.period_to) {
+            params.append('period_from', range.period_from);
+            params.append('period_to', range.period_to);
+        }
+
+        const response = await fetch(`${API_BASE}/api/financial/store-settlements/unsettled-items?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
         });
         const data = await response.json();
@@ -1306,7 +1373,7 @@ function displayUnsettledItems(items, summary) {
             <td>${item.order_number}</td>
             <td>${item.product_name} (${item.variant_label || '-'})</td>
             <td>${item.quantity}</td>
-            <td>Rs  ${(item.price * item.quantity).toFixed(2)}</td>
+            <td>Rs  ${Number(item.line_gross || (item.price * item.quantity) || 0).toFixed(2)}</td>
         `;
         tbody.appendChild(row);
     });
@@ -1318,6 +1385,107 @@ function displayUnsettledItems(items, summary) {
     document.getElementById('unsettledTotalSales').textContent = `Rs  ${summary.total_orders_amount.toFixed(2)}`;
     document.getElementById('unsettledCommission').textContent = `Rs  ${summary.commissions.toFixed(2)}`;
     document.getElementById('unsettledNetPayable').textContent = `Rs  ${summary.net_amount.toFixed(2)}`;
+    const legacyPaidOffset = Number(summary.legacy_paid_offset || 0);
+    if (legacyPaidOffset > 0 && typeof showInfo === 'function') {
+        showInfo('Settlement Adjusted', `Already-paid legacy settlements were deducted: Rs ${legacyPaidOffset.toFixed(2)}`);
+    }
+}
+
+function getSettlementDateRangeForRequest() {
+    const mode = document.querySelector('input[name="settlementPeriodMode"]:checked')?.value || 'all';
+    if (mode !== 'period') {
+        return { period_from: null, period_to: null };
+    }
+    return {
+        period_from: document.getElementById('periodFrom')?.value || null,
+        period_to: document.getElementById('periodTo')?.value || null
+    };
+}
+
+function updateSettlementPeriodInputs() {
+    const mode = document.querySelector('input[name="settlementPeriodMode"]:checked')?.value || 'all';
+    const disabled = mode !== 'period';
+    const fromInput = document.getElementById('periodFrom');
+    const toInput = document.getElementById('periodTo');
+    if (fromInput) fromInput.disabled = disabled;
+    if (toInput) toInput.disabled = disabled;
+}
+
+function syncSettlementDueStoreChecks(storeId) {
+    if (isSettlementMultiStoreMode()) return;
+    document.querySelectorAll('.settlement-due-store-checkbox').forEach((checkbox) => {
+        checkbox.checked = String(checkbox.value) === String(storeId || '');
+    });
+}
+
+function getSelectedSettlementStoreIds() {
+    return Array.from(document.querySelectorAll('.settlement-due-store-checkbox:checked'))
+        .map((checkbox) => Number(checkbox.value))
+        .filter((id) => Number.isInteger(id) && id > 0);
+}
+
+async function loadSettlementDueStores() {
+    const container = document.getElementById('settlementDueStoresList');
+    if (!container) return;
+    container.innerHTML = 'Loading due stores...';
+
+    try {
+        const params = new URLSearchParams({ store_id: 'all' });
+        const range = getSettlementDateRangeForRequest();
+        if (range.period_from && range.period_to) {
+            params.append('start_date', range.period_from);
+            params.append('end_date', range.period_to);
+        }
+        const response = await fetch(`${API_BASE}/api/financial/reports/stores-detailed?${params.toString()}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+        });
+        const data = await response.json();
+        if (!data.success) {
+            container.innerHTML = '<span style="color:#b91c1c;">Failed to load due stores</span>';
+            return;
+        }
+
+        const dueStores = (data.stores || [])
+            .map(normalizeStoreReportRow)
+            .filter((store) => Number(store.pending_settlement || 0) > 0)
+            .sort((a, b) => Number(b.pending_settlement || 0) - Number(a.pending_settlement || 0));
+
+        if (!dueStores.length) {
+            container.innerHTML = '<span style="color:#64748b;">No stores with pending settlement</span>';
+            return;
+        }
+
+        container.innerHTML = dueStores.map((store) => `
+            <label class="settlement-due-store-option" title="${escapeHtml(store.name || '')}">
+                <input type="checkbox" class="settlement-due-store-checkbox" value="${store.id}">
+                <span class="settlement-due-store-name">${escapeHtml(store.name || '-')}</span>
+                <span class="settlement-due-store-amount">Rs ${Number(store.pending_settlement || 0).toFixed(2)}</span>
+            </label>
+        `).join('');
+
+        container.querySelectorAll('.settlement-due-store-checkbox').forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                if (isSettlementMultiStoreMode()) {
+                    const selected = getSelectedSettlementStoreIds();
+                    const selectAll = document.getElementById('settlementSelectAllDueStores');
+                    const allBoxes = document.querySelectorAll('.settlement-due-store-checkbox');
+                    if (selectAll) selectAll.checked = allBoxes.length > 0 && selected.length === allBoxes.length;
+                    return;
+                }
+                if (!checkbox.checked) return;
+                const storeSelect = document.getElementById('settlementStoreSelect');
+                if (storeSelect) storeSelect.value = checkbox.value;
+                syncSettlementDueStoreChecks(checkbox.value);
+                if (document.getElementById('autoCalculateSettlement')?.checked) {
+                    loadUnsettledItems(checkbox.value);
+                }
+            });
+        });
+        syncSettlementDueStoreChecks(document.getElementById('settlementStoreSelect')?.value || '');
+    } catch (error) {
+        console.error('Error loading settlement due stores:', error);
+        container.innerHTML = '<span style="color:#b91c1c;">Failed to load due stores</span>';
+    }
 }
 
 async function loadFinancialReports() {
@@ -2152,12 +2320,21 @@ async function createStoreSettlement() {
     const amountInput = document.getElementById('settlementAmount');
     const itemsContainer = document.getElementById('unsettledItemsContainer');
     const itemsBody = document.getElementById('unsettledItemsBody');
+    const wholeDataMode = document.getElementById('settlementWholeDataMode');
+    const multiStoreMode = document.getElementById('settlementMultiStoreMode');
+    const selectAllDueStores = document.getElementById('settlementSelectAllDueStores');
     if (storeSelect) storeSelect.value = '';
+    if (wholeDataMode) wholeDataMode.checked = true;
+    if (multiStoreMode) multiStoreMode.checked = false;
+    if (selectAllDueStores) selectAllDueStores.checked = false;
     if (autoCalcCheckbox) autoCalcCheckbox.checked = true;
     if (amountInput) {
         amountInput.value = '';
         amountInput.readOnly = true;
     }
+    updateSettlementPeriodInputs();
+    updateSettlementMultiMode();
+    loadSettlementDueStores();
     if (itemsContainer) itemsContainer.style.display = 'none';
     if (itemsBody) {
         itemsBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Select store to load unpaid items</td></tr>';
@@ -2170,9 +2347,60 @@ async function submitStoreSettlement() {
     const storeId = parseInt(document.getElementById('settlementStoreSelect').value);
     const netAmount = parseFloat(document.getElementById('settlementAmount').value);
     const paymentMethod = document.getElementById('settlementPaymentMethod').value;
-    const periodFrom = document.getElementById('periodFrom').value || null;
-    const periodTo = document.getElementById('periodTo').value || null;
+    const range = getSettlementDateRangeForRequest();
+    const periodFrom = range.period_from;
+    const periodTo = range.period_to;
     const autoCalculate = !!document.getElementById('autoCalculateSettlement')?.checked;
+
+    if (!id && isSettlementMultiStoreMode()) {
+        const selectedStoreIds = getSelectedSettlementStoreIds();
+        if (!selectedStoreIds.length) {
+            showError('No Stores Selected', 'Select one or more due stores to create settlements.');
+            return;
+        }
+
+        let successCount = 0;
+        const failures = [];
+        for (const selectedStoreId of selectedStoreIds) {
+            const payload = {
+                store_id: selectedStoreId,
+                net_amount: 0,
+                payment_method: paymentMethod,
+                period_from: periodFrom,
+                period_to: periodTo,
+                auto_calculate: true
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/api/financial/store-settlements`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (data.success) {
+                    successCount += 1;
+                } else {
+                    failures.push(data.message || `Store #${selectedStoreId}`);
+                }
+            } catch (error) {
+                failures.push(`Store #${selectedStoreId}: ${error.message}`);
+            }
+        }
+
+        if (successCount > 0) {
+            showSuccess('Success', `${successCount} settlement${successCount === 1 ? '' : 's'} created successfully`);
+            closeModal('storeSettlementModal');
+            loadStoreSettlements();
+        }
+        if (failures.length > 0) {
+            showError('Some Settlements Failed', failures.slice(0, 3).join('\n'));
+        }
+        return;
+    }
 
     const payload = {
         store_id: storeId,
@@ -4948,7 +5176,7 @@ function initializeDateDefaults() {
     
     periods.forEach(p => {
         const el = document.getElementById(p.periodId);
-        if (el && el.value && el.value !== 'custom') {
+        if (el && el.value && el.value !== 'custom' && el.value !== 'all') {
             setDatesForPeriod(el.value, p.startId, p.endId);
         }
     });
@@ -4962,8 +5190,7 @@ function initializeDateDefaults() {
         { startId: 'reportPeriodFrom', endId: 'reportPeriodTo', type: 'month' },
         { startId: 'periodFrom', endId: 'periodTo', type: 'month' },
         // Fallbacks if period selector didn't set them (or doesn't exist)
-        { startId: 'riderReportStartDate', endId: 'riderReportEndDate', type: 'month' },
-        { startId: 'storeReportStartDate', endId: 'storeReportEndDate', type: 'month' }
+        { startId: 'riderReportStartDate', endId: 'riderReportEndDate', type: 'month' }
     ];
 
     defaults.forEach(d => {
@@ -4991,7 +5218,12 @@ function setupPeriodFilters() {
     });
 
     document.getElementById('storeReportPeriod')?.addEventListener('change', function() {
-        if (this.value !== 'custom') {
+        if (this.value === 'all') {
+            const start = document.getElementById('storeReportStartDate');
+            const end = document.getElementById('storeReportEndDate');
+            if (start) start.value = '';
+            if (end) end.value = '';
+        } else if (this.value !== 'custom') {
             setDatesForPeriod(this.value, 'storeReportStartDate', 'storeReportEndDate');
         }
     });
@@ -5084,6 +5316,24 @@ function applyStoreReportFilters(stores) {
         const pending = parseFloat(s.pending_settlement || 0);
         return pending > 0;
     });
+}
+
+function normalizeStoreReportRow(store) {
+    const row = { ...(store || {}) };
+    const paymentTerm = String(row.payment_term || '').toLowerCase().trim();
+    const payable = Number(row.total_payable || 0);
+    const paid = Number(row.total_paid || 0);
+    const settlementBalance = row.current_settlement_balance;
+    row.pending_settlement = paymentTerm === 'cash only' || paymentTerm === 'cash with discount'
+        ? 0
+        : Number.isFinite(Number(settlementBalance))
+            ? Math.max(0, Number(settlementBalance || 0))
+            : Math.max(0, payable - paid);
+    if (Number.isFinite(Number(settlementBalance))) {
+        row.current_settlement_balance = Math.max(0, Number(settlementBalance || 0));
+    }
+    row.accounting_pending_balance = Math.max(0, payable - paid);
+    return row;
 }
 
 function isCreditStoreTerm(term) {
@@ -5255,13 +5505,137 @@ async function loadStoreReports() {
         const data = await response.json();
 
         if (data.success) {
-            lastStoreData = data.stores || [];
+            lastStoreData = (data.stores || []).map(normalizeStoreReportRow);
             const filtered = applyStoreReportFilters(lastStoreData);
             displayStoreReports(filtered);
             updateStoreReportDueTotals(filtered);
+            const details = data.store_details
+                ? { ...data.store_details, store: normalizeStoreReportRow(data.store_details.store) }
+                : null;
+            displayStoreReportDetails(details, store_id);
         }
     } catch (error) {
         console.error('Error loading store reports:', error);
+    }
+}
+
+function displayStoreReportDetails(details, storeId) {
+    const modal = document.getElementById('storeReportDetailsModal');
+    const title = document.getElementById('storeReportDetailsTitle');
+    const content = document.getElementById('storeReportDetailsContent');
+    if (!modal || !content) return;
+
+    if (!storeId || storeId === 'all' || !details) {
+        content.innerHTML = '';
+        if (typeof hideModal === 'function') hideModal('storeReportDetailsModal');
+        return;
+    }
+
+    const storeName = details.store?.name || 'Selected Store';
+    if (title) title.textContent = `${storeName} Details`;
+    const orders = Array.isArray(details.delivered_orders) ? details.delivered_orders : [];
+    const payments = Array.isArray(details.payments) ? details.payments : [];
+    const pendingSettlement = Number(details.store?.pending_settlement || 0);
+    const orderTotals = orders.reduce((acc, order) => {
+        acc.earnings += Number(order.total_earnings || 0);
+        acc.payable += Number(order.total_payable || 0);
+        return acc;
+    }, { earnings: 0, payable: 0 });
+    const paymentTotal = payments.reduce((sum, payment) => sum + Number(payment.net_amount || 0), 0);
+
+    const orderRows = orders.length ? orders.map(order => `
+        <tr>
+            <td>${escapeHtml(order.order_number || '-')}</td>
+            <td>${order.order_date ? new Date(order.order_date).toLocaleString() : '-'}</td>
+            <td>${escapeHtml(order.payment_method || '-')}</td>
+            <td>${escapeHtml(order.payment_status || '-')}</td>
+            <td>${order.payment_date ? new Date(order.payment_date).toLocaleString() : '-'}</td>
+            <td>${formatFinancialReportCurrency(order.total_earnings || 0)}</td>
+            <td>${formatFinancialReportCurrency(order.total_payable || 0)}</td>
+        </tr>
+    `).join('') : '<tr><td colspan="7" style="text-align:center; padding:1rem;">No delivered orders found</td></tr>';
+
+    const paymentRows = payments.length ? payments.map(payment => `
+        <tr>
+            <td>${escapeHtml(payment.settlement_number || '-')}</td>
+            <td>${payment.settlement_date ? formatDateOnly(payment.settlement_date) : '-'}</td>
+            <td>${payment.paid_at ? new Date(payment.paid_at).toLocaleString() : '-'}</td>
+            <td>${escapeHtml(payment.payment_method || '-')}</td>
+            <td>${escapeHtml(payment.status || '-')}</td>
+            <td>${formatFinancialReportCurrency(payment.net_amount || 0)}</td>
+        </tr>
+    `).join('') : '<tr><td colspan="6" style="text-align:center; padding:1rem;">No paid settlements found</td></tr>';
+
+    content.innerHTML = `
+        <div class="orders-table-card store-report-detail-card">
+            <div class="orders-section-head">
+                <h3>Delivered Orders</h3>
+                <span class="orders-section-pill">
+                    ${orders.length} Orders | Earnings ${formatFinancialReportCurrency(orderTotals.earnings)} | Payable ${formatFinancialReportCurrency(orderTotals.payable)} | Pending ${formatFinancialReportCurrency(pendingSettlement)}
+                </span>
+            </div>
+            <div class="table-container orders-table-wrap">
+            <table class="orders-style-table store-report-detail-table">
+                <colgroup>
+                    <col class="store-detail-col-order">
+                    <col class="store-detail-col-date">
+                    <col class="store-detail-col-method">
+                    <col class="store-detail-col-status">
+                    <col class="store-detail-col-date">
+                    <col class="store-detail-col-money">
+                    <col class="store-detail-col-money">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th><span class="orders-th-stack"><span>Order</span><span>#</span></span></th>
+                        <th><span class="orders-th-stack"><span>Order</span><span>Date</span></span></th>
+                        <th><span class="orders-th-stack"><span>Payment</span><span>Method</span></span></th>
+                        <th><span class="orders-th-stack"><span>Payment</span><span>Status</span></span></th>
+                        <th><span class="orders-th-stack"><span>Payment</span><span>Date</span></span></th>
+                        <th>Earnings</th>
+                        <th>Payable</th>
+                    </tr>
+                </thead>
+                <tbody>${orderRows}</tbody>
+            </table>
+            </div>
+        </div>
+        <div class="orders-table-card store-report-detail-card">
+            <div class="orders-section-head">
+                <h3>Payments</h3>
+                <span class="orders-section-pill orders-section-pill-muted">
+                    ${payments.length} Paid Settlements | Total ${formatFinancialReportCurrency(paymentTotal)}
+                </span>
+            </div>
+            <div class="table-container orders-table-wrap">
+            <table class="orders-style-table store-report-detail-table store-report-payments-table">
+                <colgroup>
+                    <col class="store-detail-col-settlement">
+                    <col class="store-detail-col-date">
+                    <col class="store-detail-col-date">
+                    <col class="store-detail-col-method">
+                    <col class="store-detail-col-status">
+                    <col class="store-detail-col-money">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th><span class="orders-th-stack"><span>Settlement</span><span>#</span></span></th>
+                        <th><span class="orders-th-stack"><span>Settlement</span><span>Date</span></span></th>
+                        <th><span class="orders-th-stack"><span>Paid</span><span>Date</span></span></th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>${paymentRows}</tbody>
+            </table>
+            </div>
+        </div>
+    `;
+    if (typeof showModal === 'function') {
+        showModal('storeReportDetailsModal');
+    } else {
+        modal.style.display = 'block';
     }
 }
 
@@ -5271,13 +5645,14 @@ function displayStoreReports(stores) {
     tbody.innerHTML = '';
 
     if (!stores || stores.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:1rem;">No stores found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:1rem;">No stores found</td></tr>';
         updateStoreReportDueTotals([]);
         return;
     }
 
     (stores || []).forEach(s => {
         const earnings = parseFloat(s.total_earnings || 0);
+        const payable = parseFloat(s.total_payable || 0);
         const paid = parseFloat(s.total_paid || 0);
         const pending = parseFloat(s.pending_settlement || 0);
         const graceStart = isCreditStoreTerm(s.payment_term)
@@ -5294,13 +5669,23 @@ function displayStoreReports(stores) {
             <td>${graceStart}</td>
             <td>${graceDueText}</td>
             <td>Rs  ${earnings.toFixed(2)}</td>
+            <td>Rs  ${payable.toFixed(2)}</td>
             <td>Rs  ${paid.toFixed(2)}</td>
             <td style="color: ${pending > 0 ? 'orange' : 'inherit'}">Rs  ${pending.toFixed(2)}</td>
         `;
+        row.title = 'Click to view store details';
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', () => {
+            const storeSelect = document.getElementById('storeReportSelect');
+            if (storeSelect) storeSelect.value = String(s.id);
+            loadStoreReports();
+        });
         if (pending > 0) {
-            row.title = 'Double-click to view due orders';
-            row.style.cursor = 'pointer';
-            row.addEventListener('dblclick', () => showStoreDueOrders(s));
+            row.title = 'Click to view store details. Double-click to view due orders.';
+            row.addEventListener('dblclick', (event) => {
+                event.stopPropagation();
+                showStoreDueOrders(s);
+            });
         }
         tbody.appendChild(row);
     });
@@ -5330,7 +5715,7 @@ async function loadStorePaymentTermReport() {
         });
         const data = await response.json();
         if (data.success) {
-            displayStorePaymentTermGroups(data.stores || []);
+            displayStorePaymentTermGroups((data.stores || []).map(normalizeStoreReportRow));
         }
     } catch (error) {
         console.error('Error loading store payment term report:', error);
@@ -5437,6 +5822,7 @@ function exportStoreReport() {
         'Grace Start Date',
         'Next Due Date (Days Left)',
         'Total Earnings',
+        'Total Payable',
         'Total Paid',
         'Pending Settlement'
     ];
@@ -5449,6 +5835,7 @@ function exportStoreReport() {
         isCreditStoreTerm(s.payment_term) ? formatDateOnly(s.payment_grace_start_date) : '',
         formatGraceDueCell(s),
         parseFloat(s.total_earnings || 0).toFixed(2),
+        parseFloat(s.total_payable || 0).toFixed(2),
         parseFloat(s.total_paid || 0).toFixed(2),
         parseFloat(s.pending_settlement || 0).toFixed(2)
     ]);

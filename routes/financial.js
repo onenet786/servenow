@@ -115,6 +115,167 @@ function getSettlementUnitAdjustment(item, unitPrice) {
     return 0;
 }
 
+function buildSettlementItemAmounts(item) {
+    const qty = Number(item.quantity || 0);
+    const unitPrice = Number(item.price || 0);
+    const lineGross = unitPrice * qty;
+    const itemRate = 0;
+    const unitDiscount = getSettlementUnitAdjustment(item, unitPrice);
+    const lineDiscount = Math.max(0, unitDiscount * qty);
+    const lineNet = Math.max(0, lineGross - lineDiscount);
+    const lineCommission = lineNet * (itemRate / 100);
+    const linePayable = lineNet - lineCommission;
+
+    return {
+        lineGross,
+        lineDiscount,
+        lineNet,
+        lineCommission,
+        linePayable
+    };
+}
+
+async function getLegacyPaidSettlementOffset(db, storeId, startDate = null, endDate = null) {
+    const params = [storeId];
+    const dateFilter = startDate && endDate ? 'AND ss.settlement_date BETWEEN ? AND ?' : '';
+    if (startDate && endDate) {
+        params.push(startDate, endDate);
+    }
+
+    const [paidRows] = await db.execute(
+        `SELECT
+            COALESCE(SUM(ss.net_amount), 0) AS total_paid,
+            COALESCE(SUM(
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM order_items oi
+                        JOIN products p ON oi.product_id = p.id
+                        WHERE oi.settlement_id = ss.id
+                          AND COALESCE(oi.store_id, p.store_id) = ss.store_id
+                    )
+                    THEN ss.net_amount
+                    ELSE 0
+                END
+            ), 0) AS linked_paid
+         FROM store_settlements ss
+         WHERE ss.store_id = ?
+           AND ss.status = 'paid'
+           ${dateFilter}`,
+        params
+    );
+
+    const totalPaid = Number(paidRows?.[0]?.total_paid || 0);
+    const linkedPaid = Number(paidRows?.[0]?.linked_paid || 0);
+    return Math.max(0, totalPaid - linkedPaid);
+}
+
+function applyLegacyPaidOffsetToSettlementItems(items, legacyPaidOffset) {
+    let remainingOffset = Number(legacyPaidOffset || 0);
+    const displayItems = [];
+    const allItemIds = [];
+    let coveredGross = 0;
+    let coveredAdjustment = 0;
+    let payableRemaining = 0;
+    let grossRemaining = 0;
+    let adjustmentRemaining = 0;
+
+    (items || []).forEach((item) => {
+        const amounts = buildSettlementItemAmounts(item);
+        const itemWithAmounts = {
+            ...item,
+            line_gross: amounts.lineGross,
+            line_discount: amounts.lineDiscount,
+            line_net: amounts.lineNet,
+            line_commission: amounts.lineCommission,
+            line_payable: amounts.linePayable
+        };
+        allItemIds.push(item.id);
+
+        if (remainingOffset > 0) {
+            const coveredPayable = Math.min(remainingOffset, amounts.linePayable);
+            const coverageRatio = amounts.linePayable > 0 ? coveredPayable / amounts.linePayable : 1;
+            coveredGross += amounts.lineGross * coverageRatio;
+            coveredAdjustment += (amounts.lineGross - amounts.linePayable) * coverageRatio;
+            remainingOffset -= coveredPayable;
+
+            const remainingPayable = Math.max(0, amounts.linePayable - coveredPayable);
+            if (remainingPayable <= 0.005) {
+                return;
+            }
+
+            const remainingRatio = amounts.linePayable > 0 ? remainingPayable / amounts.linePayable : 0;
+            itemWithAmounts.line_gross = amounts.lineGross * remainingRatio;
+            itemWithAmounts.line_discount = amounts.lineDiscount * remainingRatio;
+            itemWithAmounts.line_net = amounts.lineNet * remainingRatio;
+            itemWithAmounts.line_commission = amounts.lineCommission * remainingRatio;
+            itemWithAmounts.line_payable = remainingPayable;
+        }
+
+        displayItems.push(itemWithAmounts);
+        grossRemaining += Number(itemWithAmounts.line_gross || 0);
+        adjustmentRemaining += Number((itemWithAmounts.line_gross || 0) - (itemWithAmounts.line_payable || 0));
+        payableRemaining += Number(itemWithAmounts.line_payable || 0);
+    });
+
+    return {
+        displayItems,
+        allItemIds,
+        grossRemaining,
+        adjustmentRemaining,
+        payableRemaining,
+        coveredGross,
+        coveredAdjustment,
+        legacyPaidApplied: Math.max(0, Number(legacyPaidOffset || 0) - Math.max(0, remainingOffset))
+    };
+}
+
+async function getSettlementCandidateItems(db, storeId, startDate = null, endDate = null) {
+    const params = [storeId];
+    const dateFilter = startDate && endDate ? 'AND o.created_at BETWEEN ? AND ?' : '';
+    if (startDate && endDate) {
+        params.push(startDate, endDate);
+    }
+
+    const [items] = await db.execute(`
+        SELECT 
+            oi.id, oi.order_id, oi.product_id, oi.quantity, oi.price, 
+            oi.variant_label, oi.discount_type, oi.discount_value,
+            o.order_number, o.created_at as order_date,
+            p.name as product_name,
+            s.commission_rate,
+            s.payment_term,
+            s.store_discount_apply_all_products,
+            s.store_discount_percent
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        JOIN products p ON oi.product_id = p.id
+        JOIN stores s ON COALESCE(oi.store_id, p.store_id) = s.id
+        WHERE s.id = ?
+        AND o.status = 'delivered'
+        AND o.payment_status = 'paid'
+        AND oi.settlement_id IS NULL
+        AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT IN ('cash only', 'cash with discount')
+        AND LOWER(TRIM(COALESCE(p.description, ''))) <> 'created from admin manual order'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM rider_store_payments rsp
+            WHERE rsp.order_id = oi.order_id
+              AND rsp.store_id = COALESCE(oi.store_id, p.store_id)
+        )
+        ${dateFilter}
+        ORDER BY o.created_at ASC
+    `, params);
+
+    return items;
+}
+
+async function calculateStoreSettlementBalance(db, storeId, startDate = null, endDate = null) {
+    const items = await getSettlementCandidateItems(db, storeId, startDate, endDate);
+    const legacyPaidOffset = await getLegacyPaidSettlementOffset(db, storeId, startDate, endDate);
+    return applyLegacyPaidOffsetToSettlementItems(items, legacyPaidOffset);
+}
+
 function getStorePayableSqlExpression(storeAlias = 's') {
     return `
         GREATEST(
@@ -429,7 +590,7 @@ router.use(async (req, res, next) => {
 
 router.get('/dashboard', async (req, res) => {
     try {
-        const { period = 'today' } = req.query;
+        const { period = 'all' } = req.query;
         const today = new Date();
         const dateOnly = today.toISOString().split('T')[0];
         const startOfWeek = new Date(today);
@@ -2132,79 +2293,25 @@ router.put('/rider-cash/:id', [
 // Get unsettled items for a store
 router.get('/store-settlements/unsettled-items', async (req, res) => {
     try {
-        const { store_id } = req.query;
+        const { store_id, period_from, period_to } = req.query;
         if (!store_id) {
             return res.status(400).json({ success: false, message: 'Store ID is required' });
         }
 
-        // Get items that are delivered, paid by customer, but not settled with store
-        const [items] = await req.db.execute(`
-            SELECT 
-                oi.id, oi.order_id, oi.product_id, oi.quantity, oi.price, 
-                oi.variant_label, oi.discount_type, oi.discount_value,
-                o.order_number, o.created_at as order_date,
-                p.name as product_name,
-                s.commission_rate,
-                s.payment_term,
-                s.store_discount_apply_all_products,
-                s.store_discount_percent
-            FROM order_items oi
-            JOIN orders o ON oi.order_id = o.id
-            JOIN products p ON oi.product_id = p.id
-            JOIN stores s ON COALESCE(oi.store_id, p.store_id) = s.id
-            WHERE s.id = ?
-            AND o.status = 'delivered'
-            AND o.payment_status = 'paid'
-            AND oi.settlement_id IS NULL
-            AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT IN ('cash only', 'cash with discount')
-            AND LOWER(TRIM(COALESCE(p.description, ''))) <> 'created from admin manual order'
-            AND NOT EXISTS (
-                SELECT 1
-                FROM rider_store_payments rsp
-                WHERE rsp.order_id = oi.order_id
-                  AND rsp.store_id = COALESCE(oi.store_id, p.store_id)
-            )
-            ORDER BY o.created_at ASC
-        `, [store_id]);
-
-        // Calculate totals for settlement:
-        // - Gross sales shown as qty * price
-        // - Profit/discount adjustment deducted from gross to get net payable
-        let total_amount = 0; // Total payable to store after adjustments
-        let gross_amount = 0;
-        let total_discount = 0;
-        let commission_amount = 0;
-        // Keep compatibility for UI fields (legacy commission section).
+        const settlementCalc = await calculateStoreSettlementBalance(
+            req.db,
+            store_id,
+            period_from && period_to ? `${period_from} 00:00:00` : null,
+            period_from && period_to ? `${period_to} 23:59:59` : null
+        );
         const commission_rate = 0;
-        
-        items.forEach(item => {
-            const qty = Number(item.quantity || 0);
-            const unitPrice = Number(item.price || 0);
-            const lineGross = unitPrice * qty;
-            const itemRate = 0;
-            const unitDiscount = getSettlementUnitAdjustment(item, unitPrice);
-            const lineDiscount = Math.max(0, unitDiscount * qty);
-            const lineNet = Math.max(0, lineGross - lineDiscount);
-            const lineCommission = lineNet * (itemRate / 100);
-            const linePayable = lineNet - lineCommission;
-
-            gross_amount += lineGross;
-            total_discount += lineDiscount;
-            total_amount += linePayable;
-            commission_amount += lineCommission;
-
-            item.line_gross = lineGross;
-            item.line_discount = lineDiscount;
-            item.line_net = lineNet;
-            item.line_commission = lineCommission;
-            item.line_payable = linePayable;
-        });
-
-        const net_amount = total_amount;
+        const gross_amount = settlementCalc.grossRemaining;
+        const total_discount = settlementCalc.adjustmentRemaining;
+        const net_amount = settlementCalc.payableRemaining;
 
         res.json({
             success: true,
-            items,
+            items: settlementCalc.displayItems,
             summary: {
                 total_orders_amount: gross_amount,
                 total_gross_amount: gross_amount,
@@ -2212,7 +2319,8 @@ router.get('/store-settlements/unsettled-items', async (req, res) => {
                 commission_rate,
                 commissions: total_discount,
                 net_amount,
-                item_count: items.length
+                item_count: settlementCalc.displayItems.length,
+                legacy_paid_offset: settlementCalc.legacyPaidApplied
             }
         });
 
@@ -2301,60 +2409,25 @@ router.post('/store-settlements', [
 
         // If auto-calculation is requested, calculate from unsettled items
         if (auto_calculate === true || auto_calculate === 'true' || auto_calculate === 'on') {
-             const [items] = await conn.execute(`
-                SELECT 
-                    oi.id, oi.quantity, oi.price, oi.discount_type, oi.discount_value,
-                    s.commission_rate,
-                    s.payment_term,
-                    s.store_discount_apply_all_products,
-                    s.store_discount_percent
-                FROM order_items oi
-                JOIN orders o ON oi.order_id = o.id
-                JOIN products p ON oi.product_id = p.id
-                JOIN stores s ON COALESCE(oi.store_id, p.store_id) = s.id
-                WHERE s.id = ?
-                AND o.status = 'delivered'
-                AND o.payment_status = 'paid'
-                AND oi.settlement_id IS NULL
-                AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT IN ('cash only', 'cash with discount')
-                AND LOWER(TRIM(COALESCE(p.description, ''))) <> 'created from admin manual order'
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM rider_store_payments rsp
-                    WHERE rsp.order_id = oi.order_id
-                      AND rsp.store_id = COALESCE(oi.store_id, p.store_id)
-                )
-            `, [store_id]);
+            const settlementCalc = await calculateStoreSettlementBalance(
+                conn,
+                store_id,
+                period_from && period_to ? `${period_from} 00:00:00` : null,
+                period_from && period_to ? `${period_to} 23:59:59` : null
+            );
 
-            if (items.length === 0) {
+            if (settlementCalc.payableRemaining <= 0.005) {
                 await conn.rollback();
                 conn.release();
                  return res.status(400).json({
                     success: false,
-                    message: 'No unsettled items found for this store'
+                    message: 'No unpaid settlement balance found for this store'
                 });
             }
 
-            let calculated_total = 0; // Gross item sales
-            let calculated_adjustment = 0; // Profit/discount adjustment total
-            
-            items.forEach(item => {
-                const qty = Number(item.quantity || 0);
-                const unitPrice = Number(item.price || 0);
-                const itemRate = 0;
-                const gross = unitPrice * qty;
-                const unitDiscount = getSettlementUnitAdjustment(item, unitPrice);
-                const lineDiscount = Math.max(0, unitDiscount * qty);
-                const lineNet = Math.max(0, gross - lineDiscount);
-                const lineCommission = lineNet * (itemRate / 100);
-                const linePayable = lineNet - lineCommission;
-                calculated_total += gross;
-                calculated_adjustment += (gross - linePayable);
-                settlement_items.push(item.id);
-            });
-
-            final_total = calculated_total;
-            final_commissions = calculated_adjustment;
+            settlement_items = settlementCalc.allItemIds;
+            final_total = settlementCalc.grossRemaining;
+            final_commissions = settlementCalc.adjustmentRemaining;
             final_deductions = parseFloat(deductions || 0);
             final_net = final_total - final_commissions - final_deductions;
         }
@@ -6489,6 +6562,7 @@ router.get('/reports/stores-detailed', async (req, res) => {
         if (store_id && store_id !== 'all') {
             reportParams.push(store_id);
         }
+        const payableSql = getStorePayableSqlExpression('s2');
 
         const [stores] = await req.db.execute(
             `SELECT 
@@ -6528,32 +6602,13 @@ router.get('/reports/stores-detailed', async (req, res) => {
                     COALESCE(oi.store_id, p.store_id) AS store_id,
                     COUNT(DISTINCT o.id) AS total_orders,
                     SUM(oi.price * oi.quantity) AS total_earnings,
-                    SUM(
-                        GREATEST(
-                            0,
-                            (oi.price * oi.quantity) -
-                            (
-                                oi.quantity * (
-                                    CASE
-                                        WHEN LOWER(TRIM(COALESCE(s2.payment_term, ''))) LIKE '%discount%'
-                                             AND COALESCE(s2.store_discount_apply_all_products, 0) = 1
-                                             AND COALESCE(s2.store_discount_percent, 0) > 0
-                                            THEN oi.price * (COALESCE(s2.store_discount_percent, 0) / 100)
-                                        WHEN oi.discount_type = 'percent' AND COALESCE(oi.discount_value, 0) > 0
-                                            THEN oi.price * (COALESCE(oi.discount_value, 0) / 100)
-                                        WHEN oi.discount_type = 'amount' AND COALESCE(oi.discount_value, 0) > 0
-                                            THEN COALESCE(oi.discount_value, 0)
-                                        ELSE 0
-                                    END
-                                )
-                            )
-                        )
-                    ) AS total_payable
+                    SUM(${payableSql}) AS total_payable
                 FROM order_items oi
                 JOIN orders o ON oi.order_id = o.id
                 JOIN products p ON oi.product_id = p.id
                 JOIN stores s2 ON s2.id = COALESCE(oi.store_id, p.store_id)
                 WHERE o.status = 'delivered'
+                AND o.payment_status = 'paid'
                 ${start_date && end_date ? 'AND o.created_at BETWEEN ? AND ?' : ''}
                 GROUP BY COALESCE(oi.store_id, p.store_id)
             ) earn ON earn.store_id = s.id
@@ -6568,7 +6623,94 @@ router.get('/reports/stores-detailed', async (req, res) => {
             ORDER BY COALESCE(earn.total_earnings, 0) DESC`,
             reportParams
         );
-        res.json({ success: true, stores });
+
+        const balanceStart = start_date && end_date ? `${start_date} 00:00:00` : null;
+        const balanceEnd = start_date && end_date ? `${end_date} 23:59:59` : null;
+        for (const storeRow of stores) {
+            const paymentTerm = String(storeRow.payment_term || '').toLowerCase().trim();
+            if (paymentTerm === 'cash only' || paymentTerm === 'cash with discount') {
+                storeRow.current_settlement_balance = 0;
+                storeRow.pending_settlement = 0;
+                continue;
+            }
+
+            const settlementBalance = await calculateStoreSettlementBalance(
+                req.db,
+                storeRow.id,
+                balanceStart,
+                balanceEnd
+            );
+            const accountingPending = Math.max(
+                0,
+                Number(storeRow.total_payable || 0) - Number(storeRow.total_paid || 0)
+            );
+            storeRow.current_settlement_balance = Number(settlementBalance.payableRemaining || 0);
+            storeRow.accounting_pending_balance = accountingPending;
+            storeRow.pending_settlement = storeRow.current_settlement_balance;
+        }
+
+        let storeDetails = null;
+        if (store_id && store_id !== 'all') {
+            const detailParams = [];
+            if (start_date && end_date) {
+                detailParams.push(`${start_date} 00:00:00`, `${end_date} 23:59:59`);
+            }
+            detailParams.push(store_id);
+
+            const [itemOrders] = await req.db.execute(
+                `SELECT
+                    o.id,
+                    o.order_number,
+                    o.created_at AS order_date,
+                    o.payment_method,
+                    o.payment_status,
+                    CASE WHEN o.payment_status = 'paid' THEN o.updated_at ELSE NULL END AS payment_date,
+                    SUM(oi.price * oi.quantity) AS total_earnings,
+                    SUM(${payableSql}) AS total_payable
+                FROM order_items oi
+                JOIN orders o ON oi.order_id = o.id
+                JOIN products p ON oi.product_id = p.id
+                JOIN stores s2 ON s2.id = COALESCE(oi.store_id, p.store_id)
+                WHERE o.status = 'delivered'
+                AND o.payment_status = 'paid'
+                ${start_date && end_date ? 'AND o.created_at BETWEEN ? AND ?' : ''}
+                AND s2.id = ?
+                GROUP BY o.id, o.order_number, o.created_at, o.updated_at, o.payment_method, o.payment_status, o.parent_order_number
+                ORDER BY COALESCE(NULLIF(o.parent_order_number, ''), o.order_number) DESC, o.created_at DESC`,
+                detailParams
+            );
+
+            const paymentParams = [];
+            if (start_date && end_date) {
+                paymentParams.push(`${start_date} 00:00:00`, `${end_date} 23:59:59`);
+            }
+            paymentParams.push(store_id);
+
+            const [payments] = await req.db.execute(
+                `SELECT
+                    ss.id,
+                    ss.settlement_number,
+                    ss.settlement_date,
+                    ss.paid_at,
+                    ss.payment_method,
+                    ss.status,
+                    ss.net_amount
+                FROM store_settlements ss
+                WHERE ss.status = 'paid'
+                ${start_date && end_date ? 'AND ss.settlement_date BETWEEN ? AND ?' : ''}
+                AND ss.store_id = ?
+                ORDER BY COALESCE(ss.paid_at, ss.settlement_date) DESC, ss.id DESC`,
+                paymentParams
+            );
+
+            storeDetails = {
+                store: stores[0] || null,
+                delivered_orders: itemOrders,
+                payments
+            };
+        }
+
+        res.json({ success: true, stores, store_details: storeDetails });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }

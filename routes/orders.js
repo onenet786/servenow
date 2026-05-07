@@ -3123,15 +3123,6 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
 
     const order = orders[0];
 
-    // Strict rule: delivery is allowed only after payment is marked as paid.
-    if (String(order.payment_status || "").toLowerCase() !== "paid") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Payment must be marked as paid before order can be delivered.",
-      });
-    }
-
     // Check permission: Admin, Standard User, Rider assigned, Customer who owns the order, or Store Owner linked to items
     let isStoreOwner = false;
     if (req.user.user_type === "store_owner") {
@@ -4434,6 +4425,17 @@ router.put("/:id(\\d+)/deliver", authenticateToken, async (req, res) => {
       });
     }
 
+    const paymentStatus = String(order.payment_status || "")
+      .trim()
+      .toLowerCase();
+    if (paymentStatus !== "paid") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Payment must be marked as paid before order can be delivered.",
+      });
+    }
+
     await req.db.execute("UPDATE orders SET status = ? WHERE id = ?", [
       "delivered",
       id,
@@ -5534,6 +5536,16 @@ router.get(
 
       const orderStoreId = orders[0].store_id;
       const filterStoreId = store_id || orderStoreId;
+
+      if (!filterStoreId) {
+        return res.json({
+          success: true,
+          products: [],
+          order_store_id: orderStoreId,
+          requires_store_filter: true,
+          message: "Select a store to load products for multi-store orders",
+        });
+      }
 
       let query = `
             SELECT p.id, p.name, p.price, p.store_id, s.name as store_name

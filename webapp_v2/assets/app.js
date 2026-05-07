@@ -617,7 +617,7 @@ async function loadAdminData() {
     apiJson("/api/admin/payments?limit=50"),
     apiJson("/api/admin/wallets/stats"),
     apiJson("/api/admin/wallets?limit=50"),
-    apiJson("/api/financial/dashboard?period=today"),
+    apiJson("/api/financial/dashboard?period=all"),
     apiJson("/api/financial/reports"),
     isAdmin() ? apiJson("/api/admin/visitor-stats") : Promise.resolve(null),
   ]);
