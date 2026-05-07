@@ -631,10 +631,42 @@ router.get('/dashboard', async (req, res) => {
         );
 
         const cpvPeriod = buildPeriodFilter('voucher_date');
-        const cpvWhere = ["status = 'paid'", cpvPeriod.clause || null].filter(Boolean);
+        const cpvWhere = ["status IN ('approved', 'paid')", cpvPeriod.clause || null].filter(Boolean);
         const [paymentVouchers] = await req.db.execute(
             `SELECT SUM(amount) as total FROM cash_payment_vouchers WHERE ${cpvWhere.join(' AND ')}`,
             cpvPeriod.params
+        );
+
+        const fuelPeriod = buildPeriodFilter('entry_date');
+        const fuelWhere = [
+            'COALESCE(fuel_cost, 0) > 0',
+            fuelPeriod.clause || null
+        ].filter(Boolean);
+        const [riderFuelRows] = await req.db.execute(
+            `SELECT COALESCE(SUM(fuel_cost), 0) as total
+             FROM riders_fuel_history
+             WHERE ${fuelWhere.join(' AND ')}`,
+            fuelPeriod.params
+        );
+
+        const cashPurchasePeriod = buildPeriodFilter('cpv.voucher_date');
+        const cashPurchaseWhere = [
+            "cpv.status IN ('approved', 'paid')",
+            "LOWER(TRIM(COALESCE(cpv.payment_method, ''))) = 'cash'",
+            "LOWER(TRIM(COALESCE(cpv.purpose, ''))) = 'purchase'",
+            cashPurchasePeriod.clause || null
+        ].filter(Boolean);
+        const [cashPurchaseRows] = await req.db.execute(
+            `SELECT
+                COALESCE(SUM(cpv.amount), 0) as total,
+                COALESCE(SUM(CASE WHEN ft.id IS NULL THEN cpv.amount ELSE 0 END), 0) as unposted_total
+             FROM cash_payment_vouchers cpv
+             LEFT JOIN financial_transactions ft
+               ON ft.reference_type = 'payment_voucher'
+              AND ft.reference_id = cpv.voucher_number
+              AND COALESCE(ft.status, '') <> 'cancelled'
+             WHERE ${cashPurchaseWhere.join(' AND ')}`,
+            cashPurchasePeriod.params
         );
 
         const crvPeriod = buildPeriodFilter('voucher_date');
@@ -796,6 +828,9 @@ router.get('/dashboard', async (req, res) => {
             adjustment: 0,
             paymentVouchers: parseFloat(paymentVouchers[0]?.total || 0),
             receiptVouchers: parseFloat(receiptVouchers[0]?.total || 0),
+            riderFuel: parseFloat(riderFuelRows[0]?.total || 0),
+            cashPurchases: parseFloat(cashPurchaseRows[0]?.total || 0),
+            unpostedCashPurchases: parseFloat(cashPurchaseRows[0]?.unposted_total || 0),
             riderCashSubmitted: 0,
             riderCashAdvance: 0,
             cashInHand: parseFloat(cashInHandResult[0]?.total || 0),
@@ -820,6 +855,7 @@ router.get('/dashboard', async (req, res) => {
             }
         });
 
+        stats.expense += stats.riderFuel + stats.unpostedCashPurchases;
         stats.net_profit = stats.income - (stats.expense + stats.settlement + stats.refund);
         stats.netProfitIfSettled = stats.net_profit - stats.totalUnsettledAmount;
 

@@ -537,11 +537,13 @@ async function loadFinancialDashboard() {
             };
 
             const stats = data.stats || {};
-            const netProfit = toNum(stats.income) - (toNum(stats.expense) + toNum(stats.settlement) + toNum(stats.refund));
+            const netProfit = toNum(stats.net_profit);
 
             setAmount('cashInHandAmount', stats.cashInHand, '#0f766e');
             setAmount('totalIncomeAmount', stats.income, '#16a34a');
             setAmount('totalExpenseAmount', stats.expense, '#dc2626');
+            setAmount('riderFuelAmount', stats.riderFuel || 0, '#be123c');
+            setAmount('cashPurchasesAmount', stats.cashPurchases || 0, '#c2410c');
             setDynamicAmount('netProfitAmount', netProfit, '#16a34a', '#b91c1c');
             setAmount('totalSettlementsAmount', stats.settlement, '#d97706');
             setAmount('totalRiderCashAmount', stats.riderCashSubmitted, '#2563eb');
@@ -555,6 +557,8 @@ async function loadFinancialDashboard() {
             setTileStyle('cashInHandAmount', '#0f766e', 'linear-gradient(135deg,#f0fdfa,#ecfeff)');
             setTileStyle('totalIncomeAmount', '#16a34a', 'linear-gradient(135deg,#f0fdf4,#ecfdf5)');
             setTileStyle('totalExpenseAmount', '#dc2626', 'linear-gradient(135deg,#fef2f2,#fff1f2)');
+            setTileStyle('riderFuelAmount', '#be123c', 'linear-gradient(135deg,#fff1f2,#ffe4e6)');
+            setTileStyle('cashPurchasesAmount', '#c2410c', 'linear-gradient(135deg,#fff7ed,#ffedd5)');
             setTileStyle('netProfitAmount', netProfit < 0 ? '#b91c1c' : '#16a34a', netProfit < 0 ? 'linear-gradient(135deg,#fff1f2,#fef2f2)' : 'linear-gradient(135deg,#ecfdf5,#f0fdf4)');
             setTileStyle('totalSettlementsAmount', '#d97706', 'linear-gradient(135deg,#fffbeb,#fefce8)');
             setTileStyle('totalRiderCashAmount', '#2563eb', 'linear-gradient(135deg,#eff6ff,#eef2ff)');
