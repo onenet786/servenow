@@ -2313,7 +2313,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'PKR($orderCash cash + $riderDelivery Deliver) = ${total.replaceFirst('PKR', 'Pkr')}',
+                      'PKR($orderCash cash + $riderDelivery Deliver) = ${total.replaceFirst('PKR', 'PKR')}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
