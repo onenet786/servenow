@@ -20,12 +20,14 @@ import 'offer_campaigns_screen.dart';
 class _LiveRiderTrackerPayload {
   const _LiveRiderTrackerPayload({
     required this.trails,
+    required this.routeStreams,
     required this.speedsMph,
     required this.startedAtByRiderId,
     required this.updatedAtByRiderId,
   });
 
   final Map<String, List<latlng.LatLng>> trails;
+  final Map<String, List<List<latlng.LatLng>>> routeStreams;
   final Map<String, double> speedsMph;
   final Map<String, DateTime> startedAtByRiderId;
   final Map<String, DateTime> updatedAtByRiderId;
@@ -113,6 +115,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   List<dynamic> _assignableOrdersList = [];
   List<Map<String, dynamic>> _liveRiderLocations = [];
   Map<String, List<latlng.LatLng>> _liveRiderTrails = {};
+  Map<String, List<List<latlng.LatLng>>> _liveRiderRouteStreams = {};
   String? _selectedLiveRiderId;
   String _selectedActivityType = 'orders';
   bool _isUrdu = false;
@@ -454,6 +457,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       latestPerRider[riderKey] = {
         'riderId': riderId,
         'riderName': riderName.isEmpty ? 'Rider #$riderId' : riderName,
+        'orderId': (order['id'] ?? '').toString(),
         'orderNumber': (order['order_number'] ?? '').toString(),
         'storeName': (order['store_name'] ?? '').toString(),
         'locationLabel': (order['rider_location'] ?? '').toString().trim(),
@@ -558,6 +562,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (riderIds.isEmpty) {
       return const _LiveRiderTrackerPayload(
         trails: <String, List<latlng.LatLng>>{},
+        routeStreams: <String, List<List<latlng.LatLng>>>{},
         speedsMph: <String, double>{},
         startedAtByRiderId: <String, DateTime>{},
         updatedAtByRiderId: <String, DateTime>{},
@@ -576,6 +581,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _logger.w('Live rider history unavailable, falling back to order coordinates: $e');
       return const _LiveRiderTrackerPayload(
         trails: <String, List<latlng.LatLng>>{},
+        routeStreams: <String, List<List<latlng.LatLng>>>{},
         speedsMph: <String, double>{},
         startedAtByRiderId: <String, DateTime>{},
         updatedAtByRiderId: <String, DateTime>{},
@@ -586,6 +592,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         const <String, dynamic>{};
 
     final trails = <String, List<latlng.LatLng>>{};
+    final routeStreams = <String, List<List<latlng.LatLng>>>{};
     final speedsMph = <String, double>{};
     final startedAtByRiderId = <String, DateTime>{};
     final updatedAtByRiderId = <String, DateTime>{};
@@ -594,6 +601,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (riderId.isEmpty) continue;
 
       final points = <latlng.LatLng>[];
+      final streamsByRide = <String, List<latlng.LatLng>>{};
       final telemetry = <Map<String, dynamic>>[];
       DateTime? earliestUpdatedAt;
       DateTime? latestUpdatedAt;
@@ -611,6 +619,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           if (latitude == null || longitude == null) continue;
           final point = latlng.LatLng(latitude, longitude);
           _appendTrailPoint(points, point);
+          final rideKey = (entry['order_id'] ?? '').toString().trim().isEmpty
+              ? 'standby'
+              : 'order_${entry['order_id']}';
+          final stream = streamsByRide.putIfAbsent(
+            rideKey,
+            () => <latlng.LatLng>[],
+          );
+          _appendTrailPoint(stream, point);
           final timestamp = _parseLiveTrackingTime(entry['created_at']);
           if (timestamp != null &&
               (earliestUpdatedAt == null || timestamp.isBefore(earliestUpdatedAt))) {
@@ -632,6 +648,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (currentLatitude != null && currentLongitude != null) {
         final point = latlng.LatLng(currentLatitude, currentLongitude);
         _appendTrailPoint(points, point);
+        final activeOrderId = (rider['orderId'] ?? '').toString().trim();
+        final rideKey = activeOrderId.isEmpty ? 'standby' : 'order_$activeOrderId';
+        final stream = streamsByRide.putIfAbsent(
+          rideKey,
+          () => <latlng.LatLng>[],
+        );
+        _appendTrailPoint(stream, point);
         final currentTimestamp = rider['createdAt'] as DateTime?;
         if (currentTimestamp != null &&
             (earliestUpdatedAt == null ||
@@ -652,6 +675,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (points.isNotEmpty) {
         trails[riderId] = points;
       }
+      final riderStreams = streamsByRide.values
+          .where((stream) => stream.length >= 2)
+          .map((stream) => List<latlng.LatLng>.from(stream))
+          .toList(growable: false);
+      if (riderStreams.isNotEmpty) {
+        routeStreams[riderId] = riderStreams;
+      }
       final speedMph = _estimateRiderSpeedMph(telemetry);
       if (speedMph != null) {
         speedsMph[riderId] = speedMph;
@@ -666,6 +696,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     return _LiveRiderTrackerPayload(
       trails: trails,
+      routeStreams: routeStreams,
       speedsMph: speedsMph,
       startedAtByRiderId: startedAtByRiderId,
       updatedAtByRiderId: updatedAtByRiderId,
@@ -731,6 +762,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         riders: <Map<String, dynamic>>[],
         trackerPayload: _LiveRiderTrackerPayload(
           trails: <String, List<latlng.LatLng>>{},
+          routeStreams: <String, List<List<latlng.LatLng>>>{},
           speedsMph: <String, double>{},
           startedAtByRiderId: <String, DateTime>{},
           updatedAtByRiderId: <String, DateTime>{},
@@ -759,6 +791,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           riders: <Map<String, dynamic>>[],
           trackerPayload: _LiveRiderTrackerPayload(
             trails: <String, List<latlng.LatLng>>{},
+            routeStreams: <String, List<List<latlng.LatLng>>>{},
             speedsMph: <String, double>{},
             startedAtByRiderId: <String, DateTime>{},
             updatedAtByRiderId: <String, DateTime>{},
@@ -782,6 +815,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           (historyResponse['histories'] as Map?)?.cast<String, dynamic>() ??
           const <String, dynamic>{};
       final trails = <String, List<latlng.LatLng>>{};
+      final routeStreams = <String, List<List<latlng.LatLng>>>{};
       final speeds = <String, double>{};
       final startedAtByRiderId = <String, DateTime>{};
       final updatedAtByRiderId = <String, DateTime>{};
@@ -820,6 +854,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         if (points.isEmpty) continue;
 
         trails[riderId] = points;
+        if (points.length >= 2) {
+          routeStreams[riderId] = [List<latlng.LatLng>.from(points)];
+        }
         final speedMph = _estimateRiderSpeedMph(telemetry);
         if (speedMph != null) {
           speeds[riderId] = speedMph;
@@ -853,6 +890,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         riders: standbyRiders,
         trackerPayload: _LiveRiderTrackerPayload(
           trails: trails,
+          routeStreams: routeStreams,
           speedsMph: speeds,
           startedAtByRiderId: startedAtByRiderId,
           updatedAtByRiderId: updatedAtByRiderId,
@@ -864,6 +902,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         riders: <Map<String, dynamic>>[],
         trackerPayload: _LiveRiderTrackerPayload(
           trails: <String, List<latlng.LatLng>>{},
+          routeStreams: <String, List<List<latlng.LatLng>>>{},
           speedsMph: <String, double>{},
           startedAtByRiderId: <String, DateTime>{},
           updatedAtByRiderId: <String, DateTime>{},
@@ -903,6 +942,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _appendTrailPoint(points, displayPoint);
     }
     return points;
+  }
+
+  List<List<latlng.LatLng>> _routeStreamsForRider(Map<String, dynamic> rider) {
+    final riderId = (rider['riderId'] ?? '').toString();
+    final streams = _liveRiderRouteStreams[riderId];
+    if (streams != null && streams.isNotEmpty) {
+      return streams
+          .map((stream) => List<latlng.LatLng>.from(stream))
+          .toList(growable: false);
+    }
+    final trail = _trailPointsForRider(rider);
+    return trail.length >= 2
+        ? [trail]
+        : const <List<latlng.LatLng>>[];
   }
 
   List<latlng.LatLng> _sampleTrailBreadcrumbs(
@@ -1525,6 +1578,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _LiveRiderTrackerPayload liveRiderTrackerPayload =
           const _LiveRiderTrackerPayload(
             trails: <String, List<latlng.LatLng>>{},
+            routeStreams: <String, List<List<latlng.LatLng>>>{},
             speedsMph: <String, double>{},
             startedAtByRiderId: <String, DateTime>{},
             updatedAtByRiderId: <String, DateTime>{},
@@ -1541,6 +1595,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               riders: <Map<String, dynamic>>[],
               trackerPayload: _LiveRiderTrackerPayload(
                 trails: <String, List<latlng.LatLng>>{},
+                routeStreams: <String, List<List<latlng.LatLng>>>{},
                 speedsMph: <String, double>{},
                 startedAtByRiderId: <String, DateTime>{},
                 updatedAtByRiderId: <String, DateTime>{},
@@ -1554,6 +1609,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         trails: {
           ...liveRiderTrackerPayload.trails,
           ...standbySnapshot.trackerPayload.trails,
+        },
+        routeStreams: {
+          ...liveRiderTrackerPayload.routeStreams,
+          ...standbySnapshot.trackerPayload.routeStreams,
         },
         speedsMph: {
           ...liveRiderTrackerPayload.speedsMph,
@@ -1672,6 +1731,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _liveRiderTrails = Map<String, List<latlng.LatLng>>.from(
           combinedTrackerPayload.trails,
         );
+        _liveRiderRouteStreams =
+            Map<String, List<List<latlng.LatLng>>>.from(
+          combinedTrackerPayload.routeStreams,
+        );
         _liveRiderSpeedsMphById
           ..clear()
           ..addAll(combinedTrackerPayload.speedsMph);
@@ -1726,6 +1789,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ...trackerPayload.trails,
           ...standbySnapshot.trackerPayload.trails,
         },
+        routeStreams: {
+          ...trackerPayload.routeStreams,
+          ...standbySnapshot.trackerPayload.routeStreams,
+        },
         speedsMph: {
           ...trackerPayload.speedsMph,
           ...standbySnapshot.trackerPayload.speedsMph,
@@ -1749,6 +1816,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _liveTrackerDebugSummary =
             'Refresh riders ${combinedRiders.length} | Visible ${mergedRiders.length}';
         _liveRiderTrails = combinedTrackerPayload.trails;
+        _liveRiderRouteStreams = combinedTrackerPayload.routeStreams;
         _liveRiderSpeedsMphById
           ..clear()
           ..addAll(combinedTrackerPayload.speedsMph);
@@ -3474,7 +3542,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         .toList(growable: false);
     final trailCoordinates = riders
         .expand((rider) {
-          return _trailPointsForRider(rider);
+          return _routeStreamsForRider(rider).expand((stream) => stream);
         })
         .toList(growable: false);
     final mapCoordinates = <latlng.LatLng>[
@@ -3549,23 +3617,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 if (_liveRiderTrails.isNotEmpty)
                   PolylineLayer(
                     polylines: riders
-                        .map((rider) {
+                        .expand((rider) {
                           final riderId = (rider['riderId'] ?? '').toString();
-                          final points = _trailPointsForRider(rider);
-                          if (points.length < 2) return null;
                           final isSelected = riderId == _selectedLiveRiderId;
                           final routeColor = _routeColorForRider(riderId);
-                          return Polyline(
-                            points: points,
-                            color: isSelected
-                                ? routeColor
-                                : routeColor.withValues(alpha: 0.52),
-                            strokeWidth: isFocusedTrackingMode
-                                ? 6
-                                : (isSelected ? 5 : 3.5),
-                          );
+                          final streams = _routeStreamsForRider(rider);
+                          return streams.map((points) {
+                            return Polyline(
+                              points: points,
+                              color: isSelected
+                                  ? routeColor
+                                  : routeColor.withValues(alpha: 0.52),
+                              strokeWidth: isFocusedTrackingMode
+                                  ? 6
+                                  : (isSelected ? 5 : 3.5),
+                            );
+                          });
                         })
-                        .whereType<Polyline>()
                         .toList(growable: false),
                   ),
                 if (_liveRiderTrails.isNotEmpty)
@@ -3574,11 +3642,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         .expand((rider) {
                           final riderId = (rider['riderId'] ?? '').toString();
                           final routeColor = _routeColorForRider(riderId);
-                          final points = _trailPointsForRider(rider);
-                          final breadcrumbs = _sampleTrailBreadcrumbs(
-                            points,
-                            isFocused: isFocusedTrackingMode,
-                          );
+                          final breadcrumbs = _routeStreamsForRider(rider)
+                              .expand(
+                                (points) => _sampleTrailBreadcrumbs(
+                                  points,
+                                  isFocused: isFocusedTrackingMode,
+                                ),
+                              )
+                              .toList(growable: false);
                           return breadcrumbs.map((point) {
                             return Marker(
                               point: point,
@@ -3833,8 +3904,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           Positioned(
             bottom: 24,
             child: Container(
-              width: 26,
-              height: 26,
+              width: 13,
+              height: 13,
               decoration: BoxDecoration(
                 color: accentColor.withValues(alpha: 0.20),
                 shape: BoxShape.circle,
@@ -3844,8 +3915,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           Positioned(
             bottom: 18,
             child: Container(
-              width: 16,
-              height: 16,
+              width: 8,
+              height: 8,
               decoration: BoxDecoration(
                 color: accentColor,
                 shape: BoxShape.circle,
@@ -3860,10 +3931,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ),
           Positioned(
-            top: 34,
+            top: 57,
             child: Container(
-              width: 92,
-              height: 92,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const LinearGradient(
@@ -3873,7 +3944,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
                 border: Border.all(
                   color: accentColor.withValues(alpha: 0.92),
-                  width: 4,
+                  width: 2,
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -3889,15 +3960,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   children: [
                     const Icon(
                       Icons.two_wheeler,
-                      size: 40,
+                      size: 20,
                       color: Colors.white,
                     ),
                     Positioned(
-                      right: 10,
-                      bottom: 10,
+                      right: 5,
+                      bottom: 5,
                       child: Container(
-                        width: 28,
-                        height: 28,
+                        width: 14,
+                        height: 14,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.18),
                           shape: BoxShape.circle,
@@ -3909,7 +3980,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         child: Text(
                           initial.toUpperCase(),
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 7,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                           ),
@@ -3925,16 +3996,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             left: 32,
             bottom: 34,
             child: Container(
-              width: 24,
-              height: 24,
+              width: 12,
+              height: 12,
               decoration: BoxDecoration(
                 color: const Color(0xFF10B981),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                border: Border.all(color: Colors.white, width: 1),
               ),
               child: const Icon(
                 Icons.bolt_rounded,
-                size: 13,
+                size: 7,
                 color: Colors.white,
               ),
             ),
@@ -4157,8 +4228,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             alignment: Alignment.center,
             children: [
               Container(
-                width: isSelected ? 32 : 28,
-                height: isSelected ? 32 : 28,
+                width: isSelected ? 16 : 14,
+                height: isSelected ? 16 : 14,
                 decoration: BoxDecoration(
                   color: isSelected
                       ? accentColor.withValues(alpha: 0.22)
@@ -4167,22 +4238,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   boxShadow: [
                     BoxShadow(
                       color: accentColor.withValues(alpha: 0.26),
-                      blurRadius: 12,
-                      spreadRadius: 2,
+                      blurRadius: 6,
+                      spreadRadius: 1,
                     ),
                   ],
                 ),
               ),
               Container(
-                width: isSelected ? 18 : 16,
-                height: isSelected ? 18 : 16,
+                width: isSelected ? 9 : 8,
+                height: isSelected ? 9 : 8,
                 decoration: BoxDecoration(
                   color: isSelected ? accentColor : accentColor,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.two_wheeler,
-                  size: 10,
+                  size: 5,
                   color: Colors.white,
                 ),
               ),
