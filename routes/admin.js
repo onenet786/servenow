@@ -423,7 +423,15 @@ router.get(
           SUM(CASE WHEN LOWER(TRIM(COALESCE(payment_method, ''))) = 'cash'
                     AND LOWER(TRIM(COALESCE(status, ''))) = 'delivered'
                     AND rider_id IS NOT NULL
-                   THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(delivery_fee, 0), 0) ELSE 0 END) AS rider_cash
+                   THEN GREATEST(COALESCE(total_amount, 0) - COALESCE(delivery_fee, 0), 0) ELSE 0 END) AS rider_order_cash,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(payment_method, ''))) = 'cash'
+                    AND LOWER(TRIM(COALESCE(status, ''))) = 'delivered'
+                    AND rider_id IS NOT NULL
+                   THEN COALESCE(delivery_fee, 0) ELSE 0 END) AS rider_delivery_fees,
+          SUM(CASE WHEN LOWER(TRIM(COALESCE(payment_method, ''))) = 'cash'
+                    AND LOWER(TRIM(COALESCE(status, ''))) = 'delivered'
+                    AND rider_id IS NOT NULL
+                   THEN COALESCE(total_amount, 0) ELSE 0 END) AS rider_cash
         FROM orders
         WHERE DATE(created_at) = ?
       `, [targetDate]);
@@ -433,7 +441,9 @@ router.get(
           o.rider_id,
           CONCAT(COALESCE(r.first_name, 'Rider'), ' ', COALESCE(r.last_name, CONCAT('#', o.rider_id))) AS rider_name,
           COUNT(*) AS orders,
-          SUM(GREATEST(COALESCE(o.total_amount, 0) - COALESCE(o.delivery_fee, 0), 0)) AS rider_cash
+          SUM(GREATEST(COALESCE(o.total_amount, 0) - COALESCE(o.delivery_fee, 0), 0)) AS order_cash,
+          SUM(COALESCE(o.delivery_fee, 0)) AS delivery_fees,
+          SUM(COALESCE(o.total_amount, 0)) AS rider_cash
         FROM orders o
         LEFT JOIN riders r ON r.id = o.rider_id
         WHERE DATE(o.created_at) = ?
@@ -445,8 +455,31 @@ router.get(
         LIMIT 8
       `, [targetDate]);
 
+      const [mileageRows] = await req.db.execute(`
+        SELECT
+          rfh.rider_id,
+          CONCAT(COALESCE(r.first_name, 'Rider'), ' ', COALESCE(r.last_name, CONCAT('#', rfh.rider_id))) AS rider_name,
+          COUNT(*) AS mileage_entries,
+          SUM(COALESCE(rfh.distance, 0)) AS total_distance,
+          SUM(COALESCE(rfh.fuel_cost, 0)) AS total_fuel_cost
+        FROM riders_fuel_history rfh
+        LEFT JOIN riders r ON r.id = rfh.rider_id
+        WHERE DATE(rfh.entry_date) = ?
+        GROUP BY rfh.rider_id, r.first_name, r.last_name
+        ORDER BY total_distance DESC
+        LIMIT 8
+      `, [targetDate]);
+
       const summary = summaryRows[0] || {};
       const money = (value) => Number(Number(value || 0).toFixed(2));
+      const totalMileageKm = (mileageRows || []).reduce(
+        (sum, row) => sum + Number(row.total_distance || 0),
+        0
+      );
+      const totalMileageFuel = (mileageRows || []).reduce(
+        (sum, row) => sum + Number(row.total_fuel_cost || 0),
+        0
+      );
 
       return res.json({
         success: true,
@@ -459,13 +492,26 @@ router.get(
           delivery_fees: money(summary.delivery_fees),
           cash_sales: money(summary.cash_sales),
           digital_sales: money(summary.digital_sales),
+          rider_order_cash: money(summary.rider_order_cash),
+          rider_delivery_fees: money(summary.rider_delivery_fees),
           rider_cash: money(summary.rider_cash),
+          rider_mileage_km: money(totalMileageKm),
+          rider_mileage_fuel: money(totalMileageFuel),
         },
         rider_cash_breakdown: riderRows.map((row) => ({
           rider_id: row.rider_id,
           rider_name: String(row.rider_name || `Rider #${row.rider_id}`).trim(),
           orders: Number(row.orders || 0),
+          order_cash: money(row.order_cash),
+          delivery_fees: money(row.delivery_fees),
           rider_cash: money(row.rider_cash),
+        })),
+        rider_mileage_breakdown: mileageRows.map((row) => ({
+          rider_id: row.rider_id,
+          rider_name: String(row.rider_name || `Rider #${row.rider_id}`).trim(),
+          mileage_entries: Number(row.mileage_entries || 0),
+          total_distance: money(row.total_distance),
+          total_fuel_cost: money(row.total_fuel_cost),
         })),
       });
     } catch (error) {

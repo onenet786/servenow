@@ -105,6 +105,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   bool _isDailySalesLoading = false;
   Map<String, dynamic> _dailySalesSummary = {};
   List<dynamic> _dailyRiderCashBreakdown = [];
+  List<dynamic> _dailyRiderMileageBreakdown = [];
 
   List<dynamic> _recentOrdersList = [];
   List<dynamic> _recentUsersList = [];
@@ -247,9 +248,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     _dailySalesSummary = (dailySalesData['summary'] is Map<String, dynamic>)
         ? dailySalesData['summary'] as Map<String, dynamic>
         : <String, dynamic>{};
-    _dailyRiderCashBreakdown =
-        dailySalesData['rider_cash_breakdown'] is List
+    _dailyRiderCashBreakdown = dailySalesData['rider_cash_breakdown'] is List
         ? dailySalesData['rider_cash_breakdown'] as List<dynamic>
+        : const [];
+    _dailyRiderMileageBreakdown =
+        dailySalesData['rider_mileage_breakdown'] is List
+        ? dailySalesData['rider_mileage_breakdown'] as List<dynamic>
         : const [];
   }
 
@@ -290,6 +294,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     var deliveryFees = 0.0;
     var cashSales = 0.0;
     var digitalSales = 0.0;
+    var riderOrderCash = 0.0;
+    var riderDeliveryFees = 0.0;
     var riderCash = 0.0;
 
     for (final order in orders) {
@@ -324,7 +330,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         if (paymentMethod == 'cash') {
           cashSales += total;
           if ((order['rider_id'] ?? '').toString().trim().isNotEmpty) {
-            riderCash += itemCash;
+            riderOrderCash += itemCash;
+            riderDeliveryFees += deliveryFee;
+            riderCash += total;
             final riderId = order['rider_id'].toString();
             final riderName =
                 '${order['rider_first_name'] ?? ''} ${order['rider_last_name'] ?? ''}'
@@ -335,11 +343,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 'rider_id': riderId,
                 'rider_name': riderName.isEmpty ? 'Rider #$riderId' : riderName,
                 'orders': 0,
+                'order_cash': 0.0,
+                'delivery_fees': 0.0,
                 'rider_cash': 0.0,
               },
             );
             row['orders'] = _toInt(row['orders']) + 1;
-            row['rider_cash'] = _toDouble(row['rider_cash']) + itemCash;
+            row['order_cash'] = _toDouble(row['order_cash']) + itemCash;
+            row['delivery_fees'] =
+                _toDouble(row['delivery_fees']) + deliveryFee;
+            row['rider_cash'] = _toDouble(row['rider_cash']) + total;
           }
         } else {
           digitalSales += total;
@@ -364,9 +377,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         'delivery_fees': deliveryFees,
         'cash_sales': cashSales,
         'digital_sales': digitalSales,
+        'rider_order_cash': riderOrderCash,
+        'rider_delivery_fees': riderDeliveryFees,
         'rider_cash': riderCash,
+        'rider_mileage_km': 0.0,
+        'rider_mileage_fuel': 0.0,
       },
       'rider_cash_breakdown': breakdown.take(8).toList(),
+      'rider_mileage_breakdown': const [],
     };
   }
 
@@ -2012,9 +2030,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final deliveredSales = _dailySalesSummary['delivered_sales'];
     final deliveryFees = _dailySalesSummary['delivery_fees'];
     final riderCash = _dailySalesSummary['rider_cash'];
+    final riderOrderCash = _dailySalesSummary['rider_order_cash'];
+    final riderDeliveryFees = _dailySalesSummary['rider_delivery_fees'];
+    final riderMileageKm = _toDouble(_dailySalesSummary['rider_mileage_km']);
+    final riderMileageFuel = _dailySalesSummary['rider_mileage_fuel'];
     final cashSales = _dailySalesSummary['cash_sales'];
     final digitalSales = _dailySalesSummary['digital_sales'];
     final riderRows = _dailyRiderCashBreakdown.take(4).toList();
+    final mileageRows = _dailyRiderMileageBreakdown.take(4).toList();
     final selectedDateLabel = _friendlyDateLabel(_selectedDailySalesDate);
     final controlsEnabled = !_isDailySalesLoading;
     final canGoForward =
@@ -2157,10 +2180,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           _buildSalesSummaryTileGrid([
             ('Gross Sale', _formatPkr(grossSales)),
             ('Delivered', _formatPkr(deliveredSales)),
-            ('Rider Cash', _formatPkr(riderCash)),
-            ('Delivery Fee', _formatPkr(deliveryFees)),
+            ('Rider Cash Total', _formatPkr(riderCash)),
+            ('Rider Delivery', _formatPkr(riderDeliveryFees)),
             ('Cash Sale', _formatPkr(cashSales)),
             ('Digital Sale', _formatPkr(digitalSales)),
+            ('Order Cash', _formatPkr(riderOrderCash)),
+            ('Delivery Fee', _formatPkr(deliveryFees)),
+            ('Rider Travel', _formatDistanceKm(riderMileageKm)),
+            ('Mileage Fuel', _formatPkr(riderMileageFuel)),
           ]),
           if (riderRows.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -2176,32 +2203,113 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               final data = row is Map ? row : const {};
               final riderName = (data['rider_name'] ?? 'Rider').toString();
               final orders = _toInt(data['orders']);
-              final amount = _formatPkr(data['rider_cash']);
+              final orderCash = _formatPkr(
+                data['order_cash'],
+              ).replaceFirst('PKR ', '');
+              final riderDelivery = _formatPkr(
+                data['delivery_fees'],
+              ).replaceFirst('PKR ', '');
+              final total = _formatPkr(data['rider_cash']);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            riderName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        Text(
+                          '$orders orders',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blueGrey.shade600,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          total,
+                          style: const TextStyle(
+                            color: Color(0xFF15803D),
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'PKR($orderCash cash + $riderDelivery Deliver) = ${total.replaceFirst('PKR', 'Pkr')}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.blueGrey.shade600,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          if (mileageRows.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Rider mileage today',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: CustomerPalette.textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...mileageRows.map((row) {
+              final data = row is Map ? row : const {};
+              final riderName = (data['rider_name'] ?? 'Rider').toString();
+              final entries = _toInt(data['mileage_entries']);
+              final distance = _formatDistanceKm(
+                _toDouble(data['total_distance']),
+              );
+              final fuelCost = _formatPkr(data['total_fuel_cost']);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        riderName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    Text(
-                      '$orders orders',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blueGrey.shade600,
-                        fontWeight: FontWeight.w700,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            riderName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$entries mileage entries | Fuel $fuelCost',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.blueGrey.shade600,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      amount,
+                      distance,
                       style: const TextStyle(
-                        color: Color(0xFF15803D),
+                        color: Color(0xFF2563EB),
                         fontWeight: FontWeight.w900,
                       ),
                     ),
