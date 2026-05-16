@@ -17,6 +17,7 @@ const SUPPORTED_FINANCIAL_REPORT_TYPES = [
     'rider_orders_report',
     'rider_payments_report',
     'rider_receivings_report',
+    'rider_wallet_report',
     'rider_petrol_report',
     'rider_daily_mileage_report',
     'rider_daily_activity_report',
@@ -83,6 +84,56 @@ async function ensureOrderItemsCostPriceColumn(db) {
     } catch (error) {
         console.error('Failed to ensure order_items.cost_price column:', error);
     }
+}
+
+async function ensureRiderStorePaymentsTable(db) {
+    await db.execute(`
+        CREATE TABLE IF NOT EXISTS rider_store_payments (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            order_id INT NOT NULL,
+            store_id INT NOT NULL,
+            rider_id INT NOT NULL,
+            amount DECIMAL(12,2) NOT NULL,
+            source_status VARCHAR(40) NOT NULL DEFAULT 'picked_up',
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_rider_store_payment (order_id, store_id, source_status),
+            INDEX idx_rsp_rider (rider_id),
+            INDEX idx_rsp_store (store_id),
+            INDEX idx_rsp_order (order_id)
+        )
+    `);
+}
+
+async function ensureStoreSettlementColumns(db) {
+    const discountApplyExists = await hasColumn(
+        db,
+        'stores',
+        'store_discount_apply_all_products'
+    );
+    if (!discountApplyExists) {
+        await db.execute(
+            `ALTER TABLE stores
+             ADD COLUMN store_discount_apply_all_products TINYINT(1) NOT NULL DEFAULT 0`
+        );
+    }
+
+    const discountPercentExists = await hasColumn(
+        db,
+        'stores',
+        'store_discount_percent'
+    );
+    if (!discountPercentExists) {
+        await db.execute(
+            `ALTER TABLE stores
+             ADD COLUMN store_discount_percent DECIMAL(10,2) NULL`
+        );
+    }
+}
+
+async function ensureStoreSettlementSchema(db) {
+    await ensureRiderStorePaymentsTable(db);
+    await ensureStoreSettlementColumns(db);
 }
 
 async function ensureFinancialReportsReportTypeEnum(db) {
@@ -270,10 +321,23 @@ async function getSettlementCandidateItems(db, storeId, startDate = null, endDat
     return items;
 }
 
-async function calculateStoreSettlementBalance(db, storeId, startDate = null, endDate = null) {
-    const items = await getSettlementCandidateItems(db, storeId, startDate, endDate);
-    const legacyPaidOffset = await getLegacyPaidSettlementOffset(db, storeId, startDate, endDate);
-    return applyLegacyPaidOffsetToSettlementItems(items, legacyPaidOffset);
+async function calculateStoreSettlementBalance(
+    db,
+    storeId,
+    startDate = null,
+    endDate = null,
+    selectedItemIds = null
+) {
+    let items = await getSettlementCandidateItems(db, storeId, startDate, endDate);
+    if (Array.isArray(selectedItemIds)) {
+        const selectedSet = new Set(
+            selectedItemIds
+                .map((id) => Number(id))
+                .filter((id) => Number.isInteger(id) && id > 0)
+        );
+        items = items.filter((item) => selectedSet.has(Number(item.id)));
+    }
+    return applyLegacyPaidOffsetToSettlementItems(items, 0);
 }
 
 function getStorePayableSqlExpression(storeAlias = 's') {
@@ -2298,6 +2362,8 @@ router.get('/store-settlements/unsettled-items', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Store ID is required' });
         }
 
+        await ensureStoreSettlementSchema(req.db);
+
         const settlementCalc = await calculateStoreSettlementBalance(
             req.db,
             store_id,
@@ -2330,6 +2396,109 @@ router.get('/store-settlements/unsettled-items', async (req, res) => {
     }
 });
 
+// Get stores with payment due. The visible amount matches Store Reports
+// (total payable minus paid settlements), while current_settlement_balance
+// tells the UI whether a fresh settlement can be created from unlinked items.
+router.get('/store-settlements/due-stores', async (req, res) => {
+    try {
+        const { period_from, period_to } = req.query;
+        const balanceStart = period_from && period_to ? `${period_from} 00:00:00` : null;
+        const balanceEnd = period_from && period_to ? `${period_to} 23:59:59` : null;
+
+        await ensureStoreSettlementSchema(req.db);
+
+        const payableSql = getStorePayableSqlExpression('s2');
+        const reportParams = [];
+        if (period_from && period_to) {
+            reportParams.push(balanceStart, balanceEnd);
+            reportParams.push(period_from, period_to);
+            reportParams.push(period_from, period_to);
+        }
+
+        const [stores] = await req.db.execute(
+            `SELECT
+                s.id,
+                s.name,
+                s.payment_term,
+                s.is_active,
+                COALESCE(earn.total_payable, 0) AS total_payable,
+                COALESCE(paid.total_paid, 0) AS total_paid,
+                COALESCE(open_settlements.total_unpaid_settlements, 0) AS open_settlement_amount
+             FROM stores s
+             LEFT JOIN (
+                SELECT
+                    COALESCE(oi.store_id, p.store_id) AS store_id,
+                    SUM(${payableSql}) AS total_payable
+                FROM order_items oi
+                JOIN orders o ON oi.order_id = o.id
+                JOIN products p ON oi.product_id = p.id
+                JOIN stores s2 ON s2.id = COALESCE(oi.store_id, p.store_id)
+                WHERE o.status = 'delivered'
+                  AND o.payment_status = 'paid'
+                  ${period_from && period_to ? 'AND o.created_at BETWEEN ? AND ?' : ''}
+                GROUP BY COALESCE(oi.store_id, p.store_id)
+             ) earn ON earn.store_id = s.id
+             LEFT JOIN (
+                SELECT store_id, SUM(net_amount) AS total_paid
+                FROM store_settlements
+                WHERE status = 'paid'
+                  ${period_from && period_to ? 'AND settlement_date BETWEEN ? AND ?' : ''}
+                GROUP BY store_id
+             ) paid ON paid.store_id = s.id
+             LEFT JOIN (
+                SELECT store_id, SUM(net_amount) AS total_unpaid_settlements
+                FROM store_settlements
+                WHERE status IN ('pending', 'approved')
+                  ${period_from && period_to ? 'AND settlement_date BETWEEN ? AND ?' : ''}
+                GROUP BY store_id
+             ) open_settlements ON open_settlements.store_id = s.id
+             WHERE LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT IN ('cash only', 'cash with discount')
+             ORDER BY s.name ASC`,
+            reportParams
+        );
+
+        const dueStores = [];
+        for (const store of stores) {
+            const settlementBalance = await calculateStoreSettlementBalance(
+                req.db,
+                store.id,
+                balanceStart,
+                balanceEnd
+            );
+            const currentSettlementBalance = Number(settlementBalance.payableRemaining || 0);
+            const pendingSettlement = Math.max(
+                0,
+                Number(store.total_payable || 0) - Number(store.total_paid || 0)
+            );
+            if (pendingSettlement <= 0.005) continue;
+
+            dueStores.push({
+                id: store.id,
+                name: store.name,
+                payment_term: store.payment_term || null,
+                is_active: !!store.is_active,
+                pending_settlement: pendingSettlement,
+                current_settlement_balance: currentSettlementBalance,
+                open_settlement_amount: Number(store.open_settlement_amount || 0),
+                item_count: settlementBalance.displayItems.length,
+                legacy_paid_offset: Number(settlementBalance.legacyPaidApplied || 0)
+            });
+        }
+
+        dueStores.sort(
+            (a, b) => Number(b.pending_settlement || 0) - Number(a.pending_settlement || 0)
+        );
+
+        res.json({
+            success: true,
+            stores: dueStores
+        });
+    } catch (error) {
+        console.error('Error fetching settlement due stores:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 router.get('/store-settlements', async (req, res) => {
     try {
         const { store_id, status, page = 1, limit = 20 } = req.query;
@@ -2343,8 +2512,12 @@ router.get('/store-settlements', async (req, res) => {
             params.push(store_id);
         }
         if (status) {
-            whereClause += ' AND status = ?';
-            params.push(status);
+            if (status === 'unpaid') {
+                whereClause += " AND status IN ('pending', 'approved')";
+            } else {
+                whereClause += ' AND status = ?';
+                params.push(status);
+            }
         }
 
         const [settlements] = await req.db.execute(
@@ -2354,7 +2527,7 @@ router.get('/store-settlements', async (req, res) => {
              LEFT JOIN users ab ON ss.approved_by = ab.id
              LEFT JOIN users pb ON ss.paid_by = pb.id
              ${whereClause}
-             ORDER BY ss.settlement_date DESC
+             ORDER BY ss.settlement_date DESC, ss.id DESC
              LIMIT ? OFFSET ?`,
             [...params, parseInt(limit), offset]
         );
@@ -2396,10 +2569,12 @@ router.post('/store-settlements', [
             });
         }
 
+        await ensureStoreSettlementSchema(req.db);
+
         conn = await req.db.getConnection();
         await conn.beginTransaction();
 
-        const { store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, payment_method, notes, auto_calculate } = req.body;
+        const { store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, payment_method, notes, auto_calculate, selected_item_ids } = req.body;
         
         let final_total = total_orders_amount || 0;
         let final_commissions = commissions || 0;
@@ -2409,11 +2584,17 @@ router.post('/store-settlements', [
 
         // If auto-calculation is requested, calculate from unsettled items
         if (auto_calculate === true || auto_calculate === 'true' || auto_calculate === 'on') {
+            const selectedItemIds = Array.isArray(selected_item_ids)
+                ? selected_item_ids
+                    .map((id) => Number(id))
+                    .filter((id) => Number.isInteger(id) && id > 0)
+                : null;
             const settlementCalc = await calculateStoreSettlementBalance(
                 conn,
                 store_id,
                 period_from && period_to ? `${period_from} 00:00:00` : null,
-                period_from && period_to ? `${period_to} 23:59:59` : null
+                period_from && period_to ? `${period_to} 23:59:59` : null,
+                selectedItemIds
             );
 
             if (settlementCalc.payableRemaining <= 0.005) {
@@ -2916,6 +3097,7 @@ router.post('/reports/generate', [
                 'rider_orders_report': 'report_order_summary',
                 'rider_payments_report': 'report_rider_cash',
                 'rider_receivings_report': 'report_rider_cash',
+                'rider_wallet_report': 'report_rider_cash',
                 'rider_petrol_report': 'report_rider_fuel',
                 'rider_daily_mileage_report': 'report_rider_fuel',
                 'rider_daily_activity_report': 'report_order_summary',
@@ -2968,6 +3150,7 @@ router.post('/reports/generate', [
             case 'rider_orders_report': prefix = 'ROR'; break;
             case 'rider_payments_report': prefix = 'RPR'; break;
             case 'rider_receivings_report': prefix = 'RRR'; break;
+            case 'rider_wallet_report': prefix = 'RWR'; break;
             case 'rider_petrol_report': prefix = 'RPT'; break;
             case 'rider_daily_mileage_report': prefix = 'RDM'; break;
             case 'rider_daily_activity_report': prefix = 'RDA'; break;
@@ -3299,6 +3482,139 @@ router.post('/reports/generate', [
                 type: 'rider_receivings',
                 rider_name: riderName,
                 entries,
+                summary
+            };
+        } else if (report_type === 'rider_wallet_report') {
+            const hasRange = Boolean(period_from && period_to);
+            const dateFilter = hasRange ? 'AND wt.created_at BETWEEN ? AND ?' : '';
+            const riderFilter = rider_id ? 'AND w.rider_id = ?' : '';
+            const params = [];
+            if (hasRange) params.push(`${period_from} 00:00:00`, `${period_to} 23:59:59`);
+            if (rider_id) params.push(rider_id);
+
+            const [entries] = await req.db.execute(
+                `SELECT
+                    wt.id,
+                    wt.created_at,
+                    wt.type,
+                    wt.amount,
+                    wt.description,
+                    wt.reference_type,
+                    wt.reference_id,
+                    wt.balance_after,
+                    w.id AS wallet_id,
+                    w.rider_id,
+                    w.balance AS current_balance,
+                    w.total_credited,
+                    w.total_spent,
+                    CONCAT(r.first_name, ' ', r.last_name) AS rider_name,
+                    r.first_name,
+                    r.last_name
+                 FROM wallet_transactions wt
+                 JOIN wallets w ON w.id = wt.wallet_id
+                 JOIN riders r ON r.id = w.rider_id
+                 WHERE w.user_type = 'rider'
+                   AND w.rider_id IS NOT NULL
+                   ${dateFilter}
+                   ${riderFilter}
+                 ORDER BY wt.created_at DESC, wt.id DESC`,
+                params
+            );
+
+            const [walletRows] = await req.db.execute(
+                `SELECT
+                    w.id AS wallet_id,
+                    w.rider_id,
+                    w.balance,
+                    w.total_credited,
+                    w.total_spent,
+                    CONCAT(r.first_name, ' ', r.last_name) AS rider_name
+                 FROM wallets w
+                 JOIN riders r ON r.id = w.rider_id
+                 WHERE w.user_type = 'rider'
+                   AND w.rider_id IS NOT NULL
+                   ${rider_id ? 'AND w.rider_id = ?' : ''}
+                 ORDER BY rider_name ASC`,
+                rider_id ? [rider_id] : []
+            );
+
+            const walletSummaryById = new Map();
+            (walletRows || []).forEach((wallet) => {
+                walletSummaryById.set(Number(wallet.wallet_id), {
+                    wallet_id: wallet.wallet_id,
+                    rider_id: wallet.rider_id,
+                    rider_name: wallet.rider_name || `Rider #${wallet.rider_id}`,
+                    current_balance: parseFloat(wallet.balance || 0),
+                    total_credited_lifetime: parseFloat(wallet.total_credited || 0),
+                    total_spent_lifetime: parseFloat(wallet.total_spent || 0),
+                    credits: 0,
+                    debits: 0,
+                    refunds: 0,
+                    transfers: 0,
+                    net_credit_debit: 0,
+                    entries: 0
+                });
+            });
+            (entries || []).forEach((entry) => {
+                const walletId = Number(entry.wallet_id);
+                if (!walletSummaryById.has(walletId)) {
+                    walletSummaryById.set(walletId, {
+                        wallet_id: walletId,
+                        rider_id: entry.rider_id,
+                        rider_name: entry.rider_name || `Rider #${entry.rider_id}`,
+                        current_balance: parseFloat(entry.current_balance || 0),
+                        total_credited_lifetime: parseFloat(entry.total_credited || 0),
+                        total_spent_lifetime: parseFloat(entry.total_spent || 0),
+                        credits: 0,
+                        debits: 0,
+                        refunds: 0,
+                        transfers: 0,
+                        net_credit_debit: 0,
+                        entries: 0
+                    });
+                }
+                const row = walletSummaryById.get(walletId);
+                const amount = parseFloat(entry.amount || 0);
+                row.entries += 1;
+                if (entry.type === 'credit') {
+                    row.credits += amount;
+                    row.net_credit_debit += amount;
+                } else if (entry.type === 'debit') {
+                    row.debits += amount;
+                    row.net_credit_debit -= amount;
+                }
+                else if (entry.type === 'refund') row.refunds += amount;
+                else if (entry.type === 'transfer') row.transfers += amount;
+            });
+
+            const summaryRows = Array.from(walletSummaryById.values());
+            const summary = summaryRows.reduce((acc, row) => {
+                acc.total_wallets += 1;
+                acc.total_current_balance += row.current_balance;
+                acc.total_credits += row.credits;
+                acc.total_debits += row.debits;
+                acc.total_refunds += row.refunds;
+                acc.total_transfers += row.transfers;
+                acc.total_net_credit_debit += row.net_credit_debit;
+                acc.total_entries += row.entries;
+                return acc;
+            }, {
+                total_wallets: 0,
+                total_current_balance: 0,
+                total_credits: 0,
+                total_debits: 0,
+                total_refunds: 0,
+                total_transfers: 0,
+                total_net_credit_debit: 0,
+                total_entries: 0
+            });
+            total_income = summary.total_credits + summary.total_refunds + summary.total_transfers;
+            total_expense = summary.total_debits;
+            reportData = {
+                type: 'rider_wallet',
+                rider_name: riderName,
+                entries,
+                wallet_summary: summaryRows,
                 summary
             };
         } else if (report_type === 'rider_daily_activity_report') {
@@ -6646,7 +6962,7 @@ router.get('/reports/stores-detailed', async (req, res) => {
             );
             storeRow.current_settlement_balance = Number(settlementBalance.payableRemaining || 0);
             storeRow.accounting_pending_balance = accountingPending;
-            storeRow.pending_settlement = storeRow.current_settlement_balance;
+            storeRow.pending_settlement = accountingPending;
         }
 
         let storeDetails = null;

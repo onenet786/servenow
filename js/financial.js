@@ -5,6 +5,8 @@ let currentRiderCash = [];
 let currentStoreSettlements = [];
 let currentExpenses = [];
 let currentReports = [];
+let currentUnsettledSettlementItems = [];
+let selectedUnsettledSettlementItemIds = new Set();
 let currentJournalVouchers = [];
 let lastRiderData = [];
 let lastStoreData = [];
@@ -405,6 +407,7 @@ function initializeFinancialForms() {
                 this.value === 'rider_orders_report' ||
                 this.value === 'rider_payments_report' ||
                 this.value === 'rider_receivings_report' ||
+                this.value === 'rider_wallet_report' ||
                 this.value === 'rider_petrol_report' ||
                 this.value === 'rider_daily_mileage_report' ||
                 this.value === 'rider_daily_activity_report' ||
@@ -1141,13 +1144,17 @@ function displayStoreSettlements(settlements) {
         const date = new Date(s.settlement_date).toLocaleDateString();
         const from = s.period_from ? new Date(s.period_from).toLocaleDateString() : '-';
         const to = s.period_to ? new Date(s.period_to).toLocaleDateString() : '-';
+        const totalOrders = parseFloat(s.total_orders_amount || 0);
+        const commissions = parseFloat(s.commissions || 0);
+        const netAmount = parseFloat(s.net_amount || 0);
         row.innerHTML = `
             <td>${s.settlement_number}</td>
-            <td>${s.store_name}</td>
             <td>${date}</td>
-            <td>${from}</td>
-            <td>${to}</td>
-            <td>Rs  ${parseFloat(s.net_amount).toFixed(2)}</td>
+            <td>${s.store_name || '-'}</td>
+            <td>${from} to ${to}</td>
+            <td>Rs  ${totalOrders.toFixed(2)}</td>
+            <td>Rs  ${commissions.toFixed(2)}</td>
+            <td>Rs  ${netAmount.toFixed(2)}</td>
             <td><span class="status-${s.status}">${s.status}</span></td>
             <td>${
                 s.status === 'pending'
@@ -1162,7 +1169,7 @@ function displayStoreSettlements(settlements) {
     });
 
     if (settlements.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No store settlements found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem;">No store settlements found</td></tr>';
     }
 }
 
@@ -1279,7 +1286,7 @@ function setupStoreSettlementListeners() {
             updateSettlementMultiMode();
         }
         document.querySelectorAll('.settlement-due-store-checkbox').forEach((checkbox) => {
-            checkbox.checked = checked;
+            checkbox.checked = checked && !checkbox.disabled;
         });
     });
 
@@ -1321,6 +1328,46 @@ function updateSettlementMultiMode() {
     }
 }
 
+function getSelectedUnsettledSettlementItems() {
+    return currentUnsettledSettlementItems.filter((item) =>
+        selectedUnsettledSettlementItemIds.has(Number(item.id))
+    );
+}
+
+function updateSelectedUnsettledTotals() {
+    const selectedItems = getSelectedUnsettledSettlementItems();
+    const totalSales = selectedItems.reduce(
+        (sum, item) => sum + Number(item.line_gross || (item.price * item.quantity) || 0),
+        0
+    );
+    const netPayable = selectedItems.reduce(
+        (sum, item) => sum + Number(item.line_payable || 0),
+        0
+    );
+    const adjustment = Math.max(0, totalSales - netPayable);
+
+    const totalSalesEl = document.getElementById('unsettledTotalSales');
+    const adjustmentEl = document.getElementById('unsettledCommission');
+    const netPayableEl = document.getElementById('unsettledNetPayable');
+    const amountInput = document.getElementById('settlementAmount');
+    const selectAll = document.getElementById('selectAllUnsettledItems');
+    const itemCheckboxes = document.querySelectorAll('.unsettled-item-checkbox');
+    const checkedRows = Array.from(itemCheckboxes).filter((checkbox) => checkbox.checked).length;
+
+    if (totalSalesEl) totalSalesEl.textContent = `Rs  ${totalSales.toFixed(2)}`;
+    if (adjustmentEl) adjustmentEl.textContent = `Rs  ${adjustment.toFixed(2)}`;
+    if (netPayableEl) netPayableEl.textContent = `Rs  ${netPayable.toFixed(2)}`;
+    if (amountInput) amountInput.value = netPayable.toFixed(2);
+    if (selectAll) {
+        selectAll.checked =
+            itemCheckboxes.length > 0 &&
+            checkedRows === itemCheckboxes.length;
+        selectAll.indeterminate =
+            checkedRows > 0 &&
+            checkedRows < itemCheckboxes.length;
+    }
+}
+
 async function loadUnsettledItems(storeId) {
     if (!storeId) return;
     
@@ -1339,8 +1386,6 @@ async function loadUnsettledItems(storeId) {
         
         if (data.success) {
             displayUnsettledItems(data.items, data.summary);
-            // Auto fill the amount
-            document.getElementById('settlementAmount').value = data.summary.net_amount.toFixed(2);
         } else {
             showError('Error', data.message);
         }
@@ -1353,6 +1398,12 @@ async function loadUnsettledItems(storeId) {
 function displayUnsettledItems(items, summary) {
     const tbody = document.getElementById('unsettledItemsBody');
     tbody.innerHTML = '';
+    currentUnsettledSettlementItems = Array.isArray(items) ? items : [];
+    selectedUnsettledSettlementItemIds = new Set(
+        currentUnsettledSettlementItems
+            .map((item) => Number(item.id))
+            .filter((id) => Number.isInteger(id) && id > 0)
+    );
 
     // Backward-compatible UI fix:
     // if older hosted HTML still shows "Commission (10%)",
@@ -1366,28 +1417,93 @@ function displayUnsettledItems(items, summary) {
         }
     }
     
-    items.forEach(item => {
+    const orderRowsByKey = new Map();
+    currentUnsettledSettlementItems.forEach((item) => {
+        const key = String(item.order_id || item.order_number || item.id || '');
+        if (!orderRowsByKey.has(key)) {
+            orderRowsByKey.set(key, {
+                order_id: item.order_id,
+                order_number: item.order_number || '-',
+                order_date: item.order_date,
+                item_ids: [],
+                item_names: [],
+                line_count: 0,
+                gross: 0,
+            });
+        }
+        const row = orderRowsByKey.get(key);
+        const itemId = Number(item.id || 0);
+        if (Number.isInteger(itemId) && itemId > 0) row.item_ids.push(itemId);
+        row.item_names.push(`${item.product_name || 'Item'}${item.variant_label ? ` (${item.variant_label})` : ''}`);
+        row.line_count += 1;
+        row.gross += Number(item.line_gross || (item.price * item.quantity) || 0);
+    });
+
+    Array.from(orderRowsByKey.values()).forEach((orderRow) => {
         const row = document.createElement('tr');
+        const itemIds = orderRow.item_ids.join(',');
         row.innerHTML = `
-            <td>${new Date(item.order_date).toLocaleDateString()}</td>
-            <td>${item.order_number}</td>
-            <td>${item.product_name} (${item.variant_label || '-'})</td>
-            <td>${item.quantity}</td>
-            <td>Rs  ${Number(item.line_gross || (item.price * item.quantity) || 0).toFixed(2)}</td>
+            <td>
+                <input type="checkbox" class="unsettled-item-checkbox" data-item-ids="${itemIds}" checked>
+            </td>
+            <td>${new Date(orderRow.order_date).toLocaleDateString()}</td>
+            <td>${orderRow.order_number}</td>
+            <td>${escapeHtml(orderRow.item_names.join(', '))}</td>
+            <td>${orderRow.line_count}</td>
+            <td>Rs  ${orderRow.gross.toFixed(2)}</td>
         `;
         tbody.appendChild(row);
     });
     
-    if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No unpaid items found</td></tr>';
+    if (currentUnsettledSettlementItems.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No unpaid items found</td></tr>';
     }
-    
-    document.getElementById('unsettledTotalSales').textContent = `Rs  ${summary.total_orders_amount.toFixed(2)}`;
-    document.getElementById('unsettledCommission').textContent = `Rs  ${summary.commissions.toFixed(2)}`;
-    document.getElementById('unsettledNetPayable').textContent = `Rs  ${summary.net_amount.toFixed(2)}`;
+
+    document.querySelectorAll('.unsettled-item-checkbox').forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+            const itemIds = String(checkbox.dataset.itemIds || '')
+                .split(',')
+                .map((itemId) => Number(itemId))
+                .filter((itemId) => Number.isInteger(itemId) && itemId > 0);
+            itemIds.forEach((itemId) => {
+                if (checkbox.checked) {
+                    selectedUnsettledSettlementItemIds.add(itemId);
+                } else {
+                    selectedUnsettledSettlementItemIds.delete(itemId);
+                }
+            });
+            updateSelectedUnsettledTotals();
+        });
+    });
+    const selectAll = document.getElementById('selectAllUnsettledItems');
+    if (selectAll) {
+        selectAll.checked = true;
+        selectAll.indeterminate = false;
+        selectAll.onchange = () => {
+            selectedUnsettledSettlementItemIds = new Set(
+                selectAll.checked
+                    ? currentUnsettledSettlementItems.map((item) => Number(item.id))
+                        .filter((id) => Number.isInteger(id) && id > 0)
+                    : []
+            );
+            document.querySelectorAll('.unsettled-item-checkbox').forEach((checkbox) => {
+                checkbox.checked = selectAll.checked;
+            });
+            updateSelectedUnsettledTotals();
+        };
+    }
+
+    updateSelectedUnsettledTotals();
     const legacyPaidOffset = Number(summary.legacy_paid_offset || 0);
-    if (legacyPaidOffset > 0 && typeof showInfo === 'function') {
-        showInfo('Settlement Adjusted', `Already-paid legacy settlements were deducted: Rs ${legacyPaidOffset.toFixed(2)}`);
+    const legacyPaidNote = document.getElementById('unsettledLegacyPaidNote');
+    if (legacyPaidNote) {
+        if (legacyPaidOffset > 0) {
+            legacyPaidNote.textContent = `Already-paid legacy settlements deducted: Rs ${legacyPaidOffset.toFixed(2)}`;
+            legacyPaidNote.style.display = 'block';
+        } else {
+            legacyPaidNote.textContent = '';
+            legacyPaidNote.style.display = 'none';
+        }
     }
 }
 
@@ -1414,12 +1530,14 @@ function updateSettlementPeriodInputs() {
 function syncSettlementDueStoreChecks(storeId) {
     if (isSettlementMultiStoreMode()) return;
     document.querySelectorAll('.settlement-due-store-checkbox').forEach((checkbox) => {
-        checkbox.checked = String(checkbox.value) === String(storeId || '');
+        checkbox.checked =
+            !checkbox.disabled && String(checkbox.value) === String(storeId || '');
     });
 }
 
 function getSelectedSettlementStoreIds() {
     return Array.from(document.querySelectorAll('.settlement-due-store-checkbox:checked'))
+        .filter((checkbox) => !checkbox.disabled)
         .map((checkbox) => Number(checkbox.value))
         .filter((id) => Number.isInteger(id) && id > 0);
 }
@@ -1430,13 +1548,13 @@ async function loadSettlementDueStores() {
     container.innerHTML = 'Loading due stores...';
 
     try {
-        const params = new URLSearchParams({ store_id: 'all' });
+        const params = new URLSearchParams();
         const range = getSettlementDateRangeForRequest();
         if (range.period_from && range.period_to) {
-            params.append('start_date', range.period_from);
-            params.append('end_date', range.period_to);
+            params.append('period_from', range.period_from);
+            params.append('period_to', range.period_to);
         }
-        const response = await fetch(`${API_BASE}/api/financial/reports/stores-detailed?${params.toString()}`, {
+        const response = await fetch(`${API_BASE}/api/financial/store-settlements/due-stores?${params.toString()}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
         });
         const data = await response.json();
@@ -1446,7 +1564,6 @@ async function loadSettlementDueStores() {
         }
 
         const dueStores = (data.stores || [])
-            .map(normalizeStoreReportRow)
             .filter((store) => Number(store.pending_settlement || 0) > 0)
             .sort((a, b) => Number(b.pending_settlement || 0) - Number(a.pending_settlement || 0));
 
@@ -1455,20 +1572,32 @@ async function loadSettlementDueStores() {
             return;
         }
 
-        container.innerHTML = dueStores.map((store) => `
-            <label class="settlement-due-store-option" title="${escapeHtml(store.name || '')}">
-                <input type="checkbox" class="settlement-due-store-checkbox" value="${store.id}">
+        container.innerHTML = dueStores.map((store) => {
+            const creatableBalance = Number(store.current_settlement_balance || 0);
+            const openSettlementAmount = Number(store.open_settlement_amount || 0);
+            const canCreateSettlement = creatableBalance > 0.005;
+            const helperText = canCreateSettlement
+                ? `Ready to create: Rs ${creatableBalance.toFixed(2)}`
+                : openSettlementAmount > 0
+                    ? `Existing pending/approved settlement: Rs ${openSettlementAmount.toFixed(2)}`
+                    : 'No new unlinked items available';
+            return `
+            <label class="settlement-due-store-option" title="${escapeHtml(`${store.name || ''} - ${helperText}`)}">
+                <input type="checkbox" class="settlement-due-store-checkbox" value="${store.id}" ${canCreateSettlement ? '' : 'disabled'}>
                 <span class="settlement-due-store-name">${escapeHtml(store.name || '-')}</span>
-                <span class="settlement-due-store-amount">Rs ${Number(store.pending_settlement || 0).toFixed(2)}</span>
+                <span class="settlement-due-store-amount">
+                    Rs ${Number(store.pending_settlement || 0).toFixed(2)}
+                    <small style="display:block;color:#64748b;font-weight:400;">${escapeHtml(helperText)}</small>
+                </span>
             </label>
-        `).join('');
+        `}).join('');
 
         container.querySelectorAll('.settlement-due-store-checkbox').forEach((checkbox) => {
             checkbox.addEventListener('change', () => {
                 if (isSettlementMultiStoreMode()) {
                     const selected = getSelectedSettlementStoreIds();
                     const selectAll = document.getElementById('settlementSelectAllDueStores');
-                    const allBoxes = document.querySelectorAll('.settlement-due-store-checkbox');
+                    const allBoxes = document.querySelectorAll('.settlement-due-store-checkbox:not(:disabled)');
                     if (selectAll) selectAll.checked = allBoxes.length > 0 && selected.length === allBoxes.length;
                     return;
                 }
@@ -2337,8 +2466,10 @@ async function createStoreSettlement() {
     loadSettlementDueStores();
     if (itemsContainer) itemsContainer.style.display = 'none';
     if (itemsBody) {
-        itemsBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Select store to load unpaid items</td></tr>';
+        itemsBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Select store to load unpaid items</td></tr>';
     }
+    currentUnsettledSettlementItems = [];
+    selectedUnsettledSettlementItemIds = new Set();
     openModal('storeSettlementModal');
 }
 
@@ -2410,6 +2541,16 @@ async function submitStoreSettlement() {
         period_to: periodTo,
         auto_calculate: autoCalculate
     };
+    if (!id && autoCalculate) {
+        const selectedItemIds = Array.from(selectedUnsettledSettlementItemIds)
+            .filter((itemId) => Number.isInteger(Number(itemId)) && Number(itemId) > 0)
+            .map((itemId) => Number(itemId));
+        if (!selectedItemIds.length) {
+            showError('No Items Selected', 'Select one or more unpaid sale items to create a settlement.');
+            return;
+        }
+        payload.selected_item_ids = selectedItemIds;
+    }
 
     try {
         const url = id ? `${API_BASE}/api/financial/store-settlements/${id}` : `${API_BASE}/api/financial/store-settlements`;
@@ -2775,6 +2916,7 @@ async function submitGenerateReport() {
         reportType === 'rider_orders_report' ||
         reportType === 'rider_payments_report' ||
         reportType === 'rider_receivings_report' ||
+        reportType === 'rider_wallet_report' ||
         reportType === 'rider_petrol_report' ||
         reportType === 'rider_daily_mileage_report' ||
         reportType === 'rider_daily_activity_report' ||
@@ -3357,6 +3499,65 @@ function generatePDF(reportId) {
                 ]),
                 theme: 'grid',
                 styles: { fontSize: 8 }
+            });
+        } else if (data.type === 'rider_wallet') {
+            doc.text('Rider Wallet Report', 14, startY);
+            if (data.summary) {
+                doc.setFontSize(10);
+                doc.text(
+                    `Wallets: ${parseInt(data.summary.total_wallets || 0)} | Balance: ${formatFinancialReportCurrency(data.summary.total_current_balance || 0)} | Credit Total: ${formatFinancialReportCurrency(data.summary.total_credits || 0)} | Debit Total: ${formatFinancialReportCurrency(data.summary.total_debits || 0)} | Net: ${formatFinancialReportCurrency(data.summary.total_net_credit_debit || 0)}`,
+                    14,
+                    startY + 5
+                );
+                startY += 10;
+            }
+            doc.autoTable({
+                startY: startY + 5,
+                head: [['Rider', 'Balance', 'Credit Total', 'Debit Total', 'Net Credit-Debit', 'Refunds', 'Transfers', 'Entries']],
+                body: (data.wallet_summary || []).map(r => [
+                    r.rider_name || '-',
+                    formatFinancialReportCurrency(r.current_balance || 0),
+                    formatFinancialReportCurrency(r.credits || 0),
+                    formatFinancialReportCurrency(r.debits || 0),
+                    formatFinancialReportCurrency(r.net_credit_debit || 0),
+                    formatFinancialReportCurrency(r.refunds || 0),
+                    formatFinancialReportCurrency(r.transfers || 0),
+                    parseInt(r.entries || 0)
+                ]),
+                theme: 'grid',
+                styles: { fontSize: 8 }
+            });
+            const y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : startY + 30;
+            const creditEntries = (data.entries || []).filter(e => e.type === 'credit');
+            const debitEntries = (data.entries || []).filter(e => e.type === 'debit');
+            doc.text('Credit Transactions', 14, y);
+            doc.autoTable({
+                startY: y + 4,
+                head: [['Date', 'Rider', 'Credit', 'Balance After', 'Reference']],
+                body: creditEntries.map(e => [
+                    e.created_at ? new Date(e.created_at).toLocaleDateString() : '-',
+                    e.rider_name || `${e.first_name || ''} ${e.last_name || ''}`.trim(),
+                    formatFinancialReportCurrency(e.amount || 0),
+                    formatFinancialReportCurrency(e.balance_after || 0),
+                    `${e.reference_type || '-'} ${e.reference_id || ''}`.trim()
+                ]),
+                theme: 'grid',
+                styles: { fontSize: 7 }
+            });
+            const debitY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : y + 30;
+            doc.text('Debit Transactions', 14, debitY);
+            doc.autoTable({
+                startY: debitY + 4,
+                head: [['Date', 'Rider', 'Debit', 'Balance After', 'Reference']],
+                body: debitEntries.map(e => [
+                    e.created_at ? new Date(e.created_at).toLocaleDateString() : '-',
+                    e.rider_name || `${e.first_name || ''} ${e.last_name || ''}`.trim(),
+                    formatFinancialReportCurrency(e.amount || 0),
+                    formatFinancialReportCurrency(e.balance_after || 0),
+                    `${e.reference_type || '-'} ${e.reference_id || ''}`.trim()
+                ]),
+                theme: 'grid',
+                styles: { fontSize: 7 }
             });
         } else if (data.type === 'store_financials') {
             doc.text('Store Financials (Cost Analysis)', 14, startY);
@@ -4205,6 +4406,55 @@ function viewReport(reportId) {
             </tr>`;
         });
         extraDetails += '</tbody></table></div>';
+    } else if (data && data.type === 'rider_wallet') {
+        extraDetails = '<h3>Rider Wallet Summary</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Rider</th><th>Current Balance</th><th>Credit Total</th><th>Debit Total</th><th>Net Credit-Debit</th><th>Refunds</th><th>Transfers</th><th>Entries</th></tr></thead><tbody>';
+        (data.wallet_summary || []).forEach(r => {
+            extraDetails += `<tr>
+                <td>${r.rider_name || '-'}</td>
+                <td>Rs ${parseFloat(r.current_balance || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.credits || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.debits || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.net_credit_debit || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.refunds || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.transfers || 0).toFixed(2)}</td>
+                <td>${parseInt(r.entries || 0)}</td>
+            </tr>`;
+        });
+        extraDetails += '</tbody></table></div>';
+        if (data.summary) {
+            extraDetails += `<div style="margin-top: 10px;">
+                <strong>Wallets:</strong> ${parseInt(data.summary.total_wallets || 0)} |
+                <strong>Current Balance:</strong> Rs ${parseFloat(data.summary.total_current_balance || 0).toFixed(2)} |
+                <strong>Credit Total:</strong> Rs ${parseFloat(data.summary.total_credits || 0).toFixed(2)} |
+                <strong>Debit Total:</strong> Rs ${parseFloat(data.summary.total_debits || 0).toFixed(2)} |
+                <strong>Net Credit-Debit:</strong> Rs ${parseFloat(data.summary.total_net_credit_debit || 0).toFixed(2)} |
+                <strong>Entries:</strong> ${parseInt(data.summary.total_entries || 0)}
+            </div>`;
+        }
+        const creditEntries = (data.entries || []).filter(e => e.type === 'credit');
+        const debitEntries = (data.entries || []).filter(e => e.type === 'debit');
+        const renderWalletRows = (entries, amountLabel) => {
+            if (!entries.length) {
+                return `<tr><td colspan="6" style="text-align:center;">No ${amountLabel.toLowerCase()} transactions found</td></tr>`;
+            }
+            return entries.map(e => `
+            <tr>
+                <td>${e.created_at ? new Date(e.created_at).toLocaleString() : '-'}</td>
+                <td>${e.rider_name || `${e.first_name || ''} ${e.last_name || ''}`}</td>
+                <td>Rs ${parseFloat(e.amount || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(e.balance_after || 0).toFixed(2)}</td>
+                <td>${e.reference_type || '-'} ${e.reference_id || ''}</td>
+                <td>${e.description || '-'}</td>
+            </tr>`).join('');
+        };
+
+        extraDetails += '<h3 style="margin-top:14px;">Credit Transactions</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Date</th><th>Rider</th><th>Credit</th><th>Balance After</th><th>Reference</th><th>Description</th></tr></thead><tbody>';
+        extraDetails += renderWalletRows(creditEntries, 'Credit');
+        extraDetails += '</tbody></table></div>';
+
+        extraDetails += '<h3 style="margin-top:14px;">Debit Transactions</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Date</th><th>Rider</th><th>Debit</th><th>Balance After</th><th>Reference</th><th>Description</th></tr></thead><tbody>';
+        extraDetails += renderWalletRows(debitEntries, 'Debit');
+        extraDetails += '</tbody></table></div>';
     } else if (data && data.type === 'store_financials') {
         extraDetails = '<h3>Store Financials</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Store</th><th>Sales</th><th>Cost</th><th>Profit</th></tr></thead><tbody>';
         data.stores.forEach(s => {
@@ -4956,6 +5206,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.value === 'rider_orders_report' ||
                     this.value === 'rider_payments_report' ||
                     this.value === 'rider_receivings_report' ||
+                    this.value === 'rider_wallet_report' ||
                     this.value === 'rider_petrol_report' ||
                     this.value === 'rider_daily_mileage_report' ||
                     this.value === 'rider_daily_activity_report' ||
@@ -5324,10 +5575,11 @@ function normalizeStoreReportRow(store) {
     const payable = Number(row.total_payable || 0);
     const paid = Number(row.total_paid || 0);
     const settlementBalance = row.current_settlement_balance;
+    const accountingBalance = row.accounting_pending_balance;
     row.pending_settlement = paymentTerm === 'cash only' || paymentTerm === 'cash with discount'
         ? 0
-        : Number.isFinite(Number(settlementBalance))
-            ? Math.max(0, Number(settlementBalance || 0))
+        : Number.isFinite(Number(accountingBalance))
+            ? Math.max(0, Number(accountingBalance || 0))
             : Math.max(0, payable - paid);
     if (Number.isFinite(Number(settlementBalance))) {
         row.current_settlement_balance = Math.max(0, Number(settlementBalance || 0));
@@ -5655,6 +5907,7 @@ function displayStoreReports(stores) {
         const payable = parseFloat(s.total_payable || 0);
         const paid = parseFloat(s.total_paid || 0);
         const pending = parseFloat(s.pending_settlement || 0);
+        const creatableBalance = parseFloat(s.current_settlement_balance || 0);
         const graceStart = isCreditStoreTerm(s.payment_term)
             ? (formatDateOnly(s.payment_grace_start_date) || '-')
             : '-';
@@ -5680,12 +5933,14 @@ function displayStoreReports(stores) {
             if (storeSelect) storeSelect.value = String(s.id);
             loadStoreReports();
         });
-        if (pending > 0) {
+        if (creatableBalance > 0) {
             row.title = 'Click to view store details. Double-click to view due orders.';
             row.addEventListener('dblclick', (event) => {
                 event.stopPropagation();
                 showStoreDueOrders(s);
             });
+        } else if (pending > 0) {
+            row.title = 'Click to view store details. Pending balance may already be in created settlements.';
         }
         tbody.appendChild(row);
     });

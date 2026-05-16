@@ -924,6 +924,7 @@
                 <label for="storeSettlementStatusFilter">Status</label>
                 <select id="storeSettlementStatusFilter" class="form-control">
                     <option value="">All Status</option>
+                    <option value="unpaid">Unpaid (Pending + Approved)</option>
                     <option value="pending">Pending</option>
                     <option value="approved">Approved</option>
                     <option value="paid">Paid</option>
@@ -979,6 +980,7 @@
                     <option value="rider_orders_report">Rider Orders Report</option>
                     <option value="rider_payments_report">Rider Payments Report</option>
                     <option value="rider_receivings_report">Rider Receivings Report</option>
+                    <option value="rider_wallet_report">Rider Wallet Report</option>
                     <option value="rider_petrol_report">Rider Petrol Report</option>
                     <option value="rider_daily_mileage_report">Rider Daily Mileage Report</option>
                     <option value="rider_daily_activity_report">Rider Daily Activity Report</option>
@@ -5337,10 +5339,13 @@
               <table class="table" style="font-size: 0.9em;">
                 <thead>
                   <tr>
+                    <th>
+                      <input type="checkbox" id="selectAllUnsettledItems" checked />
+                    </th>
                     <th>Date</th>
                     <th>Order #</th>
-                    <th>Item</th>
-                    <th>Qty</th>
+                    <th>Items</th>
+                    <th>Lines</th>
                     <th>Total</th>
                   </tr>
                 </thead>
@@ -5349,19 +5354,20 @@
                 </tbody>
                 <tfoot style="font-weight: bold; background: #eee;">
                   <tr>
-                    <td colspan="4" style="text-align: right;">Total Sales:</td>
+                    <td colspan="5" style="text-align: right;">Total Sales:</td>
                     <td id="unsettledTotalSales">Rs  0.00</td>
                   </tr>
                   <tr>
-                    <td colspan="4" style="text-align: right;">Profit/Discount Adjustment:</td>
+                    <td colspan="5" style="text-align: right;">Profit/Discount Adjustment:</td>
                     <td id="unsettledCommission">Rs  0.00</td>
                   </tr>
                   <tr>
-                    <td colspan="4" style="text-align: right;">Net Payable:</td>
+                    <td colspan="5" style="text-align: right;">Net Payable:</td>
                     <td id="unsettledNetPayable" style="color: green;">Rs  0.00</td>
                   </tr>
                 </tfoot>
               </table>
+              <div id="unsettledLegacyPaidNote" style="display: none; margin-top: 8px; color: #64748b; font-size: 0.9em;"></div>
             </div>
           </div>
           <div class="form-actions">
@@ -5403,6 +5409,7 @@
               <option value="rider_orders_report">Rider Orders Report</option>
               <option value="rider_payments_report">Rider Payments Report</option>
               <option value="rider_receivings_report">Rider Receivings Report</option>
+              <option value="rider_wallet_report">Rider Wallet Report</option>
               <option value="rider_petrol_report">Rider Petrol Report</option>
               <option value="rider_daily_mileage_report">Rider Daily Mileage Report</option>
               <option value="rider_daily_activity_report">Rider Daily Activity Report</option>

@@ -537,7 +537,7 @@ CREATE TABLE IF NOT EXISTS admin_expenses (
 CREATE TABLE IF NOT EXISTS financial_reports (
     id INT PRIMARY KEY AUTO_INCREMENT,
     report_number VARCHAR(50) UNIQUE NOT NULL,
-    report_type ENUM('daily_summary', 'weekly_summary', 'monthly_summary', 'store_settlement', 'rider_cash_report', 'expense_report', 'general_voucher', 'store_financials', 'custom') NOT NULL,
+    report_type ENUM('daily_summary', 'weekly_summary', 'monthly_summary', 'store_settlement', 'rider_cash_report', 'rider_wallet_report', 'expense_report', 'general_voucher', 'store_financials', 'custom') NOT NULL,
     period_from DATE,
     period_to DATE,
     total_income DECIMAL(12, 2) DEFAULT 0.00,
