@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ServeNow Next | Register</title>
+    <link rel="icon" type="image/png" href="/images/servenow_brand_logo.png" />
+    <link rel="stylesheet" href="/next/assets/app.css" />
+    <link rel="stylesheet" href="/next/assets/auth.css" />
+  </head>
+  <body>
+    <div class="auth-page">
+      <aside class="auth-brand">
+        <div class="auth-brand-card">
+          <div class="auth-brand-top">
+            <img src="/images/servenow_brand_logo.png" alt="ServeNow" />
+            <div>
+              <p class="eyebrow">Alternative App</p>
+              <h1>ServeNow Next</h1>
+            </div>
+          </div>
+          <div class="stack">
+            <h2>Create your account in the standalone alternate experience.</h2>
+            <p>Registration still uses your real backend, so successful accounts work in both the current app and the new alternative.</p>
+          </div>
+        </div>
+        <p><a href="/next/login" class="secondary-button">Already have an account?</a></p>
+      </aside>
+
+      <main class="auth-main">
+        <section class="auth-panel">
+          <section class="status-banner hidden" id="statusBanner"></section>
+          <div class="auth-panel-copy">
+            <p class="eyebrow">Register</p>
+            <h2>Create account</h2>
+            <p>After sign up, you may be asked to verify your email before logging in.</p>
+          </div>
+
+          <form class="checkout-form" id="registerForm">
+            <div class="form-two">
+              <label>
+                <span>First name</span>
+                <input type="text" name="firstName" required />
+              </label>
+              <label>
+                <span>Last name</span>
+                <input type="text" name="lastName" required />
+              </label>
+            </div>
+            <label>
+              <span>Email</span>
+              <input type="email" name="email" required />
+            </label>
+            <div class="form-two">
+              <label>
+                <span>Phone</span>
+                <input type="tel" name="phone" />
+              </label>
+              <label>
+                <span>Address</span>
+                <input type="text" name="address" />
+              </label>
+            </div>
+            <label>
+              <span>Password</span>
+              <input type="password" name="password" minlength="6" required />
+            </label>
+            <label>
+              <span>Confirm password</span>
+              <input type="password" name="confirmPassword" minlength="6" required />
+            </label>
+            <button class="primary-button" type="submit">Create account</button>
+          </form>
+
+          <div class="auth-links">
+            <a href="/next/login">Back to login</a>
+            <a href="/next/verify-email">Already have a verification code?</a>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/next/assets/auth.js"></script>
+  </body>
+</html>

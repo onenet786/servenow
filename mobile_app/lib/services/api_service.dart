@@ -811,6 +811,21 @@ class ApiService {
     return data;
   }
 
+  static Future<Map<String, dynamic>> getAdminDailySalesSummary(
+    String token,
+    String date,
+  ) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/admin/daily-sales-summary',
+    ).replace(queryParameters: {'date': date});
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
   // Rider APIs
   static Future<Map<String, dynamic>> getRiderProfile(String token) async {
     final uri = Uri.parse('$baseUrl/api/orders/rider/profile');

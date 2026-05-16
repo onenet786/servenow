@@ -2021,9 +2021,9 @@
                 <select id="financialPeriodFilter" class="form-control" onchange="loadFinancialDashboard()">
                     <option value="today">Today</option>
                     <option value="week">This Week</option>
-                    <option value="month" selected>This Month</option>
+                    <option value="month">This Month</option>
                     <option value="year">This Year</option>
-                    <option value="all">All Time</option>
+                    <option value="all" selected>All Time</option>
                 </select>
             </div>
             <button class="btn btn-primary" onclick="loadFinancialDashboard()">
@@ -2863,6 +2863,7 @@
               <div class="filter-group">
                   <label for="storeReportPeriod">Period</label>
                   <select id="storeReportPeriod" class="form-control">
+                    <option value="all" selected>All Time</option>
                     <option value="custom">Custom Range</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -2913,15 +2914,16 @@
               <table id="storeReportsTable">
                 <thead>
                   <tr>
-                  <th>Payment Term</th>
-                  <th>Store Name</th>
-                  <th>Email / Phone</th>
-                  <th>Total Orders</th>
-                  <th>Grace Start Date</th>
-                  <th>Next Due Date (Days Left)</th>
-                  <th>Total Earnings</th>
-                  <th>Total Paid</th>
-                  <th>Pending Settlement</th>
+                  <th>Payment<br>Term</th>
+                  <th>Store<br>Name</th>
+                  <th>Email /<br>Phone</th>
+                  <th>Total<br>Orders</th>
+                  <th>Grace Start<br>Date</th>
+                  <th>Next Due Date<br>(Days Left)</th>
+                  <th>Total<br>Earnings</th>
+                  <th>Total<br>Payable</th>
+                  <th>Total<br>Paid</th>
+                  <th>Pending<br>Settlement</th>
                 </tr>
               </thead>
               <tbody id="storeReportsTableBody">
@@ -3165,6 +3167,18 @@
               </div>
               <div class="modal-body">
                 <div id="storeDueOrdersContent">Loading...</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="storeReportDetailsModal" class="modal">
+            <div class="modal-content" style="max-width: 1100px;">
+              <div class="modal-header">
+                <h3 id="storeReportDetailsTitle">Store Details</h3>
+                <span class="close" onclick="hideModal('storeReportDetailsModal')">&times;</span>
+              </div>
+              <div class="modal-body">
+                <div id="storeReportDetailsContent">Loading...</div>
               </div>
             </div>
           </div>
@@ -5235,7 +5249,7 @@
 
     <!-- Store Settlement Modal -->
     <div id="storeSettlementModal" class="modal persistent-modal">
-      <div class="modal-content">
+      <div class="modal-content store-settlement-modal-content">
         <div class="modal-header">
           <h2>Create Store Settlement</h2>
           <button class="close-btn" disabled title="Use Cancel button to close">
@@ -5244,42 +5258,82 @@
         </div>
         <form id="storeSettlementForm">
           <input type="hidden" id="storeSettlementId" name="id" />
-          <div class="form-group">
-            <label>Store</label>
-            <select id="settlementStoreSelect" name="storeId" required>
-              <option value="">-- Select Store --</option>
-            </select>
+          <div class="store-settlement-form-grid">
+            <div class="form-group">
+              <label>Store</label>
+              <select id="settlementStoreSelect" name="storeId" required>
+                <option value="">-- Select Store --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Payment Method</label>
+              <select id="settlementPaymentMethod" name="paymentMethod" required>
+                <option value="cash">Cash</option>
+                <option value="cheque">Cheque</option>
+                <option value="bank_transfer">Bank Transfer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Net Amount (Rs )</label>
+              <input
+                type="number"
+                id="settlementAmount"
+                name="netAmount"
+                min="0.01"
+                step="0.01"
+                required
+              />
+            </div>
+            <div class="form-group settlement-period-mode">
+              <label>Settlement Scope</label>
+              <label class="settlement-scope-option">
+                <input type="radio" name="settlementPeriodMode" id="settlementWholeDataMode" value="all" checked />
+                Whole Data
+              </label>
+              <label class="settlement-scope-option">
+                <input type="radio" name="settlementPeriodMode" id="settlementDatePeriodMode" value="period" />
+                Date Period
+              </label>
+            </div>
+            <div class="form-group">
+              <label>Period From</label>
+              <input type="date" id="periodFrom" name="periodFrom" />
+            </div>
+            <div class="form-group">
+              <label>Period To</label>
+              <input type="date" id="periodTo" name="periodTo" />
+            </div>
           </div>
-          <div class="form-group">
-            <label>Net Amount (Rs )</label>
-            <input
-              type="number"
-              id="settlementAmount"
-              name="netAmount"
-              min="0.01"
-              step="0.01"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label>Payment Method</label>
-            <select id="settlementPaymentMethod" name="paymentMethod" required>
-              <option value="cash">Cash</option>
-              <option value="cheque">Cheque</option>
-              <option value="bank_transfer">Bank Transfer</option>
-            </select>
+
+          <div class="form-group store-settlement-due-stores-group">
+            <label>Stores With Pending Amount</label>
+            <div class="settlement-multi-controls">
+              <label class="settlement-scope-option">
+                <input type="checkbox" id="settlementMultiStoreMode" />
+                Multiple settlements
+              </label>
+              <label class="settlement-scope-option">
+                <input type="checkbox" id="settlementSelectAllDueStores" />
+                Select all due stores
+              </label>
+            </div>
+            <div class="settlement-due-stores-panel">
+              <div id="settlementDueStoresList" class="settlement-due-stores-list">
+                Loading due stores...
+              </div>
+            </div>
           </div>
           
           <!-- Auto Calculate Checkbox -->
-          <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+          <div class="form-group store-settlement-auto-row" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
             <input type="checkbox" id="autoCalculateSettlement" name="autoCalculate" style="width: auto; margin: 0;">
             <label for="autoCalculateSettlement" style="margin: 0;">Auto-Calculate from Unpaid Items</label>
           </div>
 
           <!-- Unsettled Items Container -->
-          <div id="unsettledItemsContainer" style="display: none; border: 1px solid #ddd; padding: 10px; border-radius: 4px; margin-bottom: 15px; background: #f9f9f9;">
+          <div id="unsettledItemsContainer" class="store-settlement-items-container" style="display: none; border: 1px solid #ddd; padding: 10px; border-radius: 4px; margin-bottom: 15px; background: #f9f9f9;">
             <h4>Unpaid Sale Items</h4>
-            <div style="max-height: 200px; overflow-y: auto;">
+            <div class="store-settlement-items-scroll">
               <table class="table" style="font-size: 0.9em;">
                 <thead>
                   <tr>
@@ -5309,15 +5363,6 @@
                 </tfoot>
               </table>
             </div>
-          </div>
-
-          <div class="form-group">
-            <label>Period From</label>
-            <input type="date" id="periodFrom" name="periodFrom" />
-          </div>
-          <div class="form-group">
-            <label>Period To</label>
-            <input type="date" id="periodTo" name="periodTo" />
           </div>
           <div class="form-actions">
             <button

@@ -37,8 +37,16 @@ class AuthProvider with ChangeNotifier {
   Future<void> _syncRiderTrackingSession() async {
     final token = _token?.trim();
     if (_user?.userType == 'rider' && token != null && token.isNotEmpty) {
-      await RiderBackgroundTrackingService.instance.start(token);
-      await RiderBackgroundTrackingService.instance.syncCurrentLocationNow();
+      try {
+        await RiderBackgroundTrackingService.instance.start(token);
+        await RiderBackgroundTrackingService.instance.syncCurrentLocationNow();
+      } catch (error, stackTrace) {
+        _logger.w(
+          'Rider tracking start skipped during session sync: $error',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
       return;
     }
     await RiderBackgroundTrackingService.instance.stop();

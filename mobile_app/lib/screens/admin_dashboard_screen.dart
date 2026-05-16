@@ -60,7 +60,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   };
   static const Duration _liveRiderRefreshInterval = Duration(seconds: 4);
   static const Duration _riderMotionDuration = Duration(milliseconds: 3600);
-  static const Duration _liveRiderStaleAfter = Duration(minutes: 10);
   static const int _liveRiderHistoryHours = 6;
   static const int _liveRiderHistoryLimit = 320;
   static const List<Color> _riderRoutePalette = [
@@ -102,6 +101,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   int _activeUsers = 0;
   int _todayLogins = 0;
+  DateTime _selectedDailySalesDate = DateTime.now();
+  bool _isDailySalesLoading = false;
+  Map<String, dynamic> _dailySalesSummary = {};
+  List<dynamic> _dailyRiderCashBreakdown = [];
 
   List<dynamic> _recentOrdersList = [];
   List<dynamic> _recentUsersList = [];
@@ -160,6 +163,213 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return 0;
   }
 
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value.trim()) ?? 0;
+    return 0;
+  }
+
+  String _formatPkr(dynamic value) {
+    return 'PKR ${_toDouble(value).toStringAsFixed(0)}';
+  }
+
+  String _dateKey(DateTime value) {
+    final local = DateTime(value.year, value.month, value.day);
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day';
+  }
+
+  String _friendlyDateLabel(DateTime value) {
+    final today = DateTime.now();
+    final selected = DateTime(value.year, value.month, value.day);
+    final current = DateTime(today.year, today.month, today.day);
+    if (selected == current) return 'Today';
+    if (selected == current.subtract(const Duration(days: 1))) {
+      return 'Yesterday';
+    }
+    return _dateKey(selected);
+  }
+
+  Future<void> _changeDailySalesDate(int dayOffset) async {
+    setState(() {
+      _selectedDailySalesDate = DateTime(
+        _selectedDailySalesDate.year,
+        _selectedDailySalesDate.month,
+        _selectedDailySalesDate.day + dayOffset,
+      );
+    });
+    await _loadDailySalesSummary();
+  }
+
+  Future<void> _pickDailySalesDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDailySalesDate.isAfter(now)
+          ? now
+          : _selectedDailySalesDate,
+      firstDate: DateTime(now.year - 3),
+      lastDate: now,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selectedDailySalesDate = picked;
+    });
+    await _loadDailySalesSummary();
+  }
+
+  Future<Map<String, dynamic>> _fetchDailySalesSummaryData(
+    String token, {
+    List<dynamic>? fallbackOrders,
+  }) async {
+    try {
+      return await ApiService.getAdminDailySalesSummary(
+        token,
+        _dateKey(_selectedDailySalesDate),
+      );
+    } catch (e) {
+      _logger.w('Daily sales summary API unavailable, using orders: $e');
+      final orders = fallbackOrders ??
+          await ApiService.getOrders(
+            token,
+            includeItemsCount: false,
+            includeStoreStatuses: false,
+          );
+      return _buildDailySalesSummaryFromOrders(
+        orders,
+        _selectedDailySalesDate,
+      );
+    }
+  }
+
+  void _applyDailySalesSummaryData(Map<String, dynamic> dailySalesData) {
+    _dailySalesSummary = (dailySalesData['summary'] is Map<String, dynamic>)
+        ? dailySalesData['summary'] as Map<String, dynamic>
+        : <String, dynamic>{};
+    _dailyRiderCashBreakdown =
+        dailySalesData['rider_cash_breakdown'] is List
+        ? dailySalesData['rider_cash_breakdown'] as List<dynamic>
+        : const [];
+  }
+
+  Future<void> _loadDailySalesSummary() async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+
+    setState(() => _isDailySalesLoading = true);
+    try {
+      final data = await _fetchDailySalesSummaryData(token);
+      if (!mounted) return;
+      setState(() {
+        _applyDailySalesSummaryData(data);
+        _isDailySalesLoading = false;
+      });
+    } catch (e) {
+      _logger.e('Daily sales summary refresh failed: $e');
+      if (!mounted) return;
+      setState(() => _isDailySalesLoading = false);
+      Notifier.error(context, 'Failed to refresh daily sale summary');
+    }
+  }
+
+  Map<String, dynamic> _buildDailySalesSummaryFromOrders(
+    List<dynamic> orders,
+    DateTime selectedDate,
+  ) {
+    final reportDate = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
+    final riderCashById = <String, Map<String, dynamic>>{};
+    var totalOrders = 0;
+    var deliveredOrders = 0;
+    var grossSales = 0.0;
+    var deliveredSales = 0.0;
+    var deliveryFees = 0.0;
+    var cashSales = 0.0;
+    var digitalSales = 0.0;
+    var riderCash = 0.0;
+
+    for (final order in orders) {
+      if (order is! Map) continue;
+      DateTime createdAt;
+      try {
+        createdAt = DateTime.parse((order['created_at'] ?? '').toString());
+      } catch (_) {
+        continue;
+      }
+      if (createdAt.year != reportDate.year ||
+          createdAt.month != reportDate.month ||
+          createdAt.day != reportDate.day) {
+        continue;
+      }
+
+      totalOrders += 1;
+      final status = (order['status'] ?? '').toString().trim().toLowerCase();
+      final paymentMethod =
+          (order['payment_method'] ?? '').toString().trim().toLowerCase();
+      final total = _toDouble(order['total_amount']);
+      final deliveryFee = _toDouble(order['delivery_fee']);
+      final itemCash = (total - deliveryFee).clamp(0, double.infinity).toDouble();
+
+      if (status != 'cancelled') {
+        grossSales += total;
+        deliveryFees += deliveryFee;
+      }
+      if (status == 'delivered') {
+        deliveredOrders += 1;
+        deliveredSales += total;
+        if (paymentMethod == 'cash') {
+          cashSales += total;
+          if ((order['rider_id'] ?? '').toString().trim().isNotEmpty) {
+            riderCash += itemCash;
+            final riderId = order['rider_id'].toString();
+            final riderName =
+                '${order['rider_first_name'] ?? ''} ${order['rider_last_name'] ?? ''}'
+                    .trim();
+            final row = riderCashById.putIfAbsent(
+              riderId,
+              () => {
+                'rider_id': riderId,
+                'rider_name': riderName.isEmpty ? 'Rider #$riderId' : riderName,
+                'orders': 0,
+                'rider_cash': 0.0,
+              },
+            );
+            row['orders'] = _toInt(row['orders']) + 1;
+            row['rider_cash'] = _toDouble(row['rider_cash']) + itemCash;
+          }
+        } else {
+          digitalSales += total;
+        }
+      }
+    }
+
+    final breakdown = riderCashById.values.toList()
+      ..sort(
+        (a, b) => _toDouble(b['rider_cash']).compareTo(
+          _toDouble(a['rider_cash']),
+        ),
+      );
+
+    return {
+      'summary': {
+        'date': _dateKey(reportDate),
+        'total_orders': totalOrders,
+        'delivered_orders': deliveredOrders,
+        'gross_sales': grossSales,
+        'delivered_sales': deliveredSales,
+        'delivery_fees': deliveryFees,
+        'cash_sales': cashSales,
+        'digital_sales': digitalSales,
+        'rider_cash': riderCash,
+      },
+      'rider_cash_breakdown': breakdown.take(8).toList(),
+    };
+  }
+
   bool _canViewLiveRiderTracker(String? email) {
     final normalized = (email ?? '').trim().toLowerCase();
     return _liveRiderTrackerEmails.contains(normalized);
@@ -204,8 +414,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         (order['store_longitude'] ?? '').toString(),
       );
       final hasLiveCoordinates = latitude != null && longitude != null;
-      final hasStoreCoordinates =
-          storeLatitude != null && storeLongitude != null;
 
       DateTime createdAt = DateTime.fromMillisecondsSinceEpoch(0);
       try {
@@ -252,25 +460,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         return bAt.compareTo(aAt);
       });
     return items;
-  }
-
-  bool _isRiderFresh(Map<String, dynamic> rider) {
-    final status = (rider['status'] ?? '').toString().trim().toLowerCase();
-    final hasCoordinates =
-        (rider['latitude'] as double?) != null &&
-        (rider['longitude'] as double?) != null;
-    final hasStoreCoordinates =
-        (rider['storeLatitude'] as double?) != null &&
-        (rider['storeLongitude'] as double?) != null;
-
-    if (_isLiveTrackableOrderStatus(status) && (hasCoordinates || hasStoreCoordinates)) {
-      return true;
-    }
-
-    final updatedAt = rider['createdAt'] as DateTime?;
-    if (updatedAt == null) return false;
-    return DateTime.now().difference(updatedAt.toLocal()) <=
-        _liveRiderStaleAfter;
   }
 
   List<Map<String, dynamic>> _mergeLiveRiderSnapshot(
@@ -1174,7 +1363,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   void _setupLiveRefresh() {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
     Provider.of<NotificationProvider>(context, listen: false).addEventListener(
       this,
       (data) {
@@ -1301,6 +1489,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final orders = results[0] as List<dynamic>;
       final visitorStats = results[1] as Map<String, dynamic>;
       final recentActivityData = results[2] as Map<String, dynamic>;
+      final dailySalesData = await _fetchDailySalesSummaryData(
+        token,
+        fallbackOrders: orders,
+      );
       final liveRiders = allowLiveTracker
           ? _extractLiveRiderLocations(
               orders
@@ -1450,6 +1642,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
         _activeUsers = activeUsers;
         _todayLogins = todayLogins;
+        _applyDailySalesSummaryData(dailySalesData);
 
         _recentOrdersList = recentActivityData['recent_orders'] ?? [];
         _recentUsersList = recentActivityData['recent_users'] ?? [];
@@ -1800,6 +1993,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         if (showInlineQuickMenu) _buildAdminMiniActions(context),
         if (showInlineQuickMenu) const SizedBox(height: 18),
         _buildOverviewSummaryGrid(isWide: isWide, isMedium: isMedium),
+        const SizedBox(height: 18),
+        _buildDailySalesSummaryPanel(),
         if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
           const SizedBox(height: 18),
           _buildSoftPanel(child: _buildLiveRiderTrackerSection()),
@@ -1807,6 +2002,303 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         const SizedBox(height: 18),
         _buildRecentActivityPanel(),
       ],
+    );
+  }
+
+  Widget _buildDailySalesSummaryPanel() {
+    final totalOrders = _toInt(_dailySalesSummary['total_orders']);
+    final deliveredOrders = _toInt(_dailySalesSummary['delivered_orders']);
+    final grossSales = _dailySalesSummary['gross_sales'];
+    final deliveredSales = _dailySalesSummary['delivered_sales'];
+    final deliveryFees = _dailySalesSummary['delivery_fees'];
+    final riderCash = _dailySalesSummary['rider_cash'];
+    final cashSales = _dailySalesSummary['cash_sales'];
+    final digitalSales = _dailySalesSummary['digital_sales'];
+    final riderRows = _dailyRiderCashBreakdown.take(4).toList();
+    final selectedDateLabel = _friendlyDateLabel(_selectedDailySalesDate);
+    final controlsEnabled = !_isDailySalesLoading;
+    final canGoForward =
+        controlsEnabled &&
+        DateTime(
+          _selectedDailySalesDate.year,
+          _selectedDailySalesDate.month,
+          _selectedDailySalesDate.day,
+        ).isBefore(
+          DateTime(
+            DateTime.now().year,
+            DateTime.now().month,
+            DateTime.now().day,
+          ),
+        );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: CustomerPalette.primaryDark.withValues(alpha: 0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9F8EF),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.payments_rounded,
+                  color: Color(0xFF15803D),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Daily Sale Summary',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: CustomerPalette.textDark,
+                      ),
+                    ),
+                    Text(
+                      '$deliveredOrders of $totalOrders orders delivered',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.blueGrey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildDateNavButton(
+                icon: Icons.chevron_left_rounded,
+                onTap: controlsEnabled ? () => _changeDailySalesDate(-1) : null,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: controlsEnabled ? _pickDailySalesDate : null,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.calendar_today_rounded,
+                          size: 16,
+                          color: Color(0xFF475569),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            '$selectedDateLabel  ${_dateKey(_selectedDailySalesDate)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: CustomerPalette.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildDateNavButton(
+                icon: Icons.chevron_right_rounded,
+                onTap: canGoForward ? () => _changeDailySalesDate(1) : null,
+              ),
+            ],
+          ),
+          if (_isDailySalesLoading) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 4,
+                backgroundColor: const Color(0xFFE2E8F0),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  CustomerPalette.primary,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          _buildSalesSummaryTileGrid([
+            ('Gross Sale', _formatPkr(grossSales)),
+            ('Delivered', _formatPkr(deliveredSales)),
+            ('Rider Cash', _formatPkr(riderCash)),
+            ('Delivery Fee', _formatPkr(deliveryFees)),
+            ('Cash Sale', _formatPkr(cashSales)),
+            ('Digital Sale', _formatPkr(digitalSales)),
+          ]),
+          if (riderRows.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Rider cash today',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: CustomerPalette.textDark,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...riderRows.map((row) {
+              final data = row is Map ? row : const {};
+              final riderName = (data['rider_name'] ?? 'Rider').toString();
+              final orders = _toInt(data['orders']);
+              final amount = _formatPkr(data['rider_cash']);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        riderName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    Text(
+                      '$orders orders',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blueGrey.shade600,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      amount,
+                      style: const TextStyle(
+                        color: Color(0xFF15803D),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateNavButton({
+    required IconData icon,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: onTap == null ? const Color(0xFFF1F5F9) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Icon(
+          icon,
+          color: onTap == null
+              ? Colors.blueGrey.shade200
+              : CustomerPalette.primaryDark,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSalesSummaryTileGrid(List<(String, String)> tiles) {
+    return Column(
+      children: [
+        for (var i = 0; i < tiles.length; i += 2) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _buildSalesSummaryTile(tiles[i].$1, tiles[i].$2),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: i + 1 < tiles.length
+                    ? _buildSalesSummaryTile(tiles[i + 1].$1, tiles[i + 1].$2)
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+          if (i + 2 < tiles.length) const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSalesSummaryTile(String label, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: Colors.blueGrey.shade600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: CustomerPalette.textDark,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3536,87 +4028,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               color: textColor,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRouteLegend(List<Map<String, dynamic>> riders) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 170),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFD7E3F4)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _tr('Routes'),
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          ...riders.map((rider) {
-            final riderId = (rider['riderId'] ?? '').toString();
-            final riderName = (rider['riderName'] ?? 'Rider').toString();
-            final routeColor = _routeColorForRider(riderId);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 5),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () {
-                  setState(() {
-                    _selectedLiveRiderId = riderId;
-                  });
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _autoFollowSelectedRider();
-                  });
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 4,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 14,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: routeColor,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          riderName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
         ],
       ),
     );

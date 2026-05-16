@@ -6082,6 +6082,34 @@ function renderStoreWiseOrderTotals(containerId, items) {
     `;
 }
 
+function debounceOrderEditWork(callback, delay = 80) {
+    let timerId = null;
+    return (...args) => {
+        window.clearTimeout(timerId);
+        timerId = window.setTimeout(() => callback(...args), delay);
+    };
+}
+
+function populateSelectOptions(select, options, placeholder) {
+    if (!select) return;
+    const fragment = document.createDocumentFragment();
+    const first = document.createElement('option');
+    first.value = '';
+    first.textContent = placeholder;
+    fragment.appendChild(first);
+    options.forEach((optionData) => {
+        const option = document.createElement('option');
+        option.value = String(optionData.value ?? '');
+        option.textContent = String(optionData.label ?? '');
+        Object.entries(optionData.dataset || {}).forEach(([key, value]) => {
+            option.dataset[key] = value == null ? '' : String(value);
+        });
+        if (optionData.selected) option.selected = true;
+        fragment.appendChild(option);
+    });
+    select.replaceChildren(fragment);
+}
+
 function _setDeliveryFeeInputs(baseValue, additionalValue) {
     const baseInputIds = ['deliveryBaseFeeInput', 'settingsDeliveryBaseFeeInput'];
     const additionalInputIds = ['deliveryAdditionalFeeInput', 'settingsDeliveryAdditionalFeeInput'];
@@ -6304,18 +6332,26 @@ async function editOrder(orderId) {
         }
 
         const riderSelect = document.getElementById('orderRider');
-        riderSelect.innerHTML = '<option value="">Select Rider</option>';
+        const riderOptions = [];
         if (ridersData.success) {
             ridersData.riders.forEach(rider => {
-                const selected = freshOrder.rider_id == rider.id ? 'selected' : '';
-                riderSelect.innerHTML += `<option value="${rider.id}" ${selected}>${rider.first_name} ${rider.last_name}</option>`;
+                riderOptions.push({
+                    value: rider.id,
+                    label: `${rider.first_name} ${rider.last_name}`.trim(),
+                    selected: freshOrder.rider_id == rider.id
+                });
             });
         }
         
         // Also add current rider if not in available list (e.g. busy)
         if (freshOrder.rider_id && ridersData.success && !ridersData.riders.find(r => r.id == freshOrder.rider_id)) {
-             riderSelect.innerHTML += `<option value="${freshOrder.rider_id}" selected>${freshOrder.rider_first_name} ${freshOrder.rider_last_name} (Current)</option>`;
+            riderOptions.push({
+                value: freshOrder.rider_id,
+                label: `${freshOrder.rider_first_name || ''} ${freshOrder.rider_last_name || ''} (Current)`.trim(),
+                selected: true
+            });
         }
+        populateSelectOptions(riderSelect, riderOptions, 'Select Rider');
 
         let storeSelect = document.getElementById('orderItemStore');
         if (storeSelect) {
@@ -6371,13 +6407,15 @@ async function editOrder(orderId) {
                 });
             });
 
+            const updateTotalsFromInputs = debounceOrderEditWork(() => {
+                const items = readItemsFromInputs();
+                const currentDeliveryFee = document.getElementById('orderDeliveryFee')?.value || 0;
+                updateOrderSummary(items, currentDeliveryFee);
+                renderStoreWiseOrderTotals('orderStoreWiseTotals', items);
+            });
+
             document.querySelectorAll('.item-quantity-input').forEach(input => {
-                input.addEventListener('input', function() {
-                    const items = readItemsFromInputs();
-                    const currentDeliveryFee = document.getElementById('orderDeliveryFee')?.value || 0;
-                    updateOrderSummary(items, currentDeliveryFee);
-                    renderStoreWiseOrderTotals('orderStoreWiseTotals', items);
-                });
+                input.addEventListener('input', updateTotalsFromInputs);
             });
 
             const deliveryFeeInput = document.getElementById('orderDeliveryFee');
@@ -6385,11 +6423,7 @@ async function editOrder(orderId) {
                 const deliveryFeeClone = deliveryFeeInput.cloneNode(true);
                 deliveryFeeClone.value = deliveryFeeInput.value;
                 deliveryFeeInput.parentNode.replaceChild(deliveryFeeClone, deliveryFeeInput);
-                deliveryFeeClone.addEventListener('input', function() {
-                    const items = readItemsFromInputs();
-                    updateOrderSummary(items, this.value);
-                    renderStoreWiseOrderTotals('orderStoreWiseTotals', items);
-                });
+                deliveryFeeClone.addEventListener('input', updateTotalsFromInputs);
             }
 
             const orderTotalInput = document.getElementById('orderTotalAmount');
@@ -6467,27 +6501,45 @@ async function editOrder(orderId) {
         const productSelect = document.getElementById('addItemProduct');
         const loadProducts = async (selectedStoreId) => {
             if (!productSelect) return;
+            const normalizedStoreId = String(selectedStoreId || '').trim();
+            if (!normalizedStoreId) {
+                populateSelectOptions(productSelect, [], 'Select a store first...');
+                return;
+            }
             try {
-                let query = `${API_BASE}/api/orders/${orderId}/available-products`;
-                if (selectedStoreId) {
-                    query += `?store_id=${selectedStoreId}`;
-                }
+                productSelect.disabled = true;
+                populateSelectOptions(productSelect, [], 'Loading products...');
+                let query = `${API_BASE}/api/orders/${orderId}/available-products?store_id=${encodeURIComponent(normalizedStoreId)}`;
                 const productsRes = await fetch(query, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
                 });
                 const productsData = await productsRes.json();
                 if (productsData.success && productsData.products) {
-                    productSelect.innerHTML = '<option value="">Choose product...</option>';
-                    productsData.products.forEach(product => {
+                    const productOptions = productsData.products.map(product => {
                         const variantLabel = product.variant_label ? String(product.variant_label) : '';
                         const optionLabel = variantLabel
                             ? `${product.name} (${variantLabel}) - PKR ${Number(product.price).toFixed(2)} (${product.store_name})`
                             : `${product.name} - PKR ${Number(product.price).toFixed(2)} (${product.store_name})`;
-                        productSelect.innerHTML += `<option value="${product.id}" data-price="${product.price}" data-size-id="${product.size_id ?? ''}" data-unit-id="${product.unit_id ?? ''}" data-variant-label="${escapeHtml(variantLabel)}">${escapeHtml(optionLabel)}</option>`;
+                        return {
+                            value: product.id,
+                            label: optionLabel,
+                            dataset: {
+                                price: product.price,
+                                sizeId: product.size_id ?? '',
+                                unitId: product.unit_id ?? '',
+                                variantLabel
+                            }
+                        };
                     });
+                    populateSelectOptions(productSelect, productOptions, 'Choose product...');
+                } else {
+                    populateSelectOptions(productSelect, [], productsData.message || 'No products found');
                 }
             } catch (error) {
                 console.error('Error fetching products for store:', error);
+                populateSelectOptions(productSelect, [], 'Failed to load products');
+            } finally {
+                productSelect.disabled = false;
             }
         };
 
@@ -6495,6 +6547,9 @@ async function editOrder(orderId) {
             storeSelect.addEventListener('change', function() {
                 loadProducts(this.value);
             });
+        }
+        if (productSelect) {
+            populateSelectOptions(productSelect, [], 'Select a store first...');
         }
 
         document.getElementById('orderStatus').value = freshOrder.status;
@@ -6507,19 +6562,28 @@ async function editOrder(orderId) {
         document.getElementById('editOrderForm').dataset.orderId = orderId;
 
         showModal('editOrderModal');
-        loadEditOrderCustomers(freshOrder.user_id, freshOrder)
-            .then(() => {
-                const hydratedCustomerSelect = bindEditOrderCustomerField(freshOrder.user_id);
-                if (hydratedCustomerSelect && freshOrder.user_id) {
-                    hydratedCustomerSelect.value = String(freshOrder.user_id);
+        const editCustomerSelect = document.getElementById('editOrderCustomer');
+        if (editCustomerSelect) {
+            let customersHydrated = false;
+            const hydrateCustomersOnce = async () => {
+                if (customersHydrated) return;
+                customersHydrated = true;
+                try {
+                    await loadEditOrderCustomers(freshOrder.user_id, freshOrder);
+                    const hydratedCustomerSelect = bindEditOrderCustomerField(freshOrder.user_id);
+                    if (hydratedCustomerSelect && freshOrder.user_id) {
+                        hydratedCustomerSelect.value = String(freshOrder.user_id);
+                    }
+                } catch (error) {
+                    customersHydrated = false;
+                    console.error('Failed to hydrate edit-order customers:', error);
                 }
-            })
-            .catch((error) => {
-                console.error('Failed to hydrate edit-order customers:', error);
-            });
-        if (productSelect && itemsData.success) {
-            loadProducts(storeSelect?.value || '');
+            };
+            editCustomerSelect.addEventListener('focus', hydrateCustomersOnce, { once: true });
+            editCustomerSelect.addEventListener('mousedown', hydrateCustomersOnce, { once: true });
         }
+        // Product options are loaded only after a store is selected. Loading all
+        // products for multi-store orders can lock up the admin page.
     } catch (error) {
         console.error('Error loading order details:', error);
         showError('Error', 'Failed to load order details. Please try again.');
