@@ -300,21 +300,17 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
           DateTime? routeStart = previousRouteEnd == null
               ? createdAt
               : previousRouteEnd.add(const Duration(seconds: 1));
-          if (routeStart == null) {
-            routeStart = start;
-          }
+          routeStart ??= start;
           if (createdAt != null && createdAt.isAfter(routeStart)) {
             routeStart = createdAt;
           }
 
           DateTime? routeEnd = updatedAt;
-          if (routeEnd == null) {
-            routeEnd = i + 1 < riderOrders.length
+          routeEnd ??= i + 1 < riderOrders.length
                 ? ((riderOrders[i + 1]['updated_at'] as DateTime?) ??
                       (riderOrders[i + 1]['created_at'] as DateTime?))
                     ?.subtract(const Duration(seconds: 1))
                 : end;
-          }
           if (routeEnd != null && routeEnd.isBefore(routeStart)) {
             routeEnd = routeStart.add(const Duration(minutes: 90));
           }

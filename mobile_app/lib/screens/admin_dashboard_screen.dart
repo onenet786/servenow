@@ -1142,7 +1142,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   void _ensureLiveTrackerReady({bool forceRefresh = false}) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final email = auth.user?.email?.trim().toLowerCase();
+    final email = auth.user?.email.trim().toLowerCase();
     final canView = _canViewLiveRiderTracker(email);
 
     if (!canView) {
