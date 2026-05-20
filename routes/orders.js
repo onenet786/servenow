@@ -3409,6 +3409,9 @@ router.put(
       }
 
       const order = orders[0];
+      const currentPaymentStatus = String(order.payment_status || "")
+        .trim()
+        .toLowerCase();
 
       // Check permission
       let hasPermission = false;
@@ -3432,6 +3435,14 @@ router.put(
         return res.status(403).json({
           success: false,
           message: "You do not have permission to update this order",
+        });
+      }
+
+      if (itemStatusForDB === "delivered" && currentPaymentStatus !== "paid") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Payment must be marked as paid before order can be delivered.",
         });
       }
 
@@ -3538,10 +3549,18 @@ router.put(
           }
       }
 
-      await req.db.execute("UPDATE orders SET status = ? WHERE id = ?", [
-        newGlobalStatus,
-        id,
-      ]);
+      if (newGlobalStatus === "delivered" && currentPaymentStatus !== "paid") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Payment must be marked as paid before order can be delivered.",
+        });
+      }
+
+      await req.db.execute(
+        "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
+        [newGlobalStatus, id],
+      );
 
       // Cash-only store settlement at pickup:
       // When store confirms "picked_up", deduct payable store amount from assigned rider wallet once per store.
@@ -4436,10 +4455,18 @@ router.put("/:id(\\d+)/deliver", authenticateToken, async (req, res) => {
       });
     }
 
-    await req.db.execute("UPDATE orders SET status = ? WHERE id = ?", [
-      "delivered",
-      id,
-    ]);
+    const [deliverResult] = await req.db.execute(
+      "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ? AND payment_status = ?",
+      ["delivered", id, "paid"],
+    );
+
+    if (deliverResult.affectedRows === 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Order was not delivered because payment is no longer marked as paid. Please mark payment received first.",
+      });
+    }
 
     // Force update all order items to 'delivered' so they move to history in store dashboard
     await req.db.execute(
@@ -4667,7 +4694,7 @@ router.put(
       }
 
       await req.db.execute(
-        "UPDATE orders SET payment_status = ? WHERE id = ?",
+        "UPDATE orders SET payment_status = ?, updated_at = NOW() WHERE id = ?",
         [payment_status, id],
       );
 
@@ -4788,6 +4815,22 @@ router.put(
         // Create rider cash movement for cash payments
         if (order.payment_method === "cash") {
           try {
+            await ensureRiderCashMovementTypes(req.db);
+
+            await req.db.execute(
+              `INSERT INTO payments
+               (order_id, user_id, amount, payment_method, gateway, status)
+               SELECT ?, ?, ?, 'cash', 'local', 'success'
+               WHERE NOT EXISTS (
+                 SELECT 1
+                 FROM payments
+                 WHERE order_id = ?
+                   AND payment_method = 'cash'
+                   AND status = 'success'
+               )`,
+              [id, order.user_id, order.total_amount, id],
+            );
+
             const movementDate = new Date().toISOString().split("T")[0];
             const dateStr = movementDate.replace(/-/g, "");
             const randomStr = Math.random()
@@ -4797,9 +4840,16 @@ router.put(
             const movementNumber = `RCM-${dateStr}-${randomStr}`;
 
             await req.db.execute(
-              `INSERT INTO rider_cash_movements 
-                         (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              `INSERT INTO rider_cash_movements
+               (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
+               SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+               WHERE NOT EXISTS (
+                 SELECT 1
+                 FROM rider_cash_movements
+                 WHERE reference_type = 'order'
+                   AND reference_id = ?
+                   AND movement_type = 'cash_collection'
+               )`,
               [
                 movementNumber,
                 order.rider_id,
@@ -4811,6 +4861,7 @@ router.put(
                 id,
                 "completed",
                 req.user.user_type === "admin" ? req.user.id : null,
+                id,
               ],
             );
           } catch (err) {
