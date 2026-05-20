@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import '../providers/auth_provider.dart';
@@ -462,6 +463,37 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final hh = dt.hour.toString().padLeft(2, '0');
     final mm = dt.minute.toString().padLeft(2, '0');
     return '$y-$m-$d $hh:$mm';
+  }
+
+  DateTime? _parseOrderTimestamp(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is DateTime) return raw;
+    final value = raw.toString().trim();
+    if (value.isEmpty) return null;
+    return DateTime.tryParse(value) ??
+        DateTime.tryParse(value.replaceFirst(' ', 'T'));
+  }
+
+  DateTime _deliverySortDate(Map<String, dynamic> delivery) {
+    return _parseOrderTimestamp(delivery['created_at']) ??
+        _parseOrderTimestamp(delivery['updated_at']) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  String _deliveryDateKey(Map<String, dynamic> delivery) {
+    return DateFormat('yyyy-MM-dd').format(_deliverySortDate(delivery));
+  }
+
+  String _deliveryDateLabel(String dateKey) {
+    final date = DateTime.tryParse(dateKey);
+    if (date == null) return dateKey;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final orderDay = DateTime(date.year, date.month, date.day);
+
+    if (orderDay == today) return 'Today';
+    if (orderDay == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    return DateFormat('EEE, MMM d, yyyy').format(orderDay);
   }
 
   Future<void> _openRiderFinancialHistory() async {
@@ -1460,19 +1492,30 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       return const Center(child: Text('No deliveries found.'));
     }
 
-    final Map<String, List<dynamic>> deliveriesByStore = {};
-    for (var delivery in deliveries) {
-      final storeName = delivery['store_name'] ?? 'Unknown Store';
-      if (!deliveriesByStore.containsKey(storeName)) {
-        deliveriesByStore[storeName] = [];
-      }
-      deliveriesByStore[storeName]!.add(delivery);
+    final sortedDeliveries = deliveries
+        .whereType<Map>()
+        .map((delivery) => delivery.cast<String, dynamic>())
+        .toList()
+      ..sort((a, b) {
+        final dateCompare = _deliverySortDate(b).compareTo(_deliverySortDate(a));
+        if (dateCompare != 0) return dateCompare;
+        final aId = int.tryParse((a['id'] ?? '').toString()) ?? 0;
+        final bId = int.tryParse((b['id'] ?? '').toString()) ?? 0;
+        return bId.compareTo(aId);
+      });
+
+    final deliveriesByDate = <String, List<Map<String, dynamic>>>{};
+    for (final delivery in sortedDeliveries) {
+      deliveriesByDate
+          .putIfAbsent(_deliveryDateKey(delivery), () => <Map<String, dynamic>>[])
+          .add(delivery);
     }
 
-    final storeNames = deliveriesByStore.keys.toList();
-    int totalItems = storeNames.length;
-    for (var storeName in storeNames) {
-      totalItems += deliveriesByStore[storeName]!.length;
+    final dateKeys = deliveriesByDate.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
+    int totalItems = dateKeys.length;
+    for (final dateKey in dateKeys) {
+      totalItems += deliveriesByDate[dateKey]!.length;
     }
 
     return ListView.builder(
@@ -1481,9 +1524,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       itemBuilder: (context, index) {
         int currentIndex = 0;
 
-        for (int i = 0; i < storeNames.length; i++) {
-          final storeName = storeNames[i];
-          final storeDeliveries = deliveriesByStore[storeName]!;
+        for (int i = 0; i < dateKeys.length; i++) {
+          final dateKey = dateKeys[i];
+          final dateDeliveries = deliveriesByDate[dateKey]!;
 
           if (currentIndex == index) {
             return Padding(
@@ -1492,19 +1535,20 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    storeName,
+                    _deliveryDateLabel(dateKey),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFFF7043),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.info_outline, size: 20),
-                    color: Color(0xFFFF7043),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => _showStoreInfo(storeName, storeDeliveries),
+                  Text(
+                    '${dateDeliveries.length} order${dateDeliveries.length == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -1512,9 +1556,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           }
           currentIndex++;
 
-          for (int j = 0; j < storeDeliveries.length; j++) {
+          for (int j = 0; j < dateDeliveries.length; j++) {
             if (currentIndex == index) {
-              return _buildDeliveryCard(storeDeliveries[j], isAssigned);
+              return _buildDeliveryCard(dateDeliveries[j], isAssigned);
             }
             currentIndex++;
           }
@@ -1619,6 +1663,11 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
               'Customer',
               '${delivery['first_name']} ${delivery['last_name']}',
             ),
+            _buildDetailRow(
+              'Store',
+              '${delivery['store_name'] ?? 'Unknown Store'}',
+            ),
+            _buildDetailRow('Order Time', _fmtDateTime(delivery['created_at'])),
 
             // Simplified Summary Card
             const SizedBox(height: 8),
@@ -1842,150 +1891,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
         ),
       ),
-    );
-  }
-
-  void _showStoreInfo(String storeName, List<dynamic> deliveries) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (_, scrollController) => Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  storeName,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF7043),
-                  ),
-                ),
-                Text(
-                  '${deliveries.length} orders from this store',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: deliveries.length,
-                    itemBuilder: (context, index) {
-                      final delivery = deliveries[index];
-                      final items = (delivery['items'] as List?) ?? [];
-
-                      // Filter items for THIS store
-                      final storeItems = items
-                          .where(
-                            (item) =>
-                                (item['store_name'] ??
-                                    delivery['store_name']) ==
-                                storeName,
-                          )
-                          .toList();
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Order #${delivery['order_number']}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    delivery['status']
-                                            ?.toString()
-                                            .toUpperCase() ??
-                                        '',
-                                    style: TextStyle(
-                                      color: _getStatusColor(
-                                        delivery['status'] ?? '',
-                                      ),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(),
-                              ...storeItems.map(
-                                (item) => Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 2,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        '${item['quantity']}x ',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text('${item['product_name']}'),
-                                      ),
-                                      Text('PKR ${item['price']}'),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Address: ${delivery['delivery_address']}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
