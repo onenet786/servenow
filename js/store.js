@@ -1,4 +1,5 @@
 const productVariantsMap = {};
+const productDataMap = {};
 
 // Get store ID from URL
 function getStoreId() {
@@ -17,10 +18,11 @@ function getVariantLabel(variant) {
 
 function getEffectiveDisplayPrice(source) {
     const base = Number(source?.price || 0);
+    const isBxgy = String(source?.offer_meta?.campaign_type || '').toLowerCase() === 'bxgy';
     const promo = source?.promotional_price === null || source?.promotional_price === undefined
         ? null
         : Number(source.promotional_price);
-    const hasPromo = Number.isFinite(promo) && promo >= 0 && promo < base;
+    const hasPromo = !isBxgy && Number.isFinite(promo) && promo >= 0 && promo < base;
     return {
         basePrice: base,
         promoPrice: hasPromo ? promo : null,
@@ -36,8 +38,28 @@ function buildPriceHtml(source) {
     return `PKR ${basePrice.toFixed(2)}`;
 }
 
+function buildOfferBadgeHtml(source) {
+    const badge = String(source?.offer_badge || '').trim();
+    if (!badge) return '';
+    return `<div class="store-offer-chip"><i class="fas fa-tag"></i>${badge}</div>`;
+}
+
+function campaignBadge(campaign) {
+    const type = String(campaign?.campaign_type || '').toLowerCase();
+    if (type === 'bxgy') {
+        const buy = parseInt(campaign?.buy_qty || 1, 10) || 1;
+        const get = parseInt(campaign?.get_qty || 1, 10) || 1;
+        return `Buy ${buy} Get ${get} Free`;
+    }
+    const value = Number(campaign?.discount_value || 0);
+    if (String(campaign?.discount_type || '').toLowerCase() === 'percent') {
+        return `${Number.isInteger(value) ? value : value.toFixed(1)}% OFF`;
+    }
+    return `PKR ${value.toFixed(0)} OFF`;
+}
+
 // Display store information
-function displayStoreInfo(store) {
+function displayStoreInfo(store, campaigns = []) {
     if (!store) {
         document.getElementById('storeInfo').innerHTML = '<h2>Store not found</h2>';
         return;
@@ -59,6 +81,19 @@ function displayStoreInfo(store) {
     
     const isOpen = store.is_open === true || store.is_open === 1;
     
+    const campaignList = Array.isArray(campaigns) ? campaigns.slice(0, 4) : [];
+    const promoHtml = campaignList.length ? `
+        <div class="store-promo-strip">
+            <div class="store-promo-title">
+                <i class="fas fa-bolt"></i>
+                <span>Active Store Promotions</span>
+            </div>
+            <div class="store-promo-chips">
+                ${campaignList.map(c => `<span>${campaignBadge(c)}</span>`).join('')}
+            </div>
+        </div>
+    ` : '';
+
     document.getElementById('storeInfo').innerHTML = `
         <div class="store-banner-header">
             <div class="store-status-container">
@@ -79,6 +114,7 @@ function displayStoreInfo(store) {
                     <p><i class="fas fa-business-time"></i> ${store.opening_time || '--:--'} - ${store.closing_time || '--:--'}</p>
                 </div>
             </div>
+            ${promoHtml}
         </div>
     `;
 }
@@ -116,6 +152,7 @@ function displayStoreProducts(storeProducts) {
 
         const sizeVariants = product.size_variants || [];
         productVariantsMap[product.id] = sizeVariants;
+        productDataMap[product.id] = product;
         
         const defaultVariant = sizeVariants.length > 0 ? sizeVariants[0] : null;
         const displayPriceSource = defaultVariant || product;
@@ -138,10 +175,11 @@ function displayStoreProducts(storeProducts) {
                         `).join('')}
                     </div>
                     <p class="variant-price" id="price-${product.id}" style="font-weight:bold;">${buildPriceHtml(displayPriceSource)}</p>
+                    <div id="offer-${product.id}">${buildOfferBadgeHtml(displayPriceSource)}</div>
                 </div>
             `;
         } else if (sizeVariants.length === 1) {
-            variantsHtml = `<p class="variant-label" style="font-size:0.9rem;">${displayVariantLabel}</p><p class="price" id="price-${product.id}" style="font-weight:bold;">${buildPriceHtml(displayPriceSource)}</p>`;
+            variantsHtml = `<p class="variant-label" style="font-size:0.9rem;">${displayVariantLabel}</p><p class="price" id="price-${product.id}" style="font-weight:bold;">${buildPriceHtml(displayPriceSource)}</p><div id="offer-${product.id}">${buildOfferBadgeHtml(displayPriceSource)}</div>`;
         }
 
         productCard.innerHTML = `
@@ -154,7 +192,7 @@ function displayStoreProducts(storeProducts) {
             })}
             <div class="product-card-content">
                 <h4>${product.name}</h4>
-                ${variantsHtml ? variantsHtml : `<p class="price" id="price-${product.id}" style="font-weight:bold;">${buildPriceHtml(displayPriceSource)}</p>`}
+                ${variantsHtml ? variantsHtml : `<p class="price" id="price-${product.id}" style="font-weight:bold;">${buildPriceHtml(displayPriceSource)}</p><div id="offer-${product.id}">${buildOfferBadgeHtml(displayPriceSource)}</div>`}
                 <button class="add-to-cart btn btn-primary btn-small" id="add-btn-${product.id}" onclick="addProductToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${currentStoreId}, '${imageSrc.replace(/'/g, "\\'")}', ${product.stock_quantity || 0})" style="margin-top: auto; align-self: flex-start;">
                     <i class="fas fa-plus"></i> Add
                 </button>
@@ -179,7 +217,7 @@ async function loadStoreDetails(storeId) {
         const data = await response.json();
 
         if (data.success) {
-            displayStoreInfo(data.store);
+            displayStoreInfo(data.store, data.active_store_campaigns || []);
             displayStoreProducts(data.products);
         } else {
             document.getElementById('storeInfo').innerHTML = '<h2>Store not found</h2>';
@@ -247,6 +285,10 @@ function updateProductPrice(productId, variantIndex) {
     if (priceElement) {
         priceElement.innerHTML = buildPriceHtml(variant);
     }
+    const offerElement = document.getElementById(`offer-${productId}`);
+    if (offerElement) {
+        offerElement.innerHTML = buildOfferBadgeHtml(variant);
+    }
 }
 
 // Add product to cart with variant info
@@ -254,23 +296,31 @@ function addProductToCart(productId, productName, storeId, imageSrc, stockQty) {
     const variants = productVariantsMap[productId] || [];
     const selectedVariantIndex = getSelectedVariantIndex(productId);
     const selectedVariant = variants.length > 0 ? variants[selectedVariantIndex || 0] : null;
+    const source = selectedVariant || productDataMap[productId] || null;
+    const isBxgy = String(source?.offer_meta?.campaign_type || '').toLowerCase() === 'bxgy';
+    const buyQty = parseInt(source?.offer_meta?.buy_qty || 0, 10) || 1;
+    const getQty = parseInt(source?.offer_meta?.get_qty || 0, 10) || 1;
+    const quantityToAdd = isBxgy ? buyQty + getQty : 1;
     
     const cartItem = {
         id: productId,
         name: productName,
-        price: selectedVariant ? getEffectiveDisplayPrice(selectedVariant).effectivePrice : 0,
-        quantity: 1,
+        price: source ? getEffectiveDisplayPrice(source).effectivePrice : 0,
+        quantity: quantityToAdd,
         unit_id: selectedVariant ? selectedVariant.unit_id : null,
         unit_name: selectedVariant ? selectedVariant.unit_name : null,
         size_id: selectedVariant ? selectedVariant.size_id : null,
         size_label: selectedVariant ? selectedVariant.size_label : null,
         variant_label: selectedVariant ? getVariantLabel(selectedVariant) : null,
         image_url: imageSrc,
-        storeId: storeId
+        storeId: storeId,
+        offerBadge: source?.offer_badge || null,
+        offerMeta: source?.offer_meta || null,
+        originalPrice: Number(source?.price || 0)
     };
     
     addToCart(productId, productName, cartItem.price, stockQty, 
-              cartItem.unit_name || '', cartItem.unit_id, imageSrc, storeId, cartItem);
+              cartItem.unit_name || '', cartItem.unit_id, imageSrc, storeId, cartItem, quantityToAdd);
 }
 
 // Get selected variant index for product

@@ -11,6 +11,12 @@ const {
 const { sendOrderThanksEmail } = require("../services/emailService");
 const { recordFinancialTransaction } = require("../utils/dbHelpers");
 const { sendPushToUser } = require("../services/pushNotifications");
+const {
+  ensureStoreOfferCampaignTables,
+  getActiveStoreCampaignsMap,
+  campaignsForProduct,
+  applyCampaignToCartLine,
+} = require("../utils/offerCampaigns");
 
 const router = express.Router();
 
@@ -1140,6 +1146,18 @@ router.post("/", authenticateToken, async (req, res) => {
     const preparedItems = [];
     const storeIds = new Set();
     let itemsSubtotal = 0;
+    await ensureStoreOfferCampaignTables(req.db);
+    const activeCampaignCacheByStore = new Map();
+
+    const loadActiveCampaignsForStore = async (storeId) => {
+      const sid = Number(storeId);
+      if (!Number.isInteger(sid) || sid <= 0) return [];
+      if (!activeCampaignCacheByStore.has(sid)) {
+        const map = await getActiveStoreCampaignsMap(req.db, [sid]);
+        activeCampaignCacheByStore.set(sid, map[sid] || []);
+      }
+      return activeCampaignCacheByStore.get(sid) || [];
+    };
 
     for (let item of items) {
       const productId = parseInt(String(item.product_id), 10);
@@ -1261,9 +1279,22 @@ router.post("/", authenticateToken, async (req, res) => {
         }
       }
 
+      const applicableCampaigns = campaignsForProduct(
+        await loadActiveCampaignsForStore(product.store_id),
+        productId,
+      );
+      const campaignLine = applyCampaignToCartLine(
+        unitPrice,
+        quantity,
+        applicableCampaigns,
+      );
+      const finalUnitPrice = Number.isFinite(Number(campaignLine.unit_price))
+        ? Number(campaignLine.unit_price)
+        : unitPrice;
+
       const financialSnapshot = deriveOrderItemAdjustmentSnapshot({
         paymentTerm: product.payment_term,
-        unitPrice,
+        unitPrice: finalUnitPrice,
         productCostPrice: unitCostPrice,
         discountType: product.discount_type,
         discountValue: product.discount_value,
@@ -1271,10 +1302,10 @@ router.post("/", authenticateToken, async (req, res) => {
         profitValue: product.profit_value,
       });
 
-      preparedItems.push({
+      const basePreparedItem = {
         productId,
         quantity,
-        unitPrice,
+        unitPrice: finalUnitPrice,
         costPrice: unitCostPrice,
         sizeId,
         unitId,
@@ -1282,9 +1313,31 @@ router.post("/", authenticateToken, async (req, res) => {
         storeId: product.store_id,
         discount_type: financialSnapshot.type,
         discount_value: financialSnapshot.value,
-      });
-      // Keep order total consistent with stored order_items price.
-      itemsSubtotal += unitPrice * quantity;
+      };
+
+      if (
+        campaignLine.free_quantity > 0 &&
+        campaignLine.paid_quantity > 0
+      ) {
+        preparedItems.push({
+          ...basePreparedItem,
+          quantity: campaignLine.paid_quantity,
+          unitPrice,
+          variantLabel,
+        });
+        preparedItems.push({
+          ...basePreparedItem,
+          quantity: campaignLine.free_quantity,
+          unitPrice: 0,
+          variantLabel: campaignLine.offer_badge
+            ? `${variantLabel ? `${variantLabel} - ` : ""}${campaignLine.offer_badge}`
+            : variantLabel,
+        });
+      } else {
+        preparedItems.push(basePreparedItem);
+      }
+
+      itemsSubtotal += campaignLine.line_total;
     }
 
     let adminStoreNames = [];

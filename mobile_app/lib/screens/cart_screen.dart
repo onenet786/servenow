@@ -309,6 +309,36 @@ class _CartScreenState extends State<CartScreen> {
                                             style: const TextStyle(fontSize: 13),
                                           ),
                                         ),
+                                        if (item.isBxgyOffer &&
+                                            item.offerBadge != null) ...[
+                                          const SizedBox(width: 4),
+                                          Container(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 118,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 7,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: CustomerPalette.secondary
+                                                  .withValues(alpha: 0.12),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              'Pay ${item.paidQuantity}, Free ${item.freeQuantity}',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: CustomerPalette
+                                                    .secondaryDark,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                         const SizedBox(width: 4),
                                         Row(
                                           mainAxisSize: MainAxisSize.min,

@@ -9,6 +9,7 @@ class ProductVariant {
   final double? promotionalPrice;
   final bool hasActiveOffer;
   final String? offerBadge;
+  final Map<String, dynamic>? offerMeta;
   final double? costPrice;
 
   const ProductVariant({
@@ -22,6 +23,7 @@ class ProductVariant {
     this.promotionalPrice,
     this.hasActiveOffer = false,
     this.offerBadge,
+    this.offerMeta,
     this.costPrice,
   });
 
@@ -53,6 +55,9 @@ class ProductVariant {
           json['has_active_offer'] == 1 ||
           json['has_active_offer']?.toString().toLowerCase() == 'true',
       offerBadge: json['offer_badge']?.toString(),
+      offerMeta: json['offer_meta'] is Map
+          ? Map<String, dynamic>.from(json['offer_meta'])
+          : null,
       costPrice: parseNullableDouble(json['cost_price']),
     );
   }
@@ -69,6 +74,7 @@ class ProductVariant {
       'promotional_price': promotionalPrice,
       'has_active_offer': hasActiveOffer,
       'offer_badge': offerBadge,
+      'offer_meta': offerMeta,
       'cost_price': costPrice,
     };
   }
@@ -82,6 +88,21 @@ class ProductVariant {
     }
     return price;
   }
+
+  bool get isBxgyOffer =>
+      (offerMeta?['campaign_type'] ?? '').toString().toLowerCase() == 'bxgy';
+
+  int get bxgyBuyQty {
+    final parsed = int.tryParse((offerMeta?['buy_qty'] ?? '').toString()) ?? 0;
+    return parsed > 0 ? parsed : 1;
+  }
+
+  int get bxgyGetQty {
+    final parsed = int.tryParse((offerMeta?['get_qty'] ?? '').toString()) ?? 0;
+    return parsed > 0 ? parsed : 1;
+  }
+
+  int get bxgyBundleQty => bxgyBuyQty + bxgyGetQty;
 
   String get displayLabel {
     final size = (sizeLabel ?? '').trim();
@@ -102,6 +123,7 @@ class Product {
   final double? promotionalPrice;
   final bool hasActiveOffer;
   final String? offerBadge;
+  final Map<String, dynamic>? offerMeta;
   final String? imageUrl;
   final int? imageBgR;
   final int? imageBgG;
@@ -126,6 +148,7 @@ class Product {
     this.promotionalPrice,
     this.hasActiveOffer = false,
     this.offerBadge,
+    this.offerMeta,
     this.imageUrl,
     this.imageBgR,
     this.imageBgG,
@@ -163,6 +186,9 @@ class Product {
           json['has_active_offer'] == 1 ||
           json['has_active_offer']?.toString().toLowerCase() == 'true',
       offerBadge: json['offer_badge']?.toString(),
+      offerMeta: json['offer_meta'] is Map
+          ? Map<String, dynamic>.from(json['offer_meta'])
+          : null,
       imageUrl: json['image_url'],
       imageBgR: json['image_bg_r'],
       imageBgG: json['image_bg_g'],
@@ -196,6 +222,7 @@ class Product {
       'promotional_price': promotionalPrice,
       'has_active_offer': hasActiveOffer,
       'offer_badge': offerBadge,
+      'offer_meta': offerMeta,
       'image_url': imageUrl,
       'image_bg_r': imageBgR,
       'image_bg_g': imageBgG,
@@ -222,4 +249,19 @@ class Product {
     }
     return price;
   }
+
+  bool get isBxgyOffer =>
+      (offerMeta?['campaign_type'] ?? '').toString().toLowerCase() == 'bxgy';
+
+  int get bxgyBuyQty {
+    final parsed = int.tryParse((offerMeta?['buy_qty'] ?? '').toString()) ?? 0;
+    return parsed > 0 ? parsed : 1;
+  }
+
+  int get bxgyGetQty {
+    final parsed = int.tryParse((offerMeta?['get_qty'] ?? '').toString()) ?? 0;
+    return parsed > 0 ? parsed : 1;
+  }
+
+  int get bxgyBundleQty => bxgyBuyQty + bxgyGetQty;
 }

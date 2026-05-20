@@ -174,6 +174,113 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
+  Widget _buildStorePromotionsBanner(List<dynamic> campaigns) {
+    final visibleCampaigns = campaigns.take(3).toList();
+
+    String badgeFor(dynamic campaign) {
+      if (campaign is! Map) return _tr('Offer');
+      final rawType = (campaign['campaign_type'] ?? '').toString().toLowerCase();
+      if (rawType == 'bxgy') {
+        final buy = int.tryParse((campaign['buy_qty'] ?? '').toString()) ?? 1;
+        final get = int.tryParse((campaign['get_qty'] ?? '').toString()) ?? 1;
+        return 'Buy $buy Get $get Free';
+      }
+      final value =
+          double.tryParse((campaign['discount_value'] ?? '').toString()) ?? 0;
+      final discountType =
+          (campaign['discount_type'] ?? '').toString().toLowerCase();
+      if (discountType == 'percent') {
+        final text = value.truncateToDouble() == value
+            ? value.toStringAsFixed(0)
+            : value.toStringAsFixed(1);
+        return '$text% OFF';
+      }
+      return 'PKR ${value.toStringAsFixed(0)} OFF';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.98),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: CustomerPalette.primary.withValues(alpha: 0.22),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: CustomerPalette.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.local_offer_rounded,
+                  color: CustomerPalette.primary,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _tr('Active Store Promotions'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: CustomerPalette.textDark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: visibleCampaigns
+                .map(
+                  (campaign) => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: CustomerPalette.secondary.withValues(alpha: 0.11),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: CustomerPalette.secondary.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Text(
+                      badgeFor(campaign),
+                      style: const TextStyle(
+                        color: CustomerPalette.secondaryDark,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBackdrop() {
     return Stack(
       children: [
@@ -276,7 +383,12 @@ class _StoreScreenState extends State<StoreScreen> {
       orElse: () => CartItem(product: product, quantity: 0),
     );
 
-    if (existingItem.quantity >= product.stockQuantity) {
+    final offerSourceIsBxgy = variant?.isBxgyOffer ?? product.isBxgyOffer;
+    final quantityToAdd = offerSourceIsBxgy
+        ? (variant?.bxgyBundleQty ?? product.bxgyBundleQty)
+        : 1;
+
+    if (existingItem.quantity + quantityToAdd > product.stockQuantity) {
       Notifier.info(
         context,
         '${_tr('Only')} ${product.stockQuantity} ${_tr('available')}',
@@ -285,7 +397,7 @@ class _StoreScreenState extends State<StoreScreen> {
     }
 
     try {
-      final warning = cart.addItem(product, 1, variant: variant);
+      final warning = cart.addItem(product, quantityToAdd, variant: variant);
       if (warning != null) {
         Notifier.info(context, warning);
       } else {
@@ -399,6 +511,8 @@ class _StoreScreenState extends State<StoreScreen> {
           final String closedReason =
               (store['status_message'] ?? '').toString().trim();
           final productsList = data['products'] as List<dynamic>? ?? [];
+          final activeCampaigns =
+              data['active_store_campaigns'] as List<dynamic>? ?? [];
           final products = productsList
               .map((json) => Product.fromJson(json))
               .toList();
@@ -622,6 +736,10 @@ class _StoreScreenState extends State<StoreScreen> {
                             ],
                           ),
                         ),
+                        if (activeCampaigns.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _buildStorePromotionsBanner(activeCampaigns),
+                        ],
                       ],
                     ),
                   ),
@@ -719,8 +837,12 @@ class _StoreScreenState extends State<StoreScreen> {
         : null;
     final displayPrice = selectedVariant?.effectivePrice ?? product.effectivePrice;
     final displayOriginalPrice = selectedVariant?.price ?? product.price;
+    final offerBadge = (selectedVariant?.offerBadge ?? product.offerBadge ?? '').trim();
+    final isBxgyOffer = selectedVariant?.isBxgyOffer ?? product.isBxgyOffer;
     final hasPromo =
-        displayPrice >= 0 && displayPrice + 0.001 < displayOriginalPrice;
+        !isBxgyOffer &&
+        displayPrice >= 0 &&
+        displayPrice + 0.001 < displayOriginalPrice;
 
     if (crossAxisCount == 1) {
       return Card(
@@ -807,6 +929,29 @@ class _StoreScreenState extends State<StoreScreen> {
                             fontSize: 14,
                           ),
                         ),
+                      if (offerBadge.isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: CustomerPalette.secondary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            offerBadge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: CustomerPalette.secondaryDark,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
                       if (variants.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         if (variants.length == 1)
@@ -999,6 +1144,29 @@ class _StoreScreenState extends State<StoreScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                if (offerBadge.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: CustomerPalette.secondary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      offerBadge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: CustomerPalette.secondaryDark,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
                 if (variants.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   RadioGroup<String>(

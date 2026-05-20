@@ -672,6 +672,11 @@ async function addToCart(
     if (imageSrc) existingItem.image = imageSrc;
     if (maxQty !== null) existingItem.maxQty = maxQty;
     if (storeId && !existingItem.storeId) existingItem.storeId = storeId;
+    if (variantData) {
+      existingItem.offerBadge = variantData.offerBadge || existingItem.offerBadge || null;
+      existingItem.offerMeta = variantData.offerMeta || existingItem.offerMeta || null;
+      existingItem.originalPrice = variantData.originalPrice || existingItem.originalPrice || price;
+    }
 
     const next = (existingItem.quantity || 0) + qToAdd;
     if (maxQty !== null && next > maxQty) {
@@ -715,6 +720,9 @@ async function addToCart(
       item.sizeId = variantData.size_id;
       item.sizeLabel = variantData.size_label;
       item.variantLabel = variantData.variant_label;
+      item.offerBadge = variantData.offerBadge || null;
+      item.offerMeta = variantData.offerMeta || null;
+      item.originalPrice = variantData.originalPrice || price;
     }
 
     if (maxQty !== null) item.maxQty = maxQty;
@@ -759,6 +767,35 @@ function isFractionalUnit(name, id) {
 
 function qtyStepForUnit(name, id) {
   return isFractionalUnit(name, id) ? 0.25 : 1;
+}
+
+function isBxgyCartItem(item) {
+  return String(item?.offerMeta?.campaign_type || "").toLowerCase() === "bxgy";
+}
+
+function bxgyBuyQty(item) {
+  return Math.max(1, parseInt(item?.offerMeta?.buy_qty || 1, 10) || 1);
+}
+
+function bxgyGetQty(item) {
+  return Math.max(1, parseInt(item?.offerMeta?.get_qty || 1, 10) || 1);
+}
+
+function getCartItemFreeQuantity(item) {
+  if (!isBxgyCartItem(item)) return 0;
+  const qty = parseInt(item?.quantity || 0, 10) || 0;
+  const bundleQty = bxgyBuyQty(item) + bxgyGetQty(item);
+  return Math.floor(qty / bundleQty) * bxgyGetQty(item);
+}
+
+function getCartItemPaidQuantity(item) {
+  const qty = parseInt(item?.quantity || 0, 10) || 0;
+  return Math.max(0, qty - getCartItemFreeQuantity(item));
+}
+
+function getCartItemTotal(item) {
+  const price = parseFloat(item?.price || 0) || 0;
+  return price * getCartItemPaidQuantity(item);
 }
 
 function setCartItemQuantity(productId, quantity) {
@@ -843,7 +880,7 @@ function displayCart() {
   let total = 0;
 
   cart.forEach((item) => {
-    const itemTotal = item.price * item.quantity;
+    const itemTotal = getCartItemTotal(item);
     total += itemTotal;
     const step = qtyStepForUnit(item.unitName, item.unitId);
     const isFrac = isFractionalUnit(item.unitName, item.unitId);
@@ -854,6 +891,9 @@ function displayCart() {
     itemElement.className = "cart-item serving-card";
     const variantLabel = item.variantLabel
       ? `<p class="variant-label" style="font-size: 0.85em; color: #666; margin: 4px 0 0 0;">${item.variantLabel}</p>`
+      : "";
+    const offerLine = isBxgyCartItem(item)
+      ? `<p class="variant-label" style="font-size: 0.82em; color: #166534; font-weight: 800; margin: 4px 0 0 0;">${item.offerBadge || "Bundle Offer"} - Qty ${item.quantity}, Pay ${getCartItemPaidQuantity(item)}, Free ${getCartItemFreeQuantity(item)}</p>`
       : "";
     itemElement.innerHTML = `
             <div class="serving-dish">
@@ -870,6 +910,7 @@ function displayCart() {
                     </button>
                 </div>
                 ${variantLabel}
+                ${offerLine}
                 <div class="serving-details">
                     <div class="cart-qty">
                         <button class="qty-btn" onclick="decrementQty(${

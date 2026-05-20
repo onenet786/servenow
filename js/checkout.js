@@ -169,15 +169,20 @@ async function displayCheckoutItems() {
         
         items.forEach(item => {
             console.log('Item:', item);
-            const itemTotal = parseFloat(item.price) * item.quantity;
+            const itemTotal = typeof getCartItemTotal === 'function'
+                ? getCartItemTotal(item)
+                : parseFloat(item.price) * item.quantity;
             console.log('Item total:', itemTotal);
             storeSubtotal += itemTotal;
+            const offerText = typeof isBxgyCartItem === 'function' && isBxgyCartItem(item)
+                ? `<small style="display:block;color:#166534;font-weight:700;margin-top:3px;">${item.offerBadge || 'Bundle Offer'} - Pay ${getCartItemPaidQuantity(item)}, Free ${getCartItemFreeQuantity(item)}</small>`
+                : '';
     
             const itemElement = document.createElement('div');
             itemElement.className = 'checkout-item';
             itemElement.style.cssText = 'display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;';
             itemElement.innerHTML = `
-                <span>${item.name} x ${item.quantity}</span>
+                <span>${item.name} x ${item.quantity}${offerText}</span>
                 <span>PKR ${itemTotal.toFixed(2)}</span>
             `;
             itemsContainer.appendChild(itemElement);
@@ -296,7 +301,9 @@ function calculateTotal() {
     const storeIds = new Set();
     
     cart.forEach(item => {
-        total += parseFloat(item.price) * item.quantity;
+        total += typeof getCartItemTotal === 'function'
+            ? getCartItemTotal(item)
+            : parseFloat(item.price) * item.quantity;
         if (item.storeId && item.storeId !== 'unknown') {
             storeIds.add(item.storeId);
         }

@@ -15,9 +15,28 @@ function campaignBadge(campaign) {
     if (type === 'bxgy') {
         const buy = Math.max(1, parseInt(String(campaign?.buy_qty || 0), 10) || 1);
         const get = Math.max(1, parseInt(String(campaign?.get_qty || 0), 10) || 1);
-        return `Buy ${buy} Get ${get}`;
+        return `Buy ${buy} Get ${get} Free`;
     }
     return 'Offer';
+}
+
+function campaignMeta(campaign) {
+    if (!campaign) return null;
+    return {
+        id: campaign.id,
+        name: campaign.name || null,
+        campaign_type: campaign.campaign_type || null,
+        discount_type: campaign.discount_type || null,
+        discount_value: campaign.discount_value === null || campaign.discount_value === undefined ? null : round2(campaign.discount_value),
+        buy_qty: campaign.buy_qty === null || campaign.buy_qty === undefined ? null : Number(campaign.buy_qty),
+        get_qty: campaign.get_qty === null || campaign.get_qty === undefined ? null : Number(campaign.get_qty),
+        start_at: campaign.start_at || null,
+        end_at: campaign.end_at || null
+    };
+}
+
+function isBxgyCampaign(campaign) {
+    return String(campaign?.campaign_type || '').toLowerCase() === 'bxgy';
 }
 
 function computePromotionalPrice(basePrice, campaign) {
@@ -35,14 +54,6 @@ function computePromotionalPrice(basePrice, campaign) {
         return round2(Math.max(0, price - discount));
     }
 
-    if (type === 'bxgy') {
-        const buyQty = parseInt(String(campaign?.buy_qty || 0), 10);
-        const getQty = parseInt(String(campaign?.get_qty || 0), 10);
-        if (!Number.isInteger(buyQty) || !Number.isInteger(getQty) || buyQty <= 0 || getQty <= 0) return null;
-        const effectiveUnit = price * (buyQty / (buyQty + getQty));
-        return round2(Math.max(0, effectiveUnit));
-    }
-
     return null;
 }
 
@@ -51,7 +62,12 @@ function applyBestCampaignToPrice(basePrice, campaigns) {
     const list = Array.isArray(campaigns) ? campaigns : [];
     let best = null;
     let bestPrice = original;
+    let bxgy = null;
     for (const c of list) {
+        if (isBxgyCampaign(c)) {
+            if (!bxgy) bxgy = c;
+            continue;
+        }
         const promo = computePromotionalPrice(original, c);
         if (!Number.isFinite(promo)) continue;
         if (promo < bestPrice) {
@@ -61,6 +77,15 @@ function applyBestCampaignToPrice(basePrice, campaigns) {
     }
 
     if (!best || !(bestPrice < original)) {
+        if (bxgy) {
+            return {
+                original_price: original,
+                promotional_price: null,
+                has_active_offer: true,
+                offer_badge: campaignBadge(bxgy),
+                offer_meta: campaignMeta(bxgy)
+            };
+        }
         return {
             original_price: original,
             promotional_price: null,
@@ -75,18 +100,79 @@ function applyBestCampaignToPrice(basePrice, campaigns) {
         promotional_price: round2(bestPrice),
         has_active_offer: true,
         offer_badge: campaignBadge(best),
-        offer_meta: {
-            id: best.id,
-            name: best.name || null,
-            campaign_type: best.campaign_type || null,
-            discount_type: best.discount_type || null,
-            discount_value: best.discount_value === null || best.discount_value === undefined ? null : round2(best.discount_value),
-            buy_qty: best.buy_qty === null || best.buy_qty === undefined ? null : Number(best.buy_qty),
-            get_qty: best.get_qty === null || best.get_qty === undefined ? null : Number(best.get_qty),
-            start_at: best.start_at || null,
-            end_at: best.end_at || null
-        }
+        offer_meta: campaignMeta(best)
     };
+}
+
+function getBxgyQuantities(quantity, campaign) {
+    const qty = parseInt(String(quantity || 0), 10);
+    const buyQty = parseInt(String(campaign?.buy_qty || 0), 10);
+    const getQty = parseInt(String(campaign?.get_qty || 0), 10);
+    if (!Number.isInteger(qty) || qty <= 0 || buyQty <= 0 || getQty <= 0) {
+        return { paid_quantity: Math.max(0, qty || 0), free_quantity: 0 };
+    }
+    const bundleQty = buyQty + getQty;
+    const freeQuantity = Math.floor(qty / bundleQty) * getQty;
+    return {
+        paid_quantity: qty - freeQuantity,
+        free_quantity: freeQuantity
+    };
+}
+
+function applyCampaignToCartLine(basePrice, quantity, campaigns) {
+    const original = round2(basePrice);
+    const qty = parseInt(String(quantity || 0), 10);
+    const list = Array.isArray(campaigns) ? campaigns : [];
+    const originalTotal = round2(original * Math.max(0, qty));
+    let best = {
+        campaign: null,
+        original_unit_price: original,
+        unit_price: original,
+        line_total: originalTotal,
+        paid_quantity: qty,
+        free_quantity: 0,
+        offer_badge: null,
+        offer_meta: null
+    };
+
+    for (const c of list) {
+        if (isBxgyCampaign(c)) {
+            const quantities = getBxgyQuantities(qty, c);
+            if (quantities.free_quantity <= 0) continue;
+            const lineTotal = round2(original * quantities.paid_quantity);
+            if (lineTotal < best.line_total) {
+                best = {
+                    campaign: c,
+                    original_unit_price: original,
+                    unit_price: original,
+                    line_total: lineTotal,
+                    paid_quantity: quantities.paid_quantity,
+                    free_quantity: quantities.free_quantity,
+                    offer_badge: campaignBadge(c),
+                    offer_meta: campaignMeta(c)
+                };
+            }
+            continue;
+        }
+
+        const promo = computePromotionalPrice(original, c);
+        if (!Number.isFinite(promo) || !(promo < original)) continue;
+        const lineTotal = round2(promo * qty);
+        if (lineTotal < best.line_total) {
+            best = {
+                campaign: c,
+                original_unit_price: original,
+                unit_price: promo,
+                line_total: lineTotal,
+                paid_quantity: qty,
+                free_quantity: 0,
+                offer_badge: campaignBadge(c),
+                offer_meta: campaignMeta(c)
+            };
+        }
+    }
+
+    return best;
 }
 
 async function ensureStoreOfferCampaignTables(db) {
@@ -216,8 +302,12 @@ function campaignsForProduct(campaigns, productId) {
 module.exports = {
     round2,
     campaignBadge,
+    campaignMeta,
+    isBxgyCampaign,
     computePromotionalPrice,
     applyBestCampaignToPrice,
+    getBxgyQuantities,
+    applyCampaignToCartLine,
     ensureStoreOfferCampaignTables,
     isCampaignActiveNow,
     getActiveStoreCampaignsMap,

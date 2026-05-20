@@ -11,11 +11,33 @@ class CartItem {
     this.quantity = 1,
   });
 
-  double get unitPrice => variant?.effectivePrice ?? product.effectivePrice;
+  bool get isBxgyOffer => variant?.isBxgyOffer ?? product.isBxgyOffer;
+
+  int get bxgyBuyQty => variant?.bxgyBuyQty ?? product.bxgyBuyQty;
+
+  int get bxgyGetQty => variant?.bxgyGetQty ?? product.bxgyGetQty;
+
+  int get bxgyBundleQty => bxgyBuyQty + bxgyGetQty;
+
+  int get freeQuantity {
+    if (!isBxgyOffer || bxgyBundleQty <= 0) return 0;
+    return (quantity ~/ bxgyBundleQty) * bxgyGetQty;
+  }
+
+  int get paidQuantity => quantity - freeQuantity;
+
+  String? get offerBadge => variant?.offerBadge ?? product.offerBadge;
+
+  double get unitPrice {
+    if (isBxgyOffer) {
+      return variant?.price ?? product.price;
+    }
+    return variant?.effectivePrice ?? product.effectivePrice;
+  }
 
   String? get variantLabel => variant?.displayLabel;
 
-  double get total => unitPrice * quantity;
+  double get total => unitPrice * paidQuantity;
 
   Map<String, dynamic> toJson() {
     return {
