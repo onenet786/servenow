@@ -4746,14 +4746,16 @@ router.put(
         });
       }
 
-      await req.db.execute(
-        "UPDATE orders SET payment_status = ?, updated_at = NOW() WHERE id = ?",
-        [payment_status, id],
+      const [paymentUpdateResult] = await req.db.execute(
+        "UPDATE orders SET payment_status = ?, updated_at = NOW() WHERE id = ? AND COALESCE(payment_status, '') <> ?",
+        [payment_status, id, payment_status],
       );
+      const paymentStatusChanged = Number(paymentUpdateResult?.affectedRows || 0) > 0;
 
       if (
         payment_status === "paid" &&
         order.rider_id &&
+        paymentStatusChanged &&
         order.payment_status !== "paid"
       ) {
         // New Financial Management Logic for Basic Delivery of Goods
@@ -4828,26 +4830,54 @@ router.put(
         // 3a. Credit rider wallet
         const walletCreditAmount = isCash ? cashCollected : deliveryFee;
         if (walletCreditAmount > 0) {
-          currentBalance += walletCreditAmount;
-          await req.db.execute(
-            "UPDATE wallets SET balance = ?, total_credited = total_credited + ? WHERE id = ?",
-            [currentBalance, walletCreditAmount, walletId],
-          );
-          await req.db.execute(
-            `INSERT INTO wallet_transactions (wallet_id, type, amount, description, reference_type, reference_id, balance_after) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-              walletId,
-              "credit",
-              walletCreditAmount,
-              isCash
-                ? `Cash collection for order #${order.order_number}`
-                : `Delivery fee for order #${order.order_number}`,
-              "order",
-              id,
-              currentBalance,
-            ],
-          );
+          const walletConn = await req.db.getConnection();
+          try {
+            await walletConn.beginTransaction();
+            const [lockedWallets] = await walletConn.execute(
+              "SELECT id, balance FROM wallets WHERE id = ? FOR UPDATE",
+              [walletId],
+            );
+            currentBalance = parseFloat(lockedWallets?.[0]?.balance || 0);
+            const [existingCredits] = await walletConn.execute(
+              `SELECT id
+               FROM wallet_transactions
+               WHERE wallet_id = ?
+                 AND type = 'credit'
+                 AND reference_type = 'order'
+                 AND reference_id = ?
+               LIMIT 1`,
+              [walletId, String(id)],
+            );
+
+            if (!existingCredits.length) {
+              currentBalance = roundAmount(currentBalance + walletCreditAmount);
+              await walletConn.execute(
+                "UPDATE wallets SET balance = ?, total_credited = total_credited + ? WHERE id = ?",
+                [currentBalance, walletCreditAmount, walletId],
+              );
+              await walletConn.execute(
+                `INSERT INTO wallet_transactions (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  walletId,
+                  "credit",
+                  walletCreditAmount,
+                  isCash
+                    ? `Cash collection for order #${order.order_number}`
+                    : `Delivery fee for order #${order.order_number}`,
+                  "order",
+                  id,
+                  currentBalance,
+                ],
+              );
+            }
+            await walletConn.commit();
+          } catch (walletCreditError) {
+            await walletConn.rollback();
+            throw walletCreditError;
+          } finally {
+            walletConn.release();
+          }
         }
 
         // Record Rider Dr in financial_transactions
