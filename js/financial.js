@@ -548,6 +548,7 @@ async function loadFinancialDashboard() {
             setDynamicAmount('netProfitAmount', netProfit, '#16a34a', '#b91c1c');
             setAmount('totalSettlementsAmount', stats.settlement, '#d97706');
             setAmount('totalRiderCashAmount', stats.riderCashSubmitted, '#2563eb');
+            setAmount('riderFuelPaymentsAmount', stats.riderFuelPayments || 0, '#0891b2');
             setAmount('paymentVouchersAmount', stats.paymentVouchers, '#7c3aed');
             setAmount('receiptVouchersAmount', stats.receiptVouchers, '#4f46e5');
             setAmount('deliveryChargesAmount', stats.deliveryCharges || 0, '#0891b2');
@@ -561,6 +562,7 @@ async function loadFinancialDashboard() {
             setTileStyle('netProfitAmount', netProfit < 0 ? '#b91c1c' : '#16a34a', netProfit < 0 ? 'linear-gradient(135deg,#fff1f2,#fef2f2)' : 'linear-gradient(135deg,#ecfdf5,#f0fdf4)');
             setTileStyle('totalSettlementsAmount', '#d97706', 'linear-gradient(135deg,#fffbeb,#fefce8)');
             setTileStyle('totalRiderCashAmount', '#2563eb', 'linear-gradient(135deg,#eff6ff,#eef2ff)');
+            setTileStyle('riderFuelPaymentsAmount', '#0891b2', 'linear-gradient(135deg,#ecfeff,#cffafe)');
             setTileStyle('paymentVouchersAmount', '#7c3aed', 'linear-gradient(135deg,#f5f3ff,#faf5ff)');
             setTileStyle('receiptVouchersAmount', '#4f46e5', 'linear-gradient(135deg,#eef2ff,#e0e7ff)');
             setTileStyle('deliveryChargesAmount', '#0891b2', 'linear-gradient(135deg,#ecfeff,#cffafe)');
