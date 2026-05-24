@@ -731,6 +731,10 @@ router.get('/dashboard', async (req, res) => {
              ${riderFuelWhere.length ? `WHERE ${riderFuelWhere.join(' AND ')}` : ''}`,
             riderFuelPeriod.params
         );
+        const [allTimeRiderFuelRows] = await req.db.execute(
+            `SELECT COALESCE(SUM(COALESCE(fuel_cost, 0)), 0) AS total
+             FROM riders_fuel_history`
+        );
 
         const unsettledPeriod = buildPeriodFilter('o.created_at');
         const unsettledWhere = [
@@ -874,7 +878,11 @@ router.get('/dashboard', async (req, res) => {
             riderCashSubmitted: 0,
             riderCashAdvance: 0,
             riderFuelPayments: parseFloat(riderFuelRows[0]?.total || 0),
-            cashInHand: parseFloat(cashInHandResult[0]?.total || 0),
+            cashInHand: Number((
+                parseFloat(cashInHandResult[0]?.total || 0) -
+                parseFloat(allTimeRiderFuelRows[0]?.total || 0)
+            ).toFixed(2)),
+            ledgerCashInHand: parseFloat(cashInHandResult[0]?.total || 0),
             deliveryCharges: parseFloat(deliveryChargesRows?.[0]?.total_delivery_charges || 0),
             storeBalances: parseFloat(storeBalanceRows?.[0]?.total_store_balances || 0),
             totalUnsettledAmount: parseFloat(unsettledRows?.[0]?.total_unsettled_amount || 0),
