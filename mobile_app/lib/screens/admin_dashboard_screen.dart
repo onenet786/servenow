@@ -389,8 +389,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
   }
 
+  String _trackingKeyForRider(Map<String, dynamic> rider) {
+    final existing = (rider['trackingKey'] ?? '').toString().trim();
+    if (existing.isNotEmpty) return existing;
+
+    final orderId = (rider['orderId'] ?? '').toString().trim();
+    if (orderId.isNotEmpty) return 'order_$orderId';
+
+    final orderNumber = (rider['orderNumber'] ?? '').toString().trim();
+    final riderId = (rider['riderId'] ?? '').toString().trim();
+    if (orderNumber.isNotEmpty && riderId.isNotEmpty) {
+      return 'order_${riderId}_$orderNumber';
+    }
+    if (riderId.isNotEmpty) return 'rider_$riderId';
+    return '';
+  }
+
   List<Map<String, dynamic>> _extractLiveRiderLocations(List<dynamic> orders) {
-    final latestPerRider = <String, Map<String, dynamic>>{};
+    final liveRides = <Map<String, dynamic>>[];
 
     for (final raw in orders) {
       if (raw is! Map) continue;
@@ -400,6 +416,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       final riderId = (order['rider_id'] ?? '').toString().trim();
       if (riderId.isEmpty) continue;
+      final orderId = (order['id'] ?? '').toString().trim();
+      if (orderId.isEmpty) continue;
 
       final latitude = double.tryParse(
         (order['rider_latitude'] ?? '').toString(),
@@ -424,16 +442,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final riderName =
           '${order['rider_first_name'] ?? ''} ${order['rider_last_name'] ?? ''}'
               .trim();
-      final riderKey = riderId;
-      final existing = latestPerRider[riderKey];
-      if (existing != null) {
-        final existingAt = existing['createdAt'] as DateTime?;
-        if (existingAt != null && !createdAt.isAfter(existingAt)) {
-          continue;
-        }
-      }
 
-      latestPerRider[riderKey] = {
+      liveRides.add({
+        'trackingKey': 'order_$orderId',
+        'orderId': orderId,
         'riderId': riderId,
         'riderName': riderName.isEmpty ? 'Rider #$riderId' : riderName,
         'orderNumber': (order['order_number'] ?? '').toString(),
@@ -446,10 +458,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         'longitude': longitude,
         'hasLiveCoordinates': hasLiveCoordinates,
         'createdAt': createdAt,
-      };
+      });
     }
 
-    final items = latestPerRider.values.toList()
+    final items = liveRides
       ..sort((a, b) {
         final aAt =
             a['createdAt'] as DateTime? ??
@@ -468,16 +480,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   ) {
     return riders.map((rider) {
       final merged = Map<String, dynamic>.from(rider);
-      final riderId = (merged['riderId'] ?? '').toString().trim();
-      final startedAt = trackerPayload.startedAtByRiderId[riderId];
-      final updatedAt = trackerPayload.updatedAtByRiderId[riderId];
+      final trackingKey = _trackingKeyForRider(merged);
+      final startedAt = trackerPayload.startedAtByRiderId[trackingKey];
+      final updatedAt = trackerPayload.updatedAtByRiderId[trackingKey];
       if (startedAt != null) {
         merged['startedAt'] = startedAt;
       }
       if (updatedAt != null) {
         merged['createdAt'] = updatedAt;
       }
-      final cachedLabel = _liveLocationNameByRider[riderId];
+      final cachedLabel = _liveLocationNameByRider[trackingKey];
       final currentLabel = (merged['locationLabel'] ?? '').toString().trim();
       if (currentLabel.isEmpty && cachedLabel != null && cachedLabel.isNotEmpty) {
         merged['locationLabel'] = cachedLabel;
@@ -536,6 +548,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final riderIds = riders
         .map((rider) => (rider['riderId'] ?? '').toString().trim())
         .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final orderIds = riders
+        .map((rider) => (rider['orderId'] ?? '').toString().trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
         .toList(growable: false);
     if (riderIds.isEmpty) {
       return const _LiveRiderTrackerPayload(
@@ -551,6 +569,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       response = await ApiService.getRiderLocationHistory(
         token,
         riderIds: riderIds,
+        orderIds: orderIds,
         hours: _liveRiderHistoryHours,
         limit: _liveRiderHistoryLimit,
       );
@@ -573,17 +592,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final updatedAtByRiderId = <String, DateTime>{};
     for (final rider in riders) {
       final riderId = (rider['riderId'] ?? '').toString().trim();
-      if (riderId.isEmpty) continue;
+      final trackingKey = _trackingKeyForRider(rider);
+      final orderId = int.tryParse((rider['orderId'] ?? '').toString());
+      if (riderId.isEmpty || trackingKey.isEmpty) continue;
 
       final points = <latlng.LatLng>[];
       final telemetry = <Map<String, dynamic>>[];
       DateTime? earliestUpdatedAt;
       DateTime? latestUpdatedAt;
-      final entries = rawHistories[riderId];
+      final entries = rawHistories[trackingKey] ?? rawHistories[riderId];
       if (entries is List) {
         for (final raw in entries) {
           if (raw is! Map) continue;
           final entry = raw.cast<String, dynamic>();
+          final entryOrderId = int.tryParse((entry['order_id'] ?? '').toString());
+          if (orderId != null && entryOrderId != orderId) continue;
           final latitude = double.tryParse(
             (entry['latitude'] ?? '').toString(),
           );
@@ -632,17 +655,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       }
 
       if (points.isNotEmpty) {
-        trails[riderId] = points;
+        trails[trackingKey] = points;
       }
       final speedMph = _estimateRiderSpeedMph(telemetry);
       if (speedMph != null) {
-        speedsMph[riderId] = speedMph;
+        speedsMph[trackingKey] = speedMph;
       }
       if (earliestUpdatedAt != null) {
-        startedAtByRiderId[riderId] = earliestUpdatedAt;
+        startedAtByRiderId[trackingKey] = earliestUpdatedAt;
       }
       if (latestUpdatedAt != null) {
-        updatedAtByRiderId[riderId] = latestUpdatedAt;
+        updatedAtByRiderId[trackingKey] = latestUpdatedAt;
       }
     }
 
@@ -686,8 +709,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       return latlng.LatLng(storeLatitude, storeLongitude);
     }
 
-    final riderId = (rider['riderId'] ?? '').toString();
-    final trail = _liveRiderTrails[riderId];
+    final trackingKey = _trackingKeyForRider(rider);
+    final trail = _liveRiderTrails[trackingKey];
     if (trail != null && trail.isNotEmpty) {
       return trail.first;
     }
@@ -815,6 +838,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
         final latestPoint = points.last;
         standbyRiders.add({
+          'trackingKey': 'rider_$riderId',
+          'orderId': '',
           'riderId': riderId,
           'riderName': _riderDisplayNameFromRecord(rider),
           'orderNumber': '',
@@ -867,8 +892,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       return latlng.LatLng(storeLatitude, storeLongitude);
     }
 
-    final riderId = (rider['riderId'] ?? '').toString();
-    final trail = _liveRiderTrails[riderId];
+    final trackingKey = _trackingKeyForRider(rider);
+    final trail = _liveRiderTrails[trackingKey];
     if (trail != null && trail.isNotEmpty) {
       return trail.last;
     }
@@ -876,9 +901,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   List<latlng.LatLng> _trailPointsForRider(Map<String, dynamic> rider) {
-    final riderId = (rider['riderId'] ?? '').toString();
+    final trackingKey = _trackingKeyForRider(rider);
     final points = List<latlng.LatLng>.from(
-      _liveRiderTrails[riderId] ?? const <latlng.LatLng>[],
+      _liveRiderTrails[trackingKey] ?? const <latlng.LatLng>[],
     );
     final displayPoint = _displayPointForRider(rider);
     if (displayPoint != null) {
@@ -902,10 +927,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   double? _distanceKmForRider(Map<String, dynamic> rider) {
-    final start = _resolveRiderStartPoint(rider);
+    final points = <latlng.LatLng>[];
+    for (final point in _trailPointsForRider(rider)) {
+      _appendTrailPoint(points, point);
+    }
     final current = _resolveRiderCurrentPoint(rider);
-    if (start == null || current == null) return null;
-    final meters = latlng.Distance()(start, current);
+    if (current != null) {
+      _appendTrailPoint(points, current);
+    }
+    if (points.length < 2) {
+      final start = _resolveRiderStartPoint(rider);
+      if (start == null || current == null) return null;
+      final fallbackMeters = latlng.Distance()(start, current);
+      return fallbackMeters / 1000;
+    }
+    final distance = latlng.Distance();
+    var meters = 0.0;
+    for (var index = 1; index < points.length; index++) {
+      final segmentMeters = distance(points[index - 1], points[index]);
+      if (segmentMeters.isFinite && segmentMeters >= 0) {
+        meters += segmentMeters;
+      }
+    }
     return meters / 1000;
   }
 
@@ -982,8 +1025,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   String? _speedLabelForRider(Map<String, dynamic> rider) {
-    final riderId = (rider['riderId'] ?? '').toString().trim();
-    final speedMph = _liveRiderSpeedsMphById[riderId];
+    final trackingKey = _trackingKeyForRider(rider);
+    final speedMph = _liveRiderSpeedsMphById[trackingKey];
     if (speedMph == null || !speedMph.isFinite || speedMph <= 0) return null;
     return '${speedMph.round()} mph';
   }
@@ -1041,7 +1084,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   String _liveLocationLabelForRider(Map<String, dynamic> rider) {
-    final riderId = (rider['riderId'] ?? '').toString().trim();
+    final trackingKey = _trackingKeyForRider(rider);
     final livePoint = _displayPointForRider(rider);
     final serverLabel = (rider['locationLabel'] ?? '').toString().trim();
     final hasLiveCoordinates = rider['hasLiveCoordinates'] == true;
@@ -1055,8 +1098,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       }
       return 'Awaiting rider GPS';
     }
-    if (riderId.isNotEmpty) {
-      final cached = _liveLocationNameByRider[riderId];
+    if (trackingKey.isNotEmpty) {
+      final cached = _liveLocationNameByRider[trackingKey];
       if (cached != null && cached.trim().isNotEmpty) {
         return cached;
       }
@@ -1068,16 +1111,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     List<Map<String, dynamic>> riders,
   ) async {
     for (final rider in riders) {
-      final riderId = (rider['riderId'] ?? '').toString().trim();
+      final trackingKey = _trackingKeyForRider(rider);
       final point = _displayPointForRider(rider);
-      if (riderId.isEmpty || point == null) continue;
+      if (trackingKey.isEmpty || point == null) continue;
 
       final key = _coordinateKey(point);
       final cached = _reverseGeocodeCache[key];
       if (cached != null && cached.trim().isNotEmpty) {
-        if (_liveLocationNameByRider[riderId] != cached && mounted) {
+        if (_liveLocationNameByRider[trackingKey] != cached && mounted) {
           setState(() {
-            _liveLocationNameByRider[riderId] = cached;
+            _liveLocationNameByRider[trackingKey] = cached;
           });
         }
         continue;
@@ -1100,7 +1143,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _reverseGeocodeCache[key] = finalLabel;
         if (mounted) {
           setState(() {
-            _liveLocationNameByRider[riderId] = finalLabel;
+            _liveLocationNameByRider[trackingKey] = finalLabel;
           });
         }
       } catch (e) {
@@ -1108,7 +1151,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _reverseGeocodeCache[key] = fallback;
         if (mounted) {
           setState(() {
-            _liveLocationNameByRider[riderId] = fallback;
+            _liveLocationNameByRider[trackingKey] = fallback;
           });
         }
       } finally {
@@ -1122,16 +1165,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   latlng.LatLng? _displayPointForRider(Map<String, dynamic> rider) {
-    final riderId = (rider['riderId'] ?? '').toString().trim();
-    if (riderId.isNotEmpty && _displayedRiderPositions.containsKey(riderId)) {
-      return _displayedRiderPositions[riderId];
+    final trackingKey = _trackingKeyForRider(rider);
+    if (trackingKey.isNotEmpty &&
+        _displayedRiderPositions.containsKey(trackingKey)) {
+      return _displayedRiderPositions[trackingKey];
     }
     return _resolveRiderCurrentPoint(rider);
   }
 
   void _syncAnimatedRiderLocations(List<Map<String, dynamic>> riders) {
     final activeIds = riders
-        .map((rider) => (rider['riderId'] ?? '').toString().trim())
+        .map(_trackingKeyForRider)
         .where((id) => id.isNotEmpty)
         .toSet();
 
@@ -1143,28 +1187,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final distance = latlng.Distance();
 
     for (final rider in riders) {
-      final riderId = (rider['riderId'] ?? '').toString().trim();
+      final trackingKey = _trackingKeyForRider(rider);
       final target = _resolveRiderCurrentPoint(rider);
-      if (riderId.isEmpty || target == null) continue;
+      if (trackingKey.isEmpty || target == null) continue;
 
-      final displayed = _displayedRiderPositions[riderId];
+      final displayed = _displayedRiderPositions[trackingKey];
       if (displayed == null) {
-        _displayedRiderPositions[riderId] = target;
-        _motionStartPositions[riderId] = target;
-        _motionTargetPositions[riderId] = target;
+        _displayedRiderPositions[trackingKey] = target;
+        _motionStartPositions[trackingKey] = target;
+        _motionTargetPositions[trackingKey] = target;
         continue;
       }
 
       final moveMeters = distance(displayed, target);
       if (moveMeters <= 2) {
-        _displayedRiderPositions[riderId] = target;
-        _motionStartPositions[riderId] = target;
-        _motionTargetPositions[riderId] = target;
+        _displayedRiderPositions[trackingKey] = target;
+        _motionStartPositions[trackingKey] = target;
+        _motionTargetPositions[trackingKey] = target;
         continue;
       }
 
-      _motionStartPositions[riderId] = displayed;
-      _motionTargetPositions[riderId] = target;
+      _motionStartPositions[trackingKey] = displayed;
+      _motionTargetPositions[trackingKey] = target;
       shouldAnimate = true;
     }
 
@@ -1216,7 +1260,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (selectedId == null || selectedId.isEmpty) return;
 
     final rider = _liveRiderLocations.cast<Map<String, dynamic>?>().firstWhere(
-      (item) => item?['riderId'].toString() == selectedId,
+      (item) => item != null && _trackingKeyForRider(item) == selectedId,
       orElse: () => null,
     );
     if (rider == null) return;
@@ -1248,35 +1292,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final updatedAt =
         _parseLiveTrackingTime(data['updated_at']) ?? DateTime.now();
     final locationLabel = (data['location'] ?? '').toString().trim();
-    final existingIndex = _liveRiderLocations.indexWhere(
-      (rider) => (rider['riderId'] ?? '').toString() == riderId,
-    );
-    if (existingIndex < 0) {
+    final rawOrderIds = data['order_ids'] ?? data['orderIds'];
+    final orderIds = <String>{};
+    if (rawOrderIds is List) {
+      orderIds.addAll(
+        rawOrderIds.map((value) => value.toString().trim()).where(
+              (value) => value.isNotEmpty,
+            ),
+      );
+    }
+
+    final matchingIndexes = <int>[];
+    for (var index = 0; index < _liveRiderLocations.length; index++) {
+      final rider = _liveRiderLocations[index];
+      final matchesRider = (rider['riderId'] ?? '').toString() == riderId;
+      final orderId = (rider['orderId'] ?? '').toString().trim();
+      final matchesOrder = orderIds.isNotEmpty && orderIds.contains(orderId);
+      if (matchesOrder || (orderIds.isEmpty && matchesRider)) {
+        matchingIndexes.add(index);
+      }
+    }
+
+    if (matchingIndexes.isEmpty) {
       unawaited(_loadLiveRiderLocationsOnly());
       return;
     }
 
     final updatedRiders = List<Map<String, dynamic>>.from(_liveRiderLocations);
-    final rider = Map<String, dynamic>.from(updatedRiders[existingIndex]);
-    rider['latitude'] = latitude;
-    rider['longitude'] = longitude;
-    rider['createdAt'] = updatedAt;
-    final status = (data['status'] ?? '').toString().trim().toLowerCase();
-    if (status.isNotEmpty) {
-      rider['status'] = status;
-    }
-    if (locationLabel.isNotEmpty) {
-      rider['locationLabel'] = locationLabel;
-      if (!_shouldHideMachineLocationLabel(locationLabel)) {
-        _liveLocationNameByRider[riderId] = locationLabel;
+    final trails = Map<String, List<latlng.LatLng>>.from(_liveRiderTrails);
+
+    for (final index in matchingIndexes) {
+      final rider = Map<String, dynamic>.from(updatedRiders[index]);
+      rider['latitude'] = latitude;
+      rider['longitude'] = longitude;
+      rider['createdAt'] = updatedAt;
+      final status = (data['status'] ?? '').toString().trim().toLowerCase();
+      if (status.isNotEmpty) {
+        rider['status'] = status;
+      }
+      final trackingKey = _trackingKeyForRider(rider);
+      if (locationLabel.isNotEmpty) {
+        rider['locationLabel'] = locationLabel;
+        if (!_shouldHideMachineLocationLabel(locationLabel) &&
+            trackingKey.isNotEmpty) {
+          _liveLocationNameByRider[trackingKey] = locationLabel;
+        }
+      }
+      updatedRiders[index] = rider;
+
+      if (trackingKey.isNotEmpty) {
+        final riderTrail = List<latlng.LatLng>.from(
+          trails[trackingKey] ?? const [],
+        );
+        _appendTrailPoint(riderTrail, latlng.LatLng(latitude, longitude));
+        trails[trackingKey] = riderTrail;
       }
     }
-    updatedRiders[existingIndex] = rider;
-
-    final trails = Map<String, List<latlng.LatLng>>.from(_liveRiderTrails);
-    final riderTrail = List<latlng.LatLng>.from(trails[riderId] ?? const []);
-    _appendTrailPoint(riderTrail, latlng.LatLng(latitude, longitude));
-    trails[riderId] = riderTrail;
 
     if (!mounted) return;
     setState(() {
@@ -1660,12 +1731,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _syncAnimatedRiderLocations(_liveRiderLocations);
         _liveLocationNameByRider.removeWhere(
           (key, _) => !_liveRiderLocations.any(
-            (rider) => rider['riderId'].toString() == key,
+            (rider) => _trackingKeyForRider(rider) == key,
           ),
         );
         if (_selectedLiveRiderId != null &&
             !_liveRiderLocations.any(
-              (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
+              (rider) => _trackingKeyForRider(rider) == _selectedLiveRiderId,
             )) {
           _selectedLiveRiderId = null;
         }
@@ -1737,12 +1808,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _syncAnimatedRiderLocations(_liveRiderLocations);
         _liveLocationNameByRider.removeWhere(
           (key, _) => !_liveRiderLocations.any(
-            (rider) => rider['riderId'].toString() == key,
+            (rider) => _trackingKeyForRider(rider) == key,
           ),
         );
         if (_selectedLiveRiderId != null &&
             !_liveRiderLocations.any(
-              (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
+              (rider) => _trackingKeyForRider(rider) == _selectedLiveRiderId,
             )) {
           _selectedLiveRiderId = null;
         }
@@ -3000,12 +3071,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final hasSelectedRider =
         _selectedLiveRiderId != null &&
         allRiders.any(
-          (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
+          (rider) => _trackingKeyForRider(rider) == _selectedLiveRiderId,
         );
     final riders = hasSelectedRider
         ? allRiders
               .where(
-                (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
+                (rider) => _trackingKeyForRider(rider) == _selectedLiveRiderId,
               )
               .toList(growable: false)
         : allRiders;
@@ -3014,8 +3085,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     var delayedRiders = 0;
     DateTime? latestUpdate;
     for (final rider in allRiders) {
-      final riderId = (rider['riderId'] ?? '').toString();
-      totalTrailPoints += _liveRiderTrails[riderId]?.length ?? 0;
+      final trackingKey = _trackingKeyForRider(rider);
+      totalTrailPoints += _liveRiderTrails[trackingKey]?.length ?? 0;
       if (_shouldWarnPickupDelay(rider)) {
         delayedRiders += 1;
       }
@@ -3113,7 +3184,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 children: [
                   _buildTrackingMetricPill(
                     icon: Icons.two_wheeler,
-                    label: '${allRiders.length} riders live',
+                    label: '${allRiders.length} rides live',
                     backgroundColor: const Color(0xFFECFDF5),
                     borderColor: const Color(0xFF86EFAC),
                     textColor: const Color(0xFF166534),
@@ -3199,7 +3270,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       ? _selectedLiveRiderId
                       : '__all__',
                   decoration: InputDecoration(
-                    labelText: _tr('Select Rider'),
+                    labelText: 'Select Ride',
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
                     contentPadding: const EdgeInsets.symmetric(
@@ -3218,16 +3289,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   items: [
                     DropdownMenuItem<String>(
                       value: '__all__',
-                      child: Text(_tr('All riders')),
+                      child: const Text('All rides'),
                     ),
                     ...allRiders.map((rider) {
-                      final riderId = (rider['riderId'] ?? '').toString();
                       final riderName = (rider['riderName'] ?? _tr('Rider'))
                           .toString();
                       final orderNumber = (rider['orderNumber'] ?? '')
                           .toString();
+                      final trackingKey = _trackingKeyForRider(rider);
                       return DropdownMenuItem<String>(
-                        value: riderId,
+                        value: trackingKey,
                         child: SizedBox(
                           width: double.infinity,
                           child: Text(
@@ -3246,7 +3317,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          _tr('All riders'),
+                          'All rides',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -3254,10 +3325,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       ...allRiders.map((rider) {
                         final riderName =
                             (rider['riderName'] ?? _tr('Rider')).toString();
+                        final orderNumber =
+                            (rider['orderNumber'] ?? '').toString().trim();
                         return Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            riderName,
+                            orderNumber.isEmpty
+                                ? riderName
+                                : '$riderName - $orderNumber',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -3340,7 +3415,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ? null
         : _liveRiderLocations
               .where(
-                (rider) => rider['riderId'].toString() == _selectedLiveRiderId,
+                (rider) => _trackingKeyForRider(rider) == _selectedLiveRiderId,
               )
               .map((rider) => (rider['riderName'] ?? 'this rider').toString())
               .cast<String?>()
@@ -3374,7 +3449,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       ...trailCoordinates,
       ...coordinates,
     ];
-    final mapKey = riders.map((rider) => rider['riderId'].toString()).join('_');
+    final mapKey = riders.map(_trackingKeyForRider).join('_');
 
     final fallbackCenter = mapCoordinates.isNotEmpty
         ? mapCoordinates.first
@@ -3420,8 +3495,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   markers: riders
                       .map((rider) {
                         if (isFocusedTrackingMode) return null;
-                        final riderId = (rider['riderId'] ?? '').toString();
-                        final routeColor = _routeColorForRider(riderId);
+                        final trackingKey = _trackingKeyForRider(rider);
+                        final routeColor = _routeColorForRider(trackingKey);
                         final startPoint = _resolveRiderStartPoint(rider);
                         if (startPoint == null) return null;
                         return Marker(
@@ -3442,11 +3517,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   PolylineLayer(
                     polylines: riders
                         .map((rider) {
-                          final riderId = (rider['riderId'] ?? '').toString();
+                          final trackingKey = _trackingKeyForRider(rider);
                           final points = _trailPointsForRider(rider);
                           if (points.length < 2) return null;
-                          final isSelected = riderId == _selectedLiveRiderId;
-                          final routeColor = _routeColorForRider(riderId);
+                          final isSelected =
+                              trackingKey == _selectedLiveRiderId;
+                          final routeColor = _routeColorForRider(trackingKey);
                           return Polyline(
                             points: points,
                             color: isSelected
@@ -3464,8 +3540,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   MarkerLayer(
                     markers: riders
                         .expand((rider) {
-                          final riderId = (rider['riderId'] ?? '').toString();
-                          final routeColor = _routeColorForRider(riderId);
+                          final trackingKey = _trackingKeyForRider(rider);
+                          final routeColor = _routeColorForRider(trackingKey);
                           final points = _trailPointsForRider(rider);
                           final breadcrumbs = _sampleTrailBreadcrumbs(
                             points,
@@ -3497,9 +3573,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ),
                 MarkerLayer(
                   markers: riders.map((rider) {
-                    final riderId = (rider['riderId'] ?? '').toString();
-                    final isSelected = riderId == _selectedLiveRiderId;
-                    final routeColor = _routeColorForRider(riderId);
+                    final trackingKey = _trackingKeyForRider(rider);
+                    final isSelected = trackingKey == _selectedLiveRiderId;
+                    final routeColor = _routeColorForRider(trackingKey);
                     final displayPoint =
                         _displayPointForRider(rider) ??
                         _resolveRiderStartPoint(rider);
@@ -3511,7 +3587,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       child: GestureDetector(
                         onTap: () {
                           setState(() {
-                            _selectedLiveRiderId = riderId;
+                            _selectedLiveRiderId = trackingKey;
                           });
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             _autoFollowSelectedRider();
@@ -3837,9 +3913,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildFocusedRiderTrackingCard(Map<String, dynamic> rider) {
-    final riderId = (rider['riderId'] ?? '').toString();
+    final trackingKey = _trackingKeyForRider(rider);
     final riderName = (rider['riderName'] ?? 'Rider').toString();
-    final routeColor = _routeColorForRider(riderId);
+    final routeColor = _routeColorForRider(trackingKey);
     final locationLabel = _liveLocationLabelForRider(rider);
     final storeName = (rider['storeName'] ?? '').toString().trim();
     final orderNumber = (rider['orderNumber'] ?? '').toString().trim();
@@ -3847,7 +3923,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final etaMinutes = _etaMinutesForRider(rider);
     final travelMinutes = _travelMinutesForRider(rider);
     final pickupWarning = _shouldWarnPickupDelay(rider);
-    final trailPoints = _liveRiderTrails[riderId]?.length ?? 1;
+    final trailPoints = _liveRiderTrails[trackingKey]?.length ?? 1;
     final startedAt = rider['startedAt'] as DateTime?;
     final updatedAt = rider['createdAt'] as DateTime?;
 
@@ -4147,15 +4223,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   void _showLiveRiderDetails(Map<String, dynamic> rider) {
-    final riderId = (rider['riderId'] ?? '').toString();
-    final routeColor = _routeColorForRider(riderId);
+    final trackingKey = _trackingKeyForRider(rider);
+    final routeColor = _routeColorForRider(trackingKey);
     final riderName = (rider['riderName'] ?? 'Rider').toString();
     final orderNumber = (rider['orderNumber'] ?? '-').toString();
     final storeName = (rider['storeName'] ?? 'Unknown Store').toString();
     final status = (rider['status'] ?? '').toString().replaceAll('_', ' ');
     final livePoint = _displayPointForRider(rider);
     final liveLocation = _liveLocationLabelForRider(rider);
-    final trailPoints = _liveRiderTrails[riderId]?.length ?? 1;
+    final trailPoints = _liveRiderTrails[trackingKey]?.length ?? 1;
     final assignedOrder = orderNumber.isEmpty ? 'Not assigned' : orderNumber;
     final distanceKm = _distanceKmForRider(rider);
     final etaMinutes = _etaMinutesForRider(rider);
@@ -4272,23 +4348,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildRiderInfoChip(Map<String, dynamic> rider) {
-    final riderId = (rider['riderId'] ?? '').toString();
-    final routeColor = _routeColorForRider(riderId);
+    final trackingKey = _trackingKeyForRider(rider);
+    final routeColor = _routeColorForRider(trackingKey);
     final riderName = (rider['riderName'] ?? 'Rider').toString();
     final orderNumber = (rider['orderNumber'] ?? '').toString();
     final storeName = (rider['storeName'] ?? '').toString();
     final locationLabel = _liveLocationLabelForRider(rider);
-    final trailPoints = _liveRiderTrails[riderId]?.length ?? 1;
+    final trailPoints = _liveRiderTrails[trackingKey]?.length ?? 1;
     final distanceKm = _distanceKmForRider(rider);
     final etaMinutes = _etaMinutesForRider(rider);
     final travelMinutes = _travelMinutesForRider(rider);
     final pickupWarning = _shouldWarnPickupDelay(rider);
-    final isSelected = riderId == _selectedLiveRiderId;
+    final isSelected = trackingKey == _selectedLiveRiderId;
 
     return GestureDetector(
       onTap: () {
         setState(() {
-          _selectedLiveRiderId = riderId;
+          _selectedLiveRiderId = trackingKey;
         });
         _showLiveRiderDetails(rider);
       },

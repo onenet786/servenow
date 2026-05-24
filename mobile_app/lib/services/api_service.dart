@@ -1477,6 +1477,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getRiderLocationHistory(
     String token, {
     required List<String> riderIds,
+    List<String> orderIds = const <String>[],
     int hours = 3,
     int limit = 40,
   }) async {
@@ -1488,10 +1489,16 @@ class ApiService {
     if (ids.isEmpty) {
       return const {'success': true, 'histories': <String, dynamic>{}};
     }
+    final orders = orderIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
 
     final uri = Uri.parse('$baseUrl/api/orders/rider/location-history').replace(
       queryParameters: {
         'riderIds': ids.join(','),
+        if (orders.isNotEmpty) 'orderIds': orders.join(','),
         'hours': hours.toString(),
         'limit': limit.toString(),
       },

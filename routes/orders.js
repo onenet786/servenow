@@ -2376,6 +2376,12 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
       .filter((value, index, arr) =>
         Number.isInteger(value) && value > 0 && arr.indexOf(value) === index
       );
+    const orderIds = String(req.query.orderIds || "")
+      .split(",")
+      .map((value) => Number.parseInt(String(value).trim(), 10))
+      .filter((value, index, arr) =>
+        Number.isInteger(value) && value > 0 && arr.indexOf(value) === index
+      );
 
     if (riderIds.length === 0) {
       return res.json({ success: true, histories: {} });
@@ -2391,24 +2397,31 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
     );
 
     const placeholders = riderIds.map(() => "?").join(", ");
+    const orderPlaceholders = orderIds.map(() => "?").join(", ");
+    const orderFilter =
+      orderIds.length > 0 ? ` AND order_id IN (${orderPlaceholders})` : "";
     const [rows] = await req.db.execute(
       `SELECT rider_id, order_id, latitude, longitude, location_label, created_at
        FROM rider_location_logs
        WHERE rider_id IN (${placeholders})
          AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+         ${orderFilter}
        ORDER BY rider_id ASC, created_at ASC`,
-      [...riderIds, hours],
+      [...riderIds, hours, ...orderIds],
     );
 
     const histories = {};
     for (const riderId of riderIds) {
       histories[String(riderId)] = [];
     }
+    for (const orderId of orderIds) {
+      histories[`order_${orderId}`] = [];
+    }
 
     for (const row of rows) {
       const key = String(row.rider_id);
       if (!histories[key]) histories[key] = [];
-      histories[key].push({
+      const entry = {
         order_id:
           row.order_id === null || row.order_id === undefined
             ? null
@@ -2417,7 +2430,13 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
         longitude: Number.parseFloat(row.longitude),
         location_label: String(row.location_label || "").trim(),
         created_at: row.created_at,
-      });
+      };
+      histories[key].push(entry);
+      if (entry.order_id) {
+        const orderKey = `order_${entry.order_id}`;
+        if (!histories[orderKey]) histories[orderKey] = [];
+        histories[orderKey].push(entry);
+      }
     }
 
     for (const key of Object.keys(histories)) {
@@ -4420,6 +4439,7 @@ router.put(
       await ensureRiderLocationColumns(req.db);
 
       if (latitude !== undefined && longitude !== undefined) {
+        await ensureRiderLocationLogsTable(req.db);
         const updateSql = resolvedLocation
           ? "UPDATE orders SET rider_latitude = ?, rider_longitude = ?, rider_location = ? WHERE id = ?"
           : "UPDATE orders SET rider_latitude = ?, rider_longitude = ? WHERE id = ?";
@@ -4427,6 +4447,14 @@ router.put(
           ? [latitude, longitude, resolvedLocation, id]
           : [latitude, longitude, id];
         await req.db.execute(updateSql, updateParams);
+        try {
+          await req.db.execute(
+            "INSERT INTO rider_location_logs (rider_id, order_id, latitude, longitude, location_label) VALUES (?, ?, ?, ?, ?)",
+            [order.rider_id, id, latitude, longitude, resolvedLocation],
+          );
+        } catch (e) {
+          console.error("Failed to insert rider location log:", e);
+        }
 
         emitRiderLocationUpdate(
           req.io,
