@@ -1,0 +1,58 @@
+{
+  "name": "servenow-react-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "New ServeNow React 18 + TypeScript + Vite frontend with Electron desktop shell.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5174",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4174",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5174 && cross-env VITE_DEV_SERVER_URL=http://localhost:5174 electron .\"",
+    "electron:preview": "npm run build && cross-env ELECTRON_START_URL=dist/index.html electron .",
+    "electron:build": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.1.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "pk.servenow.desktop",
+    "productName": "ServeNow",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "../mobile_app/windows/runner/resources/app_icon.ico"
+    }
+  }
+}
