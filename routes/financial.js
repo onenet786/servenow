@@ -904,8 +904,11 @@ router.get('/dashboard', async (req, res) => {
             }
         });
 
-        stats.net_profit = stats.income - (stats.expense + stats.settlement + stats.refund);
-        stats.netProfitIfSettled = stats.net_profit - stats.totalUnsettledAmount;
+        stats.net_profit = Number((
+            stats.income -
+            (stats.expense + stats.settlement + stats.refund + stats.riderFuelPayments)
+        ).toFixed(2));
+        stats.netProfitIfSettled = Number((stats.net_profit - stats.totalUnsettledAmount).toFixed(2));
 
         res.json({
             success: true,
@@ -1840,7 +1843,7 @@ router.get('/rider-cash', async (req, res) => {
 // Helper function to get or create rider wallet
 async function getOrCreateRiderWallet(db, riderId) {
     const [wallets] = await db.execute(
-        `SELECT id, balance, total_credited, total_spent FROM wallets WHERE rider_id = ?`,
+        `SELECT id, rider_id, balance, total_credited, total_spent FROM wallets WHERE rider_id = ?`,
         [riderId]
     );
 
@@ -1851,12 +1854,40 @@ async function getOrCreateRiderWallet(db, riderId) {
         );
         
         const [newWallet] = await db.execute(
-            'SELECT id, balance, total_credited, total_spent FROM wallets WHERE rider_id = ?',
+            'SELECT id, rider_id, balance, total_credited, total_spent FROM wallets WHERE rider_id = ?',
             [riderId]
         );
         return newWallet[0];
     }
     return wallets[0];
+}
+
+async function assertNoWalletOrderCreditConflict(db, orderId, riderId, walletId) {
+    const [existingCredits] = await db.execute(
+        `SELECT wt.id, wt.wallet_id, w.rider_id AS wallet_rider_id
+         FROM wallet_transactions wt
+         JOIN wallets w ON w.id = wt.wallet_id
+         WHERE wt.type = 'credit'
+           AND wt.reference_type = 'order'
+           AND CAST(wt.reference_id AS UNSIGNED) = ?
+         LIMIT 5`,
+        [orderId]
+    );
+
+    const conflictingCredit = existingCredits.find(
+        (row) =>
+            Number(row.wallet_id) !== Number(walletId) ||
+            Number(row.wallet_rider_id) !== Number(riderId)
+    );
+    if (conflictingCredit) {
+        const error = new Error(
+            `Wallet credit conflict for order ${orderId}: already credited wallet ${conflictingCredit.wallet_id} / rider ${conflictingCredit.wallet_rider_id}`
+        );
+        error.statusCode = 409;
+        throw error;
+    }
+
+    return existingCredits;
 }
 
 // Helper function to record wallet transaction and update balance
@@ -1909,6 +1940,39 @@ async function recordRiderWalletTransaction(db, riderId, type, amount, descripti
 async function ensureWalletCreditsForSubmissionOrders(db, riderId, movementId) {
     await ensureRiderCashSubmissionOrdersTable(db);
     const wallet = await getOrCreateRiderWallet(db, riderId);
+    if (Number(wallet.rider_id || riderId) !== Number(riderId)) {
+        throw new Error(`Wallet ${wallet.id} does not belong to rider ${riderId}`);
+    }
+
+    const [conflictRows] = await db.execute(
+        `SELECT rcso.order_id,
+                rcso.order_number,
+                o.rider_id AS order_rider_id,
+                wt.id AS wallet_transaction_id,
+                wt.wallet_id,
+                w.rider_id AS wallet_rider_id
+         FROM rider_cash_submission_orders rcso
+         JOIN orders o ON o.id = rcso.order_id
+         LEFT JOIN wallet_transactions wt
+           ON wt.type = 'credit'
+          AND wt.reference_type = 'order'
+          AND CAST(wt.reference_id AS UNSIGNED) = rcso.order_id
+         LEFT JOIN wallets w ON w.id = wt.wallet_id
+         WHERE rcso.movement_id = ?
+           AND rcso.rider_id = ?
+           AND (
+                o.rider_id <> rcso.rider_id
+                OR (wt.id IS NOT NULL AND (wt.wallet_id <> ? OR w.rider_id <> rcso.rider_id))
+           )
+         LIMIT 1`,
+        [movementId, riderId, wallet.id]
+    );
+    if (conflictRows.length > 0) {
+        const conflict = conflictRows[0];
+        throw new Error(
+            `Cannot backfill submitted order ${conflict.order_number || conflict.order_id}: rider or wallet ownership conflict`
+        );
+    }
 
     // Find linked orders missing wallet credit entries.
     const [missingRows] = await db.execute(
@@ -1916,6 +1980,7 @@ async function ensureWalletCreditsForSubmissionOrders(db, riderId, movementId) {
                 rcso.order_number,
                 rcso.order_amount
          FROM rider_cash_submission_orders rcso
+         JOIN orders o ON o.id = rcso.order_id AND o.rider_id = rcso.rider_id
          LEFT JOIN wallet_transactions wt
            ON wt.wallet_id = ?
           AND wt.type = 'credit'
@@ -1932,6 +1997,13 @@ async function ensureWalletCreditsForSubmissionOrders(db, riderId, movementId) {
     for (const row of missingRows) {
         const amount = Number(row.order_amount || 0);
         if (amount <= 0) continue;
+        const existingCredits = await assertNoWalletOrderCreditConflict(
+            db,
+            row.order_id,
+            riderId,
+            wallet.id
+        );
+        if (existingCredits.length > 0) continue;
         runningBalance += amount;
 
         await db.execute(
@@ -2018,14 +2090,25 @@ router.post('/rider-cash', [
         if (movement_type === 'cash_submission' && linkedOrderIds.length > 0) {
             const placeholders = linkedOrderIds.map(() => '?').join(',');
             const [orders] = await req.db.execute(
-                `SELECT id, order_number, total_amount
-                 FROM orders
-                 WHERE rider_id = ?
-                   AND status = 'delivered'
-                   AND LOWER(TRIM(COALESCE(payment_method, ''))) = 'cash'
-                   AND LOWER(TRIM(COALESCE(payment_status, ''))) = 'paid'
-                   AND id IN (${placeholders})`,
-                [rider_id, ...linkedOrderIds]
+                `SELECT
+                    o.id,
+                    o.order_number,
+                    o.total_amount AS order_total_amount,
+                    COALESCE(sp.store_paid_amount, 0) AS store_paid_amount,
+                    GREATEST(COALESCE(o.total_amount, 0) - COALESCE(sp.store_paid_amount, 0), 0) AS total_amount
+                 FROM orders o
+                 LEFT JOIN (
+                    SELECT order_id, SUM(amount) AS store_paid_amount
+                    FROM rider_store_payments
+                    WHERE rider_id = ?
+                    GROUP BY order_id
+                 ) sp ON sp.order_id = o.id
+                 WHERE o.rider_id = ?
+                   AND o.status = 'delivered'
+                   AND LOWER(TRIM(COALESCE(o.payment_method, ''))) = 'cash'
+                   AND LOWER(TRIM(COALESCE(o.payment_status, ''))) = 'paid'
+                   AND o.id IN (${placeholders})`,
+                [rider_id, rider_id, ...linkedOrderIds]
             );
             eligibleOrders = orders || [];
             if (eligibleOrders.length !== linkedOrderIds.length) {
@@ -6279,8 +6362,20 @@ router.get('/riders/:id/pending-cash-orders', async (req, res) => {
         const { id } = req.params;
 
         const [pendingOrders] = await req.db.execute(
-            `SELECT o.id, o.order_number, o.total_amount, o.created_at
+            `SELECT
+                o.id,
+                o.order_number,
+                o.total_amount AS order_total_amount,
+                COALESCE(sp.store_paid_amount, 0) AS store_paid_amount,
+                GREATEST(COALESCE(o.total_amount, 0) - COALESCE(sp.store_paid_amount, 0), 0) AS total_amount,
+                o.created_at
              FROM orders o
+             LEFT JOIN (
+                SELECT order_id, SUM(amount) AS store_paid_amount
+                FROM rider_store_payments
+                WHERE rider_id = ?
+                GROUP BY order_id
+             ) sp ON sp.order_id = o.id
              WHERE o.rider_id = ?
                AND o.status = 'delivered'
                AND LOWER(TRIM(COALESCE(o.payment_method, ''))) = 'cash'
@@ -6294,7 +6389,7 @@ router.get('/riders/:id/pending-cash-orders', async (req, res) => {
                      AND rcm.status IN ('pending', 'approved', 'completed')
                )
              ORDER BY o.created_at DESC`,
-            [id]
+            [id, id]
         );
         const total = pendingOrders.reduce((sum, order) => sum + parseFloat(order.total_amount || 0), 0);
 
@@ -6371,7 +6466,9 @@ router.get('/riders/:id/submitted-cash-orders', async (req, res) => {
             `SELECT 
                 rcso.order_id AS id,
                 COALESCE(o.order_number, rcso.order_number) AS order_number,
-                COALESCE(o.total_amount, rcso.order_amount, 0) AS total_amount,
+                COALESCE(o.total_amount, rcso.order_amount, 0) AS order_total_amount,
+                COALESCE(sp.store_paid_amount, 0) AS store_paid_amount,
+                COALESCE(rcso.order_amount, 0) AS total_amount,
                 COALESCE(o.created_at, rcso.created_at) AS created_at,
                 rcm.movement_number,
                 rcm.movement_type,
@@ -6380,6 +6477,11 @@ router.get('/riders/:id/submitted-cash-orders', async (req, res) => {
              FROM rider_cash_submission_orders rcso
              JOIN rider_cash_movements rcm ON rcm.id = rcso.movement_id
              LEFT JOIN orders o ON o.id = rcso.order_id
+             LEFT JOIN (
+                SELECT order_id, rider_id, SUM(amount) AS store_paid_amount
+                FROM rider_store_payments
+                GROUP BY order_id, rider_id
+             ) sp ON sp.order_id = rcso.order_id AND sp.rider_id = rcso.rider_id
              WHERE rcso.rider_id = ?
                AND rcm.movement_type IN ('cash_submission', 'cash_collection')
                AND rcm.status IN ('pending', 'approved', 'completed')

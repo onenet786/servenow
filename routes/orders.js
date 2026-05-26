@@ -563,6 +563,176 @@ const ACTIVE_RIDER_DELIVERY_STATUS_SQL = ACTIVE_RIDER_DELIVERY_STATUSES.map(
   (status) => `'${status}'`,
 ).join(", ");
 
+async function attachItemsToDeliveries(db, deliveries) {
+  if (!Array.isArray(deliveries) || deliveries.length === 0) return deliveries;
+
+  const orderIds = deliveries
+    .map((delivery) => Number(delivery.id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+  if (orderIds.length === 0) {
+    for (const delivery of deliveries) delivery.items = [];
+    return deliveries;
+  }
+
+  try {
+    const placeholders = orderIds.map(() => "?").join(",");
+    const [items] = await db.execute(
+      `
+        SELECT
+          oi.*,
+          p.name as product_name,
+          p.image_url,
+          s.name as store_name
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        LEFT JOIN stores s ON COALESCE(oi.store_id, p.store_id) = s.id
+        WHERE oi.order_id IN (${placeholders})
+        ORDER BY oi.order_id ASC, oi.id ASC
+      `,
+      orderIds,
+    );
+    const itemsByOrder = new Map();
+    for (const item of items || []) {
+      const orderId = Number(item.order_id);
+      if (!itemsByOrder.has(orderId)) itemsByOrder.set(orderId, []);
+      itemsByOrder.get(orderId).push(item);
+    }
+    for (const delivery of deliveries) {
+      delivery.items = itemsByOrder.get(Number(delivery.id)) || [];
+    }
+  } catch (itemError) {
+    console.error("Error fetching rider delivery items:", itemError);
+    for (const delivery of deliveries) {
+      delivery.items = [];
+    }
+  }
+
+  return deliveries;
+}
+
+async function recordPickupPaidStorePaymentsForOrder(db, {
+  orderId,
+  riderId,
+  orderNumber,
+  createdBy = null,
+}) {
+  if (!orderId || !riderId) return [];
+  await ensureRiderStorePaymentsTable(db);
+  await ensureRiderCashMovementTypes(db);
+
+  const [storesToSettle] = await db.execute(
+    `SELECT
+       COALESCE(oi.store_id, p.store_id) AS store_id,
+       s.name AS store_name,
+       s.payment_term,
+       COALESCE(SUM(
+         COALESCE(oi.cost_price, psp.cost_price, p.cost_price, oi.price) * oi.quantity
+       ), 0) AS payable_to_store
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
+     LEFT JOIN product_size_prices psp
+       ON psp.product_id = oi.product_id
+      AND (
+        (oi.size_id IS NOT NULL AND psp.size_id = oi.size_id AND psp.unit_id IS NULL)
+        OR
+        (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id AND psp.size_id IS NULL)
+      )
+     WHERE oi.order_id = ?
+       AND LOWER(TRIM(COALESCE(s.payment_term, ''))) IN ('cash only', 'cash with discount')
+     GROUP BY COALESCE(oi.store_id, p.store_id), s.name, s.payment_term`,
+    [orderId],
+  );
+
+  if (!storesToSettle.length) return [];
+
+  const walletInfo = await getOrCreateRiderWallet(db, riderId);
+  const [walletOwnerRows] = await db.execute(
+    "SELECT rider_id, balance FROM wallets WHERE id = ?",
+    [walletInfo.walletId],
+  );
+  if (
+    !walletOwnerRows.length ||
+    Number(walletOwnerRows[0].rider_id) !== Number(riderId)
+  ) {
+    const error = new Error("Rider wallet ownership mismatch during store payment");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  let runningBalance = Number(walletOwnerRows[0].balance || 0);
+  const recorded = [];
+
+  for (const store of storesToSettle) {
+    const storeId = Number(store.store_id);
+    const payable = roundAmount(store.payable_to_store || 0);
+    if (!storeId || payable <= 0) continue;
+
+    const [existingPayment] = await db.execute(
+      `SELECT id
+       FROM rider_store_payments
+       WHERE order_id = ? AND store_id = ? AND source_status = 'picked_up'
+       LIMIT 1`,
+      [orderId, storeId],
+    );
+    if (existingPayment.length) continue;
+
+    runningBalance = roundAmount(runningBalance - payable);
+    await db.execute(
+      "UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?",
+      [runningBalance, payable, walletInfo.walletId],
+    );
+    await db.execute(
+      `INSERT INTO wallet_transactions
+       (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
+       VALUES (?, 'debit', ?, ?, 'order', ?, ?)`,
+      [
+        walletInfo.walletId,
+        payable,
+        `Paid to pickup-paid store ${store.store_name || storeId} for order #${orderNumber || orderId}`,
+        orderId,
+        runningBalance,
+      ],
+    );
+    await db.execute(
+      `INSERT INTO rider_cash_movements
+       (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
+       VALUES (?, ?, CURDATE(), 'store_payment', ?, ?, 'order', ?, 'completed', ?)`,
+      [
+        `RCM-SP-${Date.now()}-${storeId}`,
+        riderId,
+        payable,
+        `Store payment on pickup for ${store.store_name || "Store"} (Order #${orderNumber || orderId})`,
+        orderId,
+        createdBy,
+      ],
+    );
+    await db.execute(
+      `INSERT INTO rider_store_payments
+       (order_id, store_id, rider_id, amount, source_status, created_by)
+       VALUES (?, ?, ?, ?, 'picked_up', ?)`,
+      [orderId, storeId, riderId, payable, createdBy],
+    );
+    await recordFinancialTransaction(db, {
+      transaction_type: "adjustment",
+      category: "rider_store_payment",
+      description: `Rider paid pickup-paid store (${store.store_name || storeId}) for order #${orderNumber || orderId}`,
+      amount: payable,
+      payment_method: "cash",
+      related_entity_type: "rider",
+      related_entity_id: riderId,
+      reference_type: "order",
+      reference_id: orderId,
+      created_by: createdBy,
+      notes: "Auto deduction from rider wallet for pickup-paid store",
+    });
+
+    recorded.push({ store_id: storeId, amount: payable });
+  }
+
+  return recorded;
+}
+
 function buildRiderLocationUpdatePayload({
   riderId,
   latitude,
@@ -795,6 +965,30 @@ async function ensureRiderDayClosingsTable(db) {
   `);
 }
 
+async function ensureRiderCashSubmissionOrdersTable(db) {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS rider_cash_submission_orders (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      movement_id INT NOT NULL,
+      order_id INT NOT NULL,
+      rider_id INT NOT NULL,
+      order_number VARCHAR(64) NULL,
+      order_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_movement_order (movement_id, order_id),
+      KEY idx_rcso_order (order_id),
+      KEY idx_rcso_rider (rider_id),
+      KEY idx_rcso_movement (movement_id)
+    )
+  `);
+}
+
+function isRiderPickupPaidPaymentTerm(term) {
+  return ["cash only", "cash with discount"].includes(
+    String(term || "").toLowerCase().trim()
+  );
+}
+
 function normalizeDateOnlyInput(value) {
   const v = String(value || "").trim();
   if (!v) return null;
@@ -909,6 +1103,34 @@ async function getOrCreateRiderWallet(db, riderId) {
     walletId: newRows[0].id,
     balance: Number(newRows[0].balance || 0),
   };
+}
+
+async function assertNoWalletOrderCreditConflict(db, orderId, riderId, walletId) {
+  const [existingCredits] = await db.execute(
+    `SELECT wt.id, wt.wallet_id, w.rider_id AS wallet_rider_id
+     FROM wallet_transactions wt
+     JOIN wallets w ON w.id = wt.wallet_id
+     WHERE wt.type = 'credit'
+       AND wt.reference_type = 'order'
+       AND CAST(wt.reference_id AS UNSIGNED) = ?
+     LIMIT 5`,
+    [orderId]
+  );
+
+  const conflictingCredit = existingCredits.find(
+    (row) =>
+      Number(row.wallet_id) !== Number(walletId) ||
+      Number(row.wallet_rider_id) !== Number(riderId)
+  );
+  if (conflictingCredit) {
+    const error = new Error(
+      `Wallet credit conflict for order ${orderId}: already credited wallet ${conflictingCredit.wallet_id} / rider ${conflictingCredit.wallet_rider_id}`
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return existingCredits;
 }
 
 // Get user's orders
@@ -2075,26 +2297,14 @@ router.get("/rider/deliveries", authenticateToken, async (req, res) => {
       [riderId],
     );
 
-    // Fetch items for each delivery
     for (let delivery of deliveries) {
       // Set display name for multi-store orders
       if (!delivery.store_id) {
         delivery.store_name = "Multiple Stores";
         delivery.store_location = "Various Locations";
       }
-
-      const [items] = await req.db.execute(
-        `
-                SELECT oi.*, p.name as product_name, p.image_url, s.name as store_name
-                FROM order_items oi
-                LEFT JOIN products p ON oi.product_id = p.id
-                LEFT JOIN stores s ON oi.store_id = s.id
-                WHERE oi.order_id = ?
-            `,
-        [delivery.id],
-      );
-      delivery.items = items;
     }
+    await attachItemsToDeliveries(req.db, deliveries);
 
     res.json({
       success: true,
@@ -2157,26 +2367,14 @@ router.get(
         [riderId],
       );
 
-      // Fetch items for each delivery
       for (let delivery of deliveries) {
         // Set display name for multi-store orders
         if (!delivery.store_id) {
           delivery.store_name = "Multiple Stores";
           delivery.store_location = "Various Locations";
         }
-
-        const [items] = await req.db.execute(
-          `
-                SELECT oi.*, p.name as product_name, p.image_url, s.name as store_name
-                FROM order_items oi
-                LEFT JOIN products p ON oi.product_id = p.id
-                LEFT JOIN stores s ON oi.store_id = s.id
-                WHERE oi.order_id = ?
-            `,
-          [delivery.id],
-        );
-        delivery.items = items;
       }
+      await attachItemsToDeliveries(req.db, deliveries);
 
       res.json({
         success: true,
@@ -2561,6 +2759,7 @@ router.get("/rider/financial-history", authenticateToken, async (req, res) => {
     }
     await ensureRiderStorePaymentsTable(req.db);
     await ensureRiderDayClosingsTable(req.db);
+    await ensureRiderCashSubmissionOrdersTable(req.db);
     const riderId = req.user.id;
     const from = (req.query.from || req.query.date_from || "").toString().trim();
     const to = (req.query.to || req.query.date_to || "").toString().trim();
@@ -2618,8 +2817,206 @@ router.get("/rider/financial-history", authenticateToken, async (req, res) => {
       [riderId, ...(hasFrom ? [from] : []), ...(hasTo ? [to] : [])]
     );
 
+    const [unsubmittedCashOrders] = await req.db.execute(
+      `SELECT
+         o.id,
+         o.order_number,
+         o.created_at,
+         o.total_amount,
+         o.total_amount AS unsubmitted_amount,
+         o.total_amount AS remaining_amount,
+         o.delivery_fee,
+         o.payment_method,
+         o.payment_status,
+         o.status
+       FROM orders o
+       WHERE o.rider_id = ?
+         AND o.status = 'delivered'
+         AND LOWER(TRIM(COALESCE(o.payment_method, ''))) = 'cash'
+         AND LOWER(TRIM(COALESCE(o.payment_status, ''))) = 'paid'
+         ${hasFrom ? "AND DATE(o.created_at) >= ?" : ""}
+         ${hasTo ? "AND DATE(o.created_at) <= ?" : ""}
+         AND NOT EXISTS (
+           SELECT 1
+           FROM rider_cash_submission_orders rcso
+           JOIN rider_cash_movements rcm ON rcm.id = rcso.movement_id
+           WHERE rcso.order_id = o.id
+             AND rcm.movement_type = 'cash_submission'
+             AND rcm.status IN ('pending', 'approved', 'completed')
+         )
+       ORDER BY o.created_at DESC, o.id DESC`,
+      [riderId, ...(hasFrom ? [from] : []), ...(hasTo ? [to] : [])]
+    );
+    const unsubmittedCashTotal = roundAmount(
+      unsubmittedCashOrders.reduce(
+        (s, o) => s + Number(o.unsubmitted_amount || o.remaining_amount || 0),
+        0
+      )
+    );
+
+    const [orderLedgerRows] = await req.db.execute(
+      `SELECT
+         o.id AS order_id,
+         o.order_number,
+         DATE(o.created_at) AS order_date,
+         o.created_at,
+         o.total_amount,
+         o.delivery_fee,
+         o.payment_method,
+         o.payment_status,
+         o.status,
+         COALESCE(oi.store_id, p.store_id) AS store_id,
+         s.name AS store_name,
+         s.payment_term,
+         COALESCE(SUM(oi.quantity * oi.price), 0) AS customer_items_total,
+         COALESCE(SUM(
+           COALESCE(oi.cost_price, psp.cost_price, p.cost_price, oi.price) * oi.quantity
+         ), 0) AS store_base_payable,
+         COALESCE(rsp.amount, 0) AS rider_paid_store
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN products p ON p.id = oi.product_id
+       JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
+       LEFT JOIN product_size_prices psp
+         ON psp.product_id = oi.product_id
+        AND (
+          (oi.size_id IS NOT NULL AND psp.size_id = oi.size_id AND psp.unit_id IS NULL)
+          OR
+          (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id AND psp.size_id IS NULL)
+        )
+       LEFT JOIN (
+         SELECT order_id, store_id, SUM(amount) AS amount
+         FROM rider_store_payments
+         WHERE rider_id = ?
+         GROUP BY order_id, store_id
+       ) rsp ON rsp.order_id = o.id AND rsp.store_id = COALESCE(oi.store_id, p.store_id)
+       WHERE o.rider_id = ?
+         AND o.status = 'delivered'
+         ${hasFrom ? "AND DATE(o.created_at) >= ?" : ""}
+         ${hasTo ? "AND DATE(o.created_at) <= ?" : ""}
+       GROUP BY
+         o.id, o.order_number, DATE(o.created_at), o.created_at, o.total_amount, o.delivery_fee,
+         o.payment_method, o.payment_status, o.status,
+         COALESCE(oi.store_id, p.store_id), s.name, s.payment_term, rsp.amount
+       ORDER BY o.created_at DESC, o.id DESC`,
+      [riderId, riderId, ...(hasFrom ? [from] : []), ...(hasTo ? [to] : [])]
+    );
+
+    const ledgerByOrder = new Map();
+    for (const row of orderLedgerRows || []) {
+      const orderId = Number(row.order_id);
+      if (!ledgerByOrder.has(orderId)) {
+        const isCashOrder =
+          String(row.payment_method || "").toLowerCase().trim() === "cash";
+        ledgerByOrder.set(orderId, {
+          order_id: orderId,
+          order_number: row.order_number,
+          order_date: row.order_date,
+          created_at: row.created_at,
+          payment_method: row.payment_method,
+          payment_status: row.payment_status,
+          status: row.status,
+          order_total: roundAmount(row.total_amount || 0),
+          delivery_fee: roundAmount(row.delivery_fee || 0),
+          customer_cash_collected: isCashOrder ? roundAmount(row.total_amount || 0) : 0,
+          stores: [],
+          items_total: 0,
+          rider_store_paid: 0,
+          rider_store_payable_now: 0,
+          missing_rider_store_payment: 0,
+          store_payable_later: 0,
+          company_profit_adjustment: 0,
+          delivery_charge_cash: isCashOrder ? roundAmount(row.delivery_fee || 0) : 0,
+          expected_rider_cash_effect: 0,
+        });
+      }
+
+      const orderLedger = ledgerByOrder.get(orderId);
+      const paymentTerm = row.payment_term || "";
+      const isPickupPaid = isRiderPickupPaidPaymentTerm(paymentTerm);
+      const customerItemsTotal = roundAmount(row.customer_items_total || 0);
+      const storeBasePayable = roundAmount(row.store_base_payable || 0);
+      const riderPaidStore = roundAmount(row.rider_paid_store || 0);
+      const adjustment = roundAmount(customerItemsTotal - storeBasePayable);
+
+      orderLedger.items_total = roundAmount(orderLedger.items_total + customerItemsTotal);
+      orderLedger.rider_store_paid = roundAmount(orderLedger.rider_store_paid + riderPaidStore);
+      orderLedger.rider_store_payable_now = roundAmount(
+        orderLedger.rider_store_payable_now + (isPickupPaid ? storeBasePayable : 0)
+      );
+      orderLedger.missing_rider_store_payment = roundAmount(
+        orderLedger.missing_rider_store_payment +
+          (isPickupPaid ? Math.max(0, storeBasePayable - riderPaidStore) : 0)
+      );
+      orderLedger.store_payable_later = roundAmount(
+        orderLedger.store_payable_later + (isPickupPaid ? 0 : storeBasePayable)
+      );
+      orderLedger.company_profit_adjustment = roundAmount(
+        orderLedger.company_profit_adjustment + adjustment
+      );
+      orderLedger.stores.push({
+        store_id: row.store_id,
+        store_name: row.store_name,
+        payment_term: paymentTerm,
+        customer_items_total: customerItemsTotal,
+        store_payable: storeBasePayable,
+        store_payable_now: isPickupPaid ? storeBasePayable : 0,
+        rider_paid_now: riderPaidStore,
+        missing_rider_payment: isPickupPaid
+          ? roundAmount(Math.max(0, storeBasePayable - riderPaidStore))
+          : 0,
+        store_payable_later: isPickupPaid ? 0 : storeBasePayable,
+        company_profit_adjustment: adjustment,
+        settlement_mode: isPickupPaid ? "rider_paid_now" : "office_credit_later",
+      });
+    }
+
+    const orderLedger = Array.from(ledgerByOrder.values()).map((order) => ({
+      ...order,
+      expected_rider_cash_effect: roundAmount(
+        Number(order.customer_cash_collected || 0) -
+          Number(order.rider_store_paid || 0)
+      ),
+    }));
+
+    const ledgerSummary = {
+      cash_in_customer: roundAmount(
+        orderLedger.reduce((s, o) => s + Number(o.customer_cash_collected || 0), 0)
+      ),
+      cash_out_store_paid: roundAmount(
+        orderLedger.reduce((s, o) => s + Number(o.rider_store_paid || 0), 0)
+      ),
+      store_payable_later: roundAmount(
+        orderLedger.reduce((s, o) => s + Number(o.store_payable_later || 0), 0)
+      ),
+      rider_store_payable_now: roundAmount(
+        orderLedger.reduce((s, o) => s + Number(o.rider_store_payable_now || 0), 0)
+      ),
+      missing_rider_store_payment: roundAmount(
+        orderLedger.reduce((s, o) => s + Number(o.missing_rider_store_payment || 0), 0)
+      ),
+      company_profit_adjustment: roundAmount(
+        orderLedger.reduce((s, o) => s + Number(o.company_profit_adjustment || 0), 0)
+      ),
+      delivery_charge_cash: roundAmount(
+        orderLedger.reduce((s, o) => s + Number(o.delivery_charge_cash || 0), 0)
+      ),
+      expected_rider_cash: 0,
+    };
+    ledgerSummary.expected_rider_cash = roundAmount(
+      ledgerSummary.cash_in_customer - ledgerSummary.cash_out_store_paid
+    );
+
     const summary = {
       wallet_balance: roundAmount(wallet?.balance || 0),
+      unsubmitted_cash_received: unsubmittedCashTotal,
+      cash_in_customer: ledgerSummary.cash_in_customer,
+      cash_out_store_paid: ledgerSummary.cash_out_store_paid,
+      rider_store_payable_now: ledgerSummary.rider_store_payable_now,
+      missing_rider_store_payment: ledgerSummary.missing_rider_store_payment,
+      store_payable_later: ledgerSummary.store_payable_later,
+      company_profit_adjustment: ledgerSummary.company_profit_adjustment,
+      expected_rider_cash: ledgerSummary.expected_rider_cash,
       cash_collection: roundAmount(
         movements
           .filter((m) => m.movement_type === "cash_collection")
@@ -2713,6 +3110,9 @@ router.get("/rider/financial-history", authenticateToken, async (req, res) => {
       day_closing: dayClosing,
       movements,
       wallet_transactions: walletTx,
+      unsubmitted_cash_orders: unsubmittedCashOrders || [],
+      order_ledger: orderLedger,
+      ledger_summary: ledgerSummary,
       fuel_entries: fuelRows || [],
       filters: { from: from || null, to: to || null, summary_date: summaryDate },
     });
@@ -3634,122 +4034,29 @@ router.put(
         [newGlobalStatus, id],
       );
 
-      // Cash-only store settlement at pickup:
-      // When store confirms "picked_up", deduct payable store amount from assigned rider wallet once per store.
+      // Pickup-paid store settlement:
+      // Only Cash Only / Cash with Discount stores are paid by the rider at pickup.
+      // Credit stores are settled by office/admin, so rider wallet must not be debited.
       if (status === "picked_up" && order.rider_id) {
-        await ensureRiderStorePaymentsTable(req.db);
-        await ensureRiderCashMovementTypes(req.db);
+        await recordPickupPaidStorePaymentsForOrder(req.db, {
+          orderId: id,
+          riderId: order.rider_id,
+          orderNumber: order.order_number,
+          createdBy: req.user.id || null,
+        });
+      }
 
-        const targetStoreRows = targetItemIds.length
-          ? await req.db.execute(
-              `SELECT
-                 oi.store_id,
-                 s.name as store_name,
-                 s.payment_term,
-                 MAX(
-                   CASE
-                     WHEN LOWER(TRIM(COALESCE(p.description, ''))) = 'created from admin manual order'
-                       THEN 1
-                     ELSE 0
-                   END
-                 ) AS has_manual_order_item
-               FROM order_items oi
-               JOIN products p ON p.id = oi.product_id
-               JOIN stores s ON s.id = oi.store_id
-               WHERE oi.id IN (${targetItemIds.map(() => "?").join(",")})
-               GROUP BY oi.store_id, s.name, s.payment_term`,
-              targetItemIds
-            )
-          : [[], []];
-        const storesToSettle = (targetStoreRows[0] || []).filter(
-          (r) =>
-            ["cash only", "cash with discount"].includes(
-              String(r.payment_term || "").toLowerCase().trim()
-            ) || Number(r.has_manual_order_item || 0) === 1
-        );
-
-        if (storesToSettle.length) {
-          const walletInfo = await getOrCreateRiderWallet(req.db, order.rider_id);
-          let runningBalance = Number(walletInfo.balance || 0);
-          for (const s of storesToSettle) {
-            const [existingPayment] = await req.db.execute(
-              `SELECT id FROM rider_store_payments
-               WHERE order_id = ? AND store_id = ? AND source_status = 'picked_up'
-               LIMIT 1`,
-              [id, s.store_id]
-            );
-            if (existingPayment.length) continue;
-
-            const [payableRows] = await req.db.execute(
-              `SELECT
-                 COALESCE(SUM(
-                   COALESCE(oi.cost_price, psp.cost_price, p.cost_price, oi.price) * oi.quantity
-                 ), 0) AS payable_to_store
-               FROM order_items oi
-               JOIN products p ON p.id = oi.product_id
-               LEFT JOIN product_size_prices psp
-                 ON psp.product_id = oi.product_id
-                AND (
-                  (oi.size_id IS NOT NULL AND psp.size_id = oi.size_id AND psp.unit_id IS NULL)
-                  OR
-                  (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id AND psp.size_id IS NULL)
-                )
-               WHERE oi.order_id = ? AND oi.store_id = ?`,
-              [id, s.store_id]
-            );
-            const payable = roundAmount(payableRows[0]?.payable_to_store || 0);
-            if (payable <= 0) continue;
-
-            runningBalance = roundAmount(runningBalance - payable);
-            await req.db.execute(
-              "UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?",
-              [runningBalance, payable, walletInfo.walletId]
-            );
-            await req.db.execute(
-              `INSERT INTO wallet_transactions
-               (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
-               VALUES (?, 'debit', ?, ?, 'order', ?, ?)`,
-              [
-                walletInfo.walletId,
-                payable,
-                `Paid to pickup-paid store ${s.store_name || s.store_id} for order #${order.order_number}`,
-                id,
-                runningBalance,
-              ]
-            );
-            await req.db.execute(
-              `INSERT INTO rider_cash_movements
-               (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
-               VALUES (?, ?, CURDATE(), 'store_payment', ?, ?, 'order', ?, 'completed', ?)`,
-              [
-                `RCM-SP-${Date.now()}-${s.store_id}`,
-                order.rider_id,
-                payable,
-                `Store payment on pickup for ${s.store_name || "Store"} (Order #${order.order_number})`,
-                id,
-                req.user.id || null,
-              ]
-            );
-            await req.db.execute(
-              `INSERT INTO rider_store_payments (order_id, store_id, rider_id, amount, source_status, created_by)
-               VALUES (?, ?, ?, ?, 'picked_up', ?)`,
-              [id, s.store_id, order.rider_id, payable, req.user.id || null]
-            );
-            await recordFinancialTransaction(req.db, {
-              transaction_type: "adjustment",
-              category: "rider_store_payment",
-              description: `Rider paid pickup-paid store (${s.store_name || s.store_id}) for order #${order.order_number}`,
-              amount: payable,
-              payment_method: "cash",
-              related_entity_type: "rider",
-              related_entity_id: order.rider_id,
-              reference_type: "order",
-              reference_id: id,
-              created_by: req.user.id || null,
-              notes: "Auto deduction from rider wallet on pickup confirmation",
-            });
-          }
-        }
+      if (
+        newGlobalStatus === "delivered" &&
+        currentPaymentStatus === "paid" &&
+        order.rider_id
+      ) {
+        await recordPickupPaidStorePaymentsForOrder(req.db, {
+          orderId: id,
+          riderId: order.rider_id,
+          orderNumber: order.order_number,
+          createdBy: req.user.id || null,
+        });
       }
 
       // Emit order_status_update event - only to specific rooms to avoid duplicates
@@ -3960,6 +4267,33 @@ router.put(
           success: false,
           message: `Cannot assign rider to an order that is already ${order.status}`,
         });
+      }
+
+      if (order.rider_id && Number(order.rider_id) !== Number(rider_id)) {
+        const [financialRows] = await req.db.execute(
+          `SELECT 'wallet_transaction' AS source, wt.id
+           FROM wallet_transactions wt
+           WHERE wt.reference_type = 'order'
+             AND CAST(wt.reference_id AS UNSIGNED) = ?
+           LIMIT 1`,
+          [id]
+        );
+        const [submissionRows] = await req.db.execute(
+          `SELECT 'cash_submission_link' AS source, rcso.id
+           FROM rider_cash_submission_orders rcso
+           JOIN rider_cash_movements rcm ON rcm.id = rcso.movement_id
+           WHERE rcso.order_id = ?
+             AND rcm.status IN ('pending', 'approved', 'completed')
+           LIMIT 1`,
+          [id]
+        );
+        if (financialRows.length || submissionRows.length) {
+          return res.status(409).json({
+            success: false,
+            message:
+              "Cannot change rider after wallet or cash-submission records exist for this order",
+          });
+        }
       }
 
       // Check if rider exists and is available
@@ -4862,19 +5196,23 @@ router.put(
           try {
             await walletConn.beginTransaction();
             const [lockedWallets] = await walletConn.execute(
-              "SELECT id, balance FROM wallets WHERE id = ? FOR UPDATE",
+              "SELECT id, rider_id, balance FROM wallets WHERE id = ? FOR UPDATE",
               [walletId],
             );
+            if (
+              !lockedWallets.length ||
+              Number(lockedWallets[0].rider_id) !== Number(order.rider_id)
+            ) {
+              throw new Error(
+                `Wallet ${walletId} does not belong to rider ${order.rider_id}`
+              );
+            }
             currentBalance = parseFloat(lockedWallets?.[0]?.balance || 0);
-            const [existingCredits] = await walletConn.execute(
-              `SELECT id
-               FROM wallet_transactions
-               WHERE wallet_id = ?
-                 AND type = 'credit'
-                 AND reference_type = 'order'
-                 AND reference_id = ?
-               LIMIT 1`,
-              [walletId, String(id)],
+            const existingCredits = await assertNoWalletOrderCreditConflict(
+              walletConn,
+              id,
+              order.rider_id,
+              walletId
             );
 
             if (!existingCredits.length) {
@@ -4979,6 +5317,15 @@ router.put(
             console.error("Error creating rider cash movement:", err);
             // Don't fail the whole request if financial recording fails, but log it
           }
+        }
+
+        if (order.payment_method === "cash") {
+          await recordPickupPaidStorePaymentsForOrder(req.db, {
+            orderId: id,
+            riderId: order.rider_id,
+            orderNumber: order.order_number,
+            createdBy: req.user.id || null,
+          });
         }
       }
 

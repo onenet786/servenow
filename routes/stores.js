@@ -20,6 +20,23 @@ const {
 
 const router = express.Router();
 
+const routeEnsureCache = new Map();
+
+async function ensureOnce(key, fn) {
+    if (!routeEnsureCache.has(key)) {
+        routeEnsureCache.set(
+            key,
+            Promise.resolve()
+                .then(fn)
+                .catch((error) => {
+                    routeEnsureCache.delete(key);
+                    throw error;
+                })
+        );
+    }
+    return routeEnsureCache.get(key);
+}
+
 async function ensureStoreStatusMessagesTable(db) {
     await db.execute(`
         CREATE TABLE IF NOT EXISTS store_status_messages (
@@ -653,12 +670,14 @@ const calculateIsOpen = (opening_time, closing_time) => {
 // Get all stores (optionally filter by category via products)
 router.get('/', async (req, res) => {
     try {
-        await ensureStoreStatusMessagesTable(req.db);
-        await ensureServiceGeoLimitsTable(req.db);
-        await ensureStoreFinancialColumns(req.db);
-        await ensureStoreCustomerVisibilityColumn(req.db);
-        await ensureStoreBankColumn(req.db);
-        await ensureStoreBankDetailsColumns(req.db);
+        await ensureOnce('stores-list-schema', async () => {
+            await ensureStoreStatusMessagesTable(req.db);
+            await ensureServiceGeoLimitsTable(req.db);
+            await ensureStoreFinancialColumns(req.db);
+            await ensureStoreCustomerVisibilityColumn(req.db);
+            await ensureStoreBankColumn(req.db);
+            await ensureStoreBankDetailsColumns(req.db);
+        });
         const { category, category_id, search, admin, lite, latitude, longitude, city } = req.query;
         const liteMode = String(lite || '').toLowerCase() === '1' || String(lite || '').toLowerCase() === 'true';
         const whereClauses = admin === '1' ? [] : ['s.is_active = true', 'COALESCE(s.is_customer_visible, 1) = 1'];
@@ -1153,7 +1172,7 @@ router.put('/status-message', authenticateToken, requireStoreOwner, async (req, 
 
 router.get('/global-delivery-status', async (req, res) => {
     try {
-        await ensureGlobalDeliveryStatusTable(req.db);
+        await ensureOnce('global-delivery-status-schema', () => ensureGlobalDeliveryStatusTable(req.db));
         const [rows] = await req.db.execute(
             `SELECT id, is_enabled, block_ordering, title, status_message, start_at, end_at, updated_at
              FROM global_delivery_status
@@ -1598,7 +1617,7 @@ router.put('/global-delivery-status', authenticateToken, requireAdmin, async (re
 
 router.get('/live-promotions', async (req, res) => {
     try {
-        await ensureLivePromotionsTable(req.db);
+        await ensureOnce('live-promotions-schema', () => ensureLivePromotionsTable(req.db));
         const [rows] = await req.db.execute(
             `SELECT id, is_enabled, title, status_message, start_at, end_at, widget_images_json, updated_at
              FROM live_promotions
@@ -2086,7 +2105,7 @@ router.put('/live-promotions', authenticateToken, requireAdmin, async (req, res)
 
 router.get('/customer-flash-message', authenticateToken, async (req, res) => {
     try {
-        await ensureCustomerFlashMessagesTable(req.db);
+        await ensureOnce('customer-flash-message-schema', () => ensureCustomerFlashMessagesTable(req.db));
         const [rows] = await req.db.execute(
             `SELECT id, is_enabled, title, status_message, image_url, start_at, end_at, notification_target, customer_ids_json, updated_at
              FROM customer_flash_messages

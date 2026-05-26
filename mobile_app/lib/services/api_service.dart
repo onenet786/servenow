@@ -218,6 +218,12 @@ class ApiService {
                 .toString();
         throw ApiServiceException(message);
       } on FormatException {
+        final preview = response.body.length > 240
+            ? '${response.body.substring(0, 240)}...'
+            : response.body;
+        _logger.w(
+          'Non-JSON API error ${response.statusCode} from ${response.request?.url}: $preview',
+        );
         throw ApiServiceException(
           'Unable to complete your request right now. Please try again.',
         );
@@ -849,6 +855,14 @@ class ApiService {
       uri,
       headers: {'Authorization': 'Bearer $token'},
     );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final preview = response.body.length > 300
+          ? '${response.body.substring(0, 300)}...'
+          : response.body;
+      _logger.w(
+        'Rider deliveries failed: status=${response.statusCode}, url=$uri, body=$preview',
+      );
+    }
     final data = _handleResponse(response);
     return data['deliveries'] ?? [];
   }

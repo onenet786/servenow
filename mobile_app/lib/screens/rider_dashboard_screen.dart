@@ -42,6 +42,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   late AnimationController _blinkController;
   late Animation<double> _blinkAnimation;
   bool _isUrdu = false;
+  final Map<String, DateTime> _recentNotificationEvents = {};
+  static const Duration _notificationDedupWindow = Duration(seconds: 8);
 
   Future<void> _loadLanguagePreference() async {
     final isUrdu = await CustomerLanguage.loadIsUrdu();
@@ -173,6 +175,58 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     );
   }
 
+  bool _shouldSkipDuplicateNotification({
+    required String? type,
+    required String? status,
+    required String message,
+    required Map<String, dynamic> notification,
+    required Map<String, dynamic>? nestedData,
+  }) {
+    final rawOrderId =
+        notification['order_id'] ??
+        notification['id'] ??
+        nestedData?['order_id'] ??
+        nestedData?['id'];
+    final rawOrderNumber =
+        notification['order_number'] ?? nestedData?['order_number'];
+    final eventName =
+        (notification['socket_event'] ?? notification['event'] ?? type ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+    final normalizedType = (type ?? eventName).toLowerCase().trim();
+    final normalizedStatus = (status ?? '').toLowerCase().trim();
+    final eventClass =
+        normalizedType.contains('assign') ||
+            normalizedType == 'rider_notification' ||
+            eventName.contains('assign') ||
+            eventName == 'rider_notification'
+        ? 'assignment'
+        : normalizedType;
+    final entityKey = (rawOrderId ?? rawOrderNumber ?? message)
+        .toString()
+        .toLowerCase()
+        .trim();
+    final key = [
+      eventClass,
+      normalizedStatus,
+      entityKey,
+      message.toLowerCase().trim(),
+    ].where((part) => part.isNotEmpty).join('|');
+    if (key.isEmpty) return false;
+
+    final now = DateTime.now();
+    _recentNotificationEvents.removeWhere(
+      (_, seenAt) => now.difference(seenAt) > _notificationDedupWindow,
+    );
+    final previous = _recentNotificationEvents[key];
+    if (previous != null && now.difference(previous) <= _notificationDedupWindow) {
+      return true;
+    }
+    _recentNotificationEvents[key] = now;
+    return false;
+  }
+
   void _handleNotification(Map<String, dynamic> notification) {
     if (!mounted) return;
 
@@ -228,6 +282,15 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         hasAssignmentPayload;
 
     if (shouldRefresh) {
+      if (_shouldSkipDuplicateNotification(
+        type: type,
+        status: status,
+        message: message,
+        notification: notification,
+        nestedData: nestedData,
+      )) {
+        return;
+      }
       final isSilent =
           type == 'refresh_orders' && (message.isEmpty || message == ' ');
       if (!isSilent) {
@@ -356,8 +419,12 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       if (status == 'assigned') {
         unawaited(_syncBackgroundTracking(deliveries));
       }
-    } catch (e) {
-      _logger.e('Error loading $status deliveries: $e');
+    } catch (e, stackTrace) {
+      _logger.e(
+        'Error loading $status deliveries',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -527,6 +594,11 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       if (!mounted) return;
       final summary = (data['summary'] as Map<String, dynamic>?) ?? {};
       final movements = (data['movements'] as List?) ?? const [];
+      final unsubmittedCashOrders =
+          (data['unsubmitted_cash_orders'] as List?) ?? const [];
+      final orderLedger = (data['order_ledger'] as List?) ?? const [];
+      final ledgerSummary =
+          (data['ledger_summary'] as Map<String, dynamic>?) ?? {};
       final dailySummary =
           (data['daily_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       Map<String, dynamic>? dayClosing =
@@ -554,7 +626,37 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       if (totalCollection == 0 && movements.isEmpty) {
         totalCollection = _parseDouble(summary['cash_collection']);
       }
-      final unsettledCollection = (totalCollection - totalSubmitted).clamp(0, double.infinity);
+      final unsubmittedCashReceived =
+          _parseDouble(summary['unsubmitted_cash_received']);
+      final unsettledCollection = unsubmittedCashReceived;
+      final cashInCustomerRaw =
+          _parseDouble(ledgerSummary['cash_in_customer'] ?? summary['cash_in_customer']);
+      final cashInCustomer = cashInCustomerRaw > 0 ? cashInCustomerRaw : totalCollection;
+      final cashOutStore = _parseDouble(
+        ledgerSummary['cash_out_store_paid'] ?? summary['cash_out_store_paid'] ?? summary['store_payment'],
+      );
+      final payableLater = _parseDouble(
+        ledgerSummary['store_payable_later'] ?? summary['store_payable_later'],
+      );
+      final storePayableNow = _parseDouble(
+        ledgerSummary['rider_store_payable_now'] ??
+            summary['rider_store_payable_now'],
+      );
+      final missingStorePayment = _parseDouble(
+        ledgerSummary['missing_rider_store_payment'] ??
+            summary['missing_rider_store_payment'],
+      );
+      final profitAdjustment = _parseDouble(
+        ledgerSummary['company_profit_adjustment'] ??
+            summary['company_profit_adjustment'],
+      );
+      final officeAdvance = _parseDouble(summary['office_advance']);
+      final fuelPayment = _parseDouble(summary['fuel_payment']);
+      final expectedCashWithRider = officeAdvance +
+          cashInCustomer -
+          cashOutStore -
+          fuelPayment -
+          totalSubmitted;
 
       Color movementColor(String type) {
         final t = type.toLowerCase();
@@ -571,51 +673,419 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         required dynamic value,
         required IconData icon,
         required Color color,
+        VoidCallback? onTap,
       }) {
         final amount = _parseDouble(value).toStringAsFixed(2);
         return Expanded(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withValues(alpha: 0.25)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, color: color, size: 14),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 9.5,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w600,
-                          height: 1.0,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withValues(alpha: 0.25)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icon, color: color, size: 14),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w600,
+                            height: 1.0,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'PKR $amount',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    height: 1.0,
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 3),
+                  Text(
+                    'PKR $amount',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      height: 1.0,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+        );
+      }
+
+      Widget ledgerRow(
+        String label,
+        dynamic value, {
+        Color color = Colors.black87,
+        bool strong = false,
+      }) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: strong ? Colors.black87 : Colors.black54,
+                    fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                'PKR ${_parseDouble(value).toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      Widget sectionBox({
+        required String title,
+        required List<Widget> children,
+        Color color = const Color(0xFFF8FAFC),
+        Color borderColor = const Color(0xFFE2E8F0),
+      }) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...children,
+            ],
+          ),
+        );
+      }
+
+      Widget orderLedgerCard(Map<String, dynamic> order) {
+        final stores = (order['stores'] as List?) ?? const [];
+        final orderNumber =
+            (order['order_number'] ?? '#${order['order_id'] ?? '-'}').toString();
+        final cashEffect = _parseDouble(order['expected_rider_cash_effect']);
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      orderNumber,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Cash effect PKR ${cashEffect.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Color(0xFF0F766E),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _fmtDateTime(order['created_at']),
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ledgerRow(
+                'Customer cash collected',
+                order['customer_cash_collected'],
+                color: const Color(0xFF15803D),
+              ),
+              ledgerRow(
+                'Store payable now',
+                order['rider_store_payable_now'],
+                color: const Color(0xFFE65100),
+              ),
+              ledgerRow(
+                'Store paid by rider',
+                order['rider_store_paid'],
+                color: const Color(0xFFB91C1C),
+              ),
+              if (_parseDouble(order['missing_rider_store_payment']) > 0)
+                ledgerRow(
+                  'Missing store payment record',
+                  order['missing_rider_store_payment'],
+                  color: const Color(0xFFB91C1C),
+                  strong: true,
+                ),
+              ledgerRow(
+                'Store payable later',
+                order['store_payable_later'],
+                color: const Color(0xFF1D4ED8),
+              ),
+              ledgerRow(
+                'Profit/discount adjustment',
+                order['company_profit_adjustment'],
+                color: const Color(0xFF7C3AED),
+              ),
+              const SizedBox(height: 8),
+              ...stores.map((rawStore) {
+                final store = (rawStore as Map?)?.cast<String, dynamic>() ?? {};
+                final mode = (store['settlement_mode'] ?? '').toString();
+                final isCredit = mode == 'office_credit_later';
+                return Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: isCredit
+                        ? const Color(0xFFEFF6FF)
+                        : const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (store['store_name'] ?? 'Store').toString(),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            isCredit ? 'Credit later' : 'Paid now',
+                            style: TextStyle(
+                              color: isCredit
+                                  ? const Color(0xFF1D4ED8)
+                                  : const Color(0xFFE65100),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (store['payment_term'] ?? '-').toString(),
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      ledgerRow('Item total', store['customer_items_total']),
+                      ledgerRow('Store payable', store['store_payable']),
+                      if (_parseDouble(store['store_payable_now']) > 0)
+                        ledgerRow(
+                          'Payable now',
+                          store['store_payable_now'],
+                          color: const Color(0xFFE65100),
+                        ),
+                      ledgerRow('Rider paid now', store['rider_paid_now']),
+                      if (_parseDouble(store['missing_rider_payment']) > 0)
+                        ledgerRow(
+                          'Missing paid record',
+                          store['missing_rider_payment'],
+                          color: const Color(0xFFB91C1C),
+                          strong: true,
+                        ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      }
+
+      void showNotSubmittedCashOrders() {
+        showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) {
+            return SafeArea(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.78,
+                ),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Not Submitted Cash Orders',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            'PKR ${unsettledCollection.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Color(0xFFE65100),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: unsubmittedCashOrders.isEmpty
+                            ? const Center(
+                                child: Text('No unsubmitted cash orders found.'),
+                              )
+                            : ListView.separated(
+                                itemCount: unsubmittedCashOrders.length,
+                                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                itemBuilder: (_, i) {
+                                  final order = (unsubmittedCashOrders[i] as Map?)
+                                          ?.cast<String, dynamic>() ??
+                                      {};
+                                  final orderNumber =
+                                      (order['order_number'] ?? '#${order['id'] ?? '-'}')
+                                          .toString();
+                                  final totalAmount = _parseDouble(
+                                    order['unsubmitted_amount'] ??
+                                        order['remaining_amount'] ??
+                                        order['total_amount'],
+                                  );
+                                  final deliveryFee =
+                                      _parseDouble(order['delivery_fee']);
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF7ED),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: const Color(0xFFFED7AA),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                orderNumber,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
+                                            Text(
+                                              'PKR ${totalAmount.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                color: Color(0xFFE65100),
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          _fmtDateTime(order['created_at']),
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Payment: ${(order['payment_method'] ?? '-').toString().toUpperCase()}  |  Status: ${(order['payment_status'] ?? '-').toString().toUpperCase()}',
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Delivery Fee: PKR ${deliveryFee.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       }
 
@@ -651,7 +1121,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Rider Financial History',
+                          'Day Transactions',
                           style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
@@ -679,259 +1149,410 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            summaryTile(
-                              label: 'Total Collection',
-                              value: totalCollection,
-                              icon: Icons.payments_outlined,
-                              color: const Color(0xFF15803D),
-                            ),
-                            const SizedBox(width: 8),
-                            summaryTile(
-                              label: 'Unsettled Collection',
-                              value: unsettledCollection,
-                              icon: Icons.account_balance_wallet_outlined,
-                              color: const Color(0xFFE65100),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            summaryTile(
-                              label: 'Wallet',
-                              value: summary['wallet_balance'],
-                              icon: Icons.account_balance_wallet_outlined,
-                              color: const Color(0xFF0F766E),
-                            ),
-                            const SizedBox(width: 8),
-                            summaryTile(
-                              label: 'Store Payment',
-                              value: summary['store_payment'],
-                              icon: Icons.storefront_outlined,
-                              color: const Color(0xFF1D4ED8),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            summaryTile(
-                              label: 'Fuel Payment',
-                              value: summary['fuel_payment'],
-                              icon: Icons.local_gas_station_outlined,
-                              color: const Color(0xFFD97706),
-                            ),
-                            const SizedBox(width: 8),
-                            summaryTile(
-                              label: 'Office Advance',
-                              value: summary['office_advance'],
-                              icon: Icons.request_page_outlined,
-                              color: const Color(0xFF7C3AED),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        Expanded(
+                          child: ListView(
+                            padding: EdgeInsets.zero,
                             children: [
                               Row(
                                 children: [
-                                  const Expanded(
-                                    child: Text(
-                                      'Daily Summary',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 14,
-                                      ),
-                                    ),
+                                  summaryTile(
+                                    label: 'Customer Cash',
+                                    value: cashInCustomer,
+                                    icon: Icons.payments_outlined,
+                                    color: const Color(0xFF15803D),
                                   ),
-                                  Text(
-                                    summaryDate,
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
+                                  const SizedBox(width: 8),
+                                  summaryTile(
+                                    label: 'Not Submitted',
+                                    value: unsettledCollection,
+                                    icon: Icons.account_balance_wallet_outlined,
+                                    color: const Color(0xFFE65100),
+                                    onTap: showNotSubmittedCashOrders,
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text(
-                                'Cash PKR ${_parseDouble(dailySummary['cash_collection']).toStringAsFixed(2)}  |  Store Paid PKR ${_parseDouble(dailySummary['store_payment']).toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Fuel PKR ${_parseDouble(dailySummary['fuel_payment']).toStringAsFixed(2)}  |  Delivery Fee PKR ${_parseDouble(dailySummary['delivery_fee_earned']).toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 10),
-                              if (isDayClosed)
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFDCFCE7),
-                                    borderRadius: BorderRadius.circular(8),
+                              Row(
+                                children: [
+                                  summaryTile(
+                                    label: 'Expected Cash',
+                                    value: expectedCashWithRider,
+                                    icon: Icons.savings_outlined,
+                                    color: const Color(0xFF0F766E),
                                   ),
-                                  child: Text(
-                                    'Day closed at ${_fmtDateTime(dayClosing?['closed_at'])}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF166534),
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
+                                  const SizedBox(width: 8),
+                                  summaryTile(
+                                    label: 'Store Paid Now',
+                                    value: cashOutStore,
+                                    icon: Icons.storefront_outlined,
+                                    color: const Color(0xFF1D4ED8),
                                   ),
-                                )
-                              else
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton.icon(
-                                    onPressed: isClosingDay
-                                        ? null
-                                        : () async {
-                                            setModalState(() => isClosingDay = true);
-                                            try {
-                                              final closeData = await ApiService.closeRiderDay(
-                                                token,
-                                                date: summaryDate,
-                                              );
-                                              dayClosing = (closeData['day_closing'] as Map<String, dynamic>?)
-                                                  ?.cast<String, dynamic>();
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text('Day closed successfully'),
-                                                  ),
-                                                );
-                                              }
-                                            } catch (e) {
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(content: Text('Failed to close day: $e')),
-                                                );
-                                              }
-                                            } finally {
-                                              setModalState(() => isClosingDay = false);
-                                            }
-                                          },
-                                    icon: isClosingDay
-                                        ? const SizedBox(
-                                            width: 14,
-                                            height: 14,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          )
-                                        : const Icon(Icons.task_alt_outlined),
-                                    label: Text(
-                                      isClosingDay ? 'Closing...' : 'Close Day',
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  summaryTile(
+                                    label: 'Fuel Payment',
+                                    value: summary['fuel_payment'],
+                                    icon: Icons.local_gas_station_outlined,
+                                    color: const Color(0xFFD97706),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  summaryTile(
+                                    label: 'Office Advance',
+                                    value: summary['office_advance'],
+                                    icon: Icons.request_page_outlined,
+                                    color: const Color(0xFF7C3AED),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              sectionBox(
+                                title: 'Cash Position',
+                                color: const Color(0xFFF0FDFA),
+                                borderColor: const Color(0xFF99F6E4),
+                                children: [
+                                  ledgerRow(
+                                    'Office advance',
+                                    officeAdvance,
+                                    color: const Color(0xFF7C3AED),
+                                  ),
+                                  ledgerRow(
+                                    'Customer cash collected',
+                                    cashInCustomer,
+                                    color: const Color(0xFF15803D),
+                                  ),
+                                  ledgerRow(
+                                    'Store paid by rider',
+                                    cashOutStore,
+                                    color: const Color(0xFFB91C1C),
+                                  ),
+                                  ledgerRow(
+                                    'Store payable now',
+                                    storePayableNow,
+                                    color: const Color(0xFFE65100),
+                                  ),
+                                  if (missingStorePayment > 0)
+                                    ledgerRow(
+                                      'Missing store payment record',
+                                      missingStorePayment,
+                                      color: const Color(0xFFB91C1C),
+                                      strong: true,
                                     ),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: const Color(0xFFE65100),
-                                      foregroundColor: Colors.white,
-                                    ),
+                                  ledgerRow(
+                                    'Fuel / expense',
+                                    fuelPayment,
+                                    color: const Color(0xFFD97706),
+                                  ),
+                                  ledgerRow(
+                                    'Submitted to office',
+                                    totalSubmitted,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                  const Divider(height: 14),
+                                  ledgerRow(
+                                    'Expected cash with rider',
+                                    expectedCashWithRider,
+                                    color: const Color(0xFF0F766E),
+                                    strong: true,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  ledgerRow(
+                                    'Store payable later (credit)',
+                                    payableLater,
+                                    color: const Color(0xFF1D4ED8),
+                                  ),
+                                  ledgerRow(
+                                    'Profit/discount adjustment',
+                                    profitAdjustment,
+                                    color: const Color(0xFF7C3AED),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
                                   ),
                                 ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Expanded(
+                                          child: Text(
+                                            'Daily Summary',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          summaryDate,
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Cash PKR ${_parseDouble(dailySummary['cash_collection']).toStringAsFixed(2)}  |  Store Paid PKR ${_parseDouble(dailySummary['store_payment']).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Fuel PKR ${_parseDouble(dailySummary['fuel_payment']).toStringAsFixed(2)}  |  Delivery Fee PKR ${_parseDouble(dailySummary['delivery_fee_earned']).toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    if (isDayClosed)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFDCFCE7),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          'Day closed at ${_fmtDateTime(dayClosing?['closed_at'])}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF166534),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton.icon(
+                                          onPressed: isClosingDay
+                                              ? null
+                                              : () async {
+                                                  setModalState(
+                                                    () => isClosingDay = true,
+                                                  );
+                                                  try {
+                                                    final closeData =
+                                                        await ApiService
+                                                            .closeRiderDay(
+                                                      token,
+                                                      date: summaryDate,
+                                                    );
+                                                    dayClosing =
+                                                        (closeData['day_closing']
+                                                                as Map<String,
+                                                                    dynamic>?)
+                                                            ?.cast<String,
+                                                                dynamic>();
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Day closed successfully',
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context)
+                                                          .showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            'Failed to close day: $e',
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  } finally {
+                                                    setModalState(
+                                                      () => isClosingDay = false,
+                                                    );
+                                                  }
+                                                },
+                                          icon: isClosingDay
+                                              ? const SizedBox(
+                                                  width: 14,
+                                                  height: 14,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                  ),
+                                                )
+                                              : const Icon(Icons.task_alt_outlined),
+                                          label: Text(
+                                            isClosingDay
+                                                ? 'Closing...'
+                                                : 'Close Day',
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFFE65100),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              if (orderLedger.isNotEmpty) ...[
+                                sectionBox(
+                                  title: 'Order-wise Ledger',
+                                  children: [
+                                    for (final rawOrder in orderLedger) ...[
+                                      orderLedgerCard(
+                                        (rawOrder as Map?)?.cast<String, dynamic>() ?? {},
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              sectionBox(
+                                title: 'Cash Movement Log',
+                                children: movements.isEmpty
+                                    ? [
+                                        const Padding(
+                                          padding: EdgeInsets.symmetric(vertical: 16),
+                                          child: Center(
+                                            child: Text('No financial movements found'),
+                                          ),
+                                        ),
+                                      ]
+                                    : [
+                                        for (final rawMovement in movements) ...[
+                                          Builder(
+                                            builder: (_) {
+                                              final m = (rawMovement as Map?)
+                                                      ?.cast<String, dynamic>() ??
+                                                  {};
+                                              final type =
+                                                  (m['movement_type'] ?? '-').toString();
+                                              final clr = movementColor(type);
+                                              final amount = _parseDouble(m['amount'])
+                                                  .toStringAsFixed(2);
+                                              final status =
+                                                  (m['status'] ?? '-').toString();
+                                              return Container(
+                                                padding: const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: Colors.grey.shade200,
+                                                  ),
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(
+                                                            type
+                                                                .replaceAll('_', ' ')
+                                                                .toUpperCase(),
+                                                            style: const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight.w700,
+                                                              fontSize: 13,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 4,
+                                                          ),
+                                                          decoration: BoxDecoration(
+                                                            color: clr.withValues(
+                                                              alpha: 0.12,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(8),
+                                                          ),
+                                                          child: Text(
+                                                            'PKR $amount',
+                                                            style: TextStyle(
+                                                              color: clr,
+                                                              fontWeight:
+                                                                  FontWeight.w700,
+                                                              fontSize: 11,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Text(
+                                                      _fmtDateTime(m['movement_date']),
+                                                      style: const TextStyle(
+                                                        color: Colors.black54,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                    if ((m['description'] ?? '')
+                                                        .toString()
+                                                        .trim()
+                                                        .isNotEmpty) ...[
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        (m['description'] ?? '')
+                                                            .toString(),
+                                                        style: const TextStyle(
+                                                          color: Colors.black87,
+                                                          fontSize: 12,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                    const SizedBox(height: 6),
+                                                    Text(
+                                                      'Status: ${status.toUpperCase()}',
+                                                      style: const TextStyle(
+                                                        color: Colors.black45,
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                          const SizedBox(height: 8),
+                                        ],
+                                      ],
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Expanded(
-                          child: movements.isEmpty
-                              ? const Center(child: Text('No financial movements found'))
-                              : ListView.separated(
-                                  itemCount: movements.length,
-                                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                                  itemBuilder: (_, i) {
-                                    final m =
-                                        (movements[i] as Map?)?.cast<String, dynamic>() ?? {};
-                                    final type = (m['movement_type'] ?? '-').toString();
-                                    final clr = movementColor(type);
-                                    final amount = _parseDouble(m['amount']).toStringAsFixed(2);
-                                    final status = (m['status'] ?? '-').toString();
-                                    return Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade50,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.grey.shade200),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  type.replaceAll('_', ' ').toUpperCase(),
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: clr.withValues(alpha: 0.12),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Text(
-                                                  'PKR $amount',
-                                                  style: TextStyle(
-                                                    color: clr,
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            _fmtDateTime(m['movement_date']),
-                                            style: const TextStyle(
-                                              color: Colors.black54,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          if ((m['description'] ?? '').toString().trim().isNotEmpty) ...[
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              (m['description'] ?? '').toString(),
-                                              style: const TextStyle(
-                                                color: Colors.black87,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            'Status: ${status.toUpperCase()}',
-                                            style: const TextStyle(
-                                              color: Colors.black45,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
                         ),
                       ],
                     ),
@@ -1350,7 +1971,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           ),
           ListTile(
             leading: const Icon(Icons.query_stats),
-            title: Text(_tr('Financial History')),
+            title: Text(_tr('Day Transactions')),
             onTap: () {
               Navigator.of(context).pop();
               _openRiderFinancialHistory();

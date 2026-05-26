@@ -540,7 +540,14 @@ async function loadFinancialDashboard() {
             };
 
             const stats = data.stats || {};
-            const netProfit = toNum(stats.income) - (toNum(stats.expense) + toNum(stats.settlement) + toNum(stats.refund));
+            const netProfit = stats.net_profit !== undefined
+                ? toNum(stats.net_profit)
+                : toNum(stats.income) - (
+                    toNum(stats.expense) +
+                    toNum(stats.settlement) +
+                    toNum(stats.refund) +
+                    toNum(stats.riderFuelPayments)
+                );
 
             setAmount('cashInHandAmount', stats.cashInHand, '#0f766e');
             setAmount('totalIncomeAmount', stats.income, '#16a34a');
