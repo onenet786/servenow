@@ -522,8 +522,12 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
 
   String _fmtDateTime(dynamic raw) {
     if (raw == null) return '-';
-    final dt = DateTime.tryParse(raw.toString());
-    if (dt == null) return raw.toString();
+    final value = raw.toString().trim();
+    if (value.isEmpty) return '-';
+    final parsed = DateTime.tryParse(value) ??
+        DateTime.tryParse(value.replaceFirst(' ', 'T'));
+    if (parsed == null) return value;
+    final dt = parsed.isUtc ? parsed.toLocal() : parsed;
     final y = dt.year.toString().padLeft(4, '0');
     final m = dt.month.toString().padLeft(2, '0');
     final d = dt.day.toString().padLeft(2, '0');
@@ -564,26 +568,23 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   }
 
   Future<void> _openRiderFinancialHistory() async {
+    final now = DateTime.now();
+    await _openRiderFinancialHistoryForDate(
+      DateTime(now.year, now.month, now.day),
+    );
+  }
+
+  Future<void> _openRiderFinancialHistoryForDate(DateTime selectedDate) async {
     final token = Provider.of<AuthProvider>(context, listen: false).token;
     if (token == null) return;
     final now = DateTime.now();
-    final fromDate = await showDatePicker(
-      context: context,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 1),
-      initialDate: now.subtract(const Duration(days: 6)),
-      helpText: 'Select Start Date',
+    final today = DateTime(now.year, now.month, now.day);
+    final fromDate = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
     );
-    if (fromDate == null || !mounted) return;
-
-    final toDate = await showDatePicker(
-      context: context,
-      firstDate: fromDate,
-      lastDate: DateTime(now.year + 1),
-      initialDate: now.isAfter(fromDate) ? now : fromDate,
-      helpText: 'Select End Date',
-    );
-    if (toDate == null || !mounted) return;
+    final toDate = fromDate;
 
     try {
       final data = await ApiService.getRiderFinancialHistory(
@@ -1098,6 +1099,15 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           return StatefulBuilder(
             builder: (ctx, setModalState) {
               final isDayClosed = dayClosing != null;
+              final canGoNext = fromDate.isBefore(today);
+              void openDayOffset(int offset) {
+                Navigator.of(ctx).pop();
+                final nextDate = fromDate.add(Duration(days: offset));
+                Future.microtask(() {
+                  if (mounted) _openRiderFinancialHistoryForDate(nextDate);
+                });
+              }
+
               return SafeArea(
                 child: Container(
                   constraints: BoxConstraints(
@@ -1134,16 +1144,45 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.date_range, color: Color(0xFFE65100), size: 18),
+                              IconButton(
+                                onPressed: () => openDayOffset(-1),
+                                icon: const Icon(Icons.chevron_left),
+                                color: const Color(0xFFE65100),
+                                tooltip: 'Previous day',
+                                visualDensity: VisualDensity.compact,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: Text(
-                                  '${_dateOnly(fromDate)}  to  ${_dateOnly(toDate)}',
-                                  style: const TextStyle(
-                                    color: Color(0xFFE65100),
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      _deliveryDateLabel(_dateOnly(fromDate)),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Color(0xFFE65100),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _dateOnly(fromDate),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                onPressed: canGoNext ? () => openDayOffset(1) : null,
+                                icon: const Icon(Icons.chevron_right),
+                                color: const Color(0xFFE65100),
+                                tooltip: 'Next day',
+                                visualDensity: VisualDensity.compact,
                               ),
                             ],
                           ),
@@ -1512,7 +1551,11 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                                     ),
                                                     const SizedBox(height: 6),
                                                     Text(
-                                                      _fmtDateTime(m['movement_date']),
+                                                      _fmtDateTime(
+                                                        m['movement_at'] ??
+                                                            m['created_at'] ??
+                                                            m['movement_date'],
+                                                      ),
                                                       style: const TextStyle(
                                                         color: Colors.black54,
                                                         fontSize: 12,

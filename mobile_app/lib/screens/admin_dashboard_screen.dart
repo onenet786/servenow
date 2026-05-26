@@ -21,12 +21,14 @@ class _LiveRiderTrackerPayload {
   const _LiveRiderTrackerPayload({
     required this.trails,
     required this.speedsMph,
+    required this.distancesKm,
     required this.startedAtByRiderId,
     required this.updatedAtByRiderId,
   });
 
   final Map<String, List<latlng.LatLng>> trails;
   final Map<String, double> speedsMph;
+  final Map<String, double> distancesKm;
   final Map<String, DateTime> startedAtByRiderId;
   final Map<String, DateTime> updatedAtByRiderId;
 }
@@ -86,6 +88,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   final Map<String, latlng.LatLng> _motionTargetPositions = {};
   final Map<String, String> _liveLocationNameByRider = {};
   final Map<String, double> _liveRiderSpeedsMphById = {};
+  final Map<String, double> _liveRiderDistancesKmById = {};
   final Map<String, String> _reverseGeocodeCache = {};
   final Set<String> _pendingReverseGeocodeKeys = {};
   String? _liveTrackerBoundEmail;
@@ -105,6 +108,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   bool _isDailySalesLoading = false;
   Map<String, dynamic> _dailySalesSummary = {};
   List<dynamic> _dailyRiderCashBreakdown = [];
+  List<dynamic> _dailyRiderTravelSummary = [];
 
   List<dynamic> _recentOrdersList = [];
   List<dynamic> _recentUsersList = [];
@@ -254,15 +258,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Future<void> _loadDailySalesSummary() async {
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final token = auth.token;
+    final canViewLiveTracker = _canViewLiveRiderTracker(auth.user?.email);
     if (token == null) return;
 
     setState(() => _isDailySalesLoading = true);
     try {
       final data = await _fetchDailySalesSummaryData(token);
+      Map<String, dynamic>? travelSummaryData;
+      if (canViewLiveTracker) {
+        try {
+          travelSummaryData = await ApiService.getRiderTravelSummary(
+            token,
+            date: _dateKey(_selectedDailySalesDate),
+          );
+        } catch (e) {
+          _logger.w('Rider travel summary refresh unavailable: $e');
+        }
+      }
       if (!mounted) return;
       setState(() {
         _applyDailySalesSummaryData(data);
+        _dailyRiderTravelSummary =
+            travelSummaryData?['riders'] is List
+                ? travelSummaryData!['riders'] as List<dynamic>
+                : const [];
         _isDailySalesLoading = false;
       });
     } catch (e) {
@@ -559,6 +580,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       return const _LiveRiderTrackerPayload(
         trails: <String, List<latlng.LatLng>>{},
         speedsMph: <String, double>{},
+        distancesKm: <String, double>{},
         startedAtByRiderId: <String, DateTime>{},
         updatedAtByRiderId: <String, DateTime>{},
       );
@@ -578,6 +600,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       return const _LiveRiderTrackerPayload(
         trails: <String, List<latlng.LatLng>>{},
         speedsMph: <String, double>{},
+        distancesKm: <String, double>{},
         startedAtByRiderId: <String, DateTime>{},
         updatedAtByRiderId: <String, DateTime>{},
       );
@@ -588,8 +611,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     final trails = <String, List<latlng.LatLng>>{};
     final speedsMph = <String, double>{};
+    final distancesKm = <String, double>{};
     final startedAtByRiderId = <String, DateTime>{};
     final updatedAtByRiderId = <String, DateTime>{};
+    final rawSummaries =
+        (response['summaries'] as Map?)?.cast<String, dynamic>() ??
+        const <String, dynamic>{};
     for (final rider in riders) {
       final riderId = (rider['riderId'] ?? '').toString().trim();
       final trackingKey = _trackingKeyForRider(rider);
@@ -661,6 +688,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (speedMph != null) {
         speedsMph[trackingKey] = speedMph;
       }
+      final summary = rawSummaries[trackingKey] ?? rawSummaries[riderId];
+      if (summary is Map) {
+        final serverDistance = double.tryParse(
+          (summary['distance_km'] ?? '').toString(),
+        );
+        if (serverDistance != null && serverDistance >= 0) {
+          distancesKm[trackingKey] = serverDistance;
+        }
+      }
       if (earliestUpdatedAt != null) {
         startedAtByRiderId[trackingKey] = earliestUpdatedAt;
       }
@@ -672,6 +708,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return _LiveRiderTrackerPayload(
       trails: trails,
       speedsMph: speedsMph,
+      distancesKm: distancesKm,
       startedAtByRiderId: startedAtByRiderId,
       updatedAtByRiderId: updatedAtByRiderId,
     );
@@ -737,6 +774,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         trackerPayload: _LiveRiderTrackerPayload(
           trails: <String, List<latlng.LatLng>>{},
           speedsMph: <String, double>{},
+          distancesKm: <String, double>{},
           startedAtByRiderId: <String, DateTime>{},
           updatedAtByRiderId: <String, DateTime>{},
         ),
@@ -765,6 +803,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           trackerPayload: _LiveRiderTrackerPayload(
             trails: <String, List<latlng.LatLng>>{},
             speedsMph: <String, double>{},
+            distancesKm: <String, double>{},
             startedAtByRiderId: <String, DateTime>{},
             updatedAtByRiderId: <String, DateTime>{},
           ),
@@ -788,8 +827,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           const <String, dynamic>{};
       final trails = <String, List<latlng.LatLng>>{};
       final speeds = <String, double>{};
+      final distances = <String, double>{};
       final startedAtByRiderId = <String, DateTime>{};
       final updatedAtByRiderId = <String, DateTime>{};
+      final rawSummaries =
+          (historyResponse['summaries'] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{};
       final standbyRiders = <Map<String, dynamic>>[];
 
       for (final rider in standbyRecords) {
@@ -829,6 +872,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         if (speedMph != null) {
           speeds[riderId] = speedMph;
         }
+        final summary = rawSummaries[riderId];
+        if (summary is Map) {
+          final serverDistance = double.tryParse(
+            (summary['distance_km'] ?? '').toString(),
+          );
+          if (serverDistance != null && serverDistance >= 0) {
+            distances[riderId] = serverDistance;
+          }
+        }
         if (earliestUpdatedAt != null) {
           startedAtByRiderId[riderId] = earliestUpdatedAt;
         }
@@ -861,6 +913,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         trackerPayload: _LiveRiderTrackerPayload(
           trails: trails,
           speedsMph: speeds,
+          distancesKm: distances,
           startedAtByRiderId: startedAtByRiderId,
           updatedAtByRiderId: updatedAtByRiderId,
         ),
@@ -872,6 +925,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         trackerPayload: _LiveRiderTrackerPayload(
           trails: <String, List<latlng.LatLng>>{},
           speedsMph: <String, double>{},
+          distancesKm: <String, double>{},
           startedAtByRiderId: <String, DateTime>{},
           updatedAtByRiderId: <String, DateTime>{},
         ),
@@ -927,6 +981,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   double? _distanceKmForRider(Map<String, dynamic> rider) {
+    final trackingKey = _trackingKeyForRider(rider);
+    final serverDistanceKm = _liveRiderDistancesKmById[trackingKey];
+    if (serverDistanceKm != null && serverDistanceKm >= 0) {
+      return serverDistanceKm;
+    }
+
     final points = <latlng.LatLng>[];
     for (final point in _trailPointsForRider(rider)) {
       _appendTrailPoint(points, point);
@@ -1025,10 +1085,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   String? _speedLabelForRider(Map<String, dynamic> rider) {
+    if (!_hasFreshRiderUpdate(rider)) return null;
     final trackingKey = _trackingKeyForRider(rider);
     final speedMph = _liveRiderSpeedsMphById[trackingKey];
     if (speedMph == null || !speedMph.isFinite || speedMph <= 0) return null;
     return '${speedMph.round()} mph';
+  }
+
+  bool _hasFreshRiderUpdate(Map<String, dynamic> rider) {
+    final updatedAt = rider['createdAt'] as DateTime?;
+    if (updatedAt == null) return false;
+    final age = DateTime.now().difference(updatedAt.toLocal());
+    return age.inSeconds >= 0 && age <= const Duration(seconds: 20);
   }
 
   String _coordinateKey(latlng.LatLng point) {
@@ -1564,6 +1632,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         token,
         fallbackOrders: orders,
       );
+      Map<String, dynamic>? travelSummaryData;
+      if (allowLiveTracker) {
+        try {
+          travelSummaryData = await ApiService.getRiderTravelSummary(
+            token,
+            date: _dateKey(_selectedDailySalesDate),
+          );
+        } catch (e) {
+          _logger.w('Rider travel summary unavailable: $e');
+        }
+      }
       final liveRiders = allowLiveTracker
           ? _extractLiveRiderLocations(
               orders
@@ -1579,6 +1658,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           const _LiveRiderTrackerPayload(
             trails: <String, List<latlng.LatLng>>{},
             speedsMph: <String, double>{},
+            distancesKm: <String, double>{},
             startedAtByRiderId: <String, DateTime>{},
             updatedAtByRiderId: <String, DateTime>{},
           );
@@ -1595,6 +1675,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               trackerPayload: _LiveRiderTrackerPayload(
                 trails: <String, List<latlng.LatLng>>{},
                 speedsMph: <String, double>{},
+                distancesKm: <String, double>{},
                 startedAtByRiderId: <String, DateTime>{},
                 updatedAtByRiderId: <String, DateTime>{},
               ),
@@ -1611,6 +1692,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         speedsMph: {
           ...liveRiderTrackerPayload.speedsMph,
           ...standbySnapshot.trackerPayload.speedsMph,
+        },
+        distancesKm: {
+          ...liveRiderTrackerPayload.distancesKm,
+          ...standbySnapshot.trackerPayload.distancesKm,
         },
         startedAtByRiderId: {
           ...liveRiderTrackerPayload.startedAtByRiderId,
@@ -1714,6 +1799,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _activeUsers = activeUsers;
         _todayLogins = todayLogins;
         _applyDailySalesSummaryData(dailySalesData);
+        _dailyRiderTravelSummary =
+            travelSummaryData?['riders'] is List
+                ? travelSummaryData!['riders'] as List<dynamic>
+                : const [];
 
         _recentOrdersList = recentActivityData['recent_orders'] ?? [];
         _recentUsersList = recentActivityData['recent_users'] ?? [];
@@ -1728,6 +1817,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _liveRiderSpeedsMphById
           ..clear()
           ..addAll(combinedTrackerPayload.speedsMph);
+        _liveRiderDistancesKmById
+          ..clear()
+          ..addAll(combinedTrackerPayload.distancesKm);
         _syncAnimatedRiderLocations(_liveRiderLocations);
         _liveLocationNameByRider.removeWhere(
           (key, _) => !_liveRiderLocations.any(
@@ -1783,6 +1875,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ...trackerPayload.speedsMph,
           ...standbySnapshot.trackerPayload.speedsMph,
         },
+        distancesKm: {
+          ...trackerPayload.distancesKm,
+          ...standbySnapshot.trackerPayload.distancesKm,
+        },
         startedAtByRiderId: {
           ...trackerPayload.startedAtByRiderId,
           ...standbySnapshot.trackerPayload.startedAtByRiderId,
@@ -1805,6 +1901,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _liveRiderSpeedsMphById
           ..clear()
           ..addAll(combinedTrackerPayload.speedsMph);
+        _liveRiderDistancesKmById
+          ..clear()
+          ..addAll(combinedTrackerPayload.distancesKm);
         _syncAnimatedRiderLocations(_liveRiderLocations);
         _liveLocationNameByRider.removeWhere(
           (key, _) => !_liveRiderLocations.any(
@@ -2086,6 +2185,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final cashSales = _dailySalesSummary['cash_sales'];
     final digitalSales = _dailySalesSummary['digital_sales'];
     final riderRows = _dailyRiderCashBreakdown.take(4).toList();
+    final travelRows = _dailyRiderTravelSummary.take(5).toList();
     final selectedDateLabel = _friendlyDateLabel(_selectedDailySalesDate);
     final controlsEnabled = !_isDailySalesLoading;
     final canGoForward =
@@ -2281,8 +2381,97 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               );
             }),
           ],
+          if (travelRows.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Rider km reconciliation',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: CustomerPalette.textDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Live GPS km is calculated from full-day rider movement logs and compared with manual fuel km.',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.blueGrey.shade600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...travelRows.map((row) {
+              final data = row is Map ? row : const {};
+              final riderName = (data['rider_name'] ?? 'Rider').toString();
+              final gpsKm = _toDouble(data['distance_km']);
+              final manualKm = _toDouble(data['manual_km']);
+              final diffKm = _toDouble(data['km_difference']);
+              final diffColor = diffKm.abs() <= 1
+                  ? const Color(0xFF15803D)
+                  : const Color(0xFFB45309);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        riderName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildKmMiniStat('GPS', gpsKm),
+                    const SizedBox(width: 8),
+                    _buildKmMiniStat('Manual', manualKm),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${diffKm >= 0 ? '+' : ''}${diffKm.toStringAsFixed(1)} km',
+                      style: TextStyle(
+                        color: diffColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildKmMiniStat(String label, double value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9.5,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          '${value.toStringAsFixed(value >= 10 ? 0 : 1)} km',
+          style: const TextStyle(
+            fontSize: 11,
+            color: Color(0xFF0F172A),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     );
   }
 
@@ -3582,8 +3771,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     if (displayPoint == null) return null;
                     return Marker(
                       point: displayPoint,
-                      width: isFocusedTrackingMode ? 160 : 110,
-                      height: isFocusedTrackingMode ? 170 : 76,
+                      width: isFocusedTrackingMode ? 96 : 110,
+                      height: isFocusedTrackingMode ? 102 : 76,
                       child: GestureDetector(
                         onTap: () {
                           setState(() {
@@ -3746,8 +3935,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final speedLabel = _speedLabelForRider(rider);
 
     return SizedBox(
-      width: 160,
-      height: 170,
+      width: 96,
+      height: 102,
       child: Stack(
         clipBehavior: Clip.none,
         alignment: Alignment.center,
@@ -3761,8 +3950,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ignoring: true,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
+                    horizontal: 8,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.96),
@@ -3780,14 +3969,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     children: [
                       const Icon(
                         Icons.two_wheeler,
-                        size: 16,
+                        size: 10,
                         color: Color(0xFF0F766E),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       Text(
                         speedLabel ?? '',
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 10,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFF111827),
                         ),
@@ -3799,10 +3988,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ),
           Positioned(
-            bottom: 24,
+            bottom: 14,
             child: Container(
-              width: 26,
-              height: 26,
+              width: 16,
+              height: 16,
               decoration: BoxDecoration(
                 color: accentColor.withValues(alpha: 0.20),
                 shape: BoxShape.circle,
@@ -3810,10 +3999,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ),
           Positioned(
-            bottom: 18,
+            bottom: 11,
             child: Container(
-              width: 16,
-              height: 16,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(
                 color: accentColor,
                 shape: BoxShape.circle,
@@ -3828,10 +4017,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ),
           Positioned(
-            top: 34,
+            top: 20,
             child: Container(
-              width: 92,
-              height: 92,
+              width: 55,
+              height: 55,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const LinearGradient(
@@ -3841,13 +4030,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
                 border: Border.all(
                   color: accentColor.withValues(alpha: 0.92),
-                  width: 4,
+                  width: 2.5,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: accentColor.withValues(alpha: 0.22),
-                    blurRadius: 22,
-                    spreadRadius: 3,
+                    blurRadius: 13,
+                    spreadRadius: 2,
                   ),
                 ],
               ),
@@ -3857,15 +4046,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   children: [
                     const Icon(
                       Icons.two_wheeler,
-                      size: 40,
+                      size: 24,
                       color: Colors.white,
                     ),
                     Positioned(
-                      right: 10,
-                      bottom: 10,
+                      right: 6,
+                      bottom: 6,
                       child: Container(
-                        width: 28,
-                        height: 28,
+                        width: 17,
+                        height: 17,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.18),
                           shape: BoxShape.circle,
@@ -3877,7 +4066,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         child: Text(
                           initial.toUpperCase(),
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 8,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                           ),
@@ -3890,19 +4079,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ),
           Positioned(
-            left: 32,
-            bottom: 34,
+            left: 19,
+            bottom: 20,
             child: Container(
-              width: 24,
-              height: 24,
+              width: 14,
+              height: 14,
               decoration: BoxDecoration(
                 color: const Color(0xFF10B981),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                border: Border.all(color: Colors.white, width: 1.2),
               ),
               child: const Icon(
                 Icons.bolt_rounded,
-                size: 13,
+                size: 8,
                 color: Colors.white,
               ),
             ),

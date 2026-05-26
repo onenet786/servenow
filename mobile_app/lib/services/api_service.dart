@@ -1525,6 +1525,21 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> getRiderTravelSummary(
+    String token, {
+    required String date,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/orders/rider/travel-summary',
+    ).replace(queryParameters: {'date': date.trim()});
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
   static Future<List<dynamic>> getAvailableRiders(String token) async {
     final uri = Uri.parse('$baseUrl/api/orders/available-riders');
     _logger.d('ApiService: GET $uri');

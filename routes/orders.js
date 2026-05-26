@@ -887,6 +887,53 @@ function compressLocationHistory(rows, maxPoints) {
   return compressed;
 }
 
+function calculateLocationDistanceKm(rows) {
+  if (!Array.isArray(rows) || rows.length < 2) return 0;
+
+  const toRadians = (value) => (value * Math.PI) / 180;
+  let previous = null;
+  let meters = 0;
+
+  for (const row of rows) {
+    const latitude = Number.parseFloat(row.latitude);
+    const longitude = Number.parseFloat(row.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue;
+
+    const current = { latitude, longitude };
+    if (previous) {
+      const earthRadiusMeters = 6371000;
+      const dLat = toRadians(current.latitude - previous.latitude);
+      const dLng = toRadians(current.longitude - previous.longitude);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRadians(previous.latitude)) *
+          Math.cos(toRadians(current.latitude)) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const segmentMeters =
+        earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      // Ignore obvious GPS jumps while keeping normal city delivery movement.
+      if (Number.isFinite(segmentMeters) && segmentMeters >= 3 && segmentMeters <= 5000) {
+        meters += segmentMeters;
+      }
+    }
+    previous = current;
+  }
+
+  return Number((meters / 1000).toFixed(3));
+}
+
+function summarizeLocationRows(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  return {
+    points: safeRows.length,
+    distance_km: calculateLocationDistanceKm(safeRows),
+    started_at: safeRows[0]?.created_at || null,
+    updated_at: safeRows[safeRows.length - 1]?.created_at || null,
+  };
+}
+
 function roundAmount(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
@@ -2597,7 +2644,9 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
     const placeholders = riderIds.map(() => "?").join(", ");
     const orderPlaceholders = orderIds.map(() => "?").join(", ");
     const orderFilter =
-      orderIds.length > 0 ? ` AND order_id IN (${orderPlaceholders})` : "";
+      orderIds.length > 0
+        ? ` AND (order_id IN (${orderPlaceholders}) OR order_id IS NULL)`
+        : "";
     const [rows] = await req.db.execute(
       `SELECT rider_id, order_id, latitude, longitude, location_label, created_at
        FROM rider_location_logs
@@ -2637,7 +2686,9 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
       }
     }
 
+    const summaries = {};
     for (const key of Object.keys(histories)) {
+      summaries[key] = summarizeLocationRows(histories[key]);
       histories[key] = compressLocationHistory(histories[key], limit);
     }
 
@@ -2646,12 +2697,146 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
       hours,
       limit,
       histories,
+      summaries,
     });
   } catch (error) {
     console.error("Error fetching rider location history:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch rider location history",
+      error: error.message,
+    });
+  }
+});
+
+router.get("/rider/travel-summary", authenticateToken, async (req, res) => {
+  try {
+    if (
+      req.user.user_type !== "admin" &&
+      req.user.user_type !== "standard_user"
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Admin only.",
+      });
+    }
+
+    await ensureRiderLocationLogsTable(req.db);
+
+    const dateText = String(req.query.date || "").trim();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateText)
+      ? dateText
+      : new Date().toISOString().slice(0, 10);
+
+    const [rows] = await req.db.execute(
+      `SELECT
+         rll.rider_id,
+         rll.order_id,
+         rll.latitude,
+         rll.longitude,
+         rll.location_label,
+         rll.created_at,
+         o.order_number,
+         o.status AS order_status,
+         s.name AS store_name,
+         CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, '')) AS rider_name
+       FROM rider_location_logs rll
+       LEFT JOIN orders o ON o.id = rll.order_id
+       LEFT JOIN stores s ON s.id = o.store_id
+       LEFT JOIN riders r ON r.id = rll.rider_id
+       WHERE DATE(rll.created_at) = ?
+       ORDER BY rll.rider_id ASC, rll.order_id ASC, rll.created_at ASC`,
+      [date],
+    );
+
+    const [manualRows] = await req.db.execute(
+      `SELECT
+         rfh.rider_id,
+         COALESCE(SUM(rfh.distance), 0) AS manual_km,
+         CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, '')) AS rider_name
+       FROM riders_fuel_history rfh
+       LEFT JOIN riders r ON r.id = rfh.rider_id
+       WHERE DATE(rfh.entry_date) = ?
+       GROUP BY rfh.rider_id, r.first_name, r.last_name`,
+      [date],
+    );
+    const manualKmByRider = new Map(
+      (manualRows || []).map((row) => [
+        String(row.rider_id),
+        Number.parseFloat(row.manual_km || 0),
+      ]),
+    );
+    const manualNameByRider = new Map(
+      (manualRows || []).map((row) => [
+        String(row.rider_id),
+        String(row.rider_name || "").trim(),
+      ]),
+    );
+
+    const byRider = new Map();
+    const byOrder = new Map();
+    for (const row of rows || []) {
+      const riderKey = String(row.rider_id);
+      if (!byRider.has(riderKey)) byRider.set(riderKey, []);
+      byRider.get(riderKey).push(row);
+
+      if (row.order_id) {
+        const orderKey = String(row.order_id);
+        if (!byOrder.has(orderKey)) byOrder.set(orderKey, []);
+        byOrder.get(orderKey).push(row);
+      }
+    }
+
+    const riders = Array.from(byRider.entries()).map(([riderId, riderRows]) => {
+      const summary = summarizeLocationRows(riderRows);
+      const manualKm = manualKmByRider.get(riderId) || 0;
+      return {
+        rider_id: Number.parseInt(riderId, 10),
+        rider_name: String(
+          riderRows[0]?.rider_name ||
+            manualNameByRider.get(riderId) ||
+            `Rider #${riderId}`,
+        ).trim(),
+        ...summary,
+        manual_km: Number(manualKm.toFixed(3)),
+        km_difference: Number((summary.distance_km - manualKm).toFixed(3)),
+      };
+    });
+    for (const [riderId, manualKm] of manualKmByRider.entries()) {
+      if (byRider.has(riderId)) continue;
+      riders.push({
+        rider_id: Number.parseInt(riderId, 10),
+        rider_name: manualNameByRider.get(riderId) || `Rider #${riderId}`,
+        points: 0,
+        distance_km: 0,
+        started_at: null,
+        updated_at: null,
+        manual_km: Number(manualKm.toFixed(3)),
+        km_difference: Number((0 - manualKm).toFixed(3)),
+      });
+    }
+
+    const orders = Array.from(byOrder.entries()).map(([orderId, orderRows]) => ({
+      order_id: Number.parseInt(orderId, 10),
+      order_number: orderRows[0]?.order_number || null,
+      rider_id: orderRows[0]?.rider_id || null,
+      rider_name: String(orderRows[0]?.rider_name || "").trim(),
+      store_name: orderRows[0]?.store_name || null,
+      status: orderRows[0]?.order_status || null,
+      ...summarizeLocationRows(orderRows),
+    }));
+
+    res.json({
+      success: true,
+      date,
+      riders,
+      orders,
+    });
+  } catch (error) {
+    console.error("Error fetching rider travel summary:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch rider travel summary",
       error: error.message,
     });
   }
@@ -2773,7 +2958,18 @@ router.get("/rider/financial-history", authenticateToken, async (req, res) => {
     const movementParams = [riderId, ...(hasFrom ? [from] : []), ...(hasTo ? [to] : [])];
 
     const [movements] = await req.db.execute(
-      `SELECT rcm.id, rcm.movement_number, rcm.movement_date, rcm.movement_type, rcm.amount, rcm.description, rcm.status, rcm.reference_type, rcm.reference_id
+      `SELECT
+         rcm.id,
+         rcm.movement_number,
+         DATE_FORMAT(rcm.movement_date, '%Y-%m-%d') AS movement_date,
+         DATE_FORMAT(COALESCE(rcm.created_at, rcm.movement_date), '%Y-%m-%d %H:%i:%s') AS movement_at,
+         DATE_FORMAT(rcm.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+         rcm.movement_type,
+         rcm.amount,
+         rcm.description,
+         rcm.status,
+         rcm.reference_type,
+         rcm.reference_id
        FROM rider_cash_movements rcm
        WHERE rcm.rider_id = ?
        ${movementDateFilter ? `AND ${movementDateFilter}` : ""}
@@ -5280,7 +5476,10 @@ router.put(
               [id, order.user_id, order.total_amount, id],
             );
 
-            const movementDate = new Date().toISOString().split("T")[0];
+            const now = new Date();
+            const movementDate = `${now.getFullYear()}-${String(
+              now.getMonth() + 1,
+            ).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
             const dateStr = movementDate.replace(/-/g, "");
             const randomStr = Math.random()
               .toString(36)
