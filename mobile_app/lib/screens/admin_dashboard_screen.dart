@@ -3838,6 +3838,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             },
           ),
           ListTile(
+            leading: const Icon(Icons.receipt_long),
+            title: const Text('Rider Day Transactions'),
+            onTap: () {
+              Navigator.of(context).pop();
+              _openAdminRiderDayPicker();
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.route),
             title: const Text('Ride History'),
             onTap: () {
@@ -5833,6 +5841,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               icon: Icons.receipt_long,
               label: _tr('Orders'),
               onTap: _openManageOrdersForAssignment,
+            ),
+            const SizedBox(width: 10),
+            _buildQuickMenuItem(
+              context: context,
+              icon: Icons.delivery_dining,
+              label: 'Rider Day',
+              onTap: _openAdminRiderDayPicker,
             ),
             const SizedBox(width: 10),
             _buildQuickMenuItem(
