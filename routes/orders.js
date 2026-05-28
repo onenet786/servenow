@@ -22,8 +22,19 @@ const router = express.Router();
 
 const DEFAULT_BASE_DELIVERY_FEE = 70;
 const DEFAULT_ADDITIONAL_STORE_FEE = 30;
+const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set([
+  "admin@servenow.com",
+  "nazir@servenow.pk",
+]);
 const riderReverseGeocodeCache = new Map();
 const riderReverseGeocodePending = new Map();
+
+function canViewRestrictedFinancialReports(req) {
+  const email = String(req.user && req.user.email ? req.user.email : "")
+    .trim()
+    .toLowerCase();
+  return RESTRICTED_FINANCIAL_REPORT_EMAILS.has(email);
+}
 
 async function ensureSystemSettingsTable(db) {
   await db.execute(`
@@ -2943,6 +2954,12 @@ router.get("/rider/financial-history", authenticateToken, async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Access denied.",
+      });
+    }
+    if (isAdminUser && !canViewRestrictedFinancialReports(req)) {
+      return res.status(403).json({
+        success: false,
+        message: "Permission denied: restricted rider day transactions access required.",
       });
     }
     await ensureRiderStorePaymentsTable(req.db);

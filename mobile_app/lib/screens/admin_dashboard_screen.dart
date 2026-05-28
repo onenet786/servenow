@@ -14,6 +14,7 @@ import '../services/notifier.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
+import 'admin_rider_day_transactions_screen.dart';
 import 'customer_tile_demo_screen.dart';
 import 'offer_campaigns_screen.dart';
 
@@ -196,6 +197,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Future<void> _changeDailySalesDate(int dayOffset) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!_canViewRestrictedFinancialReports(auth.user?.email)) return;
     setState(() {
       _selectedDailySalesDate = DateTime(
         _selectedDailySalesDate.year,
@@ -207,6 +210,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Future<void> _pickDailySalesDate() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!_canViewRestrictedFinancialReports(auth.user?.email)) return;
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -251,7 +256,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Future<void> _openAdminRiderDayPicker() async {
     final token = Provider.of<AuthProvider>(context, listen: false).token;
+    final email = Provider.of<AuthProvider>(context, listen: false).user?.email;
     if (token == null) return;
+    if (!_canViewRestrictedFinancialReports(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rider day transactions access denied')),
+      );
+      return;
+    }
     try {
       final riders = await ApiService.getRiders(token);
       if (!mounted) return;
@@ -261,91 +273,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         );
         return;
       }
-      int? selectedRiderId = int.tryParse('${riders.first['id']}');
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) {
-          return StatefulBuilder(
-            builder: (ctx, setModalState) {
-              Map<String, dynamic>? selectedRider;
-              for (final raw in riders) {
-                final rider = (raw as Map).cast<String, dynamic>();
-                if (int.tryParse('${rider['id']}') == selectedRiderId) {
-                  selectedRider = rider;
-                  break;
-                }
-              }
-              return SafeArea(
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Rider Day Transactions',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 14),
-                      DropdownButtonFormField<int>(
-                        initialValue: selectedRiderId,
-                        decoration: const InputDecoration(
-                          labelText: 'Select Rider',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: riders.map((raw) {
-                          final rider = (raw as Map).cast<String, dynamic>();
-                          final id = int.tryParse('${rider['id']}') ?? 0;
-                          return DropdownMenuItem<int>(
-                            value: id,
-                            child: Text(_riderDisplayName(rider)),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setModalState(() => selectedRiderId = value);
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: selectedRiderId == null || selectedRider == null
-                              ? null
-                              : () {
-                                  final rider = selectedRider!;
-                                  Navigator.of(ctx).pop();
-                                  final now = DateTime.now();
-                                  _openAdminRiderDayTransactions(
-                                    rider: rider,
-                                    selectedDate:
-                                        DateTime(now.year, now.month, now.day),
-                                  );
-                                },
-                          icon: const Icon(Icons.receipt_long_rounded),
-                          label: const Text('View Day Transactions'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+      final initialRider = (riders.first as Map).cast<String, dynamic>();
+      final now = DateTime.now();
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AdminRiderDayTransactionsScreen(
+            riders: riders,
+            initialRider: initialRider,
+            initialDate: DateTime(now.year, now.month, now.day),
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -358,6 +295,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Future<void> _openAdminRiderDayTransactions({
     required Map<String, dynamic> rider,
     required DateTime selectedDate,
+    List<dynamic>? riderOptions,
   }) async {
     final token = Provider.of<AuthProvider>(context, listen: false).token;
     final riderId = int.tryParse('${rider['id']}');
@@ -578,6 +516,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     _openAdminRiderDayTransactions(
                       rider: rider,
                       selectedDate: day.add(Duration(days: offset)),
+                      riderOptions: riderOptions,
+                    );
+                  }
+                });
+              }
+
+              void openRider(Map<String, dynamic> selectedRider) {
+                Navigator.of(ctx).pop();
+                Future.microtask(() {
+                  if (mounted) {
+                    _openAdminRiderDayTransactions(
+                      rider: selectedRider,
+                      selectedDate: day,
+                      riderOptions: riderOptions,
                     );
                   }
                 });
@@ -605,13 +557,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        _riderDisplayName(rider),
+                        'Rider Day Transactions',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
+                      if (riderOptions != null && riderOptions.isNotEmpty) ...[
+                        DropdownButtonFormField<int>(
+                          initialValue: riderId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Select Rider',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: riderOptions.map((raw) {
+                            final option =
+                                (raw as Map).cast<String, dynamic>();
+                            final id = int.tryParse('${option['id']}') ?? 0;
+                            return DropdownMenuItem<int>(
+                              value: id,
+                              child: Text(
+                                _riderDisplayName(option),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value == null || value == riderId) return;
+                            for (final raw in riderOptions) {
+                              final option =
+                                  (raw as Map).cast<String, dynamic>();
+                              if (int.tryParse('${option['id']}') == value) {
+                                openRider(option);
+                                break;
+                              }
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ] else ...[
+                        Text(
+                          _riderDisplayName(rider),
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
@@ -880,22 +877,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Future<void> _loadDailySalesSummary() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final token = auth.token;
-    final canViewLiveTracker = _canViewLiveRiderTracker(auth.user?.email);
+    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
+      auth.user?.email,
+    );
     if (token == null) return;
+    if (!canViewRestrictedReports) {
+      setState(() {
+        _dailySalesSummary = {};
+        _dailyRiderCashBreakdown = const [];
+        _dailyRiderTravelSummary = const [];
+        _isDailySalesLoading = false;
+      });
+      return;
+    }
 
     setState(() => _isDailySalesLoading = true);
     try {
       final data = await _fetchDailySalesSummaryData(token);
       Map<String, dynamic>? travelSummaryData;
-      if (canViewLiveTracker) {
-        try {
-          travelSummaryData = await ApiService.getRiderTravelSummary(
-            token,
-            date: _dateKey(_selectedDailySalesDate),
-          );
-        } catch (e) {
-          _logger.w('Rider travel summary refresh unavailable: $e');
-        }
+      try {
+        travelSummaryData = await ApiService.getRiderTravelSummary(
+          token,
+          date: _dateKey(_selectedDailySalesDate),
+        );
+      } catch (e) {
+        _logger.w('Rider travel summary refresh unavailable: $e');
       }
       if (!mounted) return;
       setState(() {
@@ -1014,6 +1020,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   bool _canViewLiveRiderTracker(String? email) {
     final normalized = (email ?? '').trim().toLowerCase();
     return _liveRiderTrackerEmails.contains(normalized);
+  }
+
+  bool _canViewRestrictedFinancialReports(String? email) {
+    return _canViewLiveRiderTracker(email);
   }
 
   bool _isLiveTrackableOrderStatus(String status) {
@@ -2234,6 +2244,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       ).user;
       final currentUserId = currentUser?.id;
       final allowLiveTracker = _canViewLiveRiderTracker(currentUser?.email);
+      final allowRestrictedReports = _canViewRestrictedFinancialReports(
+        currentUser?.email,
+      );
 
       final results = await Future.wait([
         ApiService.getOrders(
@@ -2248,12 +2261,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final orders = results[0] as List<dynamic>;
       final visitorStats = results[1] as Map<String, dynamic>;
       final recentActivityData = results[2] as Map<String, dynamic>;
-      final dailySalesData = await _fetchDailySalesSummaryData(
-        token,
-        fallbackOrders: orders,
-      );
+      final dailySalesData = allowRestrictedReports
+          ? await _fetchDailySalesSummaryData(token, fallbackOrders: orders)
+          : <String, dynamic>{};
       Map<String, dynamic>? travelSummaryData;
-      if (allowLiveTracker) {
+      if (allowRestrictedReports) {
         try {
           travelSummaryData = await ApiService.getRiderTravelSummary(
             token,
@@ -2418,11 +2430,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
         _activeUsers = activeUsers;
         _todayLogins = todayLogins;
-        _applyDailySalesSummaryData(dailySalesData);
+        if (allowRestrictedReports) {
+          _applyDailySalesSummaryData(dailySalesData);
+        } else {
+          _dailySalesSummary = {};
+          _dailyRiderCashBreakdown = const [];
+        }
         _dailyRiderTravelSummary =
-            travelSummaryData?['riders'] is List
-                ? travelSummaryData!['riders'] as List<dynamic>
-                : const [];
+            allowRestrictedReports && travelSummaryData?['riders'] is List
+            ? travelSummaryData!['riders'] as List<dynamic>
+            : const [];
 
         _recentOrdersList = recentActivityData['recent_orders'] ?? [];
         _recentUsersList = recentActivityData['recent_users'] ?? [];
@@ -2783,8 +2800,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         if (showInlineQuickMenu) _buildAdminMiniActions(context),
         if (showInlineQuickMenu) const SizedBox(height: 18),
         _buildOverviewSummaryGrid(isWide: isWide, isMedium: isMedium),
-        const SizedBox(height: 18),
-        _buildDailySalesSummaryPanel(),
+        if (_canViewRestrictedFinancialReports(authProvider.user?.email)) ...[
+          const SizedBox(height: 18),
+          _buildDailySalesSummaryPanel(),
+        ],
         if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
           const SizedBox(height: 18),
           _buildSoftPanel(child: _buildLiveRiderTrackerSection()),
@@ -3183,6 +3202,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildAdminSidePanel(BuildContext context, AuthProvider authProvider) {
+    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
+      authProvider.user?.email,
+    );
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -3226,12 +3248,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             label: 'Orders',
             onTap: _openManageOrdersForAssignment,
           ),
-          const SizedBox(height: 10),
-          _buildSideMenuEntry(
-            icon: Icons.delivery_dining_rounded,
-            label: 'Rider Day',
-            onTap: _openAdminRiderDayPicker,
-          ),
+          if (canViewRestrictedReports) ...[
+            const SizedBox(height: 10),
+            _buildSideMenuEntry(
+              icon: Icons.delivery_dining_rounded,
+              label: 'Rider Day',
+              onTap: _openAdminRiderDayPicker,
+            ),
+          ],
           const SizedBox(height: 10),
           _buildSideMenuEntry(
             icon: Icons.inventory_2_rounded,
@@ -3330,6 +3354,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildAdminMiniActions(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
+      auth.user?.email,
+    );
     final actions = [
       (
         icon: Icons.store_mall_directory_rounded,
@@ -3346,11 +3374,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         label: 'Orders',
         onTap: _openManageOrdersForAssignment,
       ),
-      (
-        icon: Icons.delivery_dining_rounded,
-        label: 'Rider Day',
-        onTap: _openAdminRiderDayPicker,
-      ),
+      if (canViewRestrictedReports)
+        (
+          icon: Icons.delivery_dining_rounded,
+          label: 'Rider Day',
+          onTap: _openAdminRiderDayPicker,
+        ),
       (
         icon: Icons.campaign_rounded,
         label: 'Status',
@@ -3742,6 +3771,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Widget _buildDrawer(BuildContext context, AuthProvider authProvider) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
+      authProvider.user?.email,
+    );
     return Drawer(
       child: ListView(
         padding: EdgeInsets.only(bottom: bottomInset + 12),
@@ -3837,14 +3869,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Navigator.of(context).pushNamed('/manage-riders');
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.receipt_long),
-            title: const Text('Rider Day Transactions'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _openAdminRiderDayPicker();
-            },
-          ),
+          if (canViewRestrictedReports)
+            ListTile(
+              leading: const Icon(Icons.receipt_long),
+              title: const Text('Rider Day Transactions'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _openAdminRiderDayPicker();
+              },
+            ),
           ListTile(
             leading: const Icon(Icons.route),
             title: const Text('Ride History'),
@@ -5810,6 +5843,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildQuickMenu(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
+      auth.user?.email,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
@@ -5842,13 +5879,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               label: _tr('Orders'),
               onTap: _openManageOrdersForAssignment,
             ),
-            const SizedBox(width: 10),
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.delivery_dining,
-              label: 'Rider Day',
-              onTap: _openAdminRiderDayPicker,
-            ),
+            if (canViewRestrictedReports) ...[
+              const SizedBox(width: 10),
+              _buildQuickMenuItem(
+                context: context,
+                icon: Icons.delivery_dining,
+                label: 'Rider Day',
+                onTap: _openAdminRiderDayPicker,
+              ),
+            ],
             const SizedBox(width: 10),
             _buildQuickMenuItem(
               context: context,

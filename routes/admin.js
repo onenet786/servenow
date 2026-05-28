@@ -7,6 +7,10 @@ const {
 } = require("../services/pushNotifications");
 
 const router = express.Router();
+const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set([
+  "admin@servenow.com",
+  "nazir@servenow.pk",
+]);
 const fs = require("fs");
 const path = require("path");
 const { exec, spawn } = require("child_process");
@@ -161,6 +165,13 @@ async function hasPermission(req, permissionKey) {
         console.error('Permission check failed:', e);
         return false;
     }
+}
+
+function canViewRestrictedFinancialReports(req) {
+  const email = String(req.user && req.user.email ? req.user.email : "")
+    .trim()
+    .toLowerCase();
+  return RESTRICTED_FINANCIAL_REPORT_EMAILS.has(email);
 }
 
 const BACKUP_DIR = path.join(__dirname, "..", "database", "backups");
@@ -392,6 +403,12 @@ router.get(
   requireStaffAccess,
   async (req, res) => {
     try {
+      if (!canViewRestrictedFinancialReports(req)) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: restricted financial report access required",
+        });
+      }
       const requestedDate = String(req.query.date || "").trim();
       const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
         ? requestedDate
