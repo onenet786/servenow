@@ -223,6 +223,626 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     await _loadDailySalesSummary();
   }
 
+  String _riderDisplayName(Map<String, dynamic> rider) {
+    final fullName = (rider['full_name'] ?? '').toString().trim();
+    if (fullName.isNotEmpty) return fullName;
+    final first = (rider['first_name'] ?? '').toString().trim();
+    final last = (rider['last_name'] ?? '').toString().trim();
+    final name = '$first $last'.trim();
+    if (name.isNotEmpty) return name;
+    return 'Rider #${rider['id'] ?? '-'}';
+  }
+
+  String _formatDateTime(dynamic raw) {
+    if (raw == null) return '-';
+    final value = raw.toString().trim();
+    if (value.isEmpty) return '-';
+    final parsed =
+        DateTime.tryParse(value) ?? DateTime.tryParse(value.replaceFirst(' ', 'T'));
+    if (parsed == null) return value;
+    final dt = parsed.isUtc ? parsed.toLocal() : parsed;
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $hh:$mm';
+  }
+
+  Future<void> _openAdminRiderDayPicker() async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+    try {
+      final riders = await ApiService.getRiders(token);
+      if (!mounted) return;
+      if (riders.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No riders found')),
+        );
+        return;
+      }
+      int? selectedRiderId = int.tryParse('${riders.first['id']}');
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setModalState) {
+              Map<String, dynamic>? selectedRider;
+              for (final raw in riders) {
+                final rider = (raw as Map).cast<String, dynamic>();
+                if (int.tryParse('${rider['id']}') == selectedRiderId) {
+                  selectedRider = rider;
+                  break;
+                }
+              }
+              return SafeArea(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Rider Day Transactions',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<int>(
+                        initialValue: selectedRiderId,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Rider',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: riders.map((raw) {
+                          final rider = (raw as Map).cast<String, dynamic>();
+                          final id = int.tryParse('${rider['id']}') ?? 0;
+                          return DropdownMenuItem<int>(
+                            value: id,
+                            child: Text(_riderDisplayName(rider)),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setModalState(() => selectedRiderId = value);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: selectedRiderId == null || selectedRider == null
+                              ? null
+                              : () {
+                                  final rider = selectedRider!;
+                                  Navigator.of(ctx).pop();
+                                  final now = DateTime.now();
+                                  _openAdminRiderDayTransactions(
+                                    rider: rider,
+                                    selectedDate:
+                                        DateTime(now.year, now.month, now.day),
+                                  );
+                                },
+                          icon: const Icon(Icons.receipt_long_rounded),
+                          label: const Text('View Day Transactions'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load riders: $e')),
+      );
+    }
+  }
+
+  Future<void> _openAdminRiderDayTransactions({
+    required Map<String, dynamic> rider,
+    required DateTime selectedDate,
+  }) async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    final riderId = int.tryParse('${rider['id']}');
+    if (token == null || riderId == null) return;
+
+    final day = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    try {
+      final data = await ApiService.getRiderFinancialHistory(
+        token,
+        from: _dateKey(day),
+        to: _dateKey(day),
+        riderId: riderId,
+      );
+      if (!mounted) return;
+
+      final summary =
+          (data['summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      final dailySummary =
+          (data['daily_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      final ledgerSummary =
+          (data['ledger_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      final movements = (data['movements'] as List?) ?? const [];
+      final orderLedger = (data['order_ledger'] as List?) ?? const [];
+      final summaryDate = (dailySummary['date'] ?? _dateKey(day)).toString();
+
+      double totalSubmitted = 0;
+      for (final raw in movements) {
+        final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+        if ((m['movement_type'] ?? '').toString() == 'cash_submission') {
+          totalSubmitted += _toDouble(m['amount']);
+        }
+      }
+
+      final cashInCustomer = _toDouble(
+        ledgerSummary['cash_in_customer'] ?? summary['cash_in_customer'],
+      );
+      final cashOutStore = _toDouble(
+        ledgerSummary['cash_out_store_paid'] ??
+            summary['cash_out_store_paid'] ??
+            summary['store_payment'],
+      );
+      final officeAdvance = _toDouble(summary['office_advance']);
+      final fuelPayment = _toDouble(summary['fuel_payment']);
+      final expectedCashWithRider =
+          officeAdvance + cashInCustomer - cashOutStore - fuelPayment - totalSubmitted;
+
+      Color movementColor(String type) {
+        final t = type.toLowerCase();
+        if (t.contains('cash_collection')) return const Color(0xFF15803D);
+        if (t.contains('store_payment')) return const Color(0xFF1D4ED8);
+        if (t.contains('fuel')) return const Color(0xFFD97706);
+        if (t.contains('advance')) return const Color(0xFF7C3AED);
+        if (t.contains('settlement')) return const Color(0xFF0F766E);
+        return Colors.grey;
+      }
+
+      Widget amountRow(String label, dynamic value, {Color? color, bool strong = false}) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: strong ? Colors.black87 : Colors.black54,
+                    fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                'PKR ${_toDouble(value).toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color ?? Colors.black87,
+                  fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      Widget collapsibleSection({
+        required String title,
+        required bool expanded,
+        required VoidCallback onToggle,
+        required List<Widget> children,
+        Color color = const Color(0xFFF8FAFC),
+        Color borderColor = const Color(0xFFE2E8F0),
+        Widget? trailing,
+      }) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    if (trailing != null) ...[trailing, const SizedBox(width: 6)],
+                    Icon(
+                      expanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: Colors.black54,
+                    ),
+                  ],
+                ),
+              ),
+              if (expanded) ...[
+                const SizedBox(height: 8),
+                ...children,
+              ],
+            ],
+          ),
+        );
+      }
+
+      Widget orderCard(Map<String, dynamic> order) {
+        final stores = (order['stores'] as List?) ?? const [];
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      (order['order_number'] ?? '#${order['order_id'] ?? '-'}')
+                          .toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  Text(
+                    'Cash PKR ${_toDouble(order['expected_rider_cash_effect']).toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Color(0xFF0F766E),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _formatDateTime(order['created_at']),
+                style: const TextStyle(color: Colors.black54, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+              amountRow('Customer cash collected', order['customer_cash_collected'],
+                  color: const Color(0xFF15803D)),
+              amountRow('Store paid by rider', order['rider_store_paid'],
+                  color: const Color(0xFFB91C1C)),
+              amountRow('Store payable later', order['store_payable_later'],
+                  color: const Color(0xFF1D4ED8)),
+              if (stores.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                ...stores.map((rawStore) {
+                  final store = (rawStore as Map?)?.cast<String, dynamic>() ?? {};
+                  return Text(
+                    '${store['store_name'] ?? 'Store'} - ${store['payment_term'] ?? '-'}',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  );
+                }),
+              ],
+            ],
+          ),
+        );
+      }
+
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) {
+          bool cashExpanded = true;
+          bool dailyExpanded = false;
+          bool orderExpanded = false;
+          bool movementExpanded = false;
+          return StatefulBuilder(
+            builder: (ctx, setModalState) {
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final canGoNext = day.isBefore(today);
+              void openOffset(int offset) {
+                Navigator.of(ctx).pop();
+                Future.microtask(() {
+                  if (mounted) {
+                    _openAdminRiderDayTransactions(
+                      rider: rider,
+                      selectedDate: day.add(Duration(days: offset)),
+                    );
+                  }
+                });
+              }
+
+              return SafeArea(
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.9,
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _riderDisplayName(rider),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF3E0),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              onPressed: () => openOffset(-1),
+                              icon: const Icon(Icons.chevron_left),
+                              color: const Color(0xFFE65100),
+                            ),
+                            Expanded(
+                              child: Text(
+                                '${_friendlyDateLabel(day)}  ${_dateKey(day)}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFFE65100),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: canGoNext ? () => openOffset(1) : null,
+                              icon: const Icon(Icons.chevron_right),
+                              color: const Color(0xFFE65100),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView(
+                          children: [
+                            collapsibleSection(
+                              title: 'Cash Position',
+                              expanded: cashExpanded,
+                              onToggle: () => setModalState(
+                                () => cashExpanded = !cashExpanded,
+                              ),
+                              color: const Color(0xFFF0FDFA),
+                              borderColor: const Color(0xFF99F6E4),
+                              children: [
+                                amountRow('Office advance', officeAdvance,
+                                    color: const Color(0xFF7C3AED)),
+                                amountRow('Customer cash collected', cashInCustomer,
+                                    color: const Color(0xFF15803D)),
+                                amountRow('Store paid by rider', cashOutStore,
+                                    color: const Color(0xFFB91C1C)),
+                                amountRow('Fuel / expense', fuelPayment,
+                                    color: const Color(0xFFD97706)),
+                                amountRow('Submitted to office', totalSubmitted,
+                                    color: const Color(0xFF475569)),
+                                const Divider(height: 14),
+                                amountRow('Expected cash with rider',
+                                    expectedCashWithRider,
+                                    color: const Color(0xFF0F766E),
+                                    strong: true),
+                                amountRow('Unsubmitted cash',
+                                    summary['unsubmitted_cash_received'],
+                                    color: const Color(0xFFE65100)),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            collapsibleSection(
+                              title: 'Daily Summary',
+                              expanded: dailyExpanded,
+                              onToggle: () => setModalState(
+                                () => dailyExpanded = !dailyExpanded,
+                              ),
+                              trailing: Text(
+                                summaryDate,
+                                style: const TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              children: [
+                                amountRow('Cash collection',
+                                    dailySummary['cash_collection']),
+                                amountRow('Store paid',
+                                    dailySummary['store_payment']),
+                                amountRow('Fuel payment',
+                                    dailySummary['fuel_payment']),
+                                amountRow('Delivery fee earned',
+                                    dailySummary['delivery_fee_earned']),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            collapsibleSection(
+                              title: 'Order-wise Ledger',
+                              expanded: orderExpanded,
+                              onToggle: () => setModalState(
+                                () => orderExpanded = !orderExpanded,
+                              ),
+                              children: orderLedger.isEmpty
+                                  ? const [
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 16),
+                                        child: Center(child: Text('No orders found')),
+                                      ),
+                                    ]
+                                  : [
+                                      for (final rawOrder in orderLedger) ...[
+                                        orderCard(
+                                          (rawOrder as Map?)
+                                                  ?.cast<String, dynamic>() ??
+                                              {},
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                    ],
+                            ),
+                            const SizedBox(height: 12),
+                            collapsibleSection(
+                              title: 'Cash Movement Log',
+                              expanded: movementExpanded,
+                              onToggle: () => setModalState(
+                                () => movementExpanded = !movementExpanded,
+                              ),
+                              children: movements.isEmpty
+                                  ? const [
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 16),
+                                        child:
+                                            Center(child: Text('No movements found')),
+                                      ),
+                                    ]
+                                  : [
+                                      for (final rawMovement in movements) ...[
+                                        Builder(
+                                          builder: (_) {
+                                            final m = (rawMovement as Map?)
+                                                    ?.cast<String, dynamic>() ??
+                                                {};
+                                            final type =
+                                                (m['movement_type'] ?? '-').toString();
+                                            final clr = movementColor(type);
+                                            return Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: Colors.grey.shade200,
+                                                ),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          type
+                                                              .replaceAll('_', ' ')
+                                                              .toUpperCase(),
+                                                          style: const TextStyle(
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            fontSize: 13,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        'PKR ${_toDouble(m['amount']).toStringAsFixed(2)}',
+                                                        style: TextStyle(
+                                                          color: clr,
+                                                          fontWeight: FontWeight.w900,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 5),
+                                                  Text(
+                                                    _formatDateTime(
+                                                      m['movement_at'] ??
+                                                          m['created_at'] ??
+                                                          m['movement_date'],
+                                                    ),
+                                                    style: const TextStyle(
+                                                      color: Colors.black54,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                  if ((m['description'] ?? '')
+                                                      .toString()
+                                                      .trim()
+                                                      .isNotEmpty) ...[
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      m['description'].toString(),
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                    ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load rider day transactions: $e')),
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> _fetchDailySalesSummaryData(
     String token, {
     List<dynamic>? fallbackOrders,
@@ -2608,6 +3228,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ),
           const SizedBox(height: 10),
           _buildSideMenuEntry(
+            icon: Icons.delivery_dining_rounded,
+            label: 'Rider Day',
+            onTap: _openAdminRiderDayPicker,
+          ),
+          const SizedBox(height: 10),
+          _buildSideMenuEntry(
             icon: Icons.inventory_2_rounded,
             label: 'Products',
             onTap: () => Navigator.of(context).pushNamed('/manage-products'),
@@ -2719,6 +3345,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         icon: Icons.receipt_long_rounded,
         label: 'Orders',
         onTap: _openManageOrdersForAssignment,
+      ),
+      (
+        icon: Icons.delivery_dining_rounded,
+        label: 'Rider Day',
+        onTap: _openAdminRiderDayPicker,
       ),
       (
         icon: Icons.campaign_rounded,

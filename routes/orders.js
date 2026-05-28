@@ -2936,16 +2936,41 @@ router.get("/rider/wallet-stats", authenticateToken, async (req, res) => {
 // Rider financial history with date filter
 router.get("/rider/financial-history", authenticateToken, async (req, res) => {
   try {
-    if (req.user.user_type !== "rider") {
+    const isRider = req.user.user_type === "rider";
+    const isAdminUser =
+      req.user.user_type === "admin" || req.user.user_type === "standard_user";
+    if (!isRider && !isAdminUser) {
       return res.status(403).json({
         success: false,
-        message: "Access denied. Rider only.",
+        message: "Access denied.",
       });
     }
     await ensureRiderStorePaymentsTable(req.db);
     await ensureRiderDayClosingsTable(req.db);
     await ensureRiderCashSubmissionOrdersTable(req.db);
-    const riderId = req.user.id;
+    const requestedRiderId = Number.parseInt(
+      String(req.query.rider_id || req.query.riderId || ""),
+      10
+    );
+    const riderId = isRider ? req.user.id : requestedRiderId;
+    if (!Number.isInteger(riderId) || riderId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid rider_id is required.",
+      });
+    }
+    if (isAdminUser) {
+      const [riderRows] = await req.db.execute(
+        "SELECT id FROM riders WHERE id = ? LIMIT 1",
+        [riderId]
+      );
+      if (!riderRows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "Rider not found.",
+        });
+      }
+    }
     const from = (req.query.from || req.query.date_from || "").toString().trim();
     const to = (req.query.to || req.query.date_to || "").toString().trim();
     const hasFrom = !!from;

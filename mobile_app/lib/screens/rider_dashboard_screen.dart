@@ -765,6 +765,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         required List<Widget> children,
         Color color = const Color(0xFFF8FAFC),
         Color borderColor = const Color(0xFFE2E8F0),
+        bool isExpanded = true,
+        VoidCallback? onToggle,
+        Widget? headerTrailing,
       }) {
         return Container(
           width: double.infinity,
@@ -777,15 +780,37 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
+              InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if (headerTrailing != null) ...[
+                      headerTrailing,
+                      const SizedBox(width: 6),
+                    ],
+                    Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: Colors.black54,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              ...children,
+              if (isExpanded) ...[
+                const SizedBox(height: 8),
+                ...children,
+              ],
             ],
           ),
         );
@@ -1096,6 +1121,10 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         backgroundColor: Colors.transparent,
         builder: (ctx) {
           bool isClosingDay = false;
+          bool isCashPositionExpanded = true;
+          bool isDailySummaryExpanded = false;
+          bool isOrderLedgerExpanded = false;
+          bool isCashMovementExpanded = false;
           return StatefulBuilder(
             builder: (ctx, setModalState) {
               final isDayClosed = dayClosing != null;
@@ -1251,6 +1280,11 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                 title: 'Cash Position',
                                 color: const Color(0xFFF0FDFA),
                                 borderColor: const Color(0xFF99F6E4),
+                                isExpanded: isCashPositionExpanded,
+                                onToggle: () => setModalState(
+                                  () => isCashPositionExpanded =
+                                      !isCashPositionExpanded,
+                                ),
                                 children: [
                                   ledgerRow(
                                     'Office advance',
@@ -1323,68 +1357,83 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        const Expanded(
-                                          child: Text(
-                                            'Daily Summary',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 14,
+                                    InkWell(
+                                      onTap: () => setModalState(
+                                        () => isDailySummaryExpanded =
+                                            !isDailySummaryExpanded,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Row(
+                                        children: [
+                                          const Expanded(
+                                            child: Text(
+                                              'Daily Summary',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        Text(
-                                          summaryDate,
-                                          style: const TextStyle(
+                                          Text(
+                                            summaryDate,
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Icon(
+                                            isDailySummaryExpanded
+                                                ? Icons.keyboard_arrow_up
+                                                : Icons.keyboard_arrow_down,
                                             color: Colors.black54,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 12,
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Cash PKR ${_parseDouble(dailySummary['cash_collection']).toStringAsFixed(2)}  |  Store Paid PKR ${_parseDouble(dailySummary['store_payment']).toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Fuel PKR ${_parseDouble(dailySummary['fuel_payment']).toStringAsFixed(2)}  |  Delivery Fee PKR ${_parseDouble(dailySummary['delivery_fee_earned']).toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
+                                    if (isDailySummaryExpanded) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Cash PKR ${_parseDouble(dailySummary['cash_collection']).toStringAsFixed(2)}  |  Store Paid PKR ${_parseDouble(dailySummary['store_payment']).toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    if (isDayClosed)
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 8,
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Fuel PKR ${_parseDouble(dailySummary['fuel_payment']).toStringAsFixed(2)}  |  Delivery Fee PKR ${_parseDouble(dailySummary['delivery_fee_earned']).toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFDCFCE7),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          'Day closed at ${_fmtDateTime(dayClosing?['closed_at'])}',
-                                          style: const TextStyle(
-                                            color: Color(0xFF166534),
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 12,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      if (isDayClosed)
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
                                           ),
-                                        ),
-                                      )
-                                    else
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: FilledButton.icon(
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFDCFCE7),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            'Day closed at ${_fmtDateTime(dayClosing?['closed_at'])}',
+                                            style: const TextStyle(
+                                              color: Color(0xFF166534),
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: FilledButton.icon(
                                           onPressed: isClosingDay
                                               ? null
                                               : () async {
@@ -1454,12 +1503,18 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                         ),
                                       ),
                                   ],
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 12),
                               if (orderLedger.isNotEmpty) ...[
                                 sectionBox(
                                   title: 'Order-wise Ledger',
+                                  isExpanded: isOrderLedgerExpanded,
+                                  onToggle: () => setModalState(
+                                    () => isOrderLedgerExpanded =
+                                        !isOrderLedgerExpanded,
+                                  ),
                                   children: [
                                     for (final rawOrder in orderLedger) ...[
                                       orderLedgerCard(
@@ -1473,6 +1528,11 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                               ],
                               sectionBox(
                                 title: 'Cash Movement Log',
+                                isExpanded: isCashMovementExpanded,
+                                onToggle: () => setModalState(
+                                  () => isCashMovementExpanded =
+                                      !isCashMovementExpanded,
+                                ),
                                 children: movements.isEmpty
                                     ? [
                                         const Padding(

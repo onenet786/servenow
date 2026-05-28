@@ -886,10 +886,12 @@ class ApiService {
     String token, {
     String? from,
     String? to,
+    int? riderId,
   }) async {
     final query = <String, String>{};
     if (from != null && from.trim().isNotEmpty) query['from'] = from.trim();
     if (to != null && to.trim().isNotEmpty) query['to'] = to.trim();
+    if (riderId != null && riderId > 0) query['rider_id'] = riderId.toString();
     final uri = Uri.parse(
       '$baseUrl/api/orders/rider/financial-history',
     ).replace(queryParameters: query.isEmpty ? null : query);
