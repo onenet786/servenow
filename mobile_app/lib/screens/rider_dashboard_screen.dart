@@ -567,6 +567,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     return DateFormat('EEE, MMM d, yyyy').format(orderDay);
   }
 
+  // ignore: unused_element
   Future<void> _openRiderFinancialHistory() async {
     final now = DateTime.now();
     await _openRiderFinancialHistoryForDate(
@@ -2070,14 +2071,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
             onTap: () {
               Navigator.of(context).pop();
               _switchToTab(2);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.query_stats),
-            title: Text(_tr('Day Transactions')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _openRiderFinancialHistory();
             },
           ),
           ListTile(
