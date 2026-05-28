@@ -601,6 +601,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           (data['ledger_summary'] as Map<String, dynamic>?) ?? {};
       final dailySummary =
           (data['daily_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      Map<String, dynamic>? dayClosing =
+          (data['day_closing'] as Map<String, dynamic>?)
+              ?.cast<String, dynamic>();
       final summaryDate =
           (dailySummary['date'] ?? _dateOnly(toDate)).toString();
       final finalizedStatuses = <String>{'approved', 'completed'};
@@ -849,8 +852,10 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (ctx) {
+          bool isClosingDay = false;
           return StatefulBuilder(
             builder: (ctx, setModalState) {
+              final isDayClosed = dayClosing != null;
               final canGoNext = fromDate.isBefore(today);
               void openDayOffset(int offset) {
                 Navigator.of(ctx).pop();
@@ -1049,6 +1054,99 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
+                                    const SizedBox(height: 10),
+                                    if (isDayClosed)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFDCFCE7),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          'Day closed at ${_fmtDateTime(dayClosing?['closed_at'])}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF166534),
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton.icon(
+                                          onPressed: isClosingDay
+                                              ? null
+                                              : () async {
+                                                  setModalState(
+                                                    () => isClosingDay = true,
+                                                  );
+                                                  try {
+                                                    final closeData =
+                                                        await ApiService
+                                                            .closeRiderDay(
+                                                      token,
+                                                      date: summaryDate,
+                                                    );
+                                                    dayClosing =
+                                                        (closeData['day_closing']
+                                                                as Map<String,
+                                                                    dynamic>?)
+                                                            ?.cast<String,
+                                                                dynamic>();
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Day closed successfully',
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context)
+                                                          .showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            'Failed to close day: $e',
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  } finally {
+                                                    setModalState(
+                                                      () => isClosingDay = false,
+                                                    );
+                                                  }
+                                                },
+                                          icon: isClosingDay
+                                              ? const SizedBox(
+                                                  width: 14,
+                                                  height: 14,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                  ),
+                                                )
+                                              : const Icon(Icons.task_alt_outlined),
+                                          label: Text(
+                                            isClosingDay
+                                                ? 'Closing...'
+                                                : 'Close Day',
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFFE65100),
+                                            foregroundColor: Colors.white,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
