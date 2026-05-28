@@ -1082,6 +1082,48 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                           onPressed: isClosingDay
                                               ? null
                                               : () async {
+                                                  final confirmed =
+                                                      await showDialog<bool>(
+                                                        context: context,
+                                                        builder: (dialogCtx) {
+                                                          return AlertDialog(
+                                                            title: const Text(
+                                                              'Close Day',
+                                                            ),
+                                                            content: Text(
+                                                              'Confirm day close for $summaryDate? You can still view the summary after closing.',
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () =>
+                                                                    Navigator.of(
+                                                                      dialogCtx,
+                                                                    ).pop(
+                                                                      false,
+                                                                    ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Cancel',
+                                                                    ),
+                                                              ),
+                                                              FilledButton(
+                                                                onPressed: () =>
+                                                                    Navigator.of(
+                                                                      dialogCtx,
+                                                                    ).pop(
+                                                                      true,
+                                                                    ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Confirm',
+                                                                    ),
+                                                              ),
+                                                            ],
+                                                          );
+                                                        },
+                                                      ) ??
+                                                      false;
+                                                  if (!confirmed) return;
                                                   setModalState(
                                                     () => isClosingDay = true,
                                                   );
