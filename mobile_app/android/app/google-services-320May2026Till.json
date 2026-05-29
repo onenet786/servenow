@@ -14,14 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "123484088318-6rdgk6an7u5qs4cqv7kgja5ndu7idvft.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.onenetsol.servenow",
-            "certificate_hash": "cb457ba5319e9dd5d5b306d69ee8931dc908af80"
-          }
-        },
-        {
           "client_id": "123484088318-eclg8pi411t6gaghrkmvg2rhu9i7iugm.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
