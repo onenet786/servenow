@@ -79,9 +79,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     if (await canLaunchUrl(uri)) {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('Could not launch dialer'))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_tr('Could not launch dialer'))));
       }
     } else if (mounted) {
       ScaffoldMessenger.of(
@@ -220,7 +220,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       (_, seenAt) => now.difference(seenAt) > _notificationDedupWindow,
     );
     final previous = _recentNotificationEvents[key];
-    if (previous != null && now.difference(previous) <= _notificationDedupWindow) {
+    if (previous != null &&
+        now.difference(previous) <= _notificationDedupWindow) {
       return true;
     }
     _recentNotificationEvents[key] = now;
@@ -233,41 +234,47 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final nestedData = (notification['data'] is Map<String, dynamic>)
         ? notification['data'] as Map<String, dynamic>
         : null;
-    final type = (notification['type'] ??
-            notification['event'] ??
-            notification['action'] ??
-            nestedData?['type'] ??
-            nestedData?['event'] ??
-            nestedData?['action'])
-        ?.toString()
-        .toLowerCase();
-    final status = (notification['status'] ??
-            notification['order_status'] ??
-            nestedData?['status'] ??
-            nestedData?['order_status'])
-        ?.toString()
-        .toLowerCase();
-    final message = (notification['message'] ??
+    final type =
+        (notification['type'] ??
+                notification['event'] ??
+                notification['action'] ??
+                nestedData?['type'] ??
+                nestedData?['event'] ??
+                nestedData?['action'])
+            ?.toString()
+            .toLowerCase();
+    final status =
+        (notification['status'] ??
+                notification['order_status'] ??
+                nestedData?['status'] ??
+                nestedData?['order_status'])
+            ?.toString()
+            .toLowerCase();
+    final message =
+        (notification['message'] ??
                 nestedData?['message'] ??
                 notification['title'] ??
                 'New notification')
             .toString();
     final messageLower = message.toLowerCase();
 
-    final bool hasAssignmentPayload = notification['rider_id'] != null ||
+    final bool hasAssignmentPayload =
+        notification['rider_id'] != null ||
         nestedData?['rider_id'] != null ||
         notification['order_number'] != null ||
         nestedData?['order_number'] != null ||
         notification['order_id'] != null ||
         nestedData?['order_id'] != null;
     final bool looksLikeAssignmentByType =
-        (type != null && (type.contains('assign') || type.contains('new_order')));
+        (type != null &&
+        (type.contains('assign') || type.contains('new_order')));
     final bool looksLikeAssignmentByMessage =
         messageLower.contains('assigned') ||
         messageLower.contains('new order') ||
         messageLower.contains('order assigned');
 
-    final bool shouldRefresh = type == 'assigned' ||
+    final bool shouldRefresh =
+        type == 'assigned' ||
         type == 'rider_notification' ||
         type == 'order_assigned' ||
         type == 'refresh_orders' ||
@@ -524,7 +531,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     if (raw == null) return '-';
     final value = raw.toString().trim();
     if (value.isEmpty) return '-';
-    final parsed = DateTime.tryParse(value) ??
+    final parsed =
+        DateTime.tryParse(value) ??
         DateTime.tryParse(value.replaceFirst(' ', 'T'));
     if (parsed == null) return value;
     final dt = parsed.isUtc ? parsed.toLocal() : parsed;
@@ -600,22 +608,29 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       final ledgerSummary =
           (data['ledger_summary'] as Map<String, dynamic>?) ?? {};
       final dailySummary =
-          (data['daily_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+          (data['daily_summary'] as Map<String, dynamic>?) ??
+          <String, dynamic>{};
       Map<String, dynamic>? dayClosing =
           (data['day_closing'] as Map<String, dynamic>?)
               ?.cast<String, dynamic>();
-      final summaryDate =
-          (dailySummary['date'] ?? _dateOnly(toDate)).toString();
+      final summaryDate = (dailySummary['date'] ?? _dateOnly(toDate))
+          .toString();
       final finalizedStatuses = <String>{'approved', 'completed'};
       double totalCollection = 0;
       double totalSubmitted = 0;
       for (final raw in movements) {
         final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
-        final movementType = (m['movement_type'] ?? '').toString().toLowerCase();
-        final movementStatus = (m['status'] ?? '').toString().toLowerCase().trim();
+        final movementType = (m['movement_type'] ?? '')
+            .toString()
+            .toLowerCase();
+        final movementStatus = (m['status'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
         final amount = _parseDouble(m['amount']);
         final includeInTotals =
-            movementStatus.isEmpty || finalizedStatuses.contains(movementStatus);
+            movementStatus.isEmpty ||
+            finalizedStatuses.contains(movementStatus);
         if (!includeInTotals) continue;
         if (movementType == 'cash_collection') {
           totalCollection += amount;
@@ -626,18 +641,25 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       if (totalCollection == 0 && movements.isEmpty) {
         totalCollection = _parseDouble(summary['cash_collection']);
       }
-      final unsubmittedCashReceived =
-          _parseDouble(summary['unsubmitted_cash_received']);
+      final unsubmittedCashReceived = _parseDouble(
+        summary['unsubmitted_cash_received'],
+      );
       final unsettledCollection = unsubmittedCashReceived;
-      final cashInCustomerRaw =
-          _parseDouble(ledgerSummary['cash_in_customer'] ?? summary['cash_in_customer']);
-      final cashInCustomer = cashInCustomerRaw > 0 ? cashInCustomerRaw : totalCollection;
+      final cashInCustomerRaw = _parseDouble(
+        ledgerSummary['cash_in_customer'] ?? summary['cash_in_customer'],
+      );
+      final cashInCustomer = cashInCustomerRaw > 0
+          ? cashInCustomerRaw
+          : totalCollection;
       final cashOutStore = _parseDouble(
-        ledgerSummary['cash_out_store_paid'] ?? summary['cash_out_store_paid'] ?? summary['store_payment'],
+        ledgerSummary['cash_out_store_paid'] ??
+            summary['cash_out_store_paid'] ??
+            summary['store_payment'],
       );
       final officeAdvance = _parseDouble(summary['office_advance']);
       final fuelPayment = _parseDouble(summary['fuel_payment']);
-      final expectedCashWithRider = officeAdvance +
+      final expectedCashWithRider =
+          officeAdvance +
           cashInCustomer -
           cashOutStore -
           fuelPayment -
@@ -754,25 +776,31 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                       Expanded(
                         child: unsubmittedCashOrders.isEmpty
                             ? const Center(
-                                child: Text('No unsubmitted cash orders found.'),
+                                child: Text(
+                                  'No unsubmitted cash orders found.',
+                                ),
                               )
                             : ListView.separated(
                                 itemCount: unsubmittedCashOrders.length,
-                                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 8),
                                 itemBuilder: (_, i) {
-                                  final order = (unsubmittedCashOrders[i] as Map?)
+                                  final order =
+                                      (unsubmittedCashOrders[i] as Map?)
                                           ?.cast<String, dynamic>() ??
                                       {};
                                   final orderNumber =
-                                      (order['order_number'] ?? '#${order['id'] ?? '-'}')
+                                      (order['order_number'] ??
+                                              '#${order['id'] ?? '-'}')
                                           .toString();
                                   final totalAmount = _parseDouble(
                                     order['unsubmitted_amount'] ??
                                         order['remaining_amount'] ??
                                         order['total_amount'],
                                   );
-                                  final deliveryFee =
-                                      _parseDouble(order['delivery_fee']);
+                                  final deliveryFee = _parseDouble(
+                                    order['delivery_fee'],
+                                  );
                                   return Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
@@ -783,7 +811,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                       ),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           children: [
@@ -872,7 +901,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                   ),
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -889,12 +920,18 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                         const SizedBox(height: 12),
                         const Text(
                           'Day Transactions',
-                          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFFF3E0),
                             borderRadius: BorderRadius.circular(10),
@@ -935,7 +972,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                               ),
                               const SizedBox(width: 8),
                               IconButton(
-                                onPressed: canGoNext ? () => openDayOffset(1) : null,
+                                onPressed: canGoNext
+                                    ? () => openDayOffset(1)
+                                    : null,
                                 icon: const Icon(Icons.chevron_right),
                                 color: const Color(0xFFE65100),
                                 tooltip: 'Next day',
@@ -1064,7 +1103,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                         ),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFDCFCE7),
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                         ),
                                         child: Text(
                                           'Day closed at ${_fmtDateTime(dayClosing?['closed_at'])}',
@@ -1110,9 +1151,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                                                 onPressed: () =>
                                                                     Navigator.of(
                                                                       dialogCtx,
-                                                                    ).pop(
-                                                                      true,
-                                                                    ),
+                                                                    ).pop(true),
                                                                 child:
                                                                     const Text(
                                                                       'Confirm',
@@ -1129,20 +1168,24 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                                   );
                                                   try {
                                                     final closeData =
-                                                        await ApiService
-                                                            .closeRiderDay(
-                                                      token,
-                                                      date: summaryDate,
-                                                    );
+                                                        await ApiService.closeRiderDay(
+                                                          token,
+                                                          date: summaryDate,
+                                                        );
                                                     dayClosing =
                                                         (closeData['day_closing']
-                                                                as Map<String,
-                                                                    dynamic>?)
-                                                            ?.cast<String,
-                                                                dynamic>();
+                                                                as Map<
+                                                                  String,
+                                                                  dynamic
+                                                                >?)
+                                                            ?.cast<
+                                                              String,
+                                                              dynamic
+                                                            >();
                                                     if (mounted) {
-                                                      ScaffoldMessenger.of(context)
-                                                          .showSnackBar(
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
                                                         const SnackBar(
                                                           content: Text(
                                                             'Day closed successfully',
@@ -1152,8 +1195,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                                     }
                                                   } catch (e) {
                                                     if (mounted) {
-                                                      ScaffoldMessenger.of(context)
-                                                          .showSnackBar(
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
                                                         SnackBar(
                                                           content: Text(
                                                             'Failed to close day: $e',
@@ -1163,7 +1207,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                                     }
                                                   } finally {
                                                     setModalState(
-                                                      () => isClosingDay = false,
+                                                      () =>
+                                                          isClosingDay = false,
                                                     );
                                                   }
                                                 },
@@ -1173,18 +1218,21 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                                   height: 14,
                                                   child:
                                                       CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                  ),
+                                                        strokeWidth: 2,
+                                                      ),
                                                 )
-                                              : const Icon(Icons.task_alt_outlined),
+                                              : const Icon(
+                                                  Icons.task_alt_outlined,
+                                                ),
                                           label: Text(
                                             isClosingDay
                                                 ? 'Closing...'
                                                 : 'Close Day',
                                           ),
                                           style: FilledButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xFFE65100),
+                                            backgroundColor: const Color(
+                                              0xFFE65100,
+                                            ),
                                             foregroundColor: Colors.white,
                                           ),
                                         ),
@@ -1337,14 +1385,17 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       distanceFilter: 2,
     );
 
-    _locationStreamSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((position) async {
-      await _updateCurrentLocationFromPosition(position);
-      if (_assignedDeliveries.isNotEmpty) {
-        await RiderBackgroundTrackingService.instance.syncPosition(position);
-      }
-    });
+    _locationStreamSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (position) async {
+            await _updateCurrentLocationFromPosition(position);
+            if (_assignedDeliveries.isNotEmpty) {
+              await RiderBackgroundTrackingService.instance.syncPosition(
+                position,
+              );
+            }
+          },
+        );
   }
 
   Future<void> _markAsDelivered(int orderId) async {
@@ -1419,9 +1470,18 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       child: Scaffold(
         drawer: _buildRiderDrawer(),
         appBar: AppBar(
+          toolbarHeight: 44,
+          leadingWidth: 42,
           title: Text(_tr('Rider Dashboard')),
           actions: [
-            const NotificationBellWidget(),
+            const SizedBox(
+              width: 38,
+              height: 38,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: NotificationBellWidget(),
+              ),
+            ),
           ],
         ),
         bottomNavigationBar: _buildBottomNavigationBar(),
@@ -1468,10 +1528,10 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         gradient: LinearGradient(
           colors: [Color(0xFFE65100), Color(0xFFBF360C)],
           begin: Alignment.topLeft,
@@ -1645,7 +1705,10 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           ),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: Text(_tr('Logout'), style: const TextStyle(color: Colors.red)),
+            title: Text(
+              _tr('Logout'),
+              style: const TextStyle(color: Colors.red),
+            ),
             onTap: () {
               Navigator.of(context).pop();
               _logout();
@@ -1660,11 +1723,12 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     return SafeArea(
       top: false,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        margin: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+        constraints: const BoxConstraints(minHeight: 50),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -1692,20 +1756,19 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       onTap: () => _switchToTab(index),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 22,
+              size: 18,
               color: active ? Color(0xFFE65100) : Colors.grey.shade600,
             ),
-            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 9,
                 fontWeight: FontWeight.w600,
                 color: active ? Color(0xFFE65100) : Colors.grey.shade600,
               ),
@@ -1754,22 +1817,28 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       return const Center(child: Text('No deliveries found.'));
     }
 
-    final sortedDeliveries = deliveries
-        .whereType<Map>()
-        .map((delivery) => delivery.cast<String, dynamic>())
-        .toList()
-      ..sort((a, b) {
-        final dateCompare = _deliverySortDate(b).compareTo(_deliverySortDate(a));
-        if (dateCompare != 0) return dateCompare;
-        final aId = int.tryParse((a['id'] ?? '').toString()) ?? 0;
-        final bId = int.tryParse((b['id'] ?? '').toString()) ?? 0;
-        return bId.compareTo(aId);
-      });
+    final sortedDeliveries =
+        deliveries
+            .whereType<Map>()
+            .map((delivery) => delivery.cast<String, dynamic>())
+            .toList()
+          ..sort((a, b) {
+            final dateCompare = _deliverySortDate(
+              b,
+            ).compareTo(_deliverySortDate(a));
+            if (dateCompare != 0) return dateCompare;
+            final aId = int.tryParse((a['id'] ?? '').toString()) ?? 0;
+            final bId = int.tryParse((b['id'] ?? '').toString()) ?? 0;
+            return bId.compareTo(aId);
+          });
 
     final deliveriesByDate = <String, List<Map<String, dynamic>>>{};
     for (final delivery in sortedDeliveries) {
       deliveriesByDate
-          .putIfAbsent(_deliveryDateKey(delivery), () => <Map<String, dynamic>>[])
+          .putIfAbsent(
+            _deliveryDateKey(delivery),
+            () => <Map<String, dynamic>>[],
+          )
           .add(delivery);
     }
 
@@ -1835,12 +1904,14 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final status = delivery['status'] ?? 'unknown';
     final paymentStatus = delivery['payment_status'] ?? 'pending';
     final customerPhone = (delivery['phone'] ?? '').toString();
-    final instructions =
-        (delivery['special_instructions'] ?? '').toString().trim();
+    final instructions = (delivery['special_instructions'] ?? '')
+        .toString()
+        .trim();
     final preferredTime = (delivery['delivery_time'] ?? '').toString().trim();
     final hasNotice = instructions.isNotEmpty || preferredTime.isNotEmpty;
     final statusColor = _getStatusColor(status);
-    final shouldBlink = hasNotice &&
+    final shouldBlink =
+        hasNotice &&
         status.toString().toLowerCase() != 'delivered' &&
         status.toString().toLowerCase() != 'cancelled';
 
@@ -2265,7 +2336,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Color(0xFFE65100).withAlpha((0.15 * 255).round()),
+                            color: Color(
+                              0xFFE65100,
+                            ).withAlpha((0.15 * 255).round()),
                             borderRadius: BorderRadius.circular(4),
                             border: Border(
                               left: BorderSide(
@@ -3004,7 +3077,11 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.location_on, color: Color(0xFFE65100), size: 20),
+                  const Icon(
+                    Icons.location_on,
+                    color: Color(0xFFE65100),
+                    size: 20,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -3038,6 +3115,3 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     );
   }
 }
-
-
-

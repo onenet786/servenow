@@ -13,6 +13,7 @@ import 'package:servenow/main.dart';
 void main() {
   testWidgets('App boots', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

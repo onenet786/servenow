@@ -28,6 +28,11 @@ const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set([
 ]);
 const riderReverseGeocodeCache = new Map();
 const riderReverseGeocodePending = new Map();
+const BUSINESS_TIMEZONE_OFFSET = "+05:00";
+
+function orderBusinessDateSql(columnName = "o.created_at") {
+  return `DATE(COALESCE(CONVERT_TZ(${columnName}, '+00:00', '${BUSINESS_TIMEZONE_OFFSET}'), DATE_ADD(${columnName}, INTERVAL 5 HOUR)))`;
+}
 
 function canViewRestrictedFinancialReports(req) {
   const email = String(req.user && req.user.email ? req.user.email : "")
@@ -2881,13 +2886,13 @@ router.get("/rider/wallet-stats", authenticateToken, async (req, res) => {
 
     let dateCondition = "";
     if (period === "daily") {
-      dateCondition = "DATE(o.created_at) = CURDATE()";
+      dateCondition = `${orderBusinessDateSql("o.created_at")} = ${orderBusinessDateSql("UTC_TIMESTAMP()")}`;
     } else if (period === "weekly") {
-      dateCondition = "o.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+      dateCondition = `${orderBusinessDateSql("o.created_at")} >= DATE_SUB(${orderBusinessDateSql("UTC_TIMESTAMP()")}, INTERVAL 7 DAY)`;
     } else if (period === "monthly") {
-      dateCondition = "o.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+      dateCondition = `${orderBusinessDateSql("o.created_at")} >= DATE_SUB(${orderBusinessDateSql("UTC_TIMESTAMP()")}, INTERVAL 30 DAY)`;
     } else {
-      dateCondition = "DATE(o.created_at) = CURDATE()"; // Default to daily
+      dateCondition = `${orderBusinessDateSql("o.created_at")} = ${orderBusinessDateSql("UTC_TIMESTAMP()")}`; // Default to daily
     }
 
     // 1. Daily Cash Received (Items amount only for cash orders, excluding delivery fee)
@@ -3281,8 +3286,8 @@ router.get("/rider/financial-history", authenticateToken, async (req, res) => {
        FROM orders
        WHERE rider_id = ?
          AND status = 'delivered'
-         ${hasFrom ? "AND DATE(created_at) >= ?" : ""}
-         ${hasTo ? "AND DATE(created_at) <= ?" : ""}`,
+          ${hasFrom ? `AND ${orderBusinessDateSql("created_at")} >= ?` : ""}
+          ${hasTo ? `AND ${orderBusinessDateSql("created_at")} <= ?` : ""}`,
       [riderId, ...(hasFrom ? [from] : []), ...(hasTo ? [to] : [])]
     );
     summary.delivery_fee_earned = roundAmount(feeRows[0]?.delivery_fee_earned || 0);
@@ -3325,7 +3330,7 @@ router.get("/rider/financial-history", authenticateToken, async (req, res) => {
        FROM orders
        WHERE rider_id = ?
          AND status = 'delivered'
-         AND DATE(created_at) = ?`,
+         AND ${orderBusinessDateSql("created_at")} = ?`,
       [riderId, summaryDate]
     );
     dailySummary.delivery_fee_earned = roundAmount(
@@ -3991,12 +3996,12 @@ router.get("/", authenticateToken, async (req, res) => {
     }
 
     if (startDate) {
-      conditions.push(`DATE(o.created_at) >= ?`);
+      conditions.push(`${orderBusinessDateSql("o.created_at")} >= ?`);
       params.push(startDate);
     }
 
     if (endDate) {
-      conditions.push(`DATE(o.created_at) <= ?`);
+      conditions.push(`${orderBusinessDateSql("o.created_at")} <= ?`);
       params.push(endDate);
     }
 

@@ -19,10 +19,7 @@ class _CacheEntry<T> {
   final T value;
   final DateTime expiresAt;
 
-  const _CacheEntry({
-    required this.value,
-    required this.expiresAt,
-  });
+  const _CacheEntry({required this.value, required this.expiresAt});
 
   bool get isFresh => DateTime.now().isBefore(expiresAt);
 }
@@ -40,10 +37,13 @@ class ApiService {
   static Future<String?> Function()? refreshAccessToken;
   static Future<String?>? _refreshInFlight;
   static final Map<String, _CacheEntry<Map<String, dynamic>>> _storesCache = {};
-  static final Map<String, _CacheEntry<Map<String, dynamic>>> _storeDetailsCache =
-      {};
+  static final Map<String, _CacheEntry<Map<String, dynamic>>>
+  _storeDetailsCache = {};
   static const Duration _storesCacheTtl = Duration(minutes: 2);
   static const Duration _storeDetailsCacheTtl = Duration(minutes: 2);
+  static DateTime? _lastServerTime;
+
+  static DateTime? get lastServerTime => _lastServerTime;
 
   static String get baseUrl {
     final configured = _configuredBaseUrl.trim();
@@ -135,6 +135,15 @@ class ApiService {
     return refreshAccessToken != null;
   }
 
+  static void _captureServerTime(http.Response response) {
+    final raw = response.headers['date'];
+    if (raw == null || raw.trim().isEmpty) return;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed != null) {
+      _lastServerTime = parsed.toLocal();
+    }
+  }
+
   static Future<http.Response> _send(
     Future<http.Response> Function() request, {
     Map<String, String>? headers,
@@ -145,9 +154,14 @@ class ApiService {
         final refreshed = await _refreshAccessTokenOnce();
         if (refreshed != null && headers != null) {
           headers['Authorization'] = 'Bearer $refreshed';
-          return await request().timeout(const Duration(seconds: 20));
+          final refreshedResponse = await request().timeout(
+            const Duration(seconds: 20),
+          );
+          _captureServerTime(refreshedResponse);
+          return refreshedResponse;
         }
       }
+      _captureServerTime(response);
       return response;
     } on SocketException {
       throw const ApiServiceException(
@@ -245,9 +259,7 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> googleLogin(
-    String idToken,
-  ) async {
+  static Future<Map<String, dynamic>> googleLogin(String idToken) async {
     final uri = Uri.parse('$baseUrl/api/auth/google-mobile');
     _logger.d('ApiService: POST $uri');
     final response = await _post(

@@ -3262,16 +3262,7 @@ function loadDashboardStats() {
     .then(responses => Promise.all(responses.map(r => r.json())))
     .then(([orders]) => {
         const list = orders.orders || [];
-        const today = new Date();
-        const isSameDay = (d) => {
-            try {
-                const dt = new Date(d);
-                return dt.getFullYear() === today.getFullYear() &&
-                       dt.getMonth() === today.getMonth() &&
-                       dt.getDate() === today.getDate();
-            } catch (_) { return false; }
-        };
-        const todayOrders = list.filter(o => isSameDay(o.created_at));
+        const todayOrders = list.filter(o => isServerDateToday(o.created_at));
         const countStatus = (arr, status) => arr.filter(o => (o.status || '').toLowerCase() === status).length;
         const countPendingLike = (arr) => arr.filter(o => {
             const s = (o.status || '').toLowerCase();
@@ -4155,7 +4146,30 @@ function toggleProductStatus(productId, currentStatus) {
 
 // Orders Management
 function getTodayDateString() {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function parseServerDateTime(value) {
+    if (!value) return null;
+    const text = String(value).trim();
+    if (!text) return null;
+    const normalized = text.includes('T') ? text : text.replace(' ', 'T');
+    const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(normalized);
+    const parsed = new Date(hasZone ? normalized : `${normalized}Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isServerDateToday(value) {
+    const dt = parseServerDateTime(value);
+    if (!dt) return false;
+    const today = new Date();
+    return dt.getFullYear() === today.getFullYear() &&
+           dt.getMonth() === today.getMonth() &&
+           dt.getDate() === today.getDate();
 }
 
 function scrollToStoreStatusSection(sectionId) {
@@ -4710,14 +4724,7 @@ function loadOrders() {
         
         // Update dashboard tiles
         try {
-            const today = new Date();
-            const isSameDay = (d) => {
-                const dt = new Date(d);
-                return dt.getFullYear() === today.getFullYear() &&
-                       dt.getMonth() === today.getMonth() &&
-                       dt.getDate() === today.getDate();
-            };
-            const todayOrders = AppState.orders.filter(o => isSameDay(o.created_at));
+            const todayOrders = AppState.orders.filter(o => isServerDateToday(o.created_at));
             const countStatus = (arr, status) => arr.filter(o => (o.status || '').toLowerCase() === status).length;
             const countPendingLike = (arr) => arr.filter(o => {
                 const s = (o.status || '').toLowerCase();

@@ -98,6 +98,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int _todayTotal = 0;
   int _todayDelivered = 0;
   int _todayPending = 0;
+  int _todayCancelled = 0;
+  DateTime? _todayServerTime;
 
   int _allTotal = 0;
   int _allDelivered = 0;
@@ -114,6 +116,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   List<dynamic> _recentOrdersList = [];
   List<dynamic> _recentUsersList = [];
   List<dynamic> _recentStoresList = [];
+  List<dynamic> _todayOrdersList = [];
   List<dynamic> _assignableOrdersList = [];
   List<Map<String, dynamic>> _liveRiderLocations = [];
   Map<String, List<latlng.LatLng>> _liveRiderTrails = {};
@@ -176,6 +179,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   String _formatPkr(dynamic value) {
     return 'PKR ${_toDouble(value).toStringAsFixed(0)}';
+  }
+
+  DateTime? _parseServerDateTime(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    final normalized = text.contains('T') ? text : text.replaceFirst(' ', 'T');
+    final hasTimezone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(normalized);
+    return DateTime.tryParse(
+      hasTimezone ? normalized : '${normalized}Z',
+    )?.toLocal();
   }
 
   String _dateKey(DateTime value) {
@@ -243,7 +257,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final value = raw.toString().trim();
     if (value.isEmpty) return '-';
     final parsed =
-        DateTime.tryParse(value) ?? DateTime.tryParse(value.replaceFirst(' ', 'T'));
+        DateTime.tryParse(value) ??
+        DateTime.tryParse(value.replaceFirst(' ', 'T'));
     if (parsed == null) return value;
     final dt = parsed.isUtc ? parsed.toLocal() : parsed;
     final y = dt.year.toString().padLeft(4, '0');
@@ -268,9 +283,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final riders = await ApiService.getRiders(token);
       if (!mounted) return;
       if (riders.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No riders found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No riders found')));
         return;
       }
       final initialRider = (riders.first as Map).cast<String, dynamic>();
@@ -286,9 +301,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load riders: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load riders: $e')));
     }
   }
 
@@ -301,7 +316,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final riderId = int.tryParse('${rider['id']}');
     if (token == null || riderId == null) return;
 
-    final day = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final day = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
     try {
       final data = await ApiService.getRiderFinancialHistory(
         token,
@@ -314,9 +333,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final summary =
           (data['summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       final dailySummary =
-          (data['daily_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+          (data['daily_summary'] as Map<String, dynamic>?) ??
+          <String, dynamic>{};
       final ledgerSummary =
-          (data['ledger_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+          (data['ledger_summary'] as Map<String, dynamic>?) ??
+          <String, dynamic>{};
       final movements = (data['movements'] as List?) ?? const [];
       final orderLedger = (data['order_ledger'] as List?) ?? const [];
       final summaryDate = (dailySummary['date'] ?? _dateKey(day)).toString();
@@ -340,7 +361,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final officeAdvance = _toDouble(summary['office_advance']);
       final fuelPayment = _toDouble(summary['fuel_payment']);
       final expectedCashWithRider =
-          officeAdvance + cashInCustomer - cashOutStore - fuelPayment - totalSubmitted;
+          officeAdvance +
+          cashInCustomer -
+          cashOutStore -
+          fuelPayment -
+          totalSubmitted;
 
       Color movementColor(String type) {
         final t = type.toLowerCase();
@@ -352,7 +377,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         return Colors.grey;
       }
 
-      Widget amountRow(String label, dynamic value, {Color? color, bool strong = false}) {
+      Widget amountRow(
+        String label,
+        dynamic value, {
+        Color? color,
+        bool strong = false,
+      }) {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(
@@ -414,7 +444,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         ),
                       ),
                     ),
-                    if (trailing != null) ...[trailing, const SizedBox(width: 6)],
+                    if (trailing != null) ...[
+                      trailing,
+                      const SizedBox(width: 6),
+                    ],
                     Icon(
                       expanded
                           ? Icons.keyboard_arrow_up
@@ -424,10 +457,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ],
                 ),
               ),
-              if (expanded) ...[
-                const SizedBox(height: 8),
-                ...children,
-              ],
+              if (expanded) ...[const SizedBox(height: 8), ...children],
             ],
           ),
         );
@@ -470,16 +500,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 style: const TextStyle(color: Colors.black54, fontSize: 11),
               ),
               const SizedBox(height: 8),
-              amountRow('Customer cash collected', order['customer_cash_collected'],
-                  color: const Color(0xFF15803D)),
-              amountRow('Store paid by rider', order['rider_store_paid'],
-                  color: const Color(0xFFB91C1C)),
-              amountRow('Store payable later', order['store_payable_later'],
-                  color: const Color(0xFF1D4ED8)),
+              amountRow(
+                'Customer cash collected',
+                order['customer_cash_collected'],
+                color: const Color(0xFF15803D),
+              ),
+              amountRow(
+                'Store paid by rider',
+                order['rider_store_paid'],
+                color: const Color(0xFFB91C1C),
+              ),
+              amountRow(
+                'Store payable later',
+                order['store_payable_later'],
+                color: const Color(0xFF1D4ED8),
+              ),
               if (stores.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 ...stores.map((rawStore) {
-                  final store = (rawStore as Map?)?.cast<String, dynamic>() ?? {};
+                  final store =
+                      (rawStore as Map?)?.cast<String, dynamic>() ?? {};
                   return Text(
                     '${store['store_name'] ?? 'Store'} - ${store['payment_term'] ?? '-'}',
                     style: const TextStyle(
@@ -543,7 +583,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -574,8 +616,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             isDense: true,
                           ),
                           items: riderOptions.map((raw) {
-                            final option =
-                                (raw as Map).cast<String, dynamic>();
+                            final option = (raw as Map).cast<String, dynamic>();
                             final id = int.tryParse('${option['id']}') ?? 0;
                             return DropdownMenuItem<int>(
                               value: id,
@@ -588,8 +629,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           onChanged: (value) {
                             if (value == null || value == riderId) return;
                             for (final raw in riderOptions) {
-                              final option =
-                                  (raw as Map).cast<String, dynamic>();
+                              final option = (raw as Map)
+                                  .cast<String, dynamic>();
                               if (int.tryParse('${option['id']}') == value) {
                                 openRider(option);
                                 break;
@@ -653,24 +694,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               color: const Color(0xFFF0FDFA),
                               borderColor: const Color(0xFF99F6E4),
                               children: [
-                                amountRow('Office advance', officeAdvance,
-                                    color: const Color(0xFF7C3AED)),
-                                amountRow('Customer cash collected', cashInCustomer,
-                                    color: const Color(0xFF15803D)),
-                                amountRow('Store paid by rider', cashOutStore,
-                                    color: const Color(0xFFB91C1C)),
-                                amountRow('Fuel / expense', fuelPayment,
-                                    color: const Color(0xFFD97706)),
-                                amountRow('Submitted to office', totalSubmitted,
-                                    color: const Color(0xFF475569)),
+                                amountRow(
+                                  'Office advance',
+                                  officeAdvance,
+                                  color: const Color(0xFF7C3AED),
+                                ),
+                                amountRow(
+                                  'Customer cash collected',
+                                  cashInCustomer,
+                                  color: const Color(0xFF15803D),
+                                ),
+                                amountRow(
+                                  'Store paid by rider',
+                                  cashOutStore,
+                                  color: const Color(0xFFB91C1C),
+                                ),
+                                amountRow(
+                                  'Fuel / expense',
+                                  fuelPayment,
+                                  color: const Color(0xFFD97706),
+                                ),
+                                amountRow(
+                                  'Submitted to office',
+                                  totalSubmitted,
+                                  color: const Color(0xFF475569),
+                                ),
                                 const Divider(height: 14),
-                                amountRow('Expected cash with rider',
-                                    expectedCashWithRider,
-                                    color: const Color(0xFF0F766E),
-                                    strong: true),
-                                amountRow('Unsubmitted cash',
-                                    summary['unsubmitted_cash_received'],
-                                    color: const Color(0xFFE65100)),
+                                amountRow(
+                                  'Expected cash with rider',
+                                  expectedCashWithRider,
+                                  color: const Color(0xFF0F766E),
+                                  strong: true,
+                                ),
+                                amountRow(
+                                  'Unsubmitted cash',
+                                  summary['unsubmitted_cash_received'],
+                                  color: const Color(0xFFE65100),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 12),
@@ -689,14 +749,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                 ),
                               ),
                               children: [
-                                amountRow('Cash collection',
-                                    dailySummary['cash_collection']),
-                                amountRow('Store paid',
-                                    dailySummary['store_payment']),
-                                amountRow('Fuel payment',
-                                    dailySummary['fuel_payment']),
-                                amountRow('Delivery fee earned',
-                                    dailySummary['delivery_fee_earned']),
+                                amountRow(
+                                  'Cash collection',
+                                  dailySummary['cash_collection'],
+                                ),
+                                amountRow(
+                                  'Store paid',
+                                  dailySummary['store_payment'],
+                                ),
+                                amountRow(
+                                  'Fuel payment',
+                                  dailySummary['fuel_payment'],
+                                ),
+                                amountRow(
+                                  'Delivery fee earned',
+                                  dailySummary['delivery_fee_earned'],
+                                ),
                               ],
                             ),
                             const SizedBox(height: 12),
@@ -709,8 +777,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               children: orderLedger.isEmpty
                                   ? const [
                                       Padding(
-                                        padding: EdgeInsets.symmetric(vertical: 16),
-                                        child: Center(child: Text('No orders found')),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        child: Center(
+                                          child: Text('No orders found'),
+                                        ),
                                       ),
                                     ]
                                   : [
@@ -734,20 +806,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               children: movements.isEmpty
                                   ? const [
                                       Padding(
-                                        padding: EdgeInsets.symmetric(vertical: 16),
-                                        child:
-                                            Center(child: Text('No movements found')),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 16,
+                                        ),
+                                        child: Center(
+                                          child: Text('No movements found'),
+                                        ),
                                       ),
                                     ]
                                   : [
                                       for (final rawMovement in movements) ...[
                                         Builder(
                                           builder: (_) {
-                                            final m = (rawMovement as Map?)
+                                            final m =
+                                                (rawMovement as Map?)
                                                     ?.cast<String, dynamic>() ??
                                                 {};
                                             final type =
-                                                (m['movement_type'] ?? '-').toString();
+                                                (m['movement_type'] ?? '-')
+                                                    .toString();
                                             final clr = movementColor(type);
                                             return Container(
                                               padding: const EdgeInsets.all(12),
@@ -768,20 +845,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                                       Expanded(
                                                         child: Text(
                                                           type
-                                                              .replaceAll('_', ' ')
+                                                              .replaceAll(
+                                                                '_',
+                                                                ' ',
+                                                              )
                                                               .toUpperCase(),
-                                                          style: const TextStyle(
-                                                            fontWeight:
-                                                                FontWeight.w800,
-                                                            fontSize: 13,
-                                                          ),
+                                                          style:
+                                                              const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                                fontSize: 13,
+                                                              ),
                                                         ),
                                                       ),
                                                       Text(
                                                         'PKR ${_toDouble(m['amount']).toStringAsFixed(2)}',
                                                         style: TextStyle(
                                                           color: clr,
-                                                          fontWeight: FontWeight.w900,
+                                                          fontWeight:
+                                                              FontWeight.w900,
                                                           fontSize: 12,
                                                         ),
                                                       ),
@@ -805,10 +888,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                                       .isNotEmpty) ...[
                                                     const SizedBox(height: 4),
                                                     Text(
-                                                      m['description'].toString(),
+                                                      m['description']
+                                                          .toString(),
                                                       style: const TextStyle(
                                                         fontSize: 12,
-                                                        fontWeight: FontWeight.w600,
+                                                        fontWeight:
+                                                            FontWeight.w600,
                                                       ),
                                                     ),
                                                   ],
@@ -851,16 +936,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       );
     } catch (e) {
       _logger.w('Daily sales summary API unavailable, using orders: $e');
-      final orders = fallbackOrders ??
+      final orders =
+          fallbackOrders ??
           await ApiService.getOrders(
             token,
             includeItemsCount: false,
             includeStoreStatuses: false,
           );
-      return _buildDailySalesSummaryFromOrders(
-        orders,
-        _selectedDailySalesDate,
-      );
+      return _buildDailySalesSummaryFromOrders(orders, _selectedDailySalesDate);
     }
   }
 
@@ -868,8 +951,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     _dailySalesSummary = (dailySalesData['summary'] is Map<String, dynamic>)
         ? dailySalesData['summary'] as Map<String, dynamic>
         : <String, dynamic>{};
-    _dailyRiderCashBreakdown =
-        dailySalesData['rider_cash_breakdown'] is List
+    _dailyRiderCashBreakdown = dailySalesData['rider_cash_breakdown'] is List
         ? dailySalesData['rider_cash_breakdown'] as List<dynamic>
         : const [];
   }
@@ -906,10 +988,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (!mounted) return;
       setState(() {
         _applyDailySalesSummaryData(data);
-        _dailyRiderTravelSummary =
-            travelSummaryData?['riders'] is List
-                ? travelSummaryData!['riders'] as List<dynamic>
-                : const [];
+        _dailyRiderTravelSummary = travelSummaryData?['riders'] is List
+            ? travelSummaryData!['riders'] as List<dynamic>
+            : const [];
         _isDailySalesLoading = false;
       });
     } catch (e) {
@@ -955,11 +1036,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       totalOrders += 1;
       final status = (order['status'] ?? '').toString().trim().toLowerCase();
-      final paymentMethod =
-          (order['payment_method'] ?? '').toString().trim().toLowerCase();
+      final paymentMethod = (order['payment_method'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
       final total = _toDouble(order['total_amount']);
       final deliveryFee = _toDouble(order['delivery_fee']);
-      final itemCash = (total - deliveryFee).clamp(0, double.infinity).toDouble();
+      final itemCash = (total - deliveryFee)
+          .clamp(0, double.infinity)
+          .toDouble();
 
       if (status != 'cancelled') {
         grossSales += total;
@@ -996,9 +1081,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     final breakdown = riderCashById.values.toList()
       ..sort(
-        (a, b) => _toDouble(b['rider_cash']).compareTo(
-          _toDouble(a['rider_cash']),
-        ),
+        (a, b) =>
+            _toDouble(b['rider_cash']).compareTo(_toDouble(a['rider_cash'])),
       );
 
     return {
@@ -1129,24 +1213,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     List<Map<String, dynamic>> riders,
     _LiveRiderTrackerPayload trackerPayload,
   ) {
-    return riders.map((rider) {
-      final merged = Map<String, dynamic>.from(rider);
-      final trackingKey = _trackingKeyForRider(merged);
-      final startedAt = trackerPayload.startedAtByRiderId[trackingKey];
-      final updatedAt = trackerPayload.updatedAtByRiderId[trackingKey];
-      if (startedAt != null) {
-        merged['startedAt'] = startedAt;
-      }
-      if (updatedAt != null) {
-        merged['createdAt'] = updatedAt;
-      }
-      final cachedLabel = _liveLocationNameByRider[trackingKey];
-      final currentLabel = (merged['locationLabel'] ?? '').toString().trim();
-      if (currentLabel.isEmpty && cachedLabel != null && cachedLabel.isNotEmpty) {
-        merged['locationLabel'] = cachedLabel;
-      }
-      return merged;
-    }).toList(growable: false);
+    return riders
+        .map((rider) {
+          final merged = Map<String, dynamic>.from(rider);
+          final trackingKey = _trackingKeyForRider(merged);
+          final startedAt = trackerPayload.startedAtByRiderId[trackingKey];
+          final updatedAt = trackerPayload.updatedAtByRiderId[trackingKey];
+          if (startedAt != null) {
+            merged['startedAt'] = startedAt;
+          }
+          if (updatedAt != null) {
+            merged['createdAt'] = updatedAt;
+          }
+          final cachedLabel = _liveLocationNameByRider[trackingKey];
+          final currentLabel = (merged['locationLabel'] ?? '')
+              .toString()
+              .trim();
+          if (currentLabel.isEmpty &&
+              cachedLabel != null &&
+              cachedLabel.isNotEmpty) {
+            merged['locationLabel'] = cachedLabel;
+          }
+          return merged;
+        })
+        .toList(growable: false);
   }
 
   DateTime? _parseLiveTrackingTime(dynamic value) {
@@ -1226,7 +1316,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         limit: _liveRiderHistoryLimit,
       );
     } catch (e) {
-      _logger.w('Live rider history unavailable, falling back to order coordinates: $e');
+      _logger.w(
+        'Live rider history unavailable, falling back to order coordinates: $e',
+      );
       return const _LiveRiderTrackerPayload(
         trails: <String, List<latlng.LatLng>>{},
         speedsMph: <String, double>{},
@@ -1262,7 +1354,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         for (final raw in entries) {
           if (raw is! Map) continue;
           final entry = raw.cast<String, dynamic>();
-          final entryOrderId = int.tryParse((entry['order_id'] ?? '').toString());
+          final entryOrderId = int.tryParse(
+            (entry['order_id'] ?? '').toString(),
+          );
           if (orderId != null && entryOrderId != orderId) continue;
           final latitude = double.tryParse(
             (entry['latitude'] ?? '').toString(),
@@ -1275,17 +1369,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           _appendTrailPoint(points, point);
           final timestamp = _parseLiveTrackingTime(entry['created_at']);
           if (timestamp != null &&
-              (earliestUpdatedAt == null || timestamp.isBefore(earliestUpdatedAt))) {
+              (earliestUpdatedAt == null ||
+                  timestamp.isBefore(earliestUpdatedAt))) {
             earliestUpdatedAt = timestamp;
           }
           if (timestamp != null &&
               (latestUpdatedAt == null || timestamp.isAfter(latestUpdatedAt))) {
             latestUpdatedAt = timestamp;
           }
-          telemetry.add({
-            'point': point,
-            'timestamp': timestamp,
-          });
+          telemetry.add({'point': point, 'timestamp': timestamp});
         }
       }
 
@@ -1305,10 +1397,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 currentTimestamp.isAfter(latestUpdatedAt))) {
           latestUpdatedAt = currentTimestamp;
         }
-        telemetry.add({
-          'point': point,
-          'timestamp': currentTimestamp,
-        });
+        telemetry.add({'point': point, 'timestamp': currentTimestamp});
       }
 
       if (points.isNotEmpty) {
@@ -1418,14 +1507,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           .where((id) => id.isNotEmpty)
           .toSet();
 
-      final standbyRecords = riderRecords.where((raw) {
-        if (raw is! Map) return false;
-        final rider = raw.cast<String, dynamic>();
-        final riderId = (rider['id'] ?? '').toString().trim();
-        if (riderId.isEmpty || existingIds.contains(riderId)) return false;
-        final isActive = rider['is_active'] == true || rider['is_active'] == 1;
-        return isActive;
-      }).map((raw) => (raw as Map).cast<String, dynamic>()).toList(growable: false);
+      final standbyRecords = riderRecords
+          .where((raw) {
+            if (raw is! Map) return false;
+            final rider = raw.cast<String, dynamic>();
+            final riderId = (rider['id'] ?? '').toString().trim();
+            if (riderId.isEmpty || existingIds.contains(riderId)) return false;
+            final isActive =
+                rider['is_active'] == true || rider['is_active'] == 1;
+            return isActive;
+          })
+          .map((raw) => (raw as Map).cast<String, dynamic>())
+          .toList(growable: false);
 
       if (standbyRecords.isEmpty) {
         return const _StandbyRiderSnapshot(
@@ -1478,14 +1571,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         for (final raw in entries) {
           if (raw is! Map) continue;
           final entry = raw.cast<String, dynamic>();
-          final latitude = double.tryParse((entry['latitude'] ?? '').toString());
-          final longitude = double.tryParse((entry['longitude'] ?? '').toString());
+          final latitude = double.tryParse(
+            (entry['latitude'] ?? '').toString(),
+          );
+          final longitude = double.tryParse(
+            (entry['longitude'] ?? '').toString(),
+          );
           if (latitude == null || longitude == null) continue;
           final point = latlng.LatLng(latitude, longitude);
           _appendTrailPoint(points, point);
           final timestamp = _parseLiveTrackingTime(entry['created_at']);
           if (timestamp != null &&
-              (earliestUpdatedAt == null || timestamp.isBefore(earliestUpdatedAt))) {
+              (earliestUpdatedAt == null ||
+                  timestamp.isBefore(earliestUpdatedAt))) {
             earliestUpdatedAt = timestamp;
           }
           telemetry.add({'point': point, 'timestamp': timestamp});
@@ -1778,7 +1876,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   bool _shouldHideMachineLocationLabel(String value) {
-    return _isCoordinateOnlyLocationLabel(value) || _isPlusCodeLocationLabel(value);
+    return _isCoordinateOnlyLocationLabel(value) ||
+        _isPlusCodeLocationLabel(value);
   }
 
   String _liveLocationLabelForRider(Map<String, dynamic> rider) {
@@ -1786,7 +1885,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final livePoint = _displayPointForRider(rider);
     final serverLabel = (rider['locationLabel'] ?? '').toString().trim();
     final hasLiveCoordinates = rider['hasLiveCoordinates'] == true;
-    if (serverLabel.isNotEmpty && !_shouldHideMachineLocationLabel(serverLabel)) {
+    if (serverLabel.isNotEmpty &&
+        !_shouldHideMachineLocationLabel(serverLabel)) {
       return serverLabel;
     }
     if (!hasLiveCoordinates) {
@@ -1994,9 +2094,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final orderIds = <String>{};
     if (rawOrderIds is List) {
       orderIds.addAll(
-        rawOrderIds.map((value) => value.toString().trim()).where(
-              (value) => value.isNotEmpty,
-            ),
+        rawOrderIds
+            .map((value) => value.toString().trim())
+            .where((value) => value.isNotEmpty),
       );
     }
 
@@ -2345,7 +2445,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       final now = DateTime.now();
       final todayOrders = orders.where((o) {
         try {
-          final dt = DateTime.parse(o['created_at'].toString());
+          final dt = _parseServerDateTime(o['created_at']);
+          if (dt == null) return false;
           return dt.year == now.year &&
               dt.month == now.month &&
               dt.day == now.day;
@@ -2353,6 +2454,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           return false;
         }
       }).toList();
+      DateTime? latestTodayServerTime;
+      for (final order in todayOrders) {
+        if (order is! Map) continue;
+        final parsed = _parseServerDateTime(
+          order['updated_at'] ?? order['created_at'],
+        );
+        if (parsed == null) continue;
+        if (latestTodayServerTime == null ||
+            parsed.isAfter(latestTodayServerTime)) {
+          latestTodayServerTime = parsed;
+        }
+      }
 
       int countStatus(List list, String status) {
         return list
@@ -2423,6 +2536,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _todayTotal = todayOrders.length;
         _todayDelivered = countStatus(todayOrders, 'delivered');
         _todayPending = countPendingLike(todayOrders);
+        _todayCancelled = countStatus(todayOrders, 'cancelled');
+        _todayOrdersList = todayOrders;
+        _todayServerTime =
+            ApiService.lastServerTime ?? latestTodayServerTime?.toLocal();
 
         _allTotal = orders.length;
         _allDelivered = countStatus(orders, 'delivered');
@@ -2608,6 +2725,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       child: Scaffold(
         backgroundColor: CustomerPalette.background,
         appBar: AppBar(
+          toolbarHeight: 44,
+          leadingWidth: 42,
           elevation: 0,
           backgroundColor: Colors.white.withValues(alpha: 0.78),
           iconTheme: const IconThemeData(color: Colors.black87),
@@ -2615,14 +2734,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             _tr('Admin Dashboard'),
             style: const TextStyle(
               color: Colors.black87,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
             ),
           ),
           actions: [
-            const NotificationBellWidget(),
+            const SizedBox(
+              width: 38,
+              height: 38,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: NotificationBellWidget(),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.only(right: 16.0),
+              padding: const EdgeInsets.only(right: 8.0),
               child: CircleAvatar(
+                radius: 15,
                 backgroundColor: Colors.indigo,
                 child: Text(
                   authProvider.user?.firstName.substring(0, 1).toUpperCase() ??
@@ -2638,7 +2766,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ? SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
                   child: _buildQuickMenu(context),
                 ),
               )
@@ -2661,17 +2789,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         final isMedium = constraints.maxWidth >= 760;
                         return SingleChildScrollView(
                           padding: EdgeInsets.fromLTRB(
-                            isWide ? 28 : 16,
-                            18,
-                            isWide ? 28 : 16,
-                            useBottomQuickMenu ? 96 : 28,
+                            isWide ? 20 : 6,
+                            12,
+                            isWide ? 20 : 6,
+                            useBottomQuickMenu ? 70 : 20,
                           ),
                           physics: const AlwaysScrollableScrollPhysics(),
                           child: Center(
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 1320),
                               child: Container(
-                                padding: EdgeInsets.all(isWide ? 20 : 14),
+                                padding: EdgeInsets.all(isWide ? 16 : 8),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.4),
                                   borderRadius: BorderRadius.circular(34),
@@ -3145,9 +3273,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         for (var i = 0; i < tiles.length; i += 2) ...[
           Row(
             children: [
-              Expanded(
-                child: _buildSalesSummaryTile(tiles[i].$1, tiles[i].$2),
-              ),
+              Expanded(child: _buildSalesSummaryTile(tiles[i].$1, tiles[i].$2)),
               const SizedBox(width: 10),
               Expanded(
                 child: i + 1 < tiles.length
@@ -3436,6 +3562,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required bool isWide,
     required bool isMedium,
   }) {
+    final allPending = (_allTotal - _allDelivered - _allCancelled).clamp(
+      0,
+      _allTotal,
+    );
     final cards = [
       _buildOverviewMetricCard(
         title: "Today's Orders",
@@ -3444,6 +3574,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         icon: Icons.show_chart_rounded,
         subtitle: '$_todayDelivered delivered today',
         trendLabel: '+$_todayPending pending',
+        orderDetails: [
+          {
+            'label': 'Delivered',
+            'value': _todayDelivered.toString(),
+            'tone': 'delivered',
+          },
+          {
+            'label': 'Pending',
+            'value': _todayPending.toString(),
+            'tone': 'pending',
+          },
+          {
+            'label': 'Cancelled',
+            'value': _todayCancelled.toString(),
+            'tone': 'cancelled',
+          },
+        ],
+        onOrderDetailTap: _showTodayOrderDetails,
+        headerTrailing: _buildOrderTimeChip(),
         visual: _buildMiniTrendLine(CustomerPalette.primary),
       ),
       _buildOverviewMetricCard(
@@ -3453,6 +3602,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         icon: Icons.bar_chart_rounded,
         subtitle: '$_allCancelled cancelled overall',
         trendLabel: '$_allDelivered delivered',
+        orderDetails: [
+          {
+            'label': 'Delivered',
+            'value': _allDelivered.toString(),
+            'tone': 'delivered',
+          },
+          {
+            'label': 'Pending',
+            'value': allPending.toString(),
+            'tone': 'pending',
+          },
+          {
+            'label': 'Cancelled',
+            'value': _allCancelled.toString(),
+            'tone': 'cancelled',
+          },
+        ],
         visual: _buildMiniBarChart(CustomerPalette.primaryDark),
       ),
       _buildOverviewMetricCard(
@@ -3487,9 +3653,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         itemCount: cards.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.5,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 2.45,
         ),
         itemBuilder: (_, index) => cards[index],
       );
@@ -3504,7 +3670,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 1.18,
+          childAspectRatio: 1.85,
         ),
         itemBuilder: (_, index) => cards[index],
       );
@@ -3514,7 +3680,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       children: [
         for (var i = 0; i < cards.length; i++) ...[
           cards[i],
-          if (i != cards.length - 1) const SizedBox(height: 12),
+          if (i != cards.length - 1) const SizedBox(height: 8),
         ],
       ],
     );
@@ -3528,17 +3694,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required String subtitle,
     required String trendLabel,
     required Widget visual,
+    List<Map<String, String>>? orderDetails,
+    ValueChanged<String>? onOrderDetailTap,
+    Widget? headerTrailing,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: accent.withValues(alpha: 0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -3551,46 +3720,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 child: Text(
                   title,
                   style: const TextStyle(
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF334155),
                   ),
                 ),
               ),
-              Icon(icon, color: accent, size: 20),
+              if (headerTrailing != null) ...[
+                headerTrailing,
+                const SizedBox(width: 6),
+              ],
+              Icon(icon, color: accent, size: 16),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
-              fontSize: 34,
+              fontSize: 24,
               height: 1,
               fontWeight: FontWeight.w900,
               color: accent,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 2),
           Text(
             subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
+              fontSize: 10.5,
               fontWeight: FontWeight.w600,
               color: Colors.blueGrey.shade600,
             ),
           ),
-          const SizedBox(height: 12),
-          SizedBox(height: 84, child: visual),
-          const SizedBox(height: 8),
+          if (orderDetails != null) ...[
+            const SizedBox(height: 4),
+            _buildOrderDetailsSubCard(
+              accent: accent,
+              details: orderDetails,
+              onDetailTap: onOrderDetailTap,
+            ),
+          ],
+          const SizedBox(height: 4),
+          SizedBox(height: 38, child: visual),
+          const SizedBox(height: 3),
           Row(
             children: [
-              Icon(Icons.arrow_upward_rounded, size: 15, color: accent),
-              const SizedBox(width: 4),
+              Icon(Icons.arrow_upward_rounded, size: 12, color: accent),
+              const SizedBox(width: 3),
               Expanded(
                 child: Text(
                   trendLabel,
                   style: TextStyle(
                     color: accent,
                     fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
+                    fontSize: 10.5,
                   ),
                 ),
               ),
@@ -3599,6 +3784,362 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildOrderDetailsSubCard({
+    required Color accent,
+    required List<Map<String, String>> details,
+    ValueChanged<String>? onDetailTap,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: details.map((detail) {
+          final isLast = detail == details.last;
+          final label = detail['label'] ?? '';
+          final tone = _orderDetailTone(detail['tone'] ?? label);
+          final content = Container(
+            padding: EdgeInsets.only(right: isLast ? 0 : 5),
+            decoration: BoxDecoration(
+              border: isLast
+                  ? null
+                  : Border(
+                      right: BorderSide(color: accent.withValues(alpha: 0.12)),
+                    ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  detail['value'] ?? '0',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: tone,
+                    fontSize: 12,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: tone.withValues(alpha: 0.82),
+                          fontSize: 8,
+                          height: 1,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (onDetailTap != null)
+                      Icon(
+                        Icons.touch_app_rounded,
+                        size: 8,
+                        color: tone.withValues(alpha: 0.7),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          );
+          return Expanded(
+            child: onDetailTap == null
+                ? content
+                : InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => onDetailTap(label),
+                    child: content,
+                  ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildOrderTimeChip() {
+    final client = _compactClockLabel(DateTime.now());
+    final server = _todayServerTime == null
+        ? '--:--'
+        : _compactClockLabel(_todayServerTime!.toLocal());
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFFFED7AA)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _buildTinyTimeLine('S', server, const Color(0xFFEA580C)),
+          const SizedBox(height: 1),
+          _buildTinyTimeLine('C', client, const Color(0xFF111827)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTinyTimeLine(String label, String value, Color color) {
+    return Text(
+      '$label $value',
+      maxLines: 1,
+      style: TextStyle(
+        color: color,
+        fontSize: 8,
+        height: 1,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+
+  String _compactClockLabel(DateTime value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  Color _orderDetailTone(String tone) {
+    switch (tone.toLowerCase().trim()) {
+      case 'delivered':
+        return const Color(0xFF16A34A);
+      case 'pending':
+        return const Color(0xFFF59E0B);
+      case 'cancelled':
+        return const Color(0xFFDC2626);
+      default:
+        return CustomerPalette.primary;
+    }
+  }
+
+  List<dynamic> _todayOrdersForDetail(String label) {
+    final normalized = label.toLowerCase().trim();
+    return _todayOrdersList.where((order) {
+      final status = (order['status'] ?? '').toString().toLowerCase().trim();
+      if (normalized == 'pending') {
+        return status != 'delivered' && status != 'cancelled';
+      }
+      return status == normalized;
+    }).toList();
+  }
+
+  void _showTodayOrderDetails(String label) {
+    final orders = _todayOrdersForDetail(label);
+    final tone = _orderDetailTone(label);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              14,
+              4,
+              14,
+              MediaQuery.of(sheetContext).viewInsets.bottom + 14,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.72,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "Today's $label Orders",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: tone.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${orders.length}',
+                          style: TextStyle(
+                            color: tone,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (orders.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Text(
+                        'No ${label.toLowerCase()} orders found for today.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: CustomerPalette.textMuted,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: orders.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (_, index) {
+                          final order = orders[index];
+                          return _buildTodayOrderDetailTile(order);
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTodayOrderDetailTile(dynamic order) {
+    final orderMap = order is Map<String, dynamic>
+        ? order
+        : Map<String, dynamic>.from(order as Map);
+    final id = (orderMap['id'] ?? orderMap['order_id'] ?? '-').toString();
+    final orderNo = (orderMap['order_number'] ?? '#$id').toString();
+    final status = (orderMap['status'] ?? 'pending').toString();
+    final statusTone = _orderDetailTone(
+      status.toLowerCase().trim() == 'delivered' ||
+              status.toLowerCase().trim() == 'cancelled'
+          ? status
+          : 'pending',
+    );
+    final customer =
+        (orderMap['customer_name'] ??
+                orderMap['customer'] ??
+                orderMap['user_name'] ??
+                'Customer')
+            .toString();
+    final store = (orderMap['store_name'] ?? orderMap['store'] ?? '')
+        .toString();
+    final totalValue = orderMap['total_amount'] ?? orderMap['grand_total'] ?? 0;
+    final total = _formatPkr(totalValue);
+    final createdAt = _formatOrderTime(orderMap['created_at']);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: statusTone.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.receipt_long_rounded,
+              color: statusTone,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  orderNo,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: CustomerPalette.textDark,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  store.isEmpty ? customer : '$customer | $store',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: CustomerPalette.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$total | $createdAt',
+                  style: const TextStyle(
+                    color: CustomerPalette.primaryDark,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            status,
+            style: TextStyle(
+              color: statusTone,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatOrderTime(dynamic value) {
+    if (value == null) return 'Today';
+    final parsed = _parseServerDateTime(value);
+    if (parsed == null) return value.toString();
+    final local = parsed;
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   Widget _buildMiniTrendLine(Color color) {
@@ -3619,7 +4160,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 3),
               child: Container(
-                height: 72 * heightFactor,
+                height: 34 * heightFactor,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(4),
@@ -3639,21 +4180,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }) {
     return Center(
       child: SizedBox(
-        width: 86,
-        height: 86,
+        width: 38,
+        height: 38,
         child: Stack(
           fit: StackFit.expand,
           children: [
             CircularProgressIndicator(
               value: 0.78,
-              strokeWidth: 14,
+              strokeWidth: 6,
               backgroundColor: secondary.withValues(alpha: 0.14),
               valueColor: AlwaysStoppedAnimation<Color>(primary),
             ),
             Center(
               child: Container(
-                width: 34,
-                height: 34,
+                width: 16,
+                height: 16,
                 decoration: BoxDecoration(
                   color: tertiary.withValues(alpha: 0.24),
                   shape: BoxShape.circle,
@@ -3672,24 +4213,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: bars.map((value) {
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
+          padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(
             children: [
               Container(
-                width: 8,
-                height: 8,
+                width: 5,
+                height: 5,
                 decoration: BoxDecoration(
                   color: CustomerPalette.primary,
                   shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
                     value: value,
-                    minHeight: 8,
+                    minHeight: 5,
                     backgroundColor: const Color(0xFFE8EDF2),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       CustomerPalette.primary,
@@ -4105,10 +4646,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   'Show riders without assigned orders',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
                 ),
                 subtitle: const Text(
                   'Track office-to-pickup travel from latest rider location logs.',
@@ -4184,10 +4722,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         ),
                       ),
                       ...allRiders.map((rider) {
-                        final riderName =
-                            (rider['riderName'] ?? _tr('Rider')).toString();
-                        final orderNumber =
-                            (rider['orderNumber'] ?? '').toString().trim();
+                        final riderName = (rider['riderName'] ?? _tr('Rider'))
+                            .toString();
+                        final orderNumber = (rider['orderNumber'] ?? '')
+                            .toString()
+                            .trim();
                         return Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
@@ -4418,10 +4957,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: routeColor.withValues(
-                                      alpha: isFocusedTrackingMode ? 0.55 : 0.35,
+                                      alpha: isFocusedTrackingMode
+                                          ? 0.55
+                                          : 0.35,
                                     ),
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.85),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.85,
+                                      ),
                                       width: 1.4,
                                     ),
                                   ),
@@ -4433,41 +4976,44 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         .toList(growable: false),
                   ),
                 MarkerLayer(
-                  markers: riders.map((rider) {
-                    final trackingKey = _trackingKeyForRider(rider);
-                    final isSelected = trackingKey == _selectedLiveRiderId;
-                    final routeColor = _routeColorForRider(trackingKey);
-                    final displayPoint =
-                        _displayPointForRider(rider) ??
-                        _resolveRiderStartPoint(rider);
-                    if (displayPoint == null) return null;
-                    return Marker(
-                      point: displayPoint,
-                      width: isFocusedTrackingMode ? 96 : 110,
-                      height: isFocusedTrackingMode ? 102 : 76,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedLiveRiderId = trackingKey;
-                          });
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _autoFollowSelectedRider();
-                          });
-                          _showLiveRiderDetails(rider);
-                        },
-                        child: isFocusedTrackingMode
-                            ? _buildTrackingHeroMarker(
-                                rider,
-                                accentColor: routeColor,
-                              )
-                            : _buildMapMarker(
-                                rider,
-                                isSelected: isSelected,
-                                accentColor: routeColor,
-                              ),
-                      ),
-                    );
-                  }).whereType<Marker>().toList(growable: false),
+                  markers: riders
+                      .map((rider) {
+                        final trackingKey = _trackingKeyForRider(rider);
+                        final isSelected = trackingKey == _selectedLiveRiderId;
+                        final routeColor = _routeColorForRider(trackingKey);
+                        final displayPoint =
+                            _displayPointForRider(rider) ??
+                            _resolveRiderStartPoint(rider);
+                        if (displayPoint == null) return null;
+                        return Marker(
+                          point: displayPoint,
+                          width: isFocusedTrackingMode ? 96 : 110,
+                          height: isFocusedTrackingMode ? 102 : 76,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedLiveRiderId = trackingKey;
+                              });
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _autoFollowSelectedRider();
+                              });
+                              _showLiveRiderDetails(rider);
+                            },
+                            child: isFocusedTrackingMode
+                                ? _buildTrackingHeroMarker(
+                                    rider,
+                                    accentColor: routeColor,
+                                  )
+                                : _buildMapMarker(
+                                    rider,
+                                    isSelected: isSelected,
+                                    accentColor: routeColor,
+                                  ),
+                          ),
+                        );
+                      })
+                      .whereType<Marker>()
+                      .toList(growable: false),
                 ),
               ],
             ),
@@ -5318,9 +5864,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               'Travel: ${_formatTravelMinutes(travelMinutes)}',
               style: TextStyle(
                 fontSize: 10.5,
-                color: pickupWarning
-                    ? const Color(0xFFB91C1C)
-                    : Colors.black54,
+                color: pickupWarning ? const Color(0xFFB91C1C) : Colors.black54,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -5849,10 +6393,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white70),
       ),
       child: SingleChildScrollView(
@@ -5865,14 +6409,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               label: _tr('Stores'),
               route: '/manage-stores',
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             _buildQuickMenuItem(
               context: context,
               icon: Icons.shopping_bag,
               label: _tr('Products'),
               route: '/manage-products',
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             _buildQuickMenuItem(
               context: context,
               icon: Icons.receipt_long,
@@ -5880,7 +6424,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               onTap: _openManageOrdersForAssignment,
             ),
             if (canViewRestrictedReports) ...[
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
               _buildQuickMenuItem(
                 context: context,
                 icon: Icons.delivery_dining,
@@ -5888,21 +6432,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 onTap: _openAdminRiderDayPicker,
               ),
             ],
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             _buildQuickMenuItem(
               context: context,
               icon: Icons.inventory_2,
               label: _tr('Inventory'),
               route: '/inventory-report',
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             _buildQuickMenuItem(
               context: context,
               icon: Icons.campaign,
               label: _tr('Status'),
               onTap: _openStoreStatusMessageDialog,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             _buildQuickMenuItem(
               context: context,
               icon: Icons.local_offer_outlined,
@@ -5913,7 +6457,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             _buildQuickMenuItem(
               context: context,
               icon: Icons.view_carousel_outlined,
@@ -5924,7 +6468,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 2),
           ],
         ),
       ),
@@ -5944,12 +6488,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       onTap: handleTap,
       borderRadius: BorderRadius.circular(8),
       child: SizedBox(
-        width: 56,
+        width: 50,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.indigo, size: 19),
-            const SizedBox(height: 2),
+            Icon(icon, color: Colors.indigo, size: 17),
+            const SizedBox(height: 1),
             Text(
               label,
               textAlign: TextAlign.center,
@@ -5957,7 +6501,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
-                fontSize: 9.5,
+                fontSize: 8.5,
               ),
             ),
           ],

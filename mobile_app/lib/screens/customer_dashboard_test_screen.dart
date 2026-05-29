@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/material.dart';
@@ -266,8 +266,8 @@ class _CustomerDashboardTestScreenState
           return (global['status'] is Map<String, dynamic>)
               ? (global['status'] as Map<String, dynamic>)
               : (global['global_status'] is Map<String, dynamic>)
-                  ? (global['global_status'] as Map<String, dynamic>)
-                  : global;
+              ? (global['global_status'] as Map<String, dynamic>)
+              : global;
         } catch (_) {
           return null;
         }
@@ -401,10 +401,10 @@ class _CustomerDashboardTestScreenState
         );
         _serviceLimitedMessage = limited
             ? (limitedMessage.isNotEmpty
-                ? limitedMessage
-                : _tr(
-                    'You are not allowed to see Store when you are out of Delivery Area',
-                  ))
+                  ? limitedMessage
+                  : _tr(
+                      'You are not allowed to see Store when you are out of Delivery Area',
+                    ))
             : null;
       });
     } catch (_) {}
@@ -1051,9 +1051,10 @@ class _CustomerDashboardTestScreenState
     if (imageUrl.isNotEmpty) {
       if (!mounted) return;
       try {
-        await precacheImage(NetworkImage(imageUrl), context).timeout(
-          const Duration(seconds: 2),
-        );
+        await precacheImage(
+          NetworkImage(imageUrl),
+          context,
+        ).timeout(const Duration(seconds: 2));
       } catch (_) {}
     }
 
@@ -1394,7 +1395,7 @@ class _CustomerDashboardTestScreenState
                 onRefresh: _fetchData,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
+                  padding: const EdgeInsets.fromLTRB(6, 14, 6, 110),
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 620),
@@ -1414,7 +1415,7 @@ class _CustomerDashboardTestScreenState
                           ],
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                          padding: const EdgeInsets.fromLTRB(8, 14, 8, 20),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1461,11 +1462,7 @@ class _CustomerDashboardTestScreenState
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFF6EC),
-                Color(0xFFFFD8B5),
-                Color(0xFFF7B070),
-              ],
+              colors: [Color(0xFFFFF6EC), Color(0xFFFFD8B5), Color(0xFFF7B070)],
             ),
           ),
         ),
@@ -1520,17 +1517,25 @@ class _CustomerDashboardTestScreenState
 
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
           _buildHeaderAction(
             icon: Icons.menu_rounded,
             onTap: _openQuickActions,
             solid: true,
+            size: 26,
+            iconSize: 15,
+            radius: 10,
           ),
           const Spacer(),
           TextButton.icon(
             onPressed: _showLanguageOptions,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(38, 34),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             icon: const Icon(Icons.language, color: CustomerPalette.primary),
             label: Text(
               _languageLabel(),
@@ -1540,13 +1545,23 @@ class _CustomerDashboardTestScreenState
               ),
             ),
           ),
-          const NotificationBellWidget(),
+          const SizedBox(
+            width: 38,
+            height: 38,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: NotificationBellWidget(),
+            ),
+          ),
           Consumer<CartProvider>(
             builder: (ctx, cart, child) => Stack(
               children: [
                 _buildHeaderAction(
                   icon: Icons.shopping_cart_outlined,
                   onTap: () => Navigator.of(context).pushNamed('/cart'),
+                  size: 28,
+                  iconSize: 16,
+                  radius: 10,
                 ),
                 if (cart.itemCount > 0)
                   Positioned(
@@ -1583,34 +1598,43 @@ class _CustomerDashboardTestScreenState
     required IconData icon,
     required VoidCallback onTap,
     bool solid = false,
+    double size = 30,
+    double iconSize = 17,
+    double radius = 16,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      decoration: BoxDecoration(
-        color: solid
-            ? CustomerPalette.primaryDark
-            : Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
+    return SizedBox(
+      width: size + 4,
+      height: size,
+      child: Container(
+        margin: const EdgeInsets.only(right: 4),
+        decoration: BoxDecoration(
           color: solid
               ? CustomerPalette.primaryDark
-              : CustomerPalette.border,
+              : Colors.white.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(
+            color: solid ? CustomerPalette.primaryDark : CustomerPalette.border,
+          ),
+          boxShadow: [
+            if (!solid)
+              BoxShadow(
+                color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+          ],
         ),
-        boxShadow: [
-          if (!solid)
-            BoxShadow(
-              color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(radius),
+          onTap: onTap,
+          child: Center(
+            child: Icon(
+              icon,
+              size: iconSize,
+              color: solid ? Colors.white : CustomerPalette.primaryDark,
             ),
-        ],
-      ),
-      child: IconButton(
-        icon: Icon(
-          icon,
-          color: solid ? Colors.white : CustomerPalette.primaryDark,
+          ),
         ),
-        onPressed: onTap,
       ),
     );
   }
@@ -1618,8 +1642,7 @@ class _CustomerDashboardTestScreenState
   Widget _buildHeroCard(User user) {
     final cartCount = context.watch<CartProvider>().itemCount;
     final fullName = '${user.firstName} ${user.lastName}'.trim();
-    final userName =
-        fullName.isNotEmpty ? fullName : _tr('ServeNow Customer');
+    final userName = fullName.isNotEmpty ? fullName : _tr('ServeNow Customer');
     final locationLabel = _userCity?.isNotEmpty == true
         ? _userCity!
         : _tr('Home');
@@ -1717,8 +1740,8 @@ class _CustomerDashboardTestScreenState
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
-                           color: CustomerPalette.highlight,
-                         ),
+                          color: CustomerPalette.highlight,
+                        ),
                       ),
                     ],
                   ),
@@ -1769,13 +1792,13 @@ class _CustomerDashboardTestScreenState
                     icon: const Icon(Icons.support_agent_rounded, size: 14),
                     label: Text(_tr('Contact Us')),
                     style: OutlinedButton.styleFrom(
-                       foregroundColor: CustomerPalette.secondaryDark,
-                       side: const BorderSide(color: CustomerPalette.secondary),
-                       minimumSize: const Size(0, 38),
-                       padding: const EdgeInsets.symmetric(vertical: 0),
-                       backgroundColor: CustomerPalette.secondary.withValues(
-                         alpha: 0.08,
-                       ),
+                      foregroundColor: CustomerPalette.secondaryDark,
+                      side: const BorderSide(color: CustomerPalette.secondary),
+                      minimumSize: const Size(0, 38),
+                      padding: const EdgeInsets.symmetric(vertical: 0),
+                      backgroundColor: CustomerPalette.secondary.withValues(
+                        alpha: 0.08,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(13),
                       ),
@@ -1800,7 +1823,9 @@ class _CustomerDashboardTestScreenState
       decoration: BoxDecoration(
         color: CustomerPalette.secondary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: CustomerPalette.secondary.withValues(alpha: 0.18)),
+        border: Border.all(
+          color: CustomerPalette.secondary.withValues(alpha: 0.18),
+        ),
       ),
       child: IntrinsicWidth(
         child: Row(
@@ -1840,7 +1865,7 @@ class _CustomerDashboardTestScreenState
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 176,
+            height: 132,
             child: PageView.builder(
               controller: _bannerController,
               onPageChanged: (index) {
@@ -2372,9 +2397,7 @@ class _CustomerDashboardTestScreenState
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.98),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: CustomerPalette.border,
-          ),
+          border: Border.all(color: CustomerPalette.border),
           boxShadow: [
             BoxShadow(
               color: CustomerPalette.primaryDark.withValues(alpha: 0.1),
@@ -2457,10 +2480,10 @@ class _CustomerDashboardTestScreenState
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 10,
-                          color: CustomerPalette.textMuted,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2,
-                        ),
+                        color: CustomerPalette.textMuted,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     if (!isOpen && closedReason.isNotEmpty) ...[
@@ -2513,8 +2536,8 @@ class _CustomerDashboardTestScreenState
                                     style: const TextStyle(
                                       fontSize: 8.5,
                                       fontWeight: FontWeight.w700,
-                                       color: CustomerPalette.secondaryDark,
-                                     ),
+                                      color: CustomerPalette.secondaryDark,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -2581,12 +2604,12 @@ class _CustomerDashboardTestScreenState
     return SafeArea(
       top: false,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(18, 0, 18, 6),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        constraints: const BoxConstraints(minHeight: 58),
+        margin: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        constraints: const BoxConstraints(minHeight: 50),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.97),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: CustomerPalette.border),
           boxShadow: [
             BoxShadow(
@@ -2648,7 +2671,7 @@ class _CustomerDashboardTestScreenState
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2657,8 +2680,8 @@ class _CustomerDashboardTestScreenState
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  width: 34,
-                  height: 34,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
                     color: active
                         ? CustomerPalette.primary
@@ -2667,7 +2690,7 @@ class _CustomerDashboardTestScreenState
                   ),
                   child: Icon(
                     icon,
-                    size: 18,
+                    size: 17,
                     color: active ? Colors.white : Colors.grey.shade600,
                   ),
                 ),
@@ -2701,7 +2724,7 @@ class _CustomerDashboardTestScreenState
             Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: 8.5,
                 fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                 color: active
                     ? CustomerPalette.primaryDark
