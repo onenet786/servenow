@@ -3920,19 +3920,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       barrierDismissible: true,
       barrierLabel: 'Close order details',
       barrierColor: Colors.black.withValues(alpha: 0.34),
-      transitionDuration: const Duration(milliseconds: 760),
+      transitionDuration: const Duration(milliseconds: 1520),
       pageBuilder: (dialogContext, animation, secondaryAnimation) =>
           _buildHangingOrderDetailsPanel(dialogContext, label, orders, tone),
       transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
         final drop = CurvedAnimation(
           parent: animation,
-          curve: Curves.elasticOut,
+          curve: Curves.easeInOutCubic,
           reverseCurve: Curves.easeInOutCubic,
         );
         final fade = CurvedAnimation(
           parent: animation,
-          curve: const Interval(0, 0.35, curve: Curves.easeOut),
-          reverseCurve: Curves.easeIn,
+          curve: Curves.easeInOutCubic,
+          reverseCurve: Curves.easeInOutCubic,
         );
         return FadeTransition(
           opacity: fade,
