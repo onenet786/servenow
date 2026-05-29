@@ -99,7 +99,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int _todayDelivered = 0;
   int _todayPending = 0;
   int _todayCancelled = 0;
-  DateTime? _todayServerTime;
 
   int _allTotal = 0;
   int _allDelivered = 0;
@@ -2454,19 +2453,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           return false;
         }
       }).toList();
-      DateTime? latestTodayServerTime;
-      for (final order in todayOrders) {
-        if (order is! Map) continue;
-        final parsed = _parseServerDateTime(
-          order['updated_at'] ?? order['created_at'],
-        );
-        if (parsed == null) continue;
-        if (latestTodayServerTime == null ||
-            parsed.isAfter(latestTodayServerTime)) {
-          latestTodayServerTime = parsed;
-        }
-      }
-
       int countStatus(List list, String status) {
         return list
             .where(
@@ -2538,8 +2524,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _todayPending = countPendingLike(todayOrders);
         _todayCancelled = countStatus(todayOrders, 'cancelled');
         _todayOrdersList = todayOrders;
-        _todayServerTime =
-            ApiService.lastServerTime ?? latestTodayServerTime?.toLocal();
 
         _allTotal = orders.length;
         _allDelivered = countStatus(orders, 'delivered');
@@ -3592,7 +3576,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           },
         ],
         onOrderDetailTap: _showTodayOrderDetails,
-        headerTrailing: _buildOrderTimeChip(),
         visual: _buildMiniTrendLine(CustomerPalette.primary),
       ),
       _buildOverviewMetricCard(
@@ -3696,7 +3679,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required Widget visual,
     List<Map<String, String>>? orderDetails,
     ValueChanged<String>? onOrderDetailTap,
-    Widget? headerTrailing,
   }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
@@ -3726,10 +3708,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ),
                 ),
               ),
-              if (headerTrailing != null) ...[
-                headerTrailing,
-                const SizedBox(width: 6),
-              ],
               Icon(icon, color: accent, size: 16),
             ],
           ),
@@ -3804,35 +3782,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           final isLast = detail == details.last;
           final label = detail['label'] ?? '';
           final tone = _orderDetailTone(detail['tone'] ?? label);
-          final content = Container(
-            padding: EdgeInsets.only(right: isLast ? 0 : 5),
-            decoration: BoxDecoration(
-              border: isLast
-                  ? null
-                  : Border(
-                      right: BorderSide(color: accent.withValues(alpha: 0.12)),
-                    ),
+          final isInteractive = onDetailTap != null;
+          final chip = AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: isInteractive ? 7 : 0,
+              vertical: isInteractive ? 5 : 0,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  detail['value'] ?? '0',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: tone,
-                    fontSize: 12,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
+            decoration: BoxDecoration(
+              color: isInteractive
+                  ? tone.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+              border: isInteractive
+                  ? Border.all(color: tone.withValues(alpha: 0.22))
+                  : null,
+              boxShadow: [
+                if (isInteractive)
+                  BoxShadow(
+                    color: tone.withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        detail['value'] ?? '0',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: tone,
+                          fontSize: isInteractive ? 12.5 : 12,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -3840,76 +3834,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           color: tone.withValues(alpha: 0.82),
                           fontSize: 8,
                           height: 1,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ),
-                    if (onDetailTap != null)
-                      Icon(
-                        Icons.touch_app_rounded,
-                        size: 8,
-                        color: tone.withValues(alpha: 0.7),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
+                if (isInteractive) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: tone,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.white,
+                      size: 13,
+                    ),
+                  ),
+                ],
               ],
             ),
           );
           return Expanded(
-            child: onDetailTap == null
-                ? content
-                : InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => onDetailTap(label),
-                    child: content,
-                  ),
+            child: Container(
+              padding: EdgeInsets.only(right: isLast ? 0 : 5),
+              decoration: BoxDecoration(
+                border: isLast
+                    ? null
+                    : Border(
+                        right: BorderSide(
+                          color: accent.withValues(alpha: 0.12),
+                        ),
+                      ),
+              ),
+              child: isInteractive
+                  ? Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(9),
+                        onTap: () => onDetailTap(label),
+                        child: chip,
+                      ),
+                    )
+                  : chip,
+            ),
           );
         }).toList(),
       ),
     );
-  }
-
-  Widget _buildOrderTimeChip() {
-    final client = _compactClockLabel(DateTime.now());
-    final server = _todayServerTime == null
-        ? '--:--'
-        : _compactClockLabel(_todayServerTime!.toLocal());
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: const Color(0xFFFED7AA)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _buildTinyTimeLine('S', server, const Color(0xFFEA580C)),
-          const SizedBox(height: 1),
-          _buildTinyTimeLine('C', client, const Color(0xFF111827)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTinyTimeLine(String label, String value, Color color) {
-    return Text(
-      '$label $value',
-      maxLines: 1,
-      style: TextStyle(
-        color: color,
-        fontSize: 8,
-        height: 1,
-        fontWeight: FontWeight.w900,
-      ),
-    );
-  }
-
-  String _compactClockLabel(DateTime value) {
-    final hour = value.hour.toString().padLeft(2, '0');
-    final minute = value.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
   }
 
   Color _orderDetailTone(String tone) {
@@ -3939,98 +3915,210 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   void _showTodayOrderDetails(String label) {
     final orders = _todayOrdersForDetail(label);
     final tone = _orderDetailTone(label);
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
+      barrierDismissible: true,
+      barrierLabel: 'Close order details',
+      barrierColor: Colors.black.withValues(alpha: 0.34),
+      transitionDuration: const Duration(milliseconds: 760),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) =>
+          _buildHangingOrderDetailsPanel(dialogContext, label, orders, tone),
+      transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+        final drop = CurvedAnimation(
+          parent: animation,
+          curve: Curves.elasticOut,
+          reverseCurve: Curves.easeInOutCubic,
+        );
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0, 0.35, curve: Curves.easeOut),
+          reverseCurve: Curves.easeIn,
+        );
+        return FadeTransition(
+          opacity: fade,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -1.35),
+              end: Offset.zero,
+            ).animate(drop),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHangingOrderDetailsPanel(
+    BuildContext dialogContext,
+    String label,
+    List<dynamic> orders,
+    Color tone,
+  ) {
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.center,
+        child: Material(
+          color: Colors.transparent,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              14,
-              4,
-              14,
-              MediaQuery.of(sheetContext).viewInsets.bottom + 14,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(sheetContext).size.height * 0.72,
+                maxWidth: 520,
+                maxHeight: MediaQuery.of(dialogContext).size.height * 0.72,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          "Today's $label Orders",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                          ),
+                  Positioned(left: 42, top: -18, child: _buildRope(tone)),
+                  Positioned(right: 42, top: -18, child: _buildRope(tone)),
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: tone.withValues(alpha: 0.18)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 28,
+                          offset: const Offset(0, 14),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: tone.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '${orders.length}',
-                          style: TextStyle(
-                            color: tone,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  if (orders.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Text(
-                        'No ${label.toLowerCase()} orders found for today.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: CustomerPalette.textMuted,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    )
-                  else
-                    Flexible(
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: orders.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (_, index) {
-                          final order = orders[index];
-                          return _buildTodayOrderDetailTile(order);
-                        },
-                      ),
+                      ],
                     ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: tone.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.inventory_2_rounded,
+                                color: tone,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "Today's $label Orders",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: tone.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${orders.length}',
+                                style: TextStyle(
+                                  color: tone,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(999),
+                              onTap: () => Navigator.of(dialogContext).pop(),
+                              child: Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  size: 17,
+                                  color: CustomerPalette.textMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (orders.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            child: Text(
+                              'No ${label.toLowerCase()} orders found for today.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: CustomerPalette.textMuted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                        else
+                          Flexible(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: orders.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (_, index) =>
+                                  _buildTodayOrderDetailTile(orders[index]),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRope(Color tone) {
+    return Column(
+      children: [
+        Container(
+          width: 4,
+          height: 22,
+          decoration: BoxDecoration(
+            color: tone.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: tone.withValues(alpha: 0.5), width: 2),
+          ),
+        ),
+      ],
     );
   }
 
@@ -4047,12 +4135,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ? status
           : 'pending',
     );
+    final firstName = (orderMap['first_name'] ?? '').toString().trim();
+    final lastName = (orderMap['last_name'] ?? '').toString().trim();
+    final fullName = '$firstName $lastName'.trim();
     final customer =
-        (orderMap['customer_name'] ??
-                orderMap['customer'] ??
-                orderMap['user_name'] ??
-                'Customer')
-            .toString();
+        (orderMap['customer_name'] ?? orderMap['customer'] ?? fullName)
+            .toString()
+            .trim();
     final store = (orderMap['store_name'] ?? orderMap['store'] ?? '')
         .toString();
     final totalValue = orderMap['total_amount'] ?? orderMap['grand_total'] ?? 0;
@@ -4097,16 +4186,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  store.isEmpty ? customer : '$customer | $store',
+                  customer.isEmpty ? 'Customer' : customer,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: CustomerPalette.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    color: CustomerPalette.textDark,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 3),
+                if (store.isNotEmpty) ...[
+                  Text(
+                    store,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: CustomerPalette.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                ],
                 Text(
                   '$total | $createdAt',
                   style: const TextStyle(
