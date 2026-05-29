@@ -2010,7 +2010,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
 
     if (shouldAnimate) {
-      _riderMotionController.forward(from: 0);
+      if (!_riderMotionController.isAnimating) {
+        _riderMotionController.forward(from: 0);
+      }
     } else if (_riderMotionController.isAnimating) {
       _riderMotionController.stop();
     }
