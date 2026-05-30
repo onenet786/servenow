@@ -364,6 +364,274 @@ textarea:focus,
   border-top: 2px solid #86efac;
 }
 
+/* Store Sale-wise report styling */
+#salesReportSection .table-container {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+#storeSalesTable {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  table-layout: fixed;
+  width: 100%;
+}
+
+#storeSalesTable th {
+  background: #0f172a;
+  color: #ffffff;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 3px solid #334155;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  padding: 0.45rem 0.28rem;
+  text-align: center;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+#storeSalesTable td {
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  padding: 0.42rem 0.3rem;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+  vertical-align: middle;
+}
+
+#storeSalesTable th:nth-child(1),
+#storeSalesTable td:nth-child(1) {
+  width: 17%;
+  text-align: left;
+}
+
+#storeSalesTable th:nth-child(2),
+#storeSalesTable td:nth-child(2),
+#storeSalesTable th:nth-child(11),
+#storeSalesTable td:nth-child(11) {
+  width: 6%;
+  text-align: center;
+}
+
+#storeSalesTable th:nth-child(3),
+#storeSalesTable td:nth-child(3),
+#storeSalesTable th:nth-child(4),
+#storeSalesTable td:nth-child(4),
+#storeSalesTable th:nth-child(5),
+#storeSalesTable td:nth-child(5),
+#storeSalesTable th:nth-child(10),
+#storeSalesTable td:nth-child(10) {
+  width: 8%;
+  text-align: right;
+}
+
+#storeSalesTable th:nth-child(6),
+#storeSalesTable td:nth-child(6),
+#storeSalesTable th:nth-child(7),
+#storeSalesTable td:nth-child(7),
+#storeSalesTable th:nth-child(8),
+#storeSalesTable td:nth-child(8),
+#storeSalesTable th:nth-child(9),
+#storeSalesTable td:nth-child(9) {
+  width: 9%;
+  text-align: center;
+}
+
+#storeSalesTable th:last-child,
+#storeSalesTable td:last-child {
+  border-right: none;
+}
+
+#storeSalesTable tbody tr:last-child td {
+  border-bottom: 3px solid #334155;
+}
+
+#salesReportSection .aginv-report-group-row td {
+  color: #0f172a;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-top: 3px solid currentColor;
+  border-bottom: 2px solid currentColor;
+}
+
+#salesReportSection .aginv-report-group-row.sale-type-cash td {
+  background: #dcfce7;
+  color: #166534;
+}
+
+#salesReportSection .aginv-report-group-row.sale-type-cash-discount td {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+#salesReportSection .aginv-report-group-row.sale-type-credit td {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+#salesReportSection .aginv-report-group-row.sale-type-credit-discount td {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+#salesReportSection .store-sales-summary-row.sale-type-cash td {
+  background: #f0fdf4;
+}
+
+#salesReportSection .store-sales-summary-row.sale-type-cash-discount td {
+  background: #fffbeb;
+}
+
+#salesReportSection .store-sales-summary-row.sale-type-credit td {
+  background: #eff6ff;
+}
+
+#salesReportSection .store-sales-summary-row.sale-type-credit-discount td {
+  background: #f5f3ff;
+}
+
+#salesReportSection .store-sales-summary-row:hover td {
+  filter: brightness(0.98);
+}
+
+#salesReportSection .store-sales-detail-row > td {
+  border-left: 4px solid #64748b;
+  border-bottom: 3px solid #94a3b8;
+}
+
+#salesReportSection .store-sales-detail-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+#salesReportSection .store-sales-detail-row table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  table-layout: auto;
+  min-width: 1120px;
+  width: max-content;
+}
+
+#salesReportSection .store-sales-detail-row th {
+  background: #334155;
+  color: #ffffff;
+  border-bottom: 2px solid #475569;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  padding: 0.42rem 0.25rem;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  min-width: 70px;
+}
+
+#salesReportSection .store-sales-detail-row th:nth-child(1),
+#salesReportSection .store-sales-detail-row th:nth-child(2),
+#salesReportSection .store-sales-detail-row th:nth-child(3),
+#salesReportSection .store-sales-detail-row th:nth-child(4),
+#salesReportSection .store-sales-detail-row th:nth-child(5),
+#salesReportSection .store-sales-detail-row th:nth-child(6),
+#salesReportSection .store-sales-detail-row td:nth-child(1),
+#salesReportSection .store-sales-detail-row td:nth-child(2),
+#salesReportSection .store-sales-detail-row td:nth-child(3),
+#salesReportSection .store-sales-detail-row td:nth-child(4),
+#salesReportSection .store-sales-detail-row td:nth-child(5),
+#salesReportSection .store-sales-detail-row td:nth-child(6) {
+  min-width: 105px;
+}
+
+#salesReportSection .store-sales-detail-row th:nth-child(12),
+#salesReportSection .store-sales-detail-row th:nth-child(13),
+#salesReportSection .store-sales-detail-row th:nth-child(14),
+#salesReportSection .store-sales-detail-row td:nth-child(12),
+#salesReportSection .store-sales-detail-row td:nth-child(13),
+#salesReportSection .store-sales-detail-row td:nth-child(14) {
+  min-width: 88px;
+}
+
+#salesReportSection .store-sales-detail-row td {
+  background: #ffffff;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  padding: 0.38rem 0.25rem;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+#salesReportSection .aginv-report-subtotal-row td {
+  background: #f8fafc;
+  font-weight: 800;
+  border-top: 2px solid #94a3b8;
+  border-bottom: 3px solid #cbd5e1;
+}
+
+#salesReportSection .aginv-report-grand-row td {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 900;
+  border-top: 4px solid #38bdf8;
+  border-bottom: 4px solid #38bdf8;
+}
+
+.store-sale-type-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.store-sale-type-pill.sale-type-cash,
+.store-sale-detail-card.sale-type-cash {
+  background: #bbf7d0;
+  color: #14532d;
+  border: 1px solid #86efac;
+}
+
+.store-sale-type-pill.sale-type-cash-discount,
+.store-sale-detail-card.sale-type-cash-discount {
+  background: #fde68a;
+  color: #78350f;
+  border: 1px solid #fbbf24;
+}
+
+.store-sale-type-pill.sale-type-credit,
+.store-sale-detail-card.sale-type-credit {
+  background: #bfdbfe;
+  color: #1e3a8a;
+  border: 1px solid #60a5fa;
+}
+
+.store-sale-type-pill.sale-type-credit-discount,
+.store-sale-detail-card.sale-type-credit-discount {
+  background: #ddd6fe;
+  color: #4c1d95;
+  border: 1px solid #a78bfa;
+}
+
+.store-sale-detail-card {
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+}
+
 /* Hero + highlight sections on public pages */
 .hero {
   border-radius: 18px;

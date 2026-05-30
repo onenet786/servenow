@@ -26,6 +26,7 @@ const AppState = {
     notificationCustomers: [],
     productStoreTermsById: {},
     productStoreDiscountById: {},
+    productExpandedStores: new Set(),
     productItemCatalog: {
         loadedAt: 0,
         products: [],
@@ -3996,7 +3997,69 @@ function displayProducts(products) {
     const tbody = document.getElementById('productsTableBody');
     tbody.innerHTML = '';
 
-    products.forEach(product => {
+    const groupedProducts = groupProductsByStore(products);
+    if (!groupedProducts.length) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="8" class="text-center">No products found</td>';
+        tbody.appendChild(row);
+        return;
+    }
+
+    groupedProducts.forEach(group => {
+        const isExpanded = AppState.productExpandedStores.has(group.key);
+        const storeRow = document.createElement('tr');
+        storeRow.className = 'product-store-row';
+        storeRow.tabIndex = 0;
+        storeRow.setAttribute('role', 'button');
+        storeRow.setAttribute('aria-expanded', String(isExpanded));
+        storeRow.innerHTML = `
+            <td colspan="8">
+                <div class="product-store-row-content">
+                    <span class="product-store-toggle">
+                        <i class="fas fa-chevron-${isExpanded ? 'down' : 'right'}"></i>
+                    </span>
+                    <span class="product-store-name">${escapeHtml(group.name)}</span>
+                </div>
+            </td>
+        `;
+        const toggleStore = () => {
+            if (AppState.productExpandedStores.has(group.key)) {
+                AppState.productExpandedStores.delete(group.key);
+            } else {
+                AppState.productExpandedStores.add(group.key);
+            }
+            displayProducts(products);
+        };
+        storeRow.addEventListener('click', toggleStore);
+        storeRow.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleStore();
+            }
+        });
+        tbody.appendChild(storeRow);
+
+        if (isExpanded) {
+            group.products.forEach(product => appendProductRow(tbody, product));
+        }
+    });
+}
+
+function groupProductsByStore(products) {
+    const groups = new Map();
+    (products || []).forEach(product => {
+        const storeId = product.store_id ?? product.storeId ?? '';
+        const storeName = String(product.store_name || 'Unknown Store').trim() || 'Unknown Store';
+        const key = storeId ? `store-${storeId}` : `store-name-${storeName.toLowerCase()}`;
+        if (!groups.has(key)) {
+            groups.set(key, { key, name: storeName, products: [] });
+        }
+        groups.get(key).products.push(product);
+    });
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function appendProductRow(tbody, product) {
         const productId = product.id || '';
         const productName = product.name || '';
         const productPrice = product.price || 0;
@@ -4006,12 +4069,13 @@ function displayProducts(products) {
         const isAvailable = product.is_available;
 
         const row = document.createElement('tr');
+        row.className = 'product-child-row';
         row.innerHTML = `
             <td>${productId}</td>
-            <td>${productName}</td>
+            <td>${escapeHtml(productName)}</td>
             <td>PKR ${productPrice}</td>
-            <td>${categoryName}</td>
-            <td>${storeName}</td>
+            <td>${escapeHtml(categoryName)}</td>
+            <td>${escapeHtml(storeName)}</td>
             <td>${stockQuantity}</td>
             <td><span class="status-${isAvailable ? 'active' : 'inactive'}">${isAvailable ? 'Available' : 'Unavailable'}</span></td>
             <td>
@@ -4117,7 +4181,6 @@ function displayProducts(products) {
         row.addEventListener('mousemove', moveCard);
         row.addEventListener('mouseleave', hideCard);
         tbody.appendChild(row);
-    });
 }
 
 // Export Base64 Images removed
@@ -4170,6 +4233,21 @@ function isServerDateToday(value) {
     return dt.getFullYear() === today.getFullYear() &&
            dt.getMonth() === today.getMonth() &&
            dt.getDate() === today.getDate();
+}
+
+function getOrderBusinessDate(order) {
+    const explicitDate = String(order?.order_business_date || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(explicitDate)) return explicitDate;
+
+    const storedDate = String(order?.created_at || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(storedDate)) return storedDate;
+
+    const dt = parseServerDateTime(order?.created_at);
+    if (!dt) return '';
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function scrollToStoreStatusSection(sectionId) {
@@ -4724,7 +4802,8 @@ function loadOrders() {
         
         // Update dashboard tiles
         try {
-            const todayOrders = AppState.orders.filter(o => isServerDateToday(o.created_at));
+            const today = getTodayDateString();
+            const todayOrders = AppState.orders.filter(o => getOrderBusinessDate(o) === today);
             const countStatus = (arr, status) => arr.filter(o => (o.status || '').toLowerCase() === status).length;
             const countPendingLike = (arr) => arr.filter(o => {
                 const s = (o.status || '').toLowerCase();
@@ -4848,6 +4927,162 @@ function shouldAnimateOrderIndicator(status) {
     return !['delivered', 'completed', 'cancelled'].includes(normalized);
 }
 
+function parseOrderStoreStatuses(order) {
+    const rawStatuses = order?.store_statuses;
+    let statuses = [];
+
+    if (rawStatuses) {
+        if (typeof rawStatuses === 'string') {
+            try {
+                statuses = JSON.parse(rawStatuses);
+            } catch (_) {
+                statuses = [];
+            }
+        } else if (Array.isArray(rawStatuses)) {
+            statuses = rawStatuses;
+        }
+    }
+
+    const uniqueStores = new Map();
+    statuses.forEach((storeStatus) => {
+        const storeId = storeStatus?.store_id || storeStatus?.store_name || uniqueStores.size;
+        if (!uniqueStores.has(storeId)) uniqueStores.set(storeId, storeStatus);
+    });
+
+    return Array.from(uniqueStores.values());
+}
+
+function parseOrderStoreItems(order) {
+    const rawItems = order?.order_store_details;
+    if (!rawItems) return [];
+    if (Array.isArray(rawItems)) return rawItems;
+    if (typeof rawItems !== 'string') return [];
+    try {
+        const parsed = JSON.parse(rawItems);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function formatTinyMoney(value) {
+    const amount = Number(value || 0);
+    if (!Number.isFinite(amount)) return '0';
+    return amount.toLocaleString('en-PK', {
+        maximumFractionDigits: amount % 1 === 0 ? 0 : 2
+    });
+}
+
+function buildOrderStoreDetailsHtml(order) {
+    const storeItems = parseOrderStoreItems(order);
+    const storeStatuses = parseOrderStoreStatuses(order);
+    const fallbackStore = order?.store_name || 'Multiple Stores';
+    const makeStoreSummaryHtml = () => `
+        <summary class="orders-store-summary">
+            <span class="orders-store-summary-title">View Details</span>
+        </summary>
+    `;
+
+    if (storeItems.length) {
+        const stores = new Map();
+        storeItems.forEach((item) => {
+            const storeId = item?.store_id || item?.store_name || stores.size;
+            if (!stores.has(storeId)) {
+                stores.set(storeId, {
+                    store_name: item?.store_name || `Store #${item?.store_id || '-'}`,
+                    status: item?.status || 'pending',
+                    total: 0,
+                    items: []
+                });
+            }
+            const store = stores.get(storeId);
+            const quantity = Number(item?.quantity || 0);
+            const price = Number(item?.price || 0);
+            const lineTotal = Number(item?.line_total || (quantity * price) || 0);
+            store.total += Number.isFinite(lineTotal) ? lineTotal : 0;
+            store.items.push({
+                product_name: item?.product_name || `Product #${item?.product_id || '-'}`,
+                variant_label: item?.variant_label || '',
+                quantity,
+                price,
+                line_total: lineTotal
+            });
+        });
+
+        const groupedStores = Array.from(stores.values());
+        const storeRows = groupedStores.map((store) => {
+            const productRows = store.items.map((item) => {
+                const label = item.variant_label
+                    ? `${item.product_name} (${item.variant_label})`
+                    : item.product_name;
+                return `
+                    <span class="orders-store-product">
+                        <span class="orders-store-product-name">${escapeHtml(String(label))}</span>
+                        <span>${escapeHtml(String(item.quantity || 0))} x ${formatTinyMoney(item.price)}</span>
+                        <span>${formatTinyMoney(item.line_total)}</span>
+                    </span>
+                `;
+            }).join('');
+            const status = String(store.status || 'pending');
+            return `
+                <span class="orders-store-block">
+                    <span class="orders-store-line">
+                        <span class="orders-store-name">${escapeHtml(String(store.store_name))}</span>
+                        <span class="orders-store-amount">Rs ${formatTinyMoney(store.total)}</span>
+                    </span>
+                    ${productRows}
+                    <span class="orders-store-status status-${escapeHtml(status)}">${escapeHtml(status.replace(/_/g, ' '))}</span>
+                </span>
+            `;
+        }).join('');
+
+        return `
+            <details class="orders-store-cell">
+                ${makeStoreSummaryHtml()}
+                <span class="orders-store-page">
+                    <span class="orders-store-meta">Order: ${escapeHtml(String(order?.order_number || '-'))}</span>
+                    ${storeRows}
+                    <span class="orders-store-total">Total Rs ${formatTinyMoney(order?.total_amount)}</span>
+                </span>
+            </details>
+        `;
+    }
+
+    if (!storeStatuses.length) {
+        return `
+            <details class="orders-store-cell">
+                ${makeStoreSummaryHtml()}
+                <span class="orders-store-page">
+                    <span class="orders-store-meta">Order: ${escapeHtml(String(order?.order_number || '-'))}</span>
+                    <span class="orders-store-total">Total Rs ${formatTinyMoney(order?.total_amount)}</span>
+                </span>
+            </details>
+        `;
+    }
+
+    const storeRows = storeStatuses.map((storeStatus) => {
+        const storeName = storeStatus?.store_name || `Store #${storeStatus?.store_id || '-'}`;
+        const status = String(storeStatus?.status || 'pending');
+        return `
+            <span class="orders-store-line">
+                <span class="orders-store-name">${escapeHtml(String(storeName))}</span>
+                <span class="orders-store-status status-${escapeHtml(status)}">${escapeHtml(status.replace(/_/g, ' '))}</span>
+            </span>
+        `;
+    }).join('');
+
+    return `
+        <details class="orders-store-cell">
+            ${makeStoreSummaryHtml()}
+            <span class="orders-store-page">
+                <span class="orders-store-meta">Order: ${escapeHtml(String(order?.order_number || '-'))}</span>
+                ${storeRows}
+                <span class="orders-store-total">Total Rs ${formatTinyMoney(order?.total_amount)}</span>
+            </span>
+        </details>
+    `;
+}
+
 function displayOrders(orders = AppState.orders) {
     const tbody = document.getElementById('ordersTableBody');
     if (!tbody) return;
@@ -4935,32 +5170,18 @@ function displayOrders(orders = AppState.orders) {
             </div>
         `;
         
+        const storeDetailsHtml = buildOrderStoreDetailsHtml(order);
+
         // Multi-store status tooltip
         let statusHtml = `<span class="status-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>`;
         
         if (order.store_statuses) {
             try {
                 // Determine if there are delays or mixed statuses
-                let statuses = order.store_statuses;
-                if (typeof statuses === 'string') {
-                   try {
-                       // Try to parse if it's a JSON string
-                       statuses = JSON.parse(statuses);
-                   } catch (e) {
-                       // Fallback if GROUP_CONCAT truncated JSON or something else
-                       statuses = [];
-                   }
-                }
+                let statuses = parseOrderStoreStatuses(order);
                 
                 if (statuses && Array.isArray(statuses)) {
-                    // Filter duplicates based on store_id or store_name
-                    const uniqueStores = new Map();
-                    statuses.forEach(s => {
-                        if (!uniqueStores.has(s.store_id)) {
-                            uniqueStores.set(s.store_id, s);
-                        }
-                    });
-                    const uniqueStatuses = Array.from(uniqueStores.values());
+                    const uniqueStatuses = statuses;
 
                     const isMixed = uniqueStatuses.length > 1 && new Set(uniqueStatuses.map(s => s.status)).size > 1;
                     const isDelayed = order.status === 'preparing' && uniqueStatuses.some(s => s.status === 'ready'); // One ready, others still preparing
@@ -4989,7 +5210,7 @@ function displayOrders(orders = AppState.orders) {
         row.innerHTML = `
             <td>${orderNumberHtml}</td>
             <td>${customerHtml}</td>
-            <td>${order.store_name || 'Multiple Stores'}</td>
+            <td>${storeDetailsHtml}</td>
             <td>PKR ${parseFloat(order.total_amount).toFixed(2)}</td>
             <td>${statusHtml}</td>
             <td>${riderName}</td>
@@ -5059,7 +5280,7 @@ function filterOrders() {
     // Filter by date range
     if (startDateFilter || endDateFilter) {
         filtered = filtered.filter(order => {
-            const orderDate = new Date(order.created_at).toLocaleDateString('en-CA');
+            const orderDate = getOrderBusinessDate(order);
             
             if (startDateFilter && endDateFilter) {
                 return orderDate >= startDateFilter && orderDate <= endDateFilter;

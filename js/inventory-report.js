@@ -6,6 +6,7 @@ let currentCombinedProductSalesRows = [];
 let currentSalesWithDeliveryRows = [];
 let currentSalesByPaymentRows = [];
 let currentInventoryReportScope = "inventory";
+let expandedStoreSalesStoreId = null;
 
 const inventoryReportOptions = {
     inventory: [
@@ -41,6 +42,15 @@ function inventoryDateTime(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "-";
     return date.toLocaleString();
+}
+
+function inventoryEscapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 function inventoryTitleCase(value) {
@@ -531,24 +541,259 @@ function displayProductDetailInventory(products) {
     });
 }
 
+const storeSaleTypeOrder = ["cash", "cash_discount", "credit", "credit_discount"];
+
+function normalizeStoreSaleType(value) {
+    const text = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (text.includes("credit") && text.includes("discount")) return "credit_discount";
+    if (text.includes("credit")) return "credit";
+    if (text.includes("discount")) return "cash_discount";
+    return "cash";
+}
+
+function storeSaleTypeLabel(value) {
+    const key = normalizeStoreSaleType(value);
+    return {
+        cash: "Cash",
+        cash_discount: "Cash With Discount",
+        credit: "Credit",
+        credit_discount: "Credit With Discount",
+    }[key] || "Cash";
+}
+
+function storeSaleTypeClass(value) {
+    return `sale-type-${normalizeStoreSaleType(value).replace(/_/g, "-")}`;
+}
+
+function storeSaleTypeMetric(store, typeKey) {
+    const orderField = `${typeKey}_orders`;
+    const salesField = `${typeKey}_sales`;
+    return {
+        orders: Number(store[orderField] || 0) || 0,
+        sales: Number(store[salesField] || 0) || 0,
+    };
+}
+
+function renderStoreSaleTypeCell(store, typeKey) {
+    const metric = storeSaleTypeMetric(store, typeKey);
+    if (!metric.orders && !metric.sales) return "-";
+    return `${inventoryNumber(metric.orders)} / ${inventoryMoney(metric.sales)}`;
+}
+
+function createStoreSaleTotals() {
+    return {
+        totalOrders: 0,
+        totalSales: 0,
+        totalDiscount: 0,
+        totalProfit: 0,
+        uniqueCustomers: 0,
+        cash: { orders: 0, sales: 0 },
+        cash_discount: { orders: 0, sales: 0 },
+        credit: { orders: 0, sales: 0 },
+        credit_discount: { orders: 0, sales: 0 },
+    };
+}
+
+function addStoreSaleTotals(totals, store) {
+    totals.totalOrders += Number(store.total_orders || 0) || 0;
+    totals.totalSales += Number(store.total_sales_net || 0) || 0;
+    totals.totalDiscount += Number(store.total_discount || 0) || 0;
+    totals.totalProfit += Number(store.estimated_profit || 0) || 0;
+    totals.uniqueCustomers += Number(store.unique_customers || 0) || 0;
+    storeSaleTypeOrder.forEach((key) => {
+        const metric = storeSaleTypeMetric(store, key);
+        totals[key].orders += metric.orders;
+        totals[key].sales += metric.sales;
+    });
+}
+
+function renderStoreSaleTotalsRow(label, totals, className) {
+    const average = totals.totalOrders > 0 ? totals.totalSales / totals.totalOrders : 0;
+    const typeCells = storeSaleTypeOrder.map((key) => {
+        const metric = totals[key];
+        return `<td>${metric.orders || metric.sales ? `${inventoryNumber(metric.orders)} / ${inventoryMoney(metric.sales)}` : "-"}</td>`;
+    }).join("");
+    return `
+        <tr class="${className}">
+            <td>${inventoryEscapeHtml(label)}</td>
+            <td>${inventoryNumber(totals.totalOrders)}</td>
+            <td>${inventoryMoney(totals.totalSales)}</td>
+            <td>${inventoryMoney(totals.totalDiscount)}</td>
+            <td>${inventoryMoney(totals.totalProfit)}</td>
+            ${typeCells}
+            <td>${inventoryMoney(average)}</td>
+            <td>${inventoryNumber(totals.uniqueCustomers)}</td>
+        </tr>
+    `;
+}
+
 function displayStoreSalesReport(data) {
     const tbody = document.getElementById("storeSalesBody");
     if (!tbody) return;
     tbody.innerHTML = "";
 
     currentStoreSalesRows = data.store_sales || [];
+    if (
+        expandedStoreSalesStoreId &&
+        !currentStoreSalesRows.some((store) => Number(store.store_id) === Number(expandedStoreSalesStoreId))
+    ) {
+        expandedStoreSalesStoreId = null;
+    }
 
-    currentStoreSalesRows.forEach((store) => {
+    if (!currentStoreSalesRows.length) {
         const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${store.store_name}</td>
-            <td>${inventoryNumber(store.total_orders)}</td>
-            <td>${inventoryMoney(store.total_sales_net)}</td>
-            <td>${inventoryMoney(store.average_order_value)}</td>
-            <td>${inventoryNumber(store.unique_customers)}</td>
-        `;
+        row.innerHTML = `<td colspan="11" style="text-align:center;">No store sales found for the selected date range.</td>`;
         tbody.appendChild(row);
+        return;
+    }
+
+    const groups = storeSaleTypeOrder.reduce((acc, key) => {
+        acc[key] = [];
+        return acc;
+    }, {});
+    currentStoreSalesRows.forEach((store) => {
+        const key = normalizeStoreSaleType(store.store_payment_type || store.store_payment_term);
+        groups[key].push(store);
     });
+
+    const grandTotals = createStoreSaleTotals();
+    storeSaleTypeOrder.forEach((typeKey) => {
+        const stores = groups[typeKey] || [];
+        if (!stores.length) return;
+
+        const headingRow = document.createElement("tr");
+        headingRow.className = `aginv-report-group-row ${storeSaleTypeClass(typeKey)}`;
+        headingRow.innerHTML = `<td colspan="11">${storeSaleTypeLabel(typeKey)} Stores</td>`;
+        tbody.appendChild(headingRow);
+
+        const groupTotals = createStoreSaleTotals();
+        stores.forEach((store) => {
+            addStoreSaleTotals(groupTotals, store);
+            addStoreSaleTotals(grandTotals, store);
+
+            const row = document.createElement("tr");
+            const storeId = Number(store.store_id);
+            const isExpanded = expandedStoreSalesStoreId === storeId;
+            row.className = `store-sales-summary-row ${storeSaleTypeClass(store.store_payment_type || store.store_payment_term)}`;
+            row.style.cursor = "pointer";
+            row.title = "Click to show order details";
+            row.innerHTML = `
+                <td>
+                    <span style="display:inline-flex; align-items:center; gap:0.4rem;">
+                        <i class="fas ${isExpanded ? "fa-chevron-down" : "fa-chevron-right"}" aria-hidden="true"></i>
+                        ${inventoryEscapeHtml(store.store_name)}
+                    </span>
+                </td>
+                <td>${inventoryNumber(store.total_orders)}</td>
+                <td>${inventoryMoney(store.total_sales_net)}</td>
+                <td>${inventoryMoney(store.total_discount)}</td>
+                <td>${inventoryMoney(store.estimated_profit)}</td>
+                <td>${renderStoreSaleTypeCell(store, "cash")}</td>
+                <td>${renderStoreSaleTypeCell(store, "cash_discount")}</td>
+                <td>${renderStoreSaleTypeCell(store, "credit")}</td>
+                <td>${renderStoreSaleTypeCell(store, "credit_discount")}</td>
+                <td>${inventoryMoney(store.average_order_value)}</td>
+                <td>${inventoryNumber(store.unique_customers)}</td>
+            `;
+            row.addEventListener("click", () => {
+                expandedStoreSalesStoreId = isExpanded ? null : storeId;
+                displayStoreSalesReport({ store_sales: currentStoreSalesRows });
+            });
+            tbody.appendChild(row);
+
+            if (isExpanded) {
+                const detailRow = document.createElement("tr");
+                detailRow.className = "store-sales-detail-row";
+                detailRow.innerHTML = `
+                    <td colspan="11" style="background:#f8fafc; padding:0;">
+                        ${renderStoreSalesOrdersDetail(store)}
+                    </td>
+                `;
+                tbody.appendChild(detailRow);
+            }
+        });
+
+        tbody.insertAdjacentHTML("beforeend", renderStoreSaleTotalsRow(`${storeSaleTypeLabel(typeKey)} Total`, groupTotals, "aginv-report-subtotal-row"));
+    });
+
+    tbody.insertAdjacentHTML("beforeend", renderStoreSaleTotalsRow("Grand Total", grandTotals, "aginv-report-grand-row"));
+}
+
+function renderStoreSalesOrdersDetail(store) {
+    const orders = store.orders || [];
+    if (!orders.length) {
+        return `<div style="padding:1rem; color:#64748b;">No order details found for this store in the selected date range.</div>`;
+    }
+
+    const totals = orders.reduce((acc, order) => {
+        const key = normalizeStoreSaleType(order.sale_type || order.store_payment_term);
+        acc[key].orders += 1;
+        acc[key].sales += Number(order.net_sales || 0) || 0;
+        acc[key].discount += Number(order.total_discount || 0) || 0;
+        acc[key].profit += Number(order.estimated_profit || 0) || 0;
+        acc[key].delivery += Number(order.delivery_fee || 0) || 0;
+        acc[key].total += Number(order.order_total || 0) || 0;
+        return acc;
+    }, {
+        cash: { orders: 0, sales: 0, discount: 0, profit: 0, delivery: 0, total: 0 },
+        cash_discount: { orders: 0, sales: 0, discount: 0, profit: 0, delivery: 0, total: 0 },
+        credit: { orders: 0, sales: 0, discount: 0, profit: 0, delivery: 0, total: 0 },
+        credit_discount: { orders: 0, sales: 0, discount: 0, profit: 0, delivery: 0, total: 0 },
+    });
+
+    const orderRows = orders.map((order) => `
+        <tr>
+            <td>${inventoryEscapeHtml(order.order_number || "-")}</td>
+            <td>${inventoryDateTime(order.sold_at)}</td>
+            <td>${storeSaleTypeLabel(order.sale_type || order.store_payment_term)}</td>
+            <td>${inventoryTitleCase(order.order_status || "-")}</td>
+            <td>${inventoryTitleCase(order.payment_method || "-")} / ${inventoryTitleCase(order.payment_status || "-")}</td>
+            <td>${inventoryEscapeHtml(order.customer_name || "-")}${order.customer_phone ? `<br><small>${inventoryEscapeHtml(order.customer_phone)}</small>` : ""}</td>
+            <td>${inventoryNumber(order.total_quantity)}</td>
+            <td>${inventoryMoney(order.total_cost)}</td>
+            <td>${inventoryMoney(order.gross_sales)}</td>
+            <td>${inventoryMoney(order.total_discount)}</td>
+            <td>${inventoryMoney(order.net_sales)}</td>
+            <td>${inventoryMoney(order.estimated_profit)}</td>
+            <td>${inventoryMoney(order.delivery_fee)}</td>
+            <td>${inventoryMoney(order.order_total)}</td>
+        </tr>
+    `).join("");
+
+    return `
+        <div style="padding:1rem;">
+            <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.75rem;">
+                ${storeSaleTypeOrder.map((key) => `
+                <div class="store-sale-detail-card ${storeSaleTypeClass(key)}">
+                    <strong>${storeSaleTypeLabel(key)}:</strong> ${inventoryNumber(totals[key].orders)} orders, ${inventoryMoney(totals[key].sales)}
+                </div>
+                `).join("")}
+            </div>
+            <div class="table-container store-sales-detail-scroll" style="margin:0; box-shadow:none; border:1px solid #e2e8f0;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Order Number</th>
+                            <th>Date/Time</th>
+                            <th>Sale Type</th>
+                            <th>Status</th>
+                            <th>Payment</th>
+                            <th>Customer</th>
+                            <th>Qty</th>
+                            <th>Cost</th>
+                            <th>Gross Sale</th>
+                            <th>Discount</th>
+                            <th>Net Sale</th>
+                            <th>Profit</th>
+                            <th>Delivery</th>
+                            <th>Order Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>${orderRows}</tbody>
+                </table>
+            </div>
+        </div>
+    `;
 }
 
 function displayManualOrderSalesReport(data) {
@@ -1483,29 +1728,57 @@ function exportInventoryReportPdf() {
             r.is_available ? "Active" : "Inactive",
         ]);
     } else if (activeType === "sales") {
-        tableHead = [["Store", "Total Orders", "Total Sales", "Average Order Value", "Unique Customers"]];
+        tableHead = [["Store", "Orders", "Net Sales", "Discount", "Profit", "Cash", "Cash Discount", "Credit", "Credit Discount", "Avg Order", "Customers"]];
         const rows = currentStoreSalesRows || [];
-        tableBody = rows.map((r) => [
-            r.store_name,
-            inventoryNumber(r.total_orders),
-            inventoryMoney(r.total_sales_net),
-            inventoryMoney(r.average_order_value),
-            inventoryNumber(r.unique_customers),
-        ]);
-        const totals = rows.reduce((acc, r) => {
-            acc.orders += Number(r.total_orders || 0) || 0;
-            acc.sales += Number(r.total_sales_net || 0) || 0;
-            acc.customers += Number(r.unique_customers || 0) || 0;
+        const groups = storeSaleTypeOrder.reduce((acc, key) => {
+            acc[key] = [];
             return acc;
-        }, { orders: 0, sales: 0, customers: 0 });
-        const avg = totals.orders > 0 ? totals.sales / totals.orders : 0;
-        tableBody.push([
-            "Totals",
-            inventoryNumber(totals.orders),
-            inventoryMoney(totals.sales),
-            inventoryMoney(avg),
-            inventoryNumber(totals.customers),
-        ]);
+        }, {});
+        rows.forEach((r) => {
+            groups[normalizeStoreSaleType(r.store_payment_type || r.store_payment_term)].push(r);
+        });
+        const grandTotals = createStoreSaleTotals();
+        const totalArray = (label, totals) => {
+            const avg = totals.totalOrders > 0 ? totals.totalSales / totals.totalOrders : 0;
+            return [
+                label,
+                inventoryNumber(totals.totalOrders),
+                inventoryMoney(totals.totalSales),
+                inventoryMoney(totals.totalDiscount),
+                inventoryMoney(totals.totalProfit),
+                `${inventoryNumber(totals.cash.orders)} / ${inventoryMoney(totals.cash.sales)}`,
+                `${inventoryNumber(totals.cash_discount.orders)} / ${inventoryMoney(totals.cash_discount.sales)}`,
+                `${inventoryNumber(totals.credit.orders)} / ${inventoryMoney(totals.credit.sales)}`,
+                `${inventoryNumber(totals.credit_discount.orders)} / ${inventoryMoney(totals.credit_discount.sales)}`,
+                inventoryMoney(avg),
+                inventoryNumber(totals.uniqueCustomers),
+            ];
+        };
+        storeSaleTypeOrder.forEach((typeKey) => {
+            const groupRows = groups[typeKey] || [];
+            if (!groupRows.length) return;
+            tableBody.push([`${storeSaleTypeLabel(typeKey)} Stores`, "", "", "", "", "", "", "", "", "", ""]);
+            const groupTotals = createStoreSaleTotals();
+            groupRows.forEach((r) => {
+                addStoreSaleTotals(groupTotals, r);
+                addStoreSaleTotals(grandTotals, r);
+                tableBody.push([
+                    r.store_name,
+                    inventoryNumber(r.total_orders),
+                    inventoryMoney(r.total_sales_net),
+                    inventoryMoney(r.total_discount),
+                    inventoryMoney(r.estimated_profit),
+                    renderStoreSaleTypeCell(r, "cash"),
+                    renderStoreSaleTypeCell(r, "cash_discount"),
+                    renderStoreSaleTypeCell(r, "credit"),
+                    renderStoreSaleTypeCell(r, "credit_discount"),
+                    inventoryMoney(r.average_order_value),
+                    inventoryNumber(r.unique_customers),
+                ]);
+            });
+            tableBody.push(totalArray(`${storeSaleTypeLabel(typeKey)} Total`, groupTotals));
+        });
+        tableBody.push(totalArray("Grand Total", grandTotals));
     } else if (activeType === "manual-sales") {
         tableHead = [["Store", "Category", "Product", "Order Number", "Status", "Cost Price", "Sale Price", "Qty Sold", "Cost x Qty", "Gross Sales", "Net Sales", "Profit", "Delivery Fee", "Order Total"]];
         const rows = currentManualSalesRows || [];

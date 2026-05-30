@@ -28,10 +28,9 @@ const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set([
 ]);
 const riderReverseGeocodeCache = new Map();
 const riderReverseGeocodePending = new Map();
-const BUSINESS_TIMEZONE_OFFSET = "+05:00";
 
 function orderBusinessDateSql(columnName = "o.created_at") {
-  return `DATE(COALESCE(CONVERT_TZ(${columnName}, '+00:00', '${BUSINESS_TIMEZONE_OFFSET}'), DATE_ADD(${columnName}, INTERVAL 5 HOUR)))`;
+  return `DATE(${columnName})`;
 }
 
 function canViewRestrictedFinancialReports(req) {
@@ -2886,13 +2885,13 @@ router.get("/rider/wallet-stats", authenticateToken, async (req, res) => {
 
     let dateCondition = "";
     if (period === "daily") {
-      dateCondition = `${orderBusinessDateSql("o.created_at")} = ${orderBusinessDateSql("UTC_TIMESTAMP()")}`;
+      dateCondition = `${orderBusinessDateSql("o.created_at")} = ${orderBusinessDateSql("NOW()")}`;
     } else if (period === "weekly") {
-      dateCondition = `${orderBusinessDateSql("o.created_at")} >= DATE_SUB(${orderBusinessDateSql("UTC_TIMESTAMP()")}, INTERVAL 7 DAY)`;
+      dateCondition = `${orderBusinessDateSql("o.created_at")} >= DATE_SUB(${orderBusinessDateSql("NOW()")}, INTERVAL 7 DAY)`;
     } else if (period === "monthly") {
-      dateCondition = `${orderBusinessDateSql("o.created_at")} >= DATE_SUB(${orderBusinessDateSql("UTC_TIMESTAMP()")}, INTERVAL 30 DAY)`;
+      dateCondition = `${orderBusinessDateSql("o.created_at")} >= DATE_SUB(${orderBusinessDateSql("NOW()")}, INTERVAL 30 DAY)`;
     } else {
-      dateCondition = `${orderBusinessDateSql("o.created_at")} = ${orderBusinessDateSql("UTC_TIMESTAMP()")}`; // Default to daily
+      dateCondition = `${orderBusinessDateSql("o.created_at")} = ${orderBusinessDateSql("NOW()")}`; // Default to daily
     }
 
     // 1. Daily Cash Received (Items amount only for cash orders, excluding delivery fee)
@@ -3979,6 +3978,9 @@ router.get("/", authenticateToken, async (req, res) => {
     const includeStoreStatuses =
       String(req.query.includeStoreStatuses ?? "true").toLowerCase() !==
       "false";
+    const includeStoreDetails =
+      String(req.query.includeStoreDetails ?? "true").toLowerCase() !==
+      "false";
     let conditions = [];
     let params = [];
 
@@ -4036,11 +4038,36 @@ router.get("/", authenticateToken, async (req, res) => {
           GROUP BY oi2.order_id
       ) as store_statuses`);
     }
+    if (includeStoreDetails) {
+      dynamicFields.push(`(
+          SELECT CONCAT('[', GROUP_CONCAT(JSON_OBJECT(
+              'store_id', COALESCE(oi3.store_id, p3.store_id),
+              'store_name', COALESCE(s3.name, 'Unknown Store'),
+              'product_name', COALESCE(p3.name, CONCAT('Product #', oi3.product_id)),
+              'variant_label', oi3.variant_label,
+              'quantity', oi3.quantity,
+              'price', oi3.price,
+              'line_total', oi3.quantity * oi3.price,
+              'status', COALESCE(oi3.item_status, 'pending')
+          ) ORDER BY s3.name ASC, oi3.id ASC SEPARATOR ','), ']')
+          FROM order_items oi3
+          LEFT JOIN products p3 ON oi3.product_id = p3.id
+          LEFT JOIN stores s3 ON s3.id = COALESCE(oi3.store_id, p3.store_id)
+          WHERE oi3.order_id = o.id
+      ) as order_store_details`);
+    }
     const selectExtra = dynamicFields.length ? `, ${dynamicFields.join(",\n                   ")}` : "";
+
+    if (includeStoreDetails) {
+      try {
+        await req.db.execute("SET SESSION group_concat_max_len = 65535");
+      } catch (_) {}
+    }
 
     const [orders] = await req.db.execute(
       `
-            SELECT o.*, u.first_name, u.last_name, u.email, s.name as store_name,
+            SELECT o.*, DATE_FORMAT(${orderBusinessDateSql("o.created_at")}, '%Y-%m-%d') AS order_business_date,
+                   u.first_name, u.last_name, u.email, s.name as store_name,
                    s.latitude as store_latitude, s.longitude as store_longitude,
                    r.first_name as rider_first_name, r.last_name as rider_last_name
                    ${selectExtra}

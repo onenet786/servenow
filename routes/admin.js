@@ -993,6 +993,14 @@ router.get(
             SELECT
                 s.id as store_id,
                 s.name as store_name,
+                s.payment_term as store_payment_term,
+                CASE
+                    WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%' THEN 'credit_discount'
+                    WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%' THEN 'credit'
+                    WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%' THEN 'cash_discount'
+                    ELSE 'cash'
+                END as store_payment_type,
                 COUNT(DISTINCT CASE WHEN o.status != 'cancelled' THEN oi.order_id END) as total_orders,
                 COALESCE(SUM(
                     CASE
@@ -1006,6 +1014,66 @@ router.get(
                         ELSE 0
                     END
                 ), 0) as total_sales_net,
+                COUNT(DISTINCT CASE
+                    WHEN o.status != 'cancelled'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%credit%'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%discount%'
+                    THEN oi.order_id
+                END) as cash_orders,
+                COALESCE(SUM(
+                    CASE
+                        WHEN o.status != 'cancelled'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%credit%'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%discount%'
+                        THEN oi.quantity * oi.price
+                        ELSE 0
+                    END
+                ), 0) as cash_sales,
+                COUNT(DISTINCT CASE
+                    WHEN o.status != 'cancelled'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%credit%'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%'
+                    THEN oi.order_id
+                END) as cash_discount_orders,
+                COALESCE(SUM(
+                    CASE
+                        WHEN o.status != 'cancelled'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%credit%'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%'
+                        THEN oi.quantity * oi.price
+                        ELSE 0
+                    END
+                ), 0) as cash_discount_sales,
+                COUNT(DISTINCT CASE
+                    WHEN o.status != 'cancelled'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%discount%'
+                    THEN oi.order_id
+                END) as credit_orders,
+                COALESCE(SUM(
+                    CASE
+                        WHEN o.status != 'cancelled'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT LIKE '%discount%'
+                        THEN oi.quantity * oi.price
+                        ELSE 0
+                    END
+                ), 0) as credit_sales,
+                COUNT(DISTINCT CASE
+                    WHEN o.status != 'cancelled'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                         AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%'
+                    THEN oi.order_id
+                END) as credit_discount_orders,
+                COALESCE(SUM(
+                    CASE
+                        WHEN o.status != 'cancelled'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                             AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%'
+                        THEN oi.quantity * oi.price
+                        ELSE 0
+                    END
+                ), 0) as credit_discount_sales,
                 COALESCE(SUM(
                     CASE
                         WHEN o.status != 'cancelled' THEN
@@ -1065,29 +1133,174 @@ router.get(
                     (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id)
                 )
             ${whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : ""}
-            GROUP BY s.id, s.name
+            GROUP BY s.id, s.name, s.payment_term
             ORDER BY total_sales_net DESC
         `,
         queryParams
       );
 
+      const detailWhereClauses = ["o.status != 'cancelled'"];
+      const detailParams = [];
+      if (hasStoreFilter) {
+        detailWhereClauses.push("s.id = ?");
+        detailParams.push(parsedStoreId);
+      }
+      if (startDate) {
+        detailWhereClauses.push("DATE(o.created_at) >= ?");
+        detailParams.push(startDate);
+      }
+      if (endDate) {
+        detailWhereClauses.push("DATE(o.created_at) <= ?");
+        detailParams.push(endDate);
+      }
+
+      const [storeOrderDetails] = await req.db.execute(
+        `
+          SELECT
+              s.id as store_id,
+              s.name as store_name,
+              s.payment_term as store_payment_term,
+              CASE
+                  WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                       AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%' THEN 'credit_discount'
+                  WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%' THEN 'credit'
+                  WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%' THEN 'cash_discount'
+                  ELSE 'cash'
+              END as sale_type,
+              o.id as order_id,
+              o.order_number,
+              o.status as order_status,
+              o.created_at as sold_at,
+              LOWER(TRIM(COALESCE(o.payment_method, ''))) as payment_method,
+              o.payment_status,
+              o.delivery_fee,
+              o.total_amount as order_total,
+              CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as customer_name,
+              u.phone as customer_phone,
+              SUM(oi.quantity) as total_quantity,
+              SUM(oi.quantity * COALESCE(oi.cost_price, psp.cost_price, p.cost_price, 0)) as total_cost,
+              SUM(oi.quantity * oi.price) as gross_sales,
+              SUM(
+                  oi.quantity * (
+                      CASE
+                          WHEN oi.discount_type = 'percent'
+                               AND COALESCE(oi.discount_value, 0) > 0
+                              THEN oi.price * (oi.discount_value / 100)
+                          WHEN oi.discount_type = 'amount'
+                               AND COALESCE(oi.discount_value, 0) > 0
+                              THEN oi.discount_value
+                          ELSE 0
+                      END
+                  )
+              ) as total_discount,
+              SUM(
+                  oi.quantity * (
+                      oi.price - COALESCE(oi.cost_price, psp.cost_price, p.cost_price, 0)
+                  )
+              ) as estimated_profit
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN users u ON u.id = o.user_id
+          LEFT JOIN products p ON p.id = oi.product_id
+          JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
+          LEFT JOIN product_size_prices psp ON oi.product_id = psp.product_id
+              AND (
+                  (oi.size_id IS NOT NULL AND psp.size_id = oi.size_id)
+                  OR
+                  (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id)
+              )
+          WHERE ${detailWhereClauses.join(" AND ")}
+          GROUP BY s.id, s.name, s.payment_term, o.id, o.order_number, o.status, o.created_at,
+                   o.payment_method, o.payment_status, o.delivery_fee, o.total_amount,
+                   u.first_name, u.last_name, u.phone,
+                   CASE
+                       WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                            AND LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%' THEN 'credit_discount'
+                       WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%' THEN 'credit'
+                       WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%' THEN 'cash_discount'
+                       ELSE 'cash'
+                   END
+          ORDER BY s.name ASC, o.created_at DESC, o.order_number DESC
+        `,
+        detailParams
+      );
+
+      const ordersByStore = new Map();
+      storeOrderDetails.forEach((row) => {
+        const storeId = Number(row.store_id) || null;
+        if (!storeId) return;
+        if (!ordersByStore.has(storeId)) ordersByStore.set(storeId, []);
+        const grossSales = parseFloat(row.gross_sales) || 0;
+        const totalDiscount = parseFloat(row.total_discount) || 0;
+        const totalCost = parseFloat(row.total_cost) || 0;
+        const netSales = Math.max(0, grossSales - totalDiscount);
+        ordersByStore.get(storeId).push({
+          store_id: storeId,
+          store_name: row.store_name,
+          store_payment_term: row.store_payment_term || null,
+          sale_type: String(row.sale_type || "").toLowerCase(),
+          order_id: Number(row.order_id) || null,
+          order_number: row.order_number,
+          order_status: String(row.order_status || "").toLowerCase(),
+          sold_at: row.sold_at,
+          payment_method: String(row.payment_method || "").toLowerCase(),
+          payment_status: String(row.payment_status || "").toLowerCase(),
+          customer_name: String(row.customer_name || "").trim(),
+          customer_phone: row.customer_phone || "",
+          total_quantity: Number(row.total_quantity) || 0,
+          total_cost: totalCost,
+          gross_sales: grossSales,
+          total_discount: totalDiscount,
+          net_sales: netSales,
+          delivery_fee: parseFloat(row.delivery_fee) || 0,
+          estimated_profit: netSales - totalCost,
+          order_total: parseFloat(row.order_total) || 0,
+        });
+      });
+
       return res.json({
         success: true,
-        store_sales: storeSales.map((row) => ({
-          store_id: row.store_id,
-          store_name: row.store_name,
-          total_orders: Number(row.total_orders) || 0,
-          total_sales_gross: parseFloat(row.total_sales_gross) || 0,
-          total_sales_net: parseFloat(row.total_sales_net) || 0,
-          total_discount: parseFloat(row.total_discount) || 0,
-          total_cost: parseFloat(row.total_cost) || 0,
-          estimated_profit: parseFloat(row.estimated_profit) || 0,
-          average_order_value:
-            Number(row.total_orders) > 0
-              ? (parseFloat(row.total_sales_net) || 0) / Number(row.total_orders)
-              : 0,
-          unique_customers: Number(row.unique_customers) || 0,
-        })),
+        store_sales: storeSales.map((row) => {
+          const storePaymentType = String(row.store_payment_type || "").toLowerCase();
+          const totalOrders = Number(row.total_orders) || 0;
+          const totalSalesGross = parseFloat(row.total_sales_gross) || 0;
+          const totalDiscount = parseFloat(row.total_discount) || 0;
+          const totalSalesNet = Math.max(0, totalSalesGross - totalDiscount);
+          const totalCost = parseFloat(row.total_cost) || 0;
+          const typeSales = {
+            cash: parseFloat(row.cash_sales) || 0,
+            cash_discount: parseFloat(row.cash_discount_sales) || 0,
+            credit: parseFloat(row.credit_sales) || 0,
+            credit_discount: parseFloat(row.credit_discount_sales) || 0,
+          };
+          if (typeSales[storePaymentType] !== undefined) {
+            typeSales[storePaymentType] = Math.max(0, typeSales[storePaymentType] - totalDiscount);
+          }
+
+          return {
+            store_id: row.store_id,
+            store_name: row.store_name,
+            store_payment_term: row.store_payment_term || null,
+            store_payment_type: storePaymentType,
+            total_orders: totalOrders,
+            total_sales_gross: totalSalesGross,
+            total_sales_net: totalSalesNet,
+            cash_orders: Number(row.cash_orders) || 0,
+            cash_sales: typeSales.cash,
+            cash_discount_orders: Number(row.cash_discount_orders) || 0,
+            cash_discount_sales: typeSales.cash_discount,
+            credit_orders: Number(row.credit_orders) || 0,
+            credit_sales: typeSales.credit,
+            credit_discount_orders: Number(row.credit_discount_orders) || 0,
+            credit_discount_sales: typeSales.credit_discount,
+            total_discount: totalDiscount,
+            total_cost: totalCost,
+            estimated_profit: totalSalesNet - totalCost,
+            average_order_value: totalOrders > 0 ? totalSalesNet / totalOrders : 0,
+            unique_customers: Number(row.unique_customers) || 0,
+            orders: ordersByStore.get(Number(row.store_id)) || [],
+          };
+        }),
       });
     } catch (err) {
       console.error("Store sales report error:", err);
