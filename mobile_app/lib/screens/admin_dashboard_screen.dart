@@ -99,6 +99,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int _todayDelivered = 0;
   int _todayPending = 0;
   int _todayCancelled = 0;
+  int _todayOutForDelivery = 0;
 
   int _allTotal = 0;
   int _allDelivered = 0;
@@ -2525,6 +2526,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _todayDelivered = countStatus(todayOrders, 'delivered');
         _todayPending = countPendingLike(todayOrders);
         _todayCancelled = countStatus(todayOrders, 'cancelled');
+        _todayOutForDelivery = countStatus(todayOrders, 'out_for_delivery');
         _todayOrdersList = todayOrders;
 
         _allTotal = orders.length;
@@ -3576,6 +3578,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             'value': _todayCancelled.toString(),
             'tone': 'cancelled',
           },
+          {
+            'label': 'Out Delivery',
+            'value': _todayOutForDelivery.toString(),
+            'tone': 'out_for_delivery',
+          },
         ],
         onOrderDetailTap: _showTodayOrderDetails,
         visual: _buildMiniTrendLine(CustomerPalette.primary),
@@ -3898,6 +3905,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         return const Color(0xFFF59E0B);
       case 'cancelled':
         return const Color(0xFFDC2626);
+      case 'out_for_delivery':
+      case 'out delivery':
+        return const Color(0xFF2563EB);
       default:
         return CustomerPalette.primary;
     }
@@ -3907,6 +3917,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final normalized = label.toLowerCase().trim();
     return _todayOrdersList.where((order) {
       final status = (order['status'] ?? '').toString().toLowerCase().trim();
+      if (normalized == 'out delivery') {
+        return status == 'out_for_delivery';
+      }
       if (normalized == 'pending') {
         return status != 'delivered' && status != 'cancelled';
       }
@@ -3921,28 +3934,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Close order details',
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      transitionDuration: const Duration(milliseconds: 1520),
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 2500),
       pageBuilder: (dialogContext, animation, secondaryAnimation) =>
           _buildHangingOrderDetailsPanel(dialogContext, label, orders, tone),
       transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
         final drop = CurvedAnimation(
           parent: animation,
-          curve: Curves.easeInOutCubic,
-          reverseCurve: Curves.easeInOutCubic,
+          curve: Curves.easeInOutSine,
+          reverseCurve: Curves.easeInOutSine,
         );
         final fade = CurvedAnimation(
           parent: animation,
-          curve: Curves.easeInOutCubic,
-          reverseCurve: Curves.easeInOutCubic,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
         );
         return FadeTransition(
-          opacity: fade,
+          opacity: Tween<double>(begin: 0.08, end: 1).animate(fade),
           child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, -1.35),
-              end: Offset.zero,
-            ).animate(drop),
+            position: TweenSequence<Offset>([
+              TweenSequenceItem(
+                tween: Tween<Offset>(
+                  begin: const Offset(0, -0.75),
+                  end: const Offset(0, 0.12),
+                ).chain(CurveTween(curve: Curves.easeInCubic)),
+                weight: 65,
+              ),
+              TweenSequenceItem(
+                tween: Tween<Offset>(
+                  begin: const Offset(0, 0.12),
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutCubic)),
+                weight: 35,
+              ),
+            ]).animate(drop),
             child: child,
           ),
         );
@@ -4085,7 +4110,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               separatorBuilder: (_, _) =>
                                   const SizedBox(height: 8),
                               itemBuilder: (_, index) =>
-                                  _buildTodayOrderDetailTile(orders[index]),
+                                  _buildTodayOrderDetailTile(
+                                    orders[index],
+                                    showTrackAction:
+                                        label.toLowerCase().trim() ==
+                                        'out delivery',
+                                  ),
                             ),
                           ),
                       ],
@@ -4124,19 +4154,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  Widget _buildTodayOrderDetailTile(dynamic order) {
+  Widget _buildTodayOrderDetailTile(
+    dynamic order, {
+    bool showTrackAction = false,
+  }) {
     final orderMap = order is Map<String, dynamic>
         ? order
         : Map<String, dynamic>.from(order as Map);
     final id = (orderMap['id'] ?? orderMap['order_id'] ?? '-').toString();
     final orderNo = (orderMap['order_number'] ?? '#$id').toString();
     final status = (orderMap['status'] ?? 'pending').toString();
-    final statusTone = _orderDetailTone(
-      status.toLowerCase().trim() == 'delivered' ||
-              status.toLowerCase().trim() == 'cancelled'
-          ? status
-          : 'pending',
-    );
+    final statusTone = _orderDetailTone(_orderToneKey(status));
     final firstName = (orderMap['first_name'] ?? '').toString().trim();
     final lastName = (orderMap['last_name'] ?? '').toString().trim();
     final fullName = '$firstName $lastName'.trim();
@@ -4149,6 +4177,45 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final totalValue = orderMap['total_amount'] ?? orderMap['grand_total'] ?? 0;
     final total = _formatPkr(totalValue);
     final createdAt = _formatOrderTime(orderMap['created_at']);
+    final updatedAt = _formatOrderTime(orderMap['updated_at']);
+    final estimatedDelivery = _formatOrderTime(
+      orderMap['estimated_delivery_time'],
+    );
+    final riderName = _orderRiderName(orderMap);
+    final liveRider = _liveRiderForOrder(orderMap);
+    final distanceKm =
+        (liveRider == null ? null : _distanceKmForRider(liveRider)) ??
+        _fallbackOrderDistanceKm(orderMap);
+    final etaMinutes = liveRider == null
+        ? null
+        : _etaMinutesForRider(liveRider);
+    final travelMinutes =
+        (liveRider == null ? null : _travelMinutesForRider(liveRider)) ??
+        _fallbackOrderTravelMinutes(orderMap);
+    final details = <({IconData icon, String label, String value})>[
+      (icon: Icons.delivery_dining_rounded, label: 'Rider', value: riderName),
+      (
+        icon: Icons.social_distance_rounded,
+        label: 'Distance',
+        value: distanceKm == null ? 'N/A' : _formatDistanceKm(distanceKm),
+      ),
+      (
+        icon: Icons.schedule_rounded,
+        label: status.toLowerCase().trim() == 'delivered' ? 'Delivered' : 'ETA',
+        value: status.toLowerCase().trim() == 'delivered'
+            ? updatedAt
+            : (etaMinutes == null
+                  ? (estimatedDelivery == 'Today' ? '--' : estimatedDelivery)
+                  : _formatEtaMinutes(etaMinutes)),
+      ),
+      (
+        icon: Icons.timer_rounded,
+        label: 'Travel',
+        value: travelMinutes == null
+            ? 'N/A'
+            : _formatTravelMinutes(travelMinutes),
+      ),
+    ];
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -4219,14 +4286,161 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: details
+                      .map(
+                        (detail) => _buildOrderMiniDetailPill(
+                          icon: detail.icon,
+                          label: detail.label,
+                          value: detail.value,
+                          color: statusTone,
+                        ),
+                      )
+                      .toList(),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
+          if (showTrackAction)
+            FilledButton(
+              onPressed: () => _openLiveTrackerForOrder(orderMap),
+              style: FilledButton.styleFrom(
+                backgroundColor: statusTone,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              child: const Text(
+                'Track',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+              ),
+            )
+          else
+            Text(
+              status,
+              style: TextStyle(
+                color: statusTone,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _orderToneKey(String status) {
+    final normalized = status.toLowerCase().trim();
+    if (normalized == 'delivered' ||
+        normalized == 'cancelled' ||
+        normalized == 'out_for_delivery') {
+      return normalized;
+    }
+    return 'pending';
+  }
+
+  String _orderRiderName(Map<String, dynamic> order) {
+    final firstName = (order['rider_first_name'] ?? '').toString().trim();
+    final lastName = (order['rider_last_name'] ?? '').toString().trim();
+    final fullName = '$firstName $lastName'.trim();
+    if (fullName.isNotEmpty) return fullName;
+    final riderName = (order['rider_name'] ?? '').toString().trim();
+    if (riderName.isNotEmpty) return riderName;
+    final riderId = (order['rider_id'] ?? '').toString().trim();
+    return riderId.isEmpty ? 'Unassigned' : 'Rider #$riderId';
+  }
+
+  double? _fallbackOrderDistanceKm(Map<String, dynamic> order) {
+    final candidates = [
+      order['distance_km'],
+      order['rider_distance_km'],
+      order['delivery_distance_km'],
+      order['travel_distance_km'],
+    ];
+    for (final raw in candidates) {
+      final parsed = double.tryParse((raw ?? '').toString());
+      if (parsed != null && parsed >= 0) return parsed;
+    }
+
+    final riderLat = double.tryParse(
+      (order['rider_latitude'] ?? '').toString(),
+    );
+    final riderLng = double.tryParse(
+      (order['rider_longitude'] ?? '').toString(),
+    );
+    final storeLat = double.tryParse(
+      (order['store_latitude'] ?? '').toString(),
+    );
+    final storeLng = double.tryParse(
+      (order['store_longitude'] ?? '').toString(),
+    );
+    if (riderLat == null ||
+        riderLng == null ||
+        storeLat == null ||
+        storeLng == null) {
+      return null;
+    }
+    final meters = latlng.Distance()(
+      latlng.LatLng(storeLat, storeLng),
+      latlng.LatLng(riderLat, riderLng),
+    );
+    if (!meters.isFinite || meters < 0) return null;
+    return meters / 1000;
+  }
+
+  int? _fallbackOrderTravelMinutes(Map<String, dynamic> order) {
+    final candidates = [
+      order['travel_minutes'],
+      order['delivery_minutes'],
+      order['rider_travel_minutes'],
+    ];
+    for (final raw in candidates) {
+      final parsed = int.tryParse((raw ?? '').toString());
+      if (parsed != null && parsed >= 0) return parsed;
+    }
+
+    final createdAt = _parseServerDateTime(order['created_at']);
+    if (createdAt == null) return null;
+    final status = (order['status'] ?? '').toString().toLowerCase().trim();
+    final endAt = status == 'delivered'
+        ? _parseServerDateTime(order['updated_at'])
+        : DateTime.now();
+    if (endAt == null) return null;
+    final minutes = endAt.difference(createdAt).inMinutes;
+    if (minutes < 0) return null;
+    return minutes.clamp(0, 24 * 60);
+  }
+
+  Widget _buildOrderMiniDetailPill({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
           Text(
-            status,
+            '$label: $value',
             style: TextStyle(
-              color: statusTone,
+              color: CustomerPalette.textDark,
               fontSize: 10,
               fontWeight: FontWeight.w800,
             ),
@@ -4234,6 +4448,42 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
     );
+  }
+
+  void _openLiveTrackerForOrder(Map<String, dynamic> order) {
+    final matchedRider = _liveRiderForOrder(order);
+    final matched = matchedRider == null
+        ? const <Map<String, dynamic>>[]
+        : <Map<String, dynamic>>[matchedRider];
+
+    if (matched.isNotEmpty) {
+      Navigator.of(context, rootNavigator: true).maybePop();
+      _openFullScreenLiveRiderTracker(matched);
+      return;
+    }
+
+    final fallback = _extractLiveRiderLocations([order]);
+    if (fallback.isNotEmpty) {
+      Navigator.of(context, rootNavigator: true).maybePop();
+      _openFullScreenLiveRiderTracker(fallback);
+      return;
+    }
+
+    Notifier.info(context, 'Live rider location is not available yet.');
+  }
+
+  Map<String, dynamic>? _liveRiderForOrder(Map<String, dynamic> order) {
+    final orderId = (order['id'] ?? order['order_id'] ?? '').toString().trim();
+    final orderNumber = (order['order_number'] ?? '').toString().trim();
+    for (final rider in _liveRiderLocations) {
+      final riderOrderId = (rider['orderId'] ?? '').toString().trim();
+      final riderOrderNumber = (rider['orderNumber'] ?? '').toString().trim();
+      if ((orderId.isNotEmpty && riderOrderId == orderId) ||
+          (orderNumber.isNotEmpty && riderOrderNumber == orderNumber)) {
+        return rider;
+      }
+    }
+    return null;
   }
 
   String _formatOrderTime(dynamic value) {
