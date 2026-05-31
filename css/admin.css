@@ -1018,6 +1018,48 @@ tr:hover td {
   padding-left: 1.5rem;
 }
 
+.admin-filter-menu-wrap {
+  position: relative;
+}
+
+.admin-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  z-index: 2000;
+  padding: 0.35rem;
+}
+
+.admin-filter-menu-option {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.admin-filter-menu-option:hover,
+.admin-filter-menu-option:focus {
+  background: #f1f5f9;
+}
+
+.admin-filter-menu-empty {
+  color: var(--text-muted);
+  padding: 0.65rem;
+  font-size: 0.86rem;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

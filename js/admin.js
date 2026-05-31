@@ -2047,6 +2047,7 @@ function initializeAdmin() {
     // Keeps original select + events intact by syncing values both ways.
     setTimeout(() => {
         try { enhanceFilterSelectsToTypeable(); } catch (e) { console.warn('enhanceFilterSelectsToTypeable failed', e); }
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus failed', e); }
     }, 0);
 
     // Categories filters
@@ -3440,6 +3441,7 @@ function loadAccounts() {
         AppState.accounts = data.users || [];
         displayAccounts(AppState.accounts);
         loadAccountStats();
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus accounts error', e); }
         initializeTableSorting('accounts');
     })
     .catch(error => {
@@ -3909,6 +3911,7 @@ function loadStores() {
     .then(data => {
         AppState.stores = data.stores || [];
         displayStores(AppState.stores);
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus stores error', e); }
         initializeTableSorting('stores');
     })
     .catch(error => console.error('Error loading stores:', error));
@@ -3987,6 +3990,7 @@ function loadProducts() {
         AppState.products = data.products || [];
         console.log('Current products array:', AppState.products);
         try { populateProductFilters(); } catch (e) { console.warn('populateProductFilters error', e); }
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus products error', e); }
         displayProducts(AppState.products);
         initializeTableSorting('products');
     })
@@ -4295,7 +4299,8 @@ function enhanceFilterSelectsToTypeable() {
         input.type = 'text';
         input.id = inputId;
         input.className = select.className || 'form-control';
-        input.setAttribute('list', datalistId);
+        input.dataset.sourceSelectId = select.id;
+        input.dataset.filterListId = datalistId;
         input.placeholder = select.getAttribute('data-placeholder') || 'Type to filter...';
         input.autocomplete = 'off';
 
@@ -4796,6 +4801,7 @@ function loadOrders() {
         // Populate rider filter
         populateRiderFilter();
         populateStoreFilter();
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus orders error', e); }
         
         // Apply client-side rider/status/assignment filters on fetched date range.
         filterOrders();
@@ -5299,7 +5305,7 @@ function filterOrders() {
     }
     
     // Filter by rider
-    if (riderFilter) {
+    if (riderFilter && riderFilter !== 'all riders') {
         filtered = filtered.filter(order => {
             const riderName = order.rider_first_name
                 ? `${order.rider_first_name} ${order.rider_last_name || ''}`.trim()
@@ -6037,6 +6043,207 @@ function populateProductFilters() {
     }
 }
 
+function getUniqueSortedValues(items, selectors) {
+    const values = new Set();
+    (items || []).forEach((item) => {
+        selectors.forEach((selector) => {
+            const rawValue = typeof selector === 'function' ? selector(item) : item?.[selector];
+            const value = String(rawValue || '').trim();
+            if (value) values.add(value);
+        });
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+}
+
+function normalizeFilterMenuOptions(options) {
+    const seen = new Set();
+    return (options || [])
+        .map((option) => {
+            if (typeof option === 'string') return { label: option, value: option };
+            return {
+                label: String(option?.label || option?.value || '').trim(),
+                value: option?.value ?? option?.label ?? ''
+            };
+        })
+        .filter((option) => {
+            if (!option.label || seen.has(option.label)) return false;
+            seen.add(option.label);
+            return true;
+        });
+}
+
+function getDatalistOptions(input) {
+    const listId = input?.dataset?.filterListId || input?.getAttribute?.('list') || '';
+    const datalist = listId ? document.getElementById(listId) : null;
+    if (!datalist) return [];
+    return Array.from(datalist.options || []).map((option) => ({
+        label: String(option.value || option.textContent || '').trim(),
+        value: String(option.value || option.textContent || '').trim()
+    }));
+}
+
+function getSelectOptions(select) {
+    if (!select) return [];
+    return Array.from(select.options || []).map((option) => ({
+        label: String(option.textContent || option.value || '').trim(),
+        value: option.value
+    }));
+}
+
+function bindAdminFilterMenu(input, getOptions, onSelect) {
+    if (!input) return;
+    if (input.getAttribute('list')) {
+        input.dataset.filterListId = input.getAttribute('list');
+    }
+    input.removeAttribute('list');
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('spellcheck', 'false');
+    if (input.dataset.adminFilterMenuBound === '1') return;
+    const wrapper = input.closest('.search-input-wrapper') || input.parentElement;
+    if (!wrapper) return;
+    wrapper.classList.add('admin-filter-menu-wrap');
+
+    const menu = document.createElement('div');
+    menu.className = 'admin-filter-menu';
+    menu.setAttribute('role', 'listbox');
+    menu.style.display = 'none';
+    wrapper.appendChild(menu);
+
+    const hideMenu = () => {
+        menu.style.display = 'none';
+    };
+
+    const renderMenu = (showAll = false) => {
+        const typed = String(input.value || '').trim().toLowerCase();
+        const allOptions = normalizeFilterMenuOptions(getOptions());
+        const visibleOptions = showAll || !typed
+            ? allOptions
+            : allOptions.filter((option) => String(option.label || '').toLowerCase().includes(typed));
+
+        if (!visibleOptions.length) {
+            menu.innerHTML = '<div class="admin-filter-menu-empty">No matches</div>';
+        } else {
+            menu.innerHTML = visibleOptions.map((option) => `
+                <button type="button" class="admin-filter-menu-option" data-value="${escapeHtml(option.value)}">
+                    ${escapeHtml(option.label)}
+                </button>
+            `).join('');
+        }
+        menu.style.display = 'block';
+    };
+
+    input.addEventListener('focus', () => renderMenu(true));
+    input.addEventListener('click', () => renderMenu(true));
+    input.addEventListener('input', () => renderMenu(false));
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') hideMenu();
+    });
+
+    menu.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        const option = event.target.closest('.admin-filter-menu-option');
+        if (!option) return;
+        const selected = normalizeFilterMenuOptions(getOptions()).find((item) => String(item.value) === String(option.dataset.value));
+        if (!selected) return;
+        onSelect(selected);
+        hideMenu();
+    });
+
+    document.addEventListener('mousedown', (event) => {
+        if (!wrapper.contains(event.target)) hideMenu();
+    });
+
+    input.dataset.adminFilterMenuBound = '1';
+}
+
+function syncTypeableFilterInputs() {
+    document.querySelectorAll('.filter-controls input[data-source-select-id]').forEach((input) => {
+        const select = document.getElementById(input.dataset.sourceSelectId);
+        if (!select) return;
+        const selectedOption = select.options[select.selectedIndex];
+        input.value = selectedOption ? String(selectedOption.textContent || '').trim() : '';
+    });
+}
+
+function initializeAdminFilterMenus() {
+    document.querySelectorAll('.filter-controls input[list]').forEach((input) => {
+        bindAdminFilterMenu(input, () => getDatalistOptions(input), (option) => {
+            input.value = option.value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    document.querySelectorAll('.filter-controls input[data-source-select-id]').forEach((input) => {
+        const select = document.getElementById(input.dataset.sourceSelectId);
+        bindAdminFilterMenu(input, () => getSelectOptions(select), (option) => {
+            input.value = option.label;
+            if (select) {
+                select.value = option.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                select.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+    });
+
+    const searchConfigs = [
+        {
+            id: 'accountSearch',
+            items: () => AppState.accounts,
+            selectors: [
+                (account) => `${account.first_name || ''} ${account.last_name || ''}`.trim(),
+                'email',
+                'phone'
+            ]
+        },
+        {
+            id: 'storeSearch',
+            items: () => AppState.stores,
+            selectors: ['name', 'location', 'owner_name']
+        },
+        {
+            id: 'productSearch',
+            items: () => AppState.products,
+            selectors: ['name']
+        },
+        {
+            id: 'categorySearch',
+            items: () => AppState.categories,
+            selectors: ['name', 'description']
+        },
+        {
+            id: 'riderSearch',
+            items: () => AppState.riders,
+            selectors: [
+                (rider) => rider.full_name || `${rider.first_name || ''} ${rider.last_name || ''}`.trim(),
+                'email',
+                'phone'
+            ]
+        }
+    ];
+
+    searchConfigs.forEach((config) => {
+        const input = document.getElementById(config.id);
+        bindAdminFilterMenu(input, () => getUniqueSortedValues(config.items(), config.selectors), (option) => {
+            input.value = option.value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    document.querySelectorAll('.filter-controls button[id*="Clear"], .filter-controls button[id*="clear"]').forEach((button) => {
+        if (button.dataset.adminFilterClearBound === '1') return;
+        button.addEventListener('click', () => {
+            setTimeout(() => {
+                syncTypeableFilterInputs();
+                initializeAdminFilterMenus();
+            }, 0);
+        });
+        button.dataset.adminFilterClearBound = '1';
+    });
+}
+
 function filterProducts() {
     try {
         const q = (document.getElementById('productSearch')?.value || '').trim().toLowerCase();
@@ -6056,7 +6263,15 @@ function filterProducts() {
 
 function clearProductFilters() {
     const ids = ['productSearch', 'productCategoryFilter', 'productStoreFilter', 'productStatusFilter'];
-    ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = '';
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    });
+    const statusInput = document.getElementById('productStatusFilterTypeable');
+    if (statusInput) statusInput.value = 'All Status';
     displayProducts(AppState.products);
 }
 
@@ -10989,6 +11204,7 @@ function loadStores() {
     .then(data => {
         AppState.stores = data.stores || [];
         displayStores(AppState.stores);
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus stores error', e); }
         initializeTableSorting('stores');
         attachStoreFilterListeners();
         loadGlobalDeliveryStatus();
@@ -11203,6 +11419,7 @@ function loadCategories() {
     .then(data => {
         AppState.categories = data.categories || [];
         displayCategories(AppState.categories);
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus categories error', e); }
         initializeTableSorting('categories');
     })
     .catch(error => console.error('Error loading categories:', error));
@@ -11242,6 +11459,7 @@ function loadRiders() {
     .then(data => {
         AppState.riders = data.riders || [];
         displayRiders(AppState.riders);
+        try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus riders error', e); }
         initializeTableSorting('riders');
         return AppState.riders;
     })
