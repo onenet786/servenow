@@ -1225,88 +1225,84 @@ router.get("/my-orders", authenticateToken, async (req, res) => {
 
     const [orders] = await req.db.execute(query, params);
 
-    // Get order items for each order
-    for (let order of orders) {
-      // Check if product_variants table exists before querying
+    if (orders.length > 0) {
       let hasVariantsTable = false;
       try {
         await req.db.execute("SELECT 1 FROM product_variants LIMIT 1");
         hasVariantsTable = true;
-      } catch (e) {
-        // Table doesn't exist
+      } catch (e) {}
+
+      const orderIds = orders.map((o) => o.id);
+      const placeholders = orderIds.map(() => "?").join(",");
+
+      const itemsQuery = hasVariantsTable
+        ? `SELECT oi.*, p.name as product_name, p.image_url, p.store_id, s.name as item_store_name,
+                  s.phone as item_store_phone, s.email as item_store_email,
+                  CASE
+                    WHEN LOWER(TRIM(COALESCE(p.description, ''))) = 'created from admin manual order' THEN 1
+                    ELSE 0
+                  END as is_manual_order_item,
+                  v.label as variant_label
+           FROM order_items oi
+           JOIN products p ON oi.product_id = p.id
+           LEFT JOIN product_variants v ON oi.variant_id = v.id
+           LEFT JOIN stores s ON oi.store_id = s.id
+           WHERE oi.order_id IN (${placeholders})`
+        : `SELECT oi.*, p.name as product_name, p.image_url, p.store_id, s.name as item_store_name,
+                  s.phone as item_store_phone, s.email as item_store_email,
+                  CASE
+                    WHEN LOWER(TRIM(COALESCE(p.description, ''))) = 'created from admin manual order' THEN 1
+                    ELSE 0
+                  END as is_manual_order_item,
+                  NULL as variant_label
+           FROM order_items oi
+           JOIN products p ON oi.product_id = p.id
+           LEFT JOIN stores s ON oi.store_id = s.id
+           WHERE oi.order_id IN (${placeholders})`;
+
+      const [allItems] = await req.db.execute(itemsQuery, orderIds);
+
+      const itemsByOrderId = new Map();
+      for (const item of allItems) {
+        if (!itemsByOrderId.has(item.order_id)) itemsByOrderId.set(item.order_id, []);
+        itemsByOrderId.get(item.order_id).push(item);
       }
 
-      let itemsQuery;
-      if (hasVariantsTable) {
-        itemsQuery = `
-                SELECT oi.*, p.name as product_name, p.image_url, p.store_id, s.name as item_store_name,
-                       s.phone as item_store_phone, s.email as item_store_email,
-                       CASE
-                         WHEN LOWER(TRIM(COALESCE(p.description, ''))) = 'created from admin manual order' THEN 1
-                         ELSE 0
-                       END as is_manual_order_item,
-                       v.label as variant_label
-                FROM order_items oi
-                JOIN products p ON oi.product_id = p.id
-                LEFT JOIN product_variants v ON oi.variant_id = v.id
-                LEFT JOIN stores s ON oi.store_id = s.id
-                WHERE oi.order_id = ?
-            `;
-      } else {
-         itemsQuery = `
-                SELECT oi.*, p.name as product_name, p.image_url, p.store_id, s.name as item_store_name,
-                       s.phone as item_store_phone, s.email as item_store_email,
-                       CASE
-                         WHEN LOWER(TRIM(COALESCE(p.description, ''))) = 'created from admin manual order' THEN 1
-                         ELSE 0
-                       END as is_manual_order_item,
-                       NULL as variant_label
-                FROM order_items oi
-                JOIN products p ON oi.product_id = p.id
-                LEFT JOIN stores s ON oi.store_id = s.id
-                WHERE oi.order_id = ?
-            `;
-      }
+      for (const order of orders) {
+        const items = itemsByOrderId.get(order.id) || [];
+        order.items = items;
+        order.has_manual_order_item = items.some(
+          (item) => Number(item.is_manual_order_item || 0) === 1,
+        );
 
-      const [items] = await req.db.execute(itemsQuery, [order.id]);
-      order.items = items;
-      order.has_manual_order_item = items.some(
-        (item) => Number(item.is_manual_order_item || 0) === 1,
-      );
+        if (!order.store_id) {
+          order.store_name = "Multiple Stores";
+          order.is_group = true;
 
-      // If store_id is NULL (multi-store order), set display name
-      // Note: In some schemas, store_id might be 0 or null.
-      if (!order.store_id) {
-        order.store_name = "Multiple Stores";
-        order.is_group = true; // reusing existing frontend logic
-
-        // Group items by store for display if needed, or just let frontend handle it
-        // We can construct sub_orders mock structure for frontend compatibility
-        const storeGroups = {};
-        items.forEach((item) => {
-          // If store_id is null/undefined in item, fallback to something safe
-          const sId = item.store_id || 'unknown';
-          
-          if (!storeGroups[sId]) {
-            storeGroups[sId] = {
-              store_id: sId,
-              store_name: item.item_store_name || 'Unknown Store',
-              store_phone: item.item_store_phone || "",
-              store_email: item.item_store_email || "",
-              status: item.item_status || 'pending', // Use item-specific status!
-              has_manual_order_item: false,
-              items: [],
-              rider_first_name: order.rider_first_name,
-              rider_last_name: order.rider_last_name,
-              rider_phone: order.rider_phone
-            };
-          }
-          if (Number(item.is_manual_order_item || 0) === 1) {
-            storeGroups[sId].has_manual_order_item = true;
-          }
-          storeGroups[sId].items.push(item);
-        });
-        order.sub_orders = Object.values(storeGroups);
+          const storeGroups = {};
+          items.forEach((item) => {
+            const sId = item.store_id || 'unknown';
+            if (!storeGroups[sId]) {
+              storeGroups[sId] = {
+                store_id: sId,
+                store_name: item.item_store_name || 'Unknown Store',
+                store_phone: item.item_store_phone || "",
+                store_email: item.item_store_email || "",
+                status: item.item_status || 'pending',
+                has_manual_order_item: false,
+                items: [],
+                rider_first_name: order.rider_first_name,
+                rider_last_name: order.rider_last_name,
+                rider_phone: order.rider_phone
+              };
+            }
+            if (Number(item.is_manual_order_item || 0) === 1) {
+              storeGroups[sId].has_manual_order_item = true;
+            }
+            storeGroups[sId].items.push(item);
+          });
+          order.sub_orders = Object.values(storeGroups);
+        }
       }
     }
 
@@ -4095,6 +4091,126 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 });
 
+const TERMINAL_ORDER_RESET_EMAILS = new Set([
+  "admin@servenow.com",
+  "nazir@servenow.pk",
+]);
+
+function canResetTerminalOrder(user) {
+  const email = String(user?.email || "").trim().toLowerCase();
+  return TERMINAL_ORDER_RESET_EMAILS.has(email);
+}
+
+async function emitOrderResetToNew(req, order) {
+  if (!req.io) return;
+
+  const payload = {
+    id: String(order.id),
+    order_number: order.order_number,
+    status: "pending",
+    user_id: order.user_id,
+    updated_at: new Date(),
+    reset_to_new: true,
+  };
+
+  req.io.to(`user_${order.user_id}`).emit("order_status_update", payload);
+  req.io.to("admins").emit("order_status_update", payload);
+  req.io.to(`user_${order.user_id}`).emit("user_notification", {
+    type: "refresh_orders",
+    message: "Order reset to new order state",
+    order_id: order.id,
+  });
+
+  if (order.rider_id) {
+    req.io.to(`rider_${order.rider_id}`).emit("order_status_update", payload);
+  }
+
+  const [storeOwners] = await req.db.execute(
+    `SELECT DISTINCT s.owner_id
+     FROM order_items oi
+     JOIN stores s ON oi.store_id = s.id
+     WHERE oi.order_id = ?`,
+    [order.id],
+  );
+
+  for (const owner of storeOwners) {
+    if (owner.owner_id) {
+      req.io.to(`user_${owner.owner_id}`).emit("store_owner_notification", {
+        type: "silent_refresh",
+        order_id: order.id,
+        message: "",
+      });
+    }
+  }
+}
+
+// Reset delivered/cancelled orders to the new-order state for selected admins only.
+router.put(
+  "/:id(\\d+)/reset-to-new",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      if (!canResetTerminalOrder(req.user)) {
+        return res.status(403).json({
+          success: false,
+          message: "Only authorized users can reset delivered or cancelled orders.",
+        });
+      }
+
+      const { id } = req.params;
+      const [orders] = await req.db.execute(
+        "SELECT id, order_number, user_id, rider_id, status FROM orders WHERE id = ?",
+        [id],
+      );
+
+      if (orders.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Order not found",
+        });
+      }
+
+      const order = orders[0];
+      const currentStatus = String(order.status || "").trim().toLowerCase();
+      if (!["delivered", "cancelled"].includes(currentStatus)) {
+        return res.status(400).json({
+          success: false,
+          message: "Only delivered or cancelled orders can be reset to new.",
+        });
+      }
+
+      await req.db.execute(
+        "UPDATE order_items SET item_status = 'pending' WHERE order_id = ?",
+        [id],
+      );
+      await req.db.execute(
+        "UPDATE orders SET status = 'pending', rider_id = NULL, estimated_delivery_time = NULL, updated_at = NOW() WHERE id = ?",
+        [id],
+      );
+
+      try {
+        await emitOrderResetToNew(req, order);
+      } catch (emitError) {
+        console.error("Socket emit error in reset-to-new:", emitError);
+      }
+
+      res.json({
+        success: true,
+        message: "Order reset to new order state successfully",
+        global_status: "pending",
+      });
+    } catch (error) {
+      console.error("Error resetting order to new:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to reset order to new",
+        error: error.message,
+      });
+    }
+  },
+);
+
 // Update order status (Admin, Store Owner, or Standard User)
 router.put(
   "/:id(\\d+)/status",
@@ -4151,9 +4267,16 @@ router.put(
       }
 
       const order = orders[0];
+      const currentOrderStatus = String(order.status || "").trim().toLowerCase();
       const currentPaymentStatus = String(order.payment_status || "")
         .trim()
         .toLowerCase();
+      const isTerminalReopen =
+        ["delivered", "cancelled"].includes(currentOrderStatus) &&
+        !["delivered", "cancelled"].includes(status);
+      const isTerminalResetToNew =
+        status === "pending" &&
+        ["delivered", "cancelled"].includes(currentOrderStatus);
 
       // Check permission
       let hasPermission = false;
@@ -4177,6 +4300,13 @@ router.put(
         return res.status(403).json({
           success: false,
           message: "You do not have permission to update this order",
+        });
+      }
+
+      if (isTerminalReopen && !canResetTerminalOrder(req.user)) {
+        return res.status(403).json({
+          success: false,
+          message: "Only authorized users can reopen delivered or cancelled orders.",
         });
       }
 
@@ -4299,10 +4429,17 @@ router.put(
         });
       }
 
-      await req.db.execute(
-        "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
-        [newGlobalStatus, id],
-      );
+      if (isTerminalResetToNew) {
+        await req.db.execute(
+          "UPDATE orders SET status = ?, rider_id = NULL, estimated_delivery_time = NULL, updated_at = NOW() WHERE id = ?",
+          [newGlobalStatus, id],
+        );
+      } else {
+        await req.db.execute(
+          "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
+          [newGlobalStatus, id],
+        );
+      }
 
       // Pickup-paid store settlement:
       // Only Cash Only / Cash with Discount stores are paid by the rider at pickup.

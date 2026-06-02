@@ -677,12 +677,14 @@ class ApiService {
     String? status,
     bool includeItemsCount = true,
     bool includeStoreStatuses = true,
+    bool includeStoreDetails = true,
     String? startDate,
     String? endDate,
   }) async {
     final query = <String, String>{
       'includeItemsCount': includeItemsCount.toString(),
       'includeStoreStatuses': includeStoreStatuses.toString(),
+      'includeStoreDetails': includeStoreDetails.toString(),
     };
     if (assignment != null && assignment.trim().isNotEmpty) {
       query['assignment'] = assignment.trim();
@@ -797,7 +799,7 @@ class ApiService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        if (storeId != null) 'store_id': storeId,
+        'store_id': ?storeId,
         'items': items,
         'delivery_address': deliveryAddress,
         'payment_method': paymentMethod,
@@ -987,6 +989,22 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> resetOrderToNew(
+    String token,
+    int orderId,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/orders/$orderId/reset-to-new');
+    _logger.d('ApiService: PUT $uri');
+    final response = await _put(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> markOrderAsDelivered(
     String token,
     int orderId,
@@ -1168,8 +1186,8 @@ class ApiService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        if (recipientId != null) 'recipient_id': recipientId,
-        if (email != null) 'email': email,
+        'recipient_id': ?recipientId,
+        'email': ?email,
         'amount': amount,
         'description': description,
       }),

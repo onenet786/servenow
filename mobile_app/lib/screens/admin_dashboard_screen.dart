@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
-import '../services/notifier.dart';
+import 'package:servenow/services/notifier.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
@@ -1107,6 +1107,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   bool _canViewRestrictedFinancialReports(String? email) {
+    return _canViewLiveRiderTracker(email);
+  }
+
+  bool _canResetTerminalOrders(String? email) {
     return _canViewLiveRiderTracker(email);
   }
 
@@ -2491,7 +2495,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             } catch (_) {}
             return bd.compareTo(ad);
           });
-
       final stats = (visitorStats['stats'] is Map<String, dynamic>)
           ? visitorStats['stats'] as Map<String, dynamic>
           : visitorStats;
@@ -4154,6 +4157,367 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
+  Future<void> _resetOrderToNewWithConfirm(int orderId, String orderNo) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.token;
+    if (token == null || token.trim().isEmpty) {
+      Notifier.error(context, 'Session expired. Please login again.');
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset to new order?'),
+        content: Text(
+          'Order $orderNo will become pending again and rider assignment will be cleared.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await ApiService.resetOrderToNew(token, orderId);
+      if (!mounted) return;
+      Notifier.success(context, 'Order $orderNo reset to new order.');
+      _loadStats();
+    } catch (e) {
+      if (!mounted) return;
+      Notifier.error(context, 'Failed to reset order: $e');
+    }
+  }
+
+  void _popThenRun(BuildContext routeContext, VoidCallback action) {
+    Navigator.of(routeContext).pop();
+    Future<void>.delayed(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      action();
+    });
+  }
+
+  Future<void> _showAdminOrderDetails(
+    Map<String, dynamic> order, {
+    bool allowManage = true,
+    bool allowReset = false,
+  }) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.token;
+    if (token == null || token.trim().isEmpty) {
+      Notifier.error(context, 'Session expired. Please login again.');
+      return;
+    }
+
+    final orderId = int.tryParse(
+      (order['id'] ?? order['order_id'] ?? '').toString(),
+    );
+    if (orderId == null || orderId <= 0) {
+      Notifier.error(context, 'Order ID not found.');
+      return;
+    }
+
+    final initialOrderNo = (order['order_number'] ?? '#$orderId').toString();
+
+    Future<Map<String, dynamic>> loadDetail() async {
+      try {
+        final detail = await ApiService.getOrderDetails(token, orderId);
+        return detail.isEmpty ? order : detail;
+      } catch (_) {
+        return order;
+      }
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (sheetContext) {
+          return Scaffold(
+            backgroundColor: Colors.white,
+            body: SafeArea(
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: loadDetail(),
+                builder: (context, snapshot) {
+                  final detail = snapshot.data ?? order;
+                  final orderNo = (detail['order_number'] ?? initialOrderNo)
+                      .toString();
+                  final status = (detail['status'] ?? order['status'] ?? '')
+                      .toString();
+                  final customerName =
+                      [detail['first_name'], detail['last_name']]
+                          .where((v) => (v ?? '').toString().trim().isNotEmpty)
+                          .join(' ');
+                  final fallbackCustomer =
+                      (detail['customer_name'] ?? order['customer_name'] ?? '')
+                          .toString();
+                  final customer = customerName.trim().isEmpty
+                      ? (fallbackCustomer.trim().isEmpty
+                            ? 'Customer'
+                            : fallbackCustomer)
+                      : customerName;
+                  final total =
+                      detail['total_amount'] ?? order['total_amount'] ?? '0';
+                  final deliveryFee =
+                      detail['delivery_fee'] ?? order['delivery_fee'] ?? '0';
+                  final paymentMethod =
+                      (detail['payment_method'] ??
+                              order['payment_method'] ??
+                              '-')
+                          .toString();
+                  final paymentStatus =
+                      (detail['payment_status'] ??
+                              order['payment_status'] ??
+                              '-')
+                          .toString();
+                  final address =
+                      (detail['delivery_address'] ??
+                              order['delivery_address'] ??
+                              '-')
+                          .toString();
+                  final instructions =
+                      (detail['special_instructions'] ??
+                              order['special_instructions'] ??
+                              '')
+                          .toString()
+                          .trim();
+                  final createdAt = _formatOrderDateLabel(
+                    detail['created_at'] ?? order['created_at'],
+                  );
+                  final riderName = _orderRiderName(detail);
+                  final rawItems = detail['items'];
+                  final items = rawItems is List ? rawItems : const [];
+                  final isTerminal =
+                      status.toLowerCase() == 'delivered' ||
+                      status.toLowerCase() == 'cancelled';
+
+                  Widget detailRow(String label, String value) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 112,
+                            child: Text(
+                              label,
+                              style: const TextStyle(
+                                color: CustomerPalette.textMuted,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              value,
+                              style: const TextStyle(
+                                color: CustomerPalette.textDark,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 10, 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Order $orderNo Details',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(sheetContext).pop(),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      if (snapshot.connectionState == ConnectionState.waiting)
+                        const LinearProgressIndicator(minHeight: 2),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  detailRow('Status', status),
+                                  detailRow('Customer', customer),
+                                  detailRow('Created', createdAt),
+                                  detailRow('Rider', riderName),
+                                  detailRow(
+                                    'Payment',
+                                    '$paymentMethod ($paymentStatus)',
+                                  ),
+                                  detailRow(
+                                    'Delivery Fee',
+                                    _formatPkr(deliveryFee),
+                                  ),
+                                  detailRow('Total', _formatPkr(total)),
+                                  detailRow('Address', address),
+                                  if (instructions.isNotEmpty)
+                                    detailRow('Instructions', instructions),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'Items',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (items.isEmpty)
+                              const Text(
+                                'No item details available.',
+                                style: TextStyle(
+                                  color: CustomerPalette.textMuted,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              )
+                            else
+                              ...items.map((raw) {
+                                final item = raw is Map
+                                    ? raw.cast<String, dynamic>()
+                                    : <String, dynamic>{};
+                                final name =
+                                    (item['product_name'] ??
+                                            item['name'] ??
+                                            'Product')
+                                        .toString();
+                                final qty = item['quantity'] ?? 0;
+                                final price = item['price'] ?? 0;
+                                final store = (item['store_name'] ?? '')
+                                    .toString()
+                                    .trim();
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: const Color(0xFFE5E7EB),
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              name,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            if (store.isNotEmpty)
+                                              Text(
+                                                store,
+                                                style: const TextStyle(
+                                                  color:
+                                                      CustomerPalette.textMuted,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                        '$qty x ${_formatPkr(price)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: Row(
+                          children: [
+                            if (allowManage && !isTerminal) ...[
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    _popThenRun(sheetContext, () {
+                                      _openOrderAssignmentDialog({
+                                        'type': 'order',
+                                        'order_id': orderId,
+                                      });
+                                    });
+                                  },
+                                  icon: const Icon(Icons.edit),
+                                  label: const Text('Manage'),
+                                ),
+                              ),
+                            ],
+                            if (allowManage && !isTerminal && allowReset)
+                              const SizedBox(width: 10),
+                            if (allowReset && isTerminal)
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    _popThenRun(sheetContext, () {
+                                      _resetOrderToNewWithConfirm(
+                                        orderId,
+                                        orderNo,
+                                      );
+                                    });
+                                  },
+                                  icon: const Icon(Icons.undo),
+                                  label: const Text('Reset to New'),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildTodayOrderDetailTile(
     dynamic order, {
     bool showTrackAction = false,
@@ -4164,7 +4528,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final id = (orderMap['id'] ?? orderMap['order_id'] ?? '-').toString();
     final orderNo = (orderMap['order_number'] ?? '#$id').toString();
     final status = (orderMap['status'] ?? 'pending').toString();
+    final orderId = int.tryParse(id);
     final statusTone = _orderDetailTone(_orderToneKey(status));
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserEmail = authProvider.user?.email.trim().toLowerCase();
+    final canResetToNew =
+        currentUserEmail == 'admin@servenow.com' ||
+        currentUserEmail == 'nazir@servenow.pk';
+    final canResetThisOrder =
+        canResetToNew &&
+        orderId != null &&
+        (status.trim().toLowerCase() == 'delivered' ||
+            status.trim().toLowerCase() == 'cancelled');
     final firstName = (orderMap['first_name'] ?? '').toString().trim();
     final lastName = (orderMap['last_name'] ?? '').toString().trim();
     final fullName = '$firstName $lastName'.trim();
@@ -4216,123 +4591,154 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             : _formatTravelMinutes(travelMinutes),
       ),
     ];
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: statusTone.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: orderId == null
+          ? null
+          : () => _showAdminOrderDetails(
+              orderMap,
+              allowManage: ![
+                'delivered',
+                'cancelled',
+              ].contains(status.trim().toLowerCase()),
+              allowReset: canResetThisOrder,
             ),
-            child: Icon(
-              Icons.receipt_long_rounded,
-              color: statusTone,
-              size: 19,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: statusTone.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.receipt_long_rounded,
+                color: statusTone,
+                size: 19,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  orderNo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: CustomerPalette.textDark,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  customer.isEmpty ? 'Customer' : customer,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CustomerPalette.textDark,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                if (store.isNotEmpty) ...[
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    store,
+                    orderNo,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: CustomerPalette.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w900,
+                      color: CustomerPalette.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    customer.isEmpty ? 'Customer' : customer,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: CustomerPalette.textDark,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 3),
+                  if (store.isNotEmpty) ...[
+                    Text(
+                      store,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: CustomerPalette.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                  ],
+                  Text(
+                    '$total | $createdAt',
+                    style: const TextStyle(
+                      color: CustomerPalette.primaryDark,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: details
+                        .map(
+                          (detail) => _buildOrderMiniDetailPill(
+                            icon: detail.icon,
+                            label: detail.label,
+                            value: detail.value,
+                            color: statusTone,
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ],
-                Text(
-                  '$total | $createdAt',
-                  style: const TextStyle(
-                    color: CustomerPalette.primaryDark,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (canResetThisOrder)
+              FilledButton(
+                onPressed: () => _resetOrderToNewWithConfirm(orderId, orderNo),
+                style: FilledButton.styleFrom(
+                  backgroundColor: CustomerPalette.primaryDark,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                const SizedBox(height: 7),
-                Wrap(
-                  spacing: 5,
-                  runSpacing: 5,
-                  children: details
-                      .map(
-                        (detail) => _buildOrderMiniDetailPill(
-                          icon: detail.icon,
-                          label: detail.label,
-                          value: detail.value,
-                          color: statusTone,
-                        ),
-                      )
-                      .toList(),
+                child: const Text(
+                  'Reset',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (showTrackAction)
-            FilledButton(
-              onPressed: () => _openLiveTrackerForOrder(orderMap),
-              style: FilledButton.styleFrom(
-                backgroundColor: statusTone,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                minimumSize: const Size(0, 32),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+              )
+            else if (showTrackAction)
+              FilledButton(
+                onPressed: () => _openLiveTrackerForOrder(orderMap),
+                style: FilledButton.styleFrom(
+                  backgroundColor: statusTone,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                child: const Text(
+                  'Track',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+                ),
+              )
+            else
+              Text(
+                status,
+                style: TextStyle(
+                  color: statusTone,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              child: const Text(
-                'Track',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
-              ),
-            )
-          else
-            Text(
-              status,
-              style: TextStyle(
-                color: statusTone,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4494,6 +4900,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  String _formatOrderDateLabel(dynamic value) {
+    if (value == null) return '-';
+    final parsed = _parseServerDateTime(value);
+    if (parsed == null) return value.toString();
+    final date = _dateKey(parsed);
+    final hour = parsed.hour.toString().padLeft(2, '0');
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    return '$date $hour:$minute';
   }
 
   Widget _buildMiniTrendLine(Color color) {
@@ -7089,7 +7505,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Future<void> _openOrderAssignmentDialog(Map<String, dynamic> activity) async {
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.token;
     if (token == null || token.trim().isEmpty) {
       Notifier.error(context, 'Session expired. Please login again.');
       return;
@@ -7132,6 +7549,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           double.tryParse((order['total_amount'] ?? '0').toString()) ?? 0;
       final currentStatus = (order['status'] ?? 'pending').toString();
       final initialRiderId = int.tryParse((order['rider_id'] ?? '').toString());
+      final currentUserEmail = authProvider.user?.email.trim().toLowerCase();
+      final canResetToNew =
+          currentUserEmail == 'admin@servenow.com' ||
+          currentUserEmail == 'nazir@servenow.pk';
+      final isTerminalOrder =
+          currentStatus.trim().toLowerCase() == 'delivered' ||
+          currentStatus.trim().toLowerCase() == 'cancelled';
 
       String selectedStatus = currentStatus;
       int? selectedRiderId = initialRiderId;
@@ -7231,6 +7655,61 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ),
                 ),
                 actions: [
+                  if (canResetToNew && isTerminalOrder)
+                    TextButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              final confirm = await showDialog<bool>(
+                                context: ctx,
+                                builder: (confirmCtx) => AlertDialog(
+                                  title: const Text('Reset to new order?'),
+                                  content: Text(
+                                    'Order #$orderNumber will become pending again and rider assignment will be cleared.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(confirmCtx).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.of(confirmCtx).pop(true),
+                                      child: const Text('Reset'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm != true) return;
+                              setModalState(() => isSaving = true);
+                              try {
+                                await ApiService.resetOrderToNew(
+                                  token,
+                                  orderId,
+                                );
+                                if (ctx.mounted) Navigator.of(ctx).pop();
+                                if (!mounted) return;
+                                Notifier.success(
+                                  context,
+                                  'Order #$orderNumber reset to new order.',
+                                );
+                                _loadStats();
+                              } catch (e) {
+                                if (mounted) {
+                                  Notifier.error(
+                                    context,
+                                    'Failed to reset order: $e',
+                                  );
+                                }
+                              } finally {
+                                if (ctx.mounted) {
+                                  setModalState(() => isSaving = false);
+                                }
+                              }
+                            },
+                      child: const Text('Reset to New'),
+                    ),
                   TextButton(
                     onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
                     child: const Text('Cancel'),
@@ -7304,104 +7783,364 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Future<void> _openManageOrdersForAssignment() async {
-    await _loadStats();
     if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return SafeArea(
-          child: Container(
-            height: MediaQuery.of(ctx).size.height * 0.86,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 10, 8),
-                  child: Row(
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.token;
+    if (token == null || token.trim().isEmpty) {
+      Notifier.error(context, 'Session expired. Please login again.');
+      return;
+    }
+
+    final orderSearchController = TextEditingController();
+    DateTime selectedOrderDate = DateTime.now();
+    List<dynamic> pageOrders = const [];
+    bool isLoadingOrders = true;
+    String? loadError;
+    bool didStartInitialLoad = false;
+
+    Future<void> loadOrdersForDate(
+      DateTime date,
+      StateSetter setPageState,
+    ) async {
+      setPageState(() {
+        selectedOrderDate = date;
+        isLoadingOrders = true;
+        loadError = null;
+      });
+      try {
+        final dateKey = _dateKey(date);
+        final orders = await ApiService.getOrders(
+          token,
+          includeItemsCount: false,
+          includeStoreStatuses: false,
+          includeStoreDetails: false,
+          startDate: dateKey,
+          endDate: dateKey,
+        );
+        if (!mounted) return;
+        setPageState(() {
+          pageOrders = orders;
+          isLoadingOrders = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setPageState(() {
+          pageOrders = const [];
+          isLoadingOrders = false;
+          loadError = e.toString();
+        });
+      }
+    }
+
+    bool matchesOrderSearch(dynamic raw) {
+      if (raw is! Map) return false;
+      final order = raw.cast<String, dynamic>();
+      final query = orderSearchController.text.trim().toLowerCase();
+      if (query.isEmpty) return true;
+      final id = (order['id'] ?? order['order_id'] ?? '').toString();
+      final orderNo = (order['order_number'] ?? '').toString().toLowerCase();
+      return id.contains(query) || orderNo.contains(query);
+    }
+
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (ctx) {
+            return StatefulBuilder(
+              builder: (ctx, setPageState) {
+                if (!didStartInitialLoad) {
+                  didStartInitialLoad = true;
+                  Future<void>.microtask(
+                    () => loadOrdersForDate(selectedOrderDate, setPageState),
+                  );
+                }
+
+                final filteredOrders = pageOrders
+                    .where(matchesOrderSearch)
+                    .toList(growable: false);
+                final assignableOrders = filteredOrders
+                    .where((raw) {
+                      if (raw is! Map) return false;
+                      final status = (raw['status'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      return status != 'delivered' && status != 'cancelled';
+                    })
+                    .toList(growable: false);
+                final terminalOrders = filteredOrders
+                    .where((raw) {
+                      if (raw is! Map) return false;
+                      final status = (raw['status'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      return status == 'delivered' || status == 'cancelled';
+                    })
+                    .toList(growable: false);
+                final showResetOrders = _canResetTerminalOrders(
+                  authProvider.user?.email,
+                );
+                final dateText = _dateKey(selectedOrderDate);
+
+                Widget orderTile(
+                  Map<String, dynamic> order, {
+                  required bool terminal,
+                }) {
+                  final id = int.tryParse((order['id'] ?? '').toString()) ?? 0;
+                  final orderNo = (order['order_number'] ?? '#$id').toString();
+                  final status = (order['status'] ?? 'pending').toString();
+                  final total =
+                      double.tryParse(
+                        (order['total_amount'] ?? '0').toString(),
+                      ) ??
+                      0;
+                  final isCancelled = status.toLowerCase() == 'cancelled';
+                  final createdAt = _formatOrderTime(order['created_at']);
+                  return Column(
                     children: [
-                      const Expanded(
-                        child: Text(
-                          'Manage Orders (Assign Riders)',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
+                      ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: terminal
+                              ? (isCancelled
+                                    ? const Color(0x1ADC2626)
+                                    : const Color(0x1A16A34A))
+                              : const Color(0x1AF57C00),
+                          child: Icon(
+                            terminal
+                                ? (isCancelled
+                                      ? Icons.cancel_outlined
+                                      : Icons.check_circle_outline)
+                                : Icons.receipt_long,
+                            color: terminal
+                                ? (isCancelled ? Colors.red : Colors.green)
+                                : Colors.orange,
                           ),
                         ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: _assignableOrdersList.isEmpty
-                      ? const Center(
-                          child: Text('No new orders pending assignment'),
-                        )
-                      : ListView.separated(
-                          itemCount: _assignableOrdersList.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final raw = _assignableOrdersList[index];
-                            if (raw is! Map) return const SizedBox.shrink();
-                            final order = raw.cast<String, dynamic>();
-                            final id =
-                                int.tryParse((order['id'] ?? '').toString()) ??
-                                0;
-                            final orderNo = (order['order_number'] ?? '#$id')
-                                .toString();
-                            final status = (order['status'] ?? 'pending')
-                                .toString();
-                            final total =
-                                double.tryParse(
-                                  (order['total_amount'] ?? '0').toString(),
-                                ) ??
-                                0;
-                            return ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: Color(0x1AF57C00),
-                                child: Icon(
-                                  Icons.receipt_long,
-                                  color: Colors.orange,
-                                ),
-                              ),
-                              title: Text(
-                                'Order $orderNo',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                'PKR ${total.toStringAsFixed(0)} | $status',
-                              ),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: id <= 0
-                                  ? null
-                                  : () {
-                                      Navigator.of(ctx).pop();
-                                      _openOrderAssignmentDialog({
-                                        'type': 'order',
-                                        'order_id': id,
-                                      });
-                                    },
-                            );
-                          },
+                        title: Text(
+                          'Order $orderNo',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+                        subtitle: Text(
+                          'PKR ${total.toStringAsFixed(0)} | $status | $createdAt',
+                        ),
+                        trailing: terminal
+                            ? TextButton.icon(
+                                onPressed: id <= 0
+                                    ? null
+                                    : () => _resetOrderToNewWithConfirm(
+                                        id,
+                                        orderNo,
+                                      ),
+                                icon: const Icon(Icons.undo, size: 18),
+                                label: const Text('Reset'),
+                              )
+                            : const Icon(Icons.chevron_right),
+                        onTap: id <= 0
+                            ? null
+                            : () => _showAdminOrderDetails(
+                                order,
+                                allowManage: !terminal,
+                                allowReset: terminal,
+                              ),
+                      ),
+                      const Divider(height: 1),
+                    ],
+                  );
+                }
+
+                return Scaffold(
+                  backgroundColor: Colors.white,
+                  body: SafeArea(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 10, 8),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Manage Orders',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                icon: const Icon(Icons.close),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: orderSearchController,
+                                decoration: InputDecoration(
+                                  labelText:
+                                      'Search loaded date by order number / ID',
+                                  prefixIcon: const Icon(Icons.search),
+                                  suffixIcon: orderSearchController.text.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          icon: const Icon(Icons.clear),
+                                          onPressed: () {
+                                            orderSearchController.clear();
+                                            setPageState(() {});
+                                          },
+                                        ),
+                                  border: const OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                onChanged: (_) => setPageState(() {}),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: isLoadingOrders
+                                          ? null
+                                          : () async {
+                                              final picked =
+                                                  await showDatePicker(
+                                                    context: ctx,
+                                                    initialDate:
+                                                        selectedOrderDate,
+                                                    firstDate: DateTime(
+                                                      2024,
+                                                      1,
+                                                      1,
+                                                    ),
+                                                    lastDate: DateTime.now()
+                                                        .add(
+                                                          const Duration(
+                                                            days: 1,
+                                                          ),
+                                                        ),
+                                                  );
+                                              if (picked == null) return;
+                                              await loadOrdersForDate(
+                                                picked,
+                                                setPageState,
+                                              );
+                                            },
+                                      icon: const Icon(
+                                        Icons.calendar_today,
+                                        size: 18,
+                                      ),
+                                      label: Text('Date: $dateText'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    tooltip: 'Refresh',
+                                    onPressed: isLoadingOrders
+                                        ? null
+                                        : () => loadOrdersForDate(
+                                            selectedOrderDate,
+                                            setPageState,
+                                          ),
+                                    icon: const Icon(Icons.refresh),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        if (isLoadingOrders)
+                          const LinearProgressIndicator(minHeight: 2),
+                        Expanded(
+                          child: loadError != null
+                              ? Center(
+                                  child: Text(
+                                    'Failed to load orders: $loadError',
+                                  ),
+                                )
+                              : filteredOrders.isEmpty && !isLoadingOrders
+                              ? Center(
+                                  child: Text('No orders found for $dateText'),
+                                )
+                              : ListView(
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.fromLTRB(
+                                        16,
+                                        14,
+                                        16,
+                                        6,
+                                      ),
+                                      child: Text(
+                                        'New / Active Orders',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: CustomerPalette.textDark,
+                                        ),
+                                      ),
+                                    ),
+                                    if (assignableOrders.isEmpty)
+                                      const Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: Text(
+                                          'No active orders match this filter',
+                                        ),
+                                      )
+                                    else
+                                      ...assignableOrders.map(
+                                        (raw) => orderTile(
+                                          raw.cast<String, dynamic>(),
+                                          terminal: false,
+                                        ),
+                                      ),
+                                    if (showResetOrders) ...[
+                                      const Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          16,
+                                          18,
+                                          16,
+                                          6,
+                                        ),
+                                        child: Text(
+                                          'Delivered / Cancelled Orders',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            color: CustomerPalette.textDark,
+                                          ),
+                                        ),
+                                      ),
+                                      if (terminalOrders.isEmpty)
+                                        const Padding(
+                                          padding: EdgeInsets.all(16.0),
+                                          child: Text(
+                                            'No delivered/cancelled orders match this filter',
+                                          ),
+                                        )
+                                      else
+                                        ...terminalOrders.map(
+                                          (raw) => orderTile(
+                                            raw.cast<String, dynamic>(),
+                                            terminal: true,
+                                          ),
+                                        ),
+                                    ],
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      );
+    } finally {
+      orderSearchController.dispose();
+    }
   }
 
   void _showActivityDetails(Map<String, dynamic> activity) {

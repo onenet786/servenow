@@ -70,6 +70,11 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function canResetTerminalOrderToNew() {
+    const email = String(currentUser?.email || '').trim().toLowerCase();
+    return email === 'admin@servenow.com' || email === 'nazir@servenow.pk';
+}
+
 let __scheduledOrdersRefresh = null;
 
 function scheduleOrdersRefresh(delay = 700) {
@@ -4933,6 +4938,38 @@ function shouldAnimateOrderIndicator(status) {
     return !['delivered', 'completed', 'cancelled'].includes(normalized);
 }
 
+async function resetOrderToNew(orderId, orderNumber = '') {
+    if (!canResetTerminalOrderToNew()) {
+        showError('Access Denied', 'You do not have permission to reset delivered or cancelled orders.');
+        return;
+    }
+
+    const label = orderNumber ? `order ${orderNumber}` : `order #${orderId}`;
+    if (!confirm(`Reset ${label} to new pending state? Rider assignment will be cleared.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/orders/${orderId}/reset-to-new`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            showError('Reset Failed', data.message || 'Failed to reset order to new.');
+            return;
+        }
+        showSuccess('Order Reset', `${label} is back in the new order queue.`);
+        loadOrders();
+    } catch (error) {
+        console.error('Error resetting order to new:', error);
+        showError('Reset Failed', 'Failed to reset order to new.');
+    }
+}
+
 function parseOrderStoreStatuses(order) {
     const rawStatuses = order?.store_statuses;
     let statuses = [];
@@ -5165,6 +5202,7 @@ function displayOrders(orders = AppState.orders) {
         const isDelivered = String(order.status || '').toLowerCase() === 'delivered';
         const isCancelled = String(order.status || '').toLowerCase() === 'cancelled';
         const isLockedOrder = isDelivered || isCancelled;
+        const canResetLockedOrder = isLockedOrder && canResetTerminalOrderToNew();
         const deliveredAt = order.delivered_at || order.completed_at || order.updated_at;
         const timeTaken = isDelivered
             ? formatOrderDuration(order.created_at, deliveredAt || order.created_at)
@@ -5238,6 +5276,10 @@ function displayOrders(orders = AppState.orders) {
                     <button class="btn-small btn-edit" onclick="editOrder(${order.id})">
                         <i class="fas fa-edit"></i> Edit
                     </button>`}
+                    ${canResetLockedOrder ? `
+                    <button class="btn-small btn-warning" onclick="resetOrderToNew(${order.id}, '${escapeHtml(order.order_number)}')">
+                        <i class="fas fa-undo"></i> Reset New
+                    </button>` : ''}
                 </div>
             </td>
         `;

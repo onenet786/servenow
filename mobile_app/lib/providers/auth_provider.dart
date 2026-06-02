@@ -17,6 +17,7 @@ class AuthProvider with ChangeNotifier {
   bool _sessionExpired = false;
   bool _handlingUnauthorized = false;
   Future<String?>? _refreshingToken;
+  Future<void>? _googleSignInInitialization;
 
   AuthProvider() {
     ApiService.refreshAccessToken = _refreshAccessToken;
@@ -33,6 +34,10 @@ class AuthProvider with ChangeNotifier {
   bool get isStoreOwner => _user?.userType == 'store_owner';
   bool get isGuest => _user?.isGuest == true || _user?.userType == 'guest';
   bool get sessionExpired => _sessionExpired;
+
+  Future<void> _initializeGoogleSignIn() {
+    return _googleSignInInitialization ??= GoogleSignIn.instance.initialize();
+  }
 
   Future<void> _syncRiderTrackingSession() async {
     final token = _token?.trim();
@@ -151,16 +156,20 @@ class AuthProvider with ChangeNotifier {
         );
       }
 
-      final googleSignIn = GoogleSignIn(
-        scopes: <String>['email', 'profile'],
-      );
-      await googleSignIn.signOut();
-      final account = await googleSignIn.signIn();
-      if (account == null) {
-        throw Exception('Google sign in was cancelled.');
+      final googleSignIn = GoogleSignIn.instance;
+      await _initializeGoogleSignIn();
+      if (!googleSignIn.supportsAuthenticate()) {
+        throw Exception(
+          'Google sign in is not supported on this platform build.',
+        );
       }
 
-      final auth = await account.authentication;
+      await googleSignIn.signOut();
+      final account = await googleSignIn.authenticate(
+        scopeHint: <String>['email', 'profile'],
+      );
+
+      final auth = account.authentication;
       final idToken = auth.idToken?.trim();
       if (idToken == null || idToken.isEmpty) {
         throw Exception('Google sign in did not return a valid ID token.');

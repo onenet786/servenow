@@ -35,7 +35,7 @@ import 'screens/ui_test_home_screen.dart';
 import 'screens/customer_dashboard_test_screen.dart';
 import 'screens/customer_tile_demo_screen.dart';
 import 'theme/customer_palette.dart';
-import 'services/notifier.dart';
+import 'package:servenow/services/notifier.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final FlutterLocalNotificationsPlugin _backgroundLocalNotifications =
@@ -77,10 +77,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       return;
     }
 
-    final title =
-        message.data['title']?.toString().trim().isNotEmpty == true
-            ? message.data['title']!.toString().trim()
-            : 'ServeNow Notification';
+    final title = message.data['title']?.toString().trim().isNotEmpty == true
+        ? message.data['title']!.toString().trim()
+        : 'ServeNow Notification';
     final body = message.data['message']?.toString().trim() ?? '';
     if (body.isEmpty) return;
 
@@ -111,7 +110,9 @@ Future<void> main() async {
     try {
       await Firebase.initializeApp();
       await _ensureBackgroundNotificationsReady();
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+        _firebaseMessagingBackgroundHandler,
+      );
     } catch (_) {}
   }
   runApp(const MyApp());
@@ -122,17 +123,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseScheme = ColorScheme.fromSeed(
-      seedColor: CustomerPalette.primary,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: CustomerPalette.primary,
-      secondary: CustomerPalette.accent,
-      surface: CustomerPalette.card,
-      onPrimary: Colors.white,
-      onSecondary: CustomerPalette.textDark,
-      onSurface: CustomerPalette.textDark,
-    );
+    final baseScheme =
+        ColorScheme.fromSeed(
+          seedColor: CustomerPalette.primary,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: CustomerPalette.primary,
+          secondary: CustomerPalette.accent,
+          surface: CustomerPalette.card,
+          onPrimary: Colors.white,
+          onSecondary: CustomerPalette.textDark,
+          onSurface: CustomerPalette.textDark,
+        );
 
     return MultiProvider(
       providers: [
@@ -159,7 +161,7 @@ class MyApp extends StatelessWidget {
               child: _AppUpdateOverlay(
                 child: Stack(
                   children: [
-                    if (child != null) child,
+                    ?child,
                     const Positioned(
                       right: 6,
                       bottom: 4,
@@ -313,8 +315,10 @@ class _VersionBadge extends StatefulWidget {
 }
 
 class _VersionBadgeState extends State<_VersionBadge> {
-  static const String _envTag =
-      String.fromEnvironment('APP_VERSION_TAG', defaultValue: '');
+  static const String _envTag = String.fromEnvironment(
+    'APP_VERSION_TAG',
+    defaultValue: '',
+  );
   String _tag = _envTag;
 
   @override
@@ -390,10 +394,7 @@ class _SessionGuardState extends State<_SessionGuard> {
         if (!mounted) return;
         final currentRoute = ModalRoute.of(context)?.settings.name;
         if (auth.sessionExpired) {
-          Notifier.error(
-            context,
-            'Session expired. Please log in again.',
-          );
+          Notifier.error(context, 'Session expired. Please log in again.');
           auth.clearSessionExpiredFlag();
         }
         if (currentRoute != '/login') {
@@ -478,7 +479,9 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
       if (versionPart.isEmpty) return <int>[0, buildNumber];
       final versionParts = versionPart
           .split('.')
-          .map((part) => int.tryParse(part.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0)
+          .map(
+            (part) => int.tryParse(part.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0,
+          )
           .toList();
       versionParts.add(buildNumber);
       return versionParts;
@@ -486,8 +489,9 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
 
     final currentParts = parseParts(current);
     final targetParts = parseParts(target);
-    final maxLen =
-        currentParts.length > targetParts.length ? currentParts.length : targetParts.length;
+    final maxLen = currentParts.length > targetParts.length
+        ? currentParts.length
+        : targetParts.length;
     for (int i = 0; i < maxLen; i++) {
       final a = i < currentParts.length ? currentParts[i] : 0;
       final b = i < targetParts.length ? targetParts[i] : 0;
@@ -516,14 +520,20 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
               ? '$installedVersion+$installedBuild'
               : installedVersion);
 
-    final minimumSupportedVersion =
-        (status['minimum_supported_version'] ?? '').toString().trim();
+    final minimumSupportedVersion = (status['minimum_supported_version'] ?? '')
+        .toString()
+        .trim();
     final updateAvailable =
         _compareVersionStrings(installedComparableVersion, latestVersion) < 0;
     if (!updateAvailable) return null;
 
-    final forcedByVersion = minimumSupportedVersion.isNotEmpty &&
-        _compareVersionStrings(installedComparableVersion, minimumSupportedVersion) < 0;
+    final forcedByVersion =
+        minimumSupportedVersion.isNotEmpty &&
+        _compareVersionStrings(
+              installedComparableVersion,
+              minimumSupportedVersion,
+            ) <
+            0;
     final reminderHour =
         int.tryParse((status['reminder_hour'] ?? '12').toString()) ?? 12;
 
@@ -535,7 +545,8 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
       'latest_version': latestVersion,
       'update_available': true,
       'force_update_active':
-          (status['force_update'] == true || status['force_update'] == 1) || forcedByVersion,
+          (status['force_update'] == true || status['force_update'] == 1) ||
+          forcedByVersion,
       'reminder_hour': reminderHour.clamp(0, 23),
     };
   }
@@ -567,10 +578,11 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
   Future<void> _openAppUpdateLink() async {
     final status = _appUpdateStatus;
     if (status == null) return;
-    final url = (status['play_store_url'] ??
-            'https://play.google.com/store/apps/details?id=com.onenetsol.servenow')
-        .toString()
-        .trim();
+    final url =
+        (status['play_store_url'] ??
+                'https://play.google.com/store/apps/details?id=com.onenetsol.servenow')
+            .toString()
+            .trim();
     if (url.isEmpty) return;
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -599,9 +611,10 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
     if (!mounted || _dialogOpen) return;
     _dialogOpen = true;
     final forceUpdate = status['force_update_active'] == true;
-    final message = (status['message'] ?? 'A new version of ServeNow is available.')
-        .toString()
-        .trim();
+    final message =
+        (status['message'] ?? 'A new version of ServeNow is available.')
+            .toString()
+            .trim();
 
     await showDialog<void>(
       context: context,
@@ -609,7 +622,9 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
       builder: (dialogContext) {
         return AlertDialog(
           title: Text(forceUpdate ? 'Update Required' : 'Update Available'),
-          content: Text(message.isNotEmpty ? message : 'Please update the app.'),
+          content: Text(
+            message.isNotEmpty ? message : 'Please update the app.',
+          ),
           actions: [
             if (!forceUpdate)
               TextButton(
@@ -673,7 +688,10 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.system_update_alt, color: Color(0xFFB45309)),
+                        const Icon(
+                          Icons.system_update_alt,
+                          color: Color(0xFFB45309),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -693,7 +711,9 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
                             onPressed: () {
                               setState(() {
                                 _dismissedVersion =
-                                    (status['latest_version'] ?? '').toString().trim();
+                                    (status['latest_version'] ?? '')
+                                        .toString()
+                                        .trim();
                               });
                             },
                           ),
@@ -701,7 +721,8 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      (status['message'] ?? 'A newer version of ServeNow is available.')
+                      (status['message'] ??
+                              'A newer version of ServeNow is available.')
                           .toString(),
                       style: const TextStyle(
                         fontSize: 12.8,
@@ -712,7 +733,10 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
                     Text(
                       'Installed: ${(status['installed_version'] ?? 'Unknown').toString()}'
                       '   Latest: ${(status['latest_version'] ?? '').toString()}',
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Align(
