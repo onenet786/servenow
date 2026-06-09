@@ -436,6 +436,7 @@ function initializeFinancialForms() {
                     this.value === 'store_payable_reconciliation' ||
                     this.value === 'unsettled_amounts_report' ||
                     this.value === 'store_order_settlement_report' ||
+                    this.value === 'credit_store_order_reconciliation' ||
                     this.value === 'periodic_sales_report'
                 ) ? 'block' : 'none';
             }
@@ -2940,7 +2941,7 @@ async function submitGenerateReport() {
     if (storeId && (reportType === 'periodic_comprehensive_summary_report' || reportType === 'periodic_store_payments_balance_report')) {
         payload.store_id = storeId;
     }
-    if (storeId && (reportType === 'store_payable_reconciliation' || reportType === 'unsettled_amounts_report')) {
+    if (storeId && (reportType === 'store_payable_reconciliation' || reportType === 'unsettled_amounts_report' || reportType === 'store_order_settlement_report' || reportType === 'credit_store_order_reconciliation')) {
         payload.store_id = storeId;
     }
 
@@ -3043,6 +3044,19 @@ async function saveGeneratedReport(payload) {
 
 function formatFinancialReportCurrency(value) {
     return `Rs ${parseFloat(value || 0).toFixed(2)}`;
+}
+
+function formatRoundedRupees(value) {
+    return `Rs ${Math.round(Number(value || 0))}`;
+}
+
+function getCreditReconciliationStoreName(data) {
+    if (!data) return 'All Credit Stores';
+    if (data.summary && data.summary.store_name) return data.summary.store_name;
+    if (Array.isArray(data.store_rows) && data.store_rows.length === 1) {
+        return data.store_rows[0].store_name || 'Store';
+    }
+    return 'All Credit Stores';
 }
 
 function formatFinancialReportDate(value) {
@@ -3404,6 +3418,24 @@ function generatePDF(reportId) {
     const hideFinancialSummary = data && (data.type === 'rider_fuel' || data.type === 'rider_petrol');
 
     if (!hideFinancialSummary) {
+        const isCreditReconciliation = data && data.type === 'credit_store_order_reconciliation' && data.summary;
+        const summaryRows = isCreditReconciliation
+            ? [
+                ['Store', getCreditReconciliationStoreName(data)],
+                ['Gross Sale', formatRoundedRupees(data.summary.gross_sales)],
+                ['Store Payable', formatRoundedRupees(data.summary.store_payable)],
+                ['Paid To Store', formatRoundedRupees(data.summary.paid_to_store)],
+                ['Pending Store Balance', formatRoundedRupees(data.summary.pending_store_balance)],
+                ['ServeNow Profit', formatRoundedRupees(data.summary.sale_profit)],
+                ['Cancelled/Unpaid Profit', formatRoundedRupees(data.summary.cancelled_unpaid_discount)]
+            ]
+            : [
+                ['Total Income', formatRoundedRupees(report.total_income)],
+                ['Total Expense', formatRoundedRupees(report.total_expense)],
+                ['Total Settlements', formatRoundedRupees(report.total_commissions)],
+                ['Net Profit', formatRoundedRupees(report.net_profit)]
+            ];
+
         doc.setFontSize(12);
         doc.setTextColor(0);
         doc.text('Financial Summary', 14, 58);
@@ -3411,12 +3443,7 @@ function generatePDF(reportId) {
         doc.autoTable({
             startY: 62,
             head: [['Category', 'Amount']],
-            body: [
-                ['Total Income', `Rs ${parseFloat(report.total_income).toFixed(2)}`],
-                ['Total Expense', `Rs ${parseFloat(report.total_expense).toFixed(2)}`],
-                ['Total Settlements', `Rs ${parseFloat(report.total_commissions).toFixed(2)}`],
-                ['Net Profit', `Rs ${parseFloat(report.net_profit).toFixed(2)}`]
-            ],
+            body: summaryRows,
             theme: 'striped',
             headStyles: { fillColor: [41, 128, 185] },
             styles: { fontSize: 10, cellPadding: 3 }
@@ -4066,6 +4093,62 @@ function generatePDF(reportId) {
                     ]),
                     theme: 'grid',
                     styles: { fontSize: 6.5 }
+                });
+            }
+        } else if (data.type === 'credit_store_order_reconciliation') {
+            doc.text('Credit Store Order Reconciliation', 14, startY);
+            if (data.summary) {
+                doc.setFontSize(10);
+                doc.text(
+                    `Store: ${getCreditReconciliationStoreName(data)} | Orders: ${parseInt(data.summary.total_orders || 0)} | Cancelled: ${parseInt(data.summary.cancelled_orders || 0)} | ServeNow Profit: ${formatRoundedRupees(data.summary.sale_profit || 0)} | Cancelled/Unpaid Profit: ${formatRoundedRupees(data.summary.cancelled_unpaid_discount || 0)} | Paid: ${formatRoundedRupees(data.summary.paid_to_store || 0)} | Pending: ${formatRoundedRupees(data.summary.pending_store_balance || 0)}`,
+                    14,
+                    startY + 5
+                );
+                startY += 10;
+            }
+
+            if (Array.isArray(data.store_rows) && data.store_rows.length) {
+                doc.autoTable({
+                    startY: startY + 5,
+                    head: [['Store', 'Term', 'Orders', 'Cancelled', 'Sale Amount', 'Store Payable', 'ServeNow Profit', 'Cancelled/Unpaid Profit', 'Paid To Store', 'Pending']],
+                    body: data.store_rows.map((r) => [
+                        r.store_name || '-',
+                        r.payment_term || '-',
+                        parseInt(r.total_orders || 0),
+                        parseInt(r.cancelled_orders || 0),
+                        formatRoundedRupees(r.gross_sales || 0),
+                        formatRoundedRupees(r.store_payable || 0),
+                        formatRoundedRupees(r.sale_profit || 0),
+                        formatRoundedRupees(r.cancelled_unpaid_discount || 0),
+                        formatRoundedRupees(r.paid_to_store || 0),
+                        formatRoundedRupees(r.pending_store_balance || 0)
+                    ]),
+                    theme: 'grid',
+                    styles: { fontSize: 6.5 }
+                });
+            }
+
+            if (Array.isArray(data.order_rows) && data.order_rows.length) {
+                const afterY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : startY + 30;
+                doc.text('Order-wise Credit Details', 14, afterY);
+                doc.autoTable({
+                    startY: afterY + 4,
+                    head: [['Order #', 'Date', 'Store', 'Status', 'Sale Amount', 'Store Payable', 'ServeNow Profit', 'Cancelled/Unpaid Profit', 'Paid To Store', 'Pending', 'Cancelled Sale']],
+                    body: data.order_rows.map((r) => [
+                        r.order_number || '-',
+                        r.order_date ? new Date(r.order_date).toLocaleDateString() : '-',
+                        r.store_name || '-',
+                        r.order_status || '-',
+                        formatRoundedRupees(r.gross_sales || 0),
+                        formatRoundedRupees(r.store_payable || 0),
+                        formatRoundedRupees(r.sale_profit || 0),
+                        formatRoundedRupees(r.cancelled_unpaid_discount || 0),
+                        formatRoundedRupees(r.paid_to_store || 0),
+                        formatRoundedRupees(r.pending_store_balance || 0),
+                        formatRoundedRupees(r.cancelled_sales || 0)
+                    ]),
+                    theme: 'grid',
+                    styles: { fontSize: 5.8 }
                 });
             }
         } else if (data.type === 'general_voucher') {
@@ -4806,6 +4889,46 @@ function viewReport(reportId) {
             </tr>`;
         });
         extraDetails += '</tbody></table></div>';
+    } else if (data && data.type === 'credit_store_order_reconciliation') {
+        extraDetails = '<h3>Credit Store Order Reconciliation</h3>';
+        extraDetails += '<h3 style="margin-top:10px;">Store-wise Summary</h3><div class="report-detail-table-wrapper"><table class="report-detail-table" style="font-size:0.78em"><thead><tr><th>Store</th><th>Term</th><th>Orders</th><th>Delivered</th><th>Cancelled</th><th>Sale Amount</th><th>Store Payable</th><th>ServeNow Profit</th><th>Cancelled/Unpaid Profit</th><th>Paid To Store</th><th>Pending</th><th>Cancelled Sale</th></tr></thead><tbody>';
+        (data.store_rows || []).forEach((r) => {
+            extraDetails += `<tr>
+                <td>${r.store_name || '-'}</td>
+                <td>${r.payment_term || '-'}</td>
+                <td>${parseInt(r.total_orders || 0)}</td>
+                <td>${parseInt(r.delivered_orders || 0)}</td>
+                <td>${parseInt(r.cancelled_orders || 0)}</td>
+                <td>Rs ${parseFloat(r.gross_sales || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.store_payable || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.sale_profit || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.cancelled_unpaid_discount || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.paid_to_store || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.pending_store_balance || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.cancelled_sales || 0).toFixed(2)}</td>
+            </tr>`;
+        });
+        extraDetails += '</tbody></table></div>';
+
+        extraDetails += '<h3 style="margin-top:14px;">Order-wise Details</h3><div class="report-detail-table-wrapper"><table class="report-detail-table" style="font-size:0.76em"><thead><tr><th>Order #</th><th>Date</th><th>Store</th><th>Status</th><th>Pay Status</th><th>Sale Amount</th><th>Store Payable</th><th>ServeNow Profit</th><th>Cancelled/Unpaid Profit</th><th>Paid To Store</th><th>Pending</th><th>Cancelled Sale</th><th>Settlement #</th></tr></thead><tbody>';
+        (data.order_rows || []).forEach((r) => {
+            extraDetails += `<tr>
+                <td>${r.order_number || '-'}</td>
+                <td>${r.order_date ? new Date(r.order_date).toLocaleDateString() : '-'}</td>
+                <td>${r.store_name || '-'}</td>
+                <td>${r.order_status || '-'}</td>
+                <td>${r.payment_status || '-'}</td>
+                <td>Rs ${parseFloat(r.gross_sales || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.store_payable || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.sale_profit || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.cancelled_unpaid_discount || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.paid_to_store || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.pending_store_balance || 0).toFixed(2)}</td>
+                <td>Rs ${parseFloat(r.cancelled_sales || 0).toFixed(2)}</td>
+                <td>${r.settlement_numbers || '-'}</td>
+            </tr>`;
+        });
+        extraDetails += '</tbody></table></div>';
     } else if (data && data.type === 'comprehensive_report') {
         extraDetails = '<h3>Comprehensive Transactions</h3><div class="report-detail-table-wrapper"><table class="report-detail-table" style="font-size:0.8em"><thead><tr><th>Date</th><th>Ref #</th><th>Type</th><th>Entity</th><th>In</th><th>Out</th><th>Desc</th></tr></thead><tbody>';
         if (data.transactions) {
@@ -4943,11 +5066,11 @@ function viewReport(reportId) {
                 extraDetails += `<tr>
                     <td>${o.order_number}<br><small>${new Date(o.created_at).toLocaleDateString()}</small></td>
                     <td>${itemsList}</td>
-                    <td>Rs  ${parseFloat(o.item_sales_gross).toFixed(2)}</td>
-                    <td>Rs  ${parseFloat(o.total_cost_price).toFixed(2)}</td>
-                    <td>Rs  ${parseFloat(o.estimated_commission).toFixed(2)}</td>
-                    <td>Rs  ${parseFloat(o.delivery_fee).toFixed(2)}</td>
-                    <td><strong>Rs  ${parseFloat(o.total_amount).toFixed(2)}</strong></td>
+                    <td>${formatRoundedRupees(o.item_sales_gross)}</td>
+                    <td>${formatRoundedRupees(o.total_cost_price)}</td>
+                    <td>${formatRoundedRupees(o.estimated_commission)}</td>
+                    <td>${formatRoundedRupees(o.delivery_fee)}</td>
+                    <td><strong>${formatRoundedRupees(o.calculated_total ?? o.total_amount ?? 0)}</strong></td>
                 </tr>`;
             });
         }
@@ -4956,16 +5079,26 @@ function viewReport(reportId) {
         if (data.summary) {
              extraDetails += `<div style="margin-top: 15px; font-size: 1.0em; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 5px;">
                 <strong>Totals:</strong><br>
-                Item Sales: Rs  ${parseFloat(data.summary.total_item_sales).toFixed(2)} | 
-                Cost: Rs  ${parseFloat(data.summary.total_cost).toFixed(2)} | 
-                Commission: Rs  ${parseFloat(data.summary.total_commission).toFixed(2)} | 
-                Delivery: Rs  ${parseFloat(data.summary.total_delivery).toFixed(2)} | 
-                <strong>Grand Total: Rs  ${parseFloat(data.summary.grand_total).toFixed(2)}</strong>
+                Item Sales: ${formatRoundedRupees(data.summary.total_item_sales)} | 
+                Cost: ${formatRoundedRupees(data.summary.total_cost)} | 
+                Commission: ${formatRoundedRupees(data.summary.total_commission)} | 
+                Delivery: ${formatRoundedRupees(data.summary.total_delivery)} | 
+                <strong>Grand Total: ${formatRoundedRupees(data.summary.grand_total)}</strong>
             </div>`;
         }
     }
 
     const hideFinancialSummary = data && (data.type === 'rider_fuel' || data.type === 'rider_petrol');
+    const customFinancialSummary = data && data.type === 'credit_store_order_reconciliation' && data.summary
+        ? `<br>
+            <strong>Store:</strong> ${getCreditReconciliationStoreName(data)}<br>
+            <strong>Gross Sale:</strong> ${formatRoundedRupees(data.summary.gross_sales)}<br>
+            <strong>Store Payable:</strong> ${formatRoundedRupees(data.summary.store_payable)}<br>
+            <strong>Paid To Store:</strong> ${formatRoundedRupees(data.summary.paid_to_store)}<br>
+            <strong>Pending Store Balance:</strong> ${formatRoundedRupees(data.summary.pending_store_balance)}<br>
+            <strong>ServeNow Profit:</strong> ${formatRoundedRupees(data.summary.sale_profit)}<br>
+            <strong>Cancelled/Unpaid Profit:</strong> ${formatRoundedRupees(data.summary.cancelled_unpaid_discount)}`
+        : null;
     const details = `
         <div class="report-summary">
             <strong>Number:</strong> ${report.report_number}<br>
@@ -4973,11 +5106,11 @@ function viewReport(reportId) {
             <strong>Period:</strong> ${report.period_from ? new Date(report.period_from).toLocaleDateString() : '-'} to ${report.period_to ? new Date(report.period_to).toLocaleDateString() : '-'}<br>
             <hr>
             <strong>Generated:</strong> ${new Date(report.created_at).toLocaleString()}
-            ${hideFinancialSummary ? '' : `<br>
-            <strong>Total Income:</strong> Rs  ${parseFloat(report.total_income).toFixed(2)}<br>
-            <strong>Total Expense:</strong> Rs  ${parseFloat(report.total_expense).toFixed(2)}<br>
-            <strong>Total Settlements:</strong> Rs  ${parseFloat(report.total_commissions).toFixed(2)}<br>
-            <strong>Net Profit:</strong> Rs  ${parseFloat(report.net_profit).toFixed(2)}`}
+            ${customFinancialSummary || (hideFinancialSummary ? '' : `<br>
+            <strong>Total Income:</strong> ${formatRoundedRupees(report.total_income)}<br>
+            <strong>Total Expense:</strong> ${formatRoundedRupees(report.total_expense)}<br>
+            <strong>Total Settlements:</strong> ${formatRoundedRupees(report.total_commissions)}<br>
+            <strong>Net Profit:</strong> ${formatRoundedRupees(report.net_profit)}`)}
         </div>
         ${extraDetails}
     `;
@@ -5233,7 +5366,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.value === 'periodic_store_payments_balance_report' ||
                     this.value === 'store_payable_reconciliation' ||
                     this.value === 'unsettled_amounts_report' ||
-                    this.value === 'store_order_settlement_report'
+                    this.value === 'store_order_settlement_report' ||
+                    this.value === 'credit_store_order_reconciliation'
                 ) ? 'block' : 'none';
             }
             if (this.value === 'periodic_credit_cash_report') {

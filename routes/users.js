@@ -6,6 +6,26 @@ const crypto = require('crypto');
 const { sendVerificationEmail, sendDeletionRequestEmail } = require('../services/emailService');
 
 const router = express.Router();
+let userProfileColumnsEnsured = false;
+
+async function ensureUserProfileColumns(db) {
+    if (userProfileColumnsEnsured) return;
+    const columns = [
+        { name: 'id_card_num', definition: 'VARCHAR(100) NULL' },
+        { name: 'image_url', definition: 'VARCHAR(255) NULL' }
+    ];
+
+    for (const column of columns) {
+        const [existing] = await db.execute(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ? LIMIT 1",
+            [column.name]
+        );
+        if (!existing.length) {
+            await db.execute(`ALTER TABLE users ADD COLUMN ${column.name} ${column.definition}`);
+        }
+    }
+    userProfileColumnsEnsured = true;
+}
 
 function normalizePositiveInt(value) {
     if (value === '' || value === null || value === undefined) return null;
@@ -78,8 +98,9 @@ const requireUserManagement = async (req, res, next) => {
 // Get all users (Admin or Standard User with permission)
 router.get('/', authenticateToken, requireUserManagement, async (req, res) => {
     try {
+        await ensureUserProfileColumns(req.db);
         const [users] = await req.db.execute(
-            'SELECT id, first_name, last_name, email, phone, address, user_type, is_active, is_verified, created_at, store_id FROM users ORDER BY created_at DESC'
+            'SELECT id, first_name, last_name, email, phone, address, user_type, is_active, is_verified, created_at, store_id, id_card_num, image_url FROM users ORDER BY created_at DESC'
         );
 
         const formattedUsers = users.map(user => ({
@@ -114,6 +135,8 @@ router.post('/', authenticateToken, requireAdmin, [
     body('user_type').isIn(['customer', 'store_owner', 'admin', 'standard_user', 'rider']).withMessage('Invalid user type'),
     body('is_verified').optional().isBoolean(),
     body('is_active').optional().isBoolean(),
+    body('id_card_num').optional({ checkFalsy: true }).trim().isLength({ max: 100 }).withMessage('ID card number is too long'),
+    body('image_url').optional({ checkFalsy: true }).trim().isLength({ max: 255 }).withMessage('User photo URL is too long'),
     body('store_id')
         .optional({ nullable: true })
         .custom((value) => {
@@ -132,6 +155,7 @@ router.post('/', authenticateToken, requireAdmin, [
         })
 ], async (req, res) => {
     try {
+        await ensureUserProfileColumns(req.db);
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({
@@ -141,17 +165,19 @@ router.post('/', authenticateToken, requireAdmin, [
             });
         }
 
-        const { firstName, lastName, email, password, phone, address, user_type, is_verified, is_active, store_id } = req.body;
+        const { firstName, lastName, email, password, phone, address, user_type, is_verified, is_active, store_id, id_card_num, image_url } = req.body;
         const normalizedEmail = String(email || '').trim().toLowerCase();
         const normalizedPhone = phone === undefined || phone === null ? '' : String(phone).trim();
         const normalizedStoreId = normalizePositiveInt(store_id);
+        const normalizedIdCardNum = id_card_num === undefined || id_card_num === null ? null : String(id_card_num).trim() || null;
+        const normalizedImageUrl = image_url === undefined || image_url === null ? null : String(image_url).trim() || null;
 
         const [existing] = await req.db.execute('SELECT id FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
         if (existing.length > 0) {
             return res.status(400).json({ success: false, message: 'Email already exists' });
         }
         if (normalizedPhone) {
-            const [existingPhone] = await req.db.execute('SELECT id FROM users WHERE phone = ?', [normalizedPhone]);
+            const [existingPhone] = await req.db.execute('SELECT id FROM users WHERE TRIM(phone) = ?', [normalizedPhone]);
             if (existingPhone.length > 0) {
                 return res.status(400).json({ success: false, message: 'Phone already exists' });
             }
@@ -168,8 +194,8 @@ router.post('/', authenticateToken, requireAdmin, [
         const active = is_active !== undefined ? is_active : true;
 
         const [result] = await req.db.execute(
-            'INSERT INTO users (first_name, last_name, email, phone, password, address, user_type, verification_code, verification_expires_at, is_verified, is_active, store_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [firstName, lastName, normalizedEmail, normalizedPhone || null, hashedPassword, address || null, user_type || 'customer', verificationCode, verificationExpiresAt, verified, active, normalizedStoreId]
+            'INSERT INTO users (first_name, last_name, email, phone, password, address, user_type, verification_code, verification_expires_at, is_verified, is_active, store_id, id_card_num, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [firstName, lastName, normalizedEmail, normalizedPhone || null, hashedPassword, address || null, user_type || 'customer', verificationCode, verificationExpiresAt, verified, active, normalizedStoreId, normalizedIdCardNum, normalizedImageUrl]
         );
 
         await syncStoreOwnerAssignment(req.db, {
@@ -209,6 +235,8 @@ router.put('/:id', authenticateToken, requireAdmin, [
     body('user_type').optional().isIn(['customer', 'store_owner', 'admin', 'standard_user', 'rider']).withMessage('Invalid user type'),
     body('is_active').optional().isBoolean().withMessage('is_active must be a boolean'),
     body('is_verified').optional().isBoolean().withMessage('is_verified must be a boolean'),
+    body('id_card_num').optional({ checkFalsy: true }).trim().isLength({ max: 100 }).withMessage('ID card number is too long'),
+    body('image_url').optional({ checkFalsy: true }).trim().isLength({ max: 255 }).withMessage('User photo URL is too long'),
     body('store_id')
         .optional({ nullable: true })
         .custom((value) => {
@@ -227,6 +255,7 @@ router.put('/:id', authenticateToken, requireAdmin, [
         })
 ], async (req, res) => {
     try {
+        await ensureUserProfileColumns(req.db);
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({
@@ -239,11 +268,13 @@ router.put('/:id', authenticateToken, requireAdmin, [
         const { id } = req.params;
         const {
             firstName, lastName, email, phone, address, password,
-            user_type, is_active, is_verified, store_id
+            user_type, is_active, is_verified, store_id, id_card_num, image_url
         } = req.body;
         const normalizedEmail = email === undefined ? undefined : String(email || '').trim().toLowerCase();
         const normalizedPhone = phone === undefined ? undefined : String(phone || '').trim();
         const normalizedStoreId = store_id === undefined ? undefined : normalizePositiveInt(store_id);
+        const normalizedIdCardNum = id_card_num === undefined ? undefined : String(id_card_num || '').trim();
+        const normalizedImageUrl = image_url === undefined ? undefined : String(image_url || '').trim();
 
         const [existingUsers] = await req.db.execute(
             'SELECT id, user_type, store_id FROM users WHERE id = ? LIMIT 1',
@@ -268,6 +299,8 @@ router.put('/:id', authenticateToken, requireAdmin, [
         if (user_type !== undefined) { updateFields.push('user_type = ?'); updateValues.push(user_type); }
         if (is_active !== undefined) { updateFields.push('is_active = ?'); updateValues.push(is_active); }
         if (is_verified !== undefined) { updateFields.push('is_verified = ?'); updateValues.push(is_verified); }
+        if (id_card_num !== undefined) { updateFields.push('id_card_num = ?'); updateValues.push(normalizedIdCardNum || null); }
+        if (image_url !== undefined) { updateFields.push('image_url = ?'); updateValues.push(normalizedImageUrl || null); }
         if (user_type !== undefined && user_type !== 'store_owner') {
             updateFields.push('store_id = ?');
             updateValues.push(null);
@@ -299,7 +332,7 @@ router.put('/:id', authenticateToken, requireAdmin, [
             }
         }
         if (phone !== undefined && normalizedPhone) {
-            const [existingPhone] = await req.db.execute('SELECT id FROM users WHERE phone = ? AND id != ?', [normalizedPhone, id]);
+            const [existingPhone] = await req.db.execute('SELECT id FROM users WHERE TRIM(phone) = ? AND id != ?', [normalizedPhone, id]);
             if (existingPhone.length > 0) {
                 return res.status(400).json({ success: false, message: 'Phone already in use by another user' });
             }

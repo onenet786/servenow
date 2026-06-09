@@ -13,6 +13,8 @@ CREATE TABLE users (
     phone VARCHAR(20),
     password VARCHAR(255) NOT NULL,
     address TEXT,
+    id_card_num VARCHAR(100) DEFAULT NULL,
+    image_url VARCHAR(255) DEFAULT NULL,
     user_type ENUM('customer', 'store_owner', 'admin', 'standard_user') DEFAULT 'customer',
     verification_code VARCHAR(6),
     verification_expires_at TIMESTAMP,
@@ -537,7 +539,7 @@ CREATE TABLE IF NOT EXISTS admin_expenses (
 CREATE TABLE IF NOT EXISTS financial_reports (
     id INT PRIMARY KEY AUTO_INCREMENT,
     report_number VARCHAR(50) UNIQUE NOT NULL,
-    report_type ENUM('daily_summary', 'weekly_summary', 'monthly_summary', 'store_settlement', 'rider_cash_report', 'rider_wallet_report', 'expense_report', 'general_voucher', 'store_financials', 'custom') NOT NULL,
+    report_type ENUM('daily_summary', 'weekly_summary', 'monthly_summary', 'store_settlement', 'rider_cash_report', 'rider_orders_report', 'rider_payments_report', 'rider_receivings_report', 'rider_wallet_report', 'rider_petrol_report', 'rider_daily_mileage_report', 'rider_daily_activity_report', 'rider_day_closing_report', 'order_profit_report', 'expense_report', 'general_voucher', 'store_financials', 'rider_fuel_report', 'comprehensive_report', 'store_payable_reconciliation', 'unsettled_amounts_report', 'cash_discrepancy_report', 'store_order_settlement_report', 'credit_store_order_reconciliation', 'delivery_charges_breakdown', 'order_wise_sale_summary', 'periodic_sales_report', 'periodic_credit_cash_report', 'periodic_comprehensive_summary_report', 'periodic_store_payments_balance_report', 'transaction_summary', 'custom') NOT NULL,
     period_from DATE,
     period_to DATE,
     total_income DECIMAL(12, 2) DEFAULT 0.00,

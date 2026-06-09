@@ -32,6 +32,7 @@ const SUPPORTED_FINANCIAL_REPORT_TYPES = [
     'unsettled_amounts_report',
     'cash_discrepancy_report',
     'store_order_settlement_report',
+    'credit_store_order_reconciliation',
     'delivery_charges_breakdown',
     'order_wise_sale_summary',
     'periodic_sales_report',
@@ -2449,7 +2450,7 @@ router.put('/rider-cash/:id', [
         });
     } catch (error) {
         console.error('Error updating rider cash movement:', error);
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
             message: 'Failed to update rider cash movement',
             error: error.message
@@ -3210,6 +3211,7 @@ router.post('/reports/generate', [
                 'store_payable_reconciliation': 'report_store_settlement',
                 'unsettled_amounts_report': 'report_store_settlement',
                 'store_order_settlement_report': 'report_store_settlement',
+                'credit_store_order_reconciliation': 'report_store_settlement',
                 'cash_discrepancy_report': 'report_comprehensive_cash',
                 'transaction_summary': 'report_transactions_summary',
                 'general_voucher': 'report_general_voucher',
@@ -3264,6 +3266,7 @@ router.post('/reports/generate', [
             case 'unsettled_amounts_report': prefix = 'UAR'; break;
             case 'cash_discrepancy_report': prefix = 'CDR'; break;
             case 'store_order_settlement_report': prefix = 'SOS'; break;
+            case 'credit_store_order_reconciliation': prefix = 'CSR'; break;
             case 'expense_report': prefix = 'EXR'; break;
             case 'delivery_charges_breakdown': prefix = 'DCB'; break;
             case 'general_voucher': prefix = 'GVR'; break;
@@ -4243,7 +4246,8 @@ router.post('/reports/generate', [
                         items: [],
                         item_sales_gross: 0,
                         total_cost_price: 0,
-                        estimated_commission: 0
+                        estimated_commission: 0,
+                        calculated_total: 0
                     });
                 }
                 const order = ordersMap.get(row.order_id);
@@ -4284,18 +4288,33 @@ router.post('/reports/generate', [
             });
 
             const orders = Array.from(ordersMap.values());
+            orders.forEach((order) => {
+                order.item_sales_gross = Number(order.item_sales_gross.toFixed(2));
+                order.total_cost_price = Number(order.total_cost_price.toFixed(2));
+                order.estimated_commission = Number(order.estimated_commission.toFixed(2));
+                order.delivery_fee = Number(Number(order.delivery_fee || 0).toFixed(2));
+                order.calculated_total = Number((order.item_sales_gross + order.delivery_fee).toFixed(2));
+            });
 
             const summary = orders.reduce((acc, o) => {
                 acc.total_item_sales += parseFloat(o.item_sales_gross || 0);
                 acc.total_cost += parseFloat(o.total_cost_price || 0);
                 acc.total_commission += parseFloat(o.estimated_commission || 0);
                 acc.total_delivery += parseFloat(o.delivery_fee || 0);
-                acc.grand_total += parseFloat(o.total_amount || 0);
+                acc.grand_total += parseFloat(o.calculated_total || 0);
                 return acc;
             }, { total_item_sales: 0, total_cost: 0, total_commission: 0, total_delivery: 0, grand_total: 0 });
 
-            // Set main report totals (optional, but good for consistency)
-            total_income = summary.total_commission + summary.total_delivery; // Platform income
+            Object.keys(summary).forEach((key) => {
+                summary[key] = Number(Number(summary[key] || 0).toFixed(2));
+            });
+
+            // Header totals must come from this report's own summary, not the generic ledger totals.
+            total_income = Number((summary.total_commission + summary.total_delivery).toFixed(2));
+            total_expense = 0;
+            total_settlements = 0;
+            total_refunds = 0;
+            total_adjustments = 0;
 
             reportData = {
                 type: 'order_wise_sale_summary',
@@ -6180,6 +6199,235 @@ router.post('/reports/generate', [
                 order_rows,
                 summary
             };
+        } else if (report_type === 'credit_store_order_reconciliation') {
+            const hasRange = Boolean(period_from && period_to);
+            const periodStart = hasRange ? `${period_from} 00:00:00` : null;
+            const periodEnd = hasRange ? `${period_to} 23:59:59` : null;
+            const hasStore = Boolean(store_id);
+
+            const discountSql = `
+                CASE
+                    WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%'
+                         AND COALESCE(s.store_discount_apply_all_products, 0) = 1
+                         AND COALESCE(s.store_discount_percent, 0) > 0
+                        THEN oi.price * (COALESCE(s.store_discount_percent, 0) / 100)
+                    WHEN oi.discount_type = 'percent' AND COALESCE(oi.discount_value, 0) > 0
+                        THEN oi.price * (COALESCE(oi.discount_value, 0) / 100)
+                    WHEN oi.discount_type = 'amount' AND COALESCE(oi.discount_value, 0) > 0
+                        THEN COALESCE(oi.discount_value, 0)
+                    ELSE 0
+                END`;
+            const grossSql = '(oi.quantity * oi.price)';
+            const discountAmountSql = `LEAST(${grossSql}, GREATEST(0, oi.quantity * (${discountSql})))`;
+            const payableSql = `GREATEST(0, ${grossSql} - (${discountAmountSql}))`;
+            const costSql = 'COALESCE(oi.cost_price, psp.cost_price, p.cost_price, oi.price)';
+            const storePayableSql = `
+                CASE
+                    WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%'
+                        THEN ${payableSql}
+                    ELSE LEAST(${grossSql}, GREATEST(0, oi.quantity * (${costSql})))
+                END`;
+            const profitSql = `GREATEST(0, ${grossSql} - (${storePayableSql}))`;
+
+            const [rows] = await req.db.execute(
+                `SELECT
+                    COALESCE(oi.store_id, p.store_id) AS store_id,
+                    s.name AS store_name,
+                    s.payment_term,
+                    o.id AS order_id,
+                    o.order_number,
+                    o.created_at AS order_date,
+                    o.status AS order_status,
+                    o.payment_method,
+                    o.payment_status,
+                    ROUND(SUM(
+                        CASE
+                            WHEN o.status = 'delivered' AND o.payment_status = 'paid'
+                                THEN ${grossSql}
+                            ELSE 0
+                        END
+                    ), 2) AS gross_sales,
+                    ROUND(SUM(${profitSql}), 2) AS discount_amount,
+                    ROUND(SUM(
+                        CASE
+                            WHEN o.status = 'delivered' AND o.payment_status = 'paid'
+                                THEN ${storePayableSql}
+                            ELSE 0
+                        END
+                    ), 2) AS net_sales,
+                    ROUND(SUM(
+                        CASE
+                            WHEN o.status = 'delivered' AND o.payment_status = 'paid'
+                                THEN ${storePayableSql}
+                            ELSE 0
+                        END
+                    ), 2) AS store_payable,
+                    ROUND(SUM(
+                        CASE
+                            WHEN o.status = 'delivered' AND o.payment_status = 'paid'
+                                THEN ${profitSql}
+                            ELSE 0
+                        END
+                    ), 2) AS sale_profit,
+                    ROUND(SUM(
+                        CASE
+                            WHEN NOT (o.status = 'delivered' AND o.payment_status = 'paid')
+                                THEN ${profitSql}
+                            ELSE 0
+                        END
+                    ), 2) AS cancelled_unpaid_discount,
+                    ROUND(SUM(
+                        CASE
+                            WHEN o.status = 'cancelled'
+                                THEN ${grossSql}
+                            ELSE 0
+                        END
+                    ), 2) AS cancelled_sales,
+                    ROUND(SUM(
+                        CASE
+                            WHEN oi.settlement_id IS NOT NULL AND ss.status = 'paid'
+                                THEN ${storePayableSql}
+                            ELSE 0
+                        END
+                    ), 2) AS paid_to_store,
+                    GROUP_CONCAT(DISTINCT CASE WHEN oi.settlement_id IS NOT NULL THEN ss.settlement_number END ORDER BY ss.id DESC SEPARATOR ', ') AS settlement_numbers,
+                    GROUP_CONCAT(DISTINCT CASE WHEN oi.settlement_id IS NOT NULL THEN ss.status END ORDER BY ss.id DESC SEPARATOR ', ') AS settlement_statuses
+                 FROM order_items oi
+                 JOIN orders o ON o.id = oi.order_id
+                 JOIN products p ON p.id = oi.product_id
+                 JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
+                 LEFT JOIN product_size_prices psp ON oi.product_id = psp.product_id
+                    AND (
+                        (oi.size_id IS NOT NULL AND psp.size_id = oi.size_id)
+                        OR
+                        (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id)
+                    )
+                 LEFT JOIN store_settlements ss ON ss.id = oi.settlement_id
+                 WHERE LOWER(TRIM(COALESCE(s.payment_term, ''))) IN ('credit', 'credit with discount')
+                   AND LOWER(TRIM(COALESCE(p.description, ''))) <> 'created from admin manual order'
+                   ${hasRange ? 'AND o.created_at BETWEEN ? AND ?' : ''}
+                   ${hasStore ? 'AND s.id = ?' : ''}
+                 GROUP BY COALESCE(oi.store_id, p.store_id), s.name, s.payment_term, o.id, o.order_number, o.created_at, o.status, o.payment_method, o.payment_status
+                 ORDER BY s.name ASC, o.created_at DESC, o.id DESC`,
+                [
+                    ...(hasRange ? [periodStart, periodEnd] : []),
+                    ...(hasStore ? [store_id] : [])
+                ]
+            );
+
+            const order_rows = (rows || []).map((r) => {
+                const payable = Number(r.store_payable || 0);
+                const paid = Number(r.paid_to_store || 0);
+                return {
+                    ...r,
+                    gross_sales: Number(r.gross_sales || 0),
+                    discount_amount: Number(r.discount_amount || 0),
+                    net_sales: Number(r.net_sales || 0),
+                    store_payable: payable,
+                    sale_profit: Number(r.sale_profit || 0),
+                    cancelled_unpaid_discount: Number(r.cancelled_unpaid_discount || 0),
+                    cancelled_sales: Number(r.cancelled_sales || 0),
+                    paid_to_store: paid,
+                    pending_store_balance: Number((payable - paid).toFixed(2))
+                };
+            });
+
+            const storeMap = new Map();
+            order_rows.forEach((r) => {
+                const sid = Number(r.store_id);
+                if (!storeMap.has(sid)) {
+                    storeMap.set(sid, {
+                        store_id: sid,
+                        store_name: r.store_name,
+                        payment_term: r.payment_term,
+                        total_orders: 0,
+                        delivered_orders: 0,
+                        cancelled_orders: 0,
+                        gross_sales: 0,
+                        discount_amount: 0,
+                        net_sales: 0,
+                        store_payable: 0,
+                        sale_profit: 0,
+                        cancelled_unpaid_discount: 0,
+                        paid_to_store: 0,
+                        pending_store_balance: 0,
+                        cancelled_sales: 0
+                    });
+                }
+                const srow = storeMap.get(sid);
+                srow.total_orders += 1;
+                if (r.order_status === 'delivered') srow.delivered_orders += 1;
+                if (r.order_status === 'cancelled') srow.cancelled_orders += 1;
+                srow.gross_sales += Number(r.gross_sales || 0);
+                srow.discount_amount += Number(r.discount_amount || 0);
+                srow.net_sales += Number(r.net_sales || 0);
+                srow.store_payable += Number(r.store_payable || 0);
+                srow.sale_profit += Number(r.sale_profit || 0);
+                srow.cancelled_unpaid_discount += Number(r.cancelled_unpaid_discount || 0);
+                srow.paid_to_store += Number(r.paid_to_store || 0);
+                srow.pending_store_balance += Number(r.pending_store_balance || 0);
+                srow.cancelled_sales += Number(r.cancelled_sales || 0);
+            });
+
+            const store_rows = Array.from(storeMap.values())
+                .map((r) => {
+                    ['gross_sales', 'discount_amount', 'net_sales', 'store_payable', 'sale_profit', 'cancelled_unpaid_discount', 'paid_to_store', 'pending_store_balance', 'cancelled_sales']
+                        .forEach((key) => { r[key] = Number(Number(r[key] || 0).toFixed(2)); });
+                    return r;
+                })
+                .sort((a, b) => a.store_name.localeCompare(b.store_name));
+
+            const summary = store_rows.reduce((acc, r) => {
+                acc.total_stores += 1;
+                acc.total_orders += Number(r.total_orders || 0);
+                acc.delivered_orders += Number(r.delivered_orders || 0);
+                acc.cancelled_orders += Number(r.cancelled_orders || 0);
+                acc.gross_sales += Number(r.gross_sales || 0);
+                acc.discount_amount += Number(r.discount_amount || 0);
+                acc.net_sales += Number(r.net_sales || 0);
+                acc.store_payable += Number(r.store_payable || 0);
+                acc.sale_profit += Number(r.sale_profit || 0);
+                acc.cancelled_unpaid_discount += Number(r.cancelled_unpaid_discount || 0);
+                acc.paid_to_store += Number(r.paid_to_store || 0);
+                acc.pending_store_balance += Number(r.pending_store_balance || 0);
+                acc.cancelled_sales += Number(r.cancelled_sales || 0);
+                return acc;
+            }, {
+                total_stores: 0,
+                total_orders: 0,
+                delivered_orders: 0,
+                cancelled_orders: 0,
+                gross_sales: 0,
+                discount_amount: 0,
+                net_sales: 0,
+                store_payable: 0,
+                sale_profit: 0,
+                cancelled_unpaid_discount: 0,
+                paid_to_store: 0,
+                pending_store_balance: 0,
+                cancelled_sales: 0
+            });
+            Object.keys(summary).forEach((key) => {
+                if (!['total_stores', 'total_orders', 'delivered_orders', 'cancelled_orders'].includes(key)) {
+                    summary[key] = Number(Number(summary[key] || 0).toFixed(2));
+                }
+            });
+            summary.store_name = store_rows.length === 1 ? store_rows[0].store_name : 'All Credit Stores';
+
+            total_income = Number((Number(summary.store_payable || 0) + Number(summary.sale_profit || 0)).toFixed(2));
+            total_expense = Number(summary.store_payable || 0);
+            total_settlements = 0;
+            reportData = {
+                type: 'credit_store_order_reconciliation',
+                filters: {
+                    period_from: period_from || null,
+                    period_to: period_to || null,
+                    store_id: store_id || null
+                },
+                store_rows,
+                order_rows,
+                summary
+            };
         } else if (report_type === 'transaction_summary') {
             const dateFilter = period_from && period_to ? 'AND ft.created_at BETWEEN ? AND ?' : '';
             const params = period_from && period_to ? [period_from, `${period_to} 23:59:59`] : [];
@@ -6290,6 +6538,15 @@ router.post('/reports/generate', [
                 }
             } else {
                 description = 'Periodic Store Payments & Balance Report - All Stores';
+            }
+        } else if (report_type === 'credit_store_order_reconciliation') {
+            if (store_id) {
+                const [stores] = await req.db.execute('SELECT name FROM stores WHERE id = ?', [store_id]);
+                if (stores.length > 0) {
+                    description = `Credit Store Order Reconciliation - ${stores[0].name}`;
+                }
+            } else {
+                description = 'Credit Store Order Reconciliation - All Credit Stores';
             }
         }
 

@@ -1511,6 +1511,7 @@ function initializeAdmin() {
     if (utilUsernameEl && !utilUsernameEl.value && currentUser) {
         utilUsernameEl.value = currentUser.email || currentUser.username || '';
     }
+    setDefaultBackupFilename();
 
     // Tab switching
     const tabLinks = document.querySelectorAll('.tab-link');
@@ -3029,6 +3030,22 @@ function humanFileSize(bytes) {
     return `${n.toFixed(2)} ${units[u]}`;
 }
 
+function makeDefaultBackupFilename(date = new Date()) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleString('en-GB', { month: 'short' });
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `ServeNow-${day}-${month}-${year}-${hours}${minutes}`;
+}
+
+function setDefaultBackupFilename() {
+    const filenameInput = document.getElementById('backupFilename');
+    if (filenameInput && !filenameInput.value.trim()) {
+        filenameInput.value = makeDefaultBackupFilename();
+    }
+}
+
 async function createBackup() {
     const filenameInput = document.getElementById('backupFilename');
     const requestedName = (filenameInput?.value || '').trim();
@@ -3086,7 +3103,7 @@ async function loadBackups() {
                 <td>${humanFileSize(b.size)}</td>
                 <td>${mtime}</td>
                 <td>
-                    <button class="btn btn-small" onclick="downloadBackup('${encodeURIComponent(b.filename)}')">Download</button>
+                    <button class="btn btn-small btn-info" onclick="downloadBackup('${encodeURIComponent(b.filename)}')">Download</button>
                     <button class="btn btn-small btn-warning" onclick="restoreBackup('${b.filename}')">Restore</button>
                 </td>
             `;
@@ -3495,7 +3512,7 @@ function displayAccounts(accounts) {
                     <button class="btn-small btn-edit" onclick="editAccount(${account.id})">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn-small btn-secondary" onclick="toggleAccountStatus(${account.id}, ${isActive})">
+                    <button class="btn-small ${isActive ? 'btn-danger' : 'btn-success'}" onclick="toggleAccountStatus(${account.id}, ${isActive})">
                         <i class="fas fa-${isActive ? 'ban' : 'check'}"></i> ${isActive ? 'Deactivate' : 'Activate'}
                     </button>
                     <button class="btn-small btn-warning" onclick="resetAccountVerification(${account.id}, '${account.email}')">
@@ -3508,12 +3525,72 @@ function displayAccounts(accounts) {
     });
 }
 
+function setAccountPhotoPreview(imageUrl = '') {
+    const preview = document.getElementById('editAccountImagePreview');
+    const hidden = document.getElementById('editAccountImageUrl');
+    const normalized = String(imageUrl || '').trim();
+    if (hidden) hidden.value = normalized;
+    if (!preview) return;
+    if (normalized) {
+        preview.src = normalized;
+        preview.style.display = 'inline-block';
+    } else {
+        preview.src = '';
+        preview.style.display = 'none';
+    }
+}
+
+function bindAccountPhotoPreview() {
+    const input = document.getElementById('editAccountImageFile');
+    const preview = document.getElementById('editAccountImagePreview');
+    if (!input || !preview) return;
+    input.onchange = (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) {
+            setAccountPhotoPreview(document.getElementById('editAccountImageUrl')?.value || '');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            preview.src = ev.target.result;
+            preview.style.display = 'inline-block';
+        };
+        reader.readAsDataURL(file);
+    };
+}
+
+async function uploadAccountPhotoIfSelected() {
+    const input = document.getElementById('editAccountImageFile');
+    const file = input?.files?.[0] || null;
+    if (!file) {
+        return String(document.getElementById('editAccountImageUrl')?.value || '').trim();
+    }
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch(`${API_BASE}/api/admin/upload-image`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: formData
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.success || !data.image_url) {
+        throw new Error(data?.message || 'Failed to upload user photo');
+    }
+    if (input) input.value = '';
+    setAccountPhotoPreview(data.image_url);
+    return data.image_url;
+}
+
 function showAddAccountModal() {
     document.getElementById('editAccountForm').reset();
     document.getElementById('editAccountId').value = '';
     AppState.editing.accountId = null;
     AppState.editing.accountOriginal = null;
     document.querySelector('#editAccountModal h3').textContent = 'Add New Account';
+    const imageInput = document.getElementById('editAccountImageFile');
+    if (imageInput) imageInput.value = '';
+    setAccountPhotoPreview('');
+    bindAccountPhotoPreview();
 
     // Handle store selection logic for Add Mode
     const storeGroup = document.getElementById('editAccountStoreGroup');
@@ -3564,6 +3641,8 @@ function editAccount(accountId) {
         lastName: String(account.last_name || '').trim(),
         email: String(account.email || '').trim().toLowerCase(),
         phone: String(account.phone || '').trim(),
+        idCardNum: String(account.id_card_num || '').trim(),
+        imageUrl: String(account.image_url || '').trim(),
         userType: String(account.user_type || 'customer').trim(),
         isActive,
         isVerified,
@@ -3578,11 +3657,16 @@ function editAccount(accountId) {
     document.getElementById('editAccountLastName').value = account.last_name || '';
     document.getElementById('editAccountEmail').value = account.email || '';
     document.getElementById('editAccountPhone').value = account.phone || '';
+    document.getElementById('editAccountIdCardNum').value = account.id_card_num || '';
     document.getElementById('editAccountType').value = account.user_type || 'customer';
     document.getElementById('editAccountStatus').value = isActive ? '1' : '0';
     document.getElementById('editAccountVerified').value = isVerified ? '1' : '0';
     document.getElementById('editAccountAddress').value = account.address || '';
     document.getElementById('editAccountPassword').value = '';
+    const imageInput = document.getElementById('editAccountImageFile');
+    if (imageInput) imageInput.value = '';
+    setAccountPhotoPreview(account.image_url || '');
+    bindAccountPhotoPreview();
 
     // Handle store selection logic
     const storeGroup = document.getElementById('editAccountStoreGroup');
@@ -3671,6 +3755,7 @@ async function saveAccount() {
     const lastName = String(document.getElementById('editAccountLastName').value || '').trim();
     const email = String(document.getElementById('editAccountEmail').value || '').trim();
     const phone = String(document.getElementById('editAccountPhone').value || '').trim();
+    const idCardNum = String(document.getElementById('editAccountIdCardNum').value || '').trim();
     const userType = document.getElementById('editAccountType').value;
     const isActive = document.getElementById('editAccountStatus').value === '1';
     const isVerified = document.getElementById('editAccountVerified').value === '1';
@@ -3684,6 +3769,31 @@ async function saveAccount() {
         showWarning('Validation Error', 'Please fill in all required fields');
         return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showWarning('Validation Error', 'Please enter a valid email address');
+        return;
+    }
+    if (phone && !/^[\d\s\-\+\(\)]{6,}$/.test(phone)) {
+        showWarning('Validation Error', 'Phone must contain at least 6 valid phone characters');
+        return;
+    }
+    if (password && password.length < 6) {
+        showWarning('Validation Error', 'Password must be at least 6 characters');
+        return;
+    }
+    if (idCardNum.length > 100) {
+        showWarning('Validation Error', 'ID Card # must be 100 characters or less');
+        return;
+    }
+
+    let imageUrl = '';
+    try {
+        imageUrl = await uploadAccountPhotoIfSelected();
+    } catch (error) {
+        console.error('Account photo upload failed:', error);
+        showError('Upload Failed', error?.message || 'Failed to upload user photo');
+        return;
+    }
 
     let payload;
 
@@ -3694,6 +3804,8 @@ async function saveAccount() {
         if (lastName !== original.lastName) payload.lastName = lastName;
         if (normalizedEmail !== original.email) payload.email = email;
         if (phone !== original.phone) payload.phone = phone;
+        if (idCardNum !== original.idCardNum) payload.id_card_num = idCardNum;
+        if (imageUrl !== original.imageUrl) payload.image_url = imageUrl;
         if (address !== original.address) payload.address = address;
         if (userType !== original.userType) payload.user_type = userType;
         if (isActive !== original.isActive) payload.is_active = isActive;
@@ -3727,6 +3839,8 @@ async function saveAccount() {
         };
 
         if (phone) payload.phone = phone;
+        if (idCardNum) payload.id_card_num = idCardNum;
+        if (imageUrl) payload.image_url = imageUrl;
         if (address) payload.address = address;
         if (userType === 'store_owner' && storeId) payload.store_id = Number(storeId);
         if (password) {
@@ -3772,8 +3886,7 @@ async function saveAccount() {
             response.status === 400 &&
             accountId &&
             userType !== 'store_owner' &&
-            (Object.prototype.hasOwnProperty.call(payload, 'phone') ||
-             Object.prototype.hasOwnProperty.call(payload, 'address') ||
+            (Object.prototype.hasOwnProperty.call(payload, 'address') ||
              Object.prototype.hasOwnProperty.call(payload, 'store_id'));
 
         if (shouldRetryWithoutOptionalFields) {
@@ -3785,8 +3898,17 @@ async function saveAccount() {
                 is_active: isActive,
                 is_verified: isVerified
             };
+            if (!original || phone !== original.phone) {
+                retryPayload.phone = phone;
+            }
             if (password) {
                 retryPayload.password = password;
+            }
+            if (idCardNum) {
+                retryPayload.id_card_num = idCardNum;
+            }
+            if (imageUrl) {
+                retryPayload.image_url = imageUrl;
             }
 
             console.warn('saveAccount retrying without optional fields', {
@@ -3808,7 +3930,11 @@ async function saveAccount() {
         }
 
         const errorText = Array.isArray(data?.errors) && data.errors.length
-            ? data.errors.map(e => e.msg || e.message || JSON.stringify(e)).join(', ')
+            ? data.errors.map(e => {
+                const field = e.path || e.param || e.location || '';
+                const message = e.msg || e.message || JSON.stringify(e);
+                return field ? `${field}: ${message}` : message;
+            }).join(', ')
             : (data?.message || `Failed to save account (HTTP ${response.status})`);
 
         console.error('saveAccount failed', {
@@ -3816,7 +3942,12 @@ async function saveAccount() {
             payload,
             response: data
         });
-        showError('Error', errorText);
+        console.error('saveAccount failed details:', JSON.stringify({
+            status: response.status,
+            payload,
+            response: data
+        }, null, 2));
+        showError('Account Save Failed', errorText, 8000);
     } catch (error) {
         console.error('Error saving account:', error);
         showError('Error', 'Failed to save account. Please try again.');
@@ -4092,7 +4223,7 @@ function appendProductRow(tbody, product) {
                     <button class="btn-small btn-edit" onclick="editProduct(${productId})">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn-small btn-secondary" onclick="toggleProductStatus(${productId}, ${isAvailable})">
+                    <button class="btn-small ${isAvailable ? 'btn-danger' : 'btn-success'}" onclick="toggleProductStatus(${productId}, ${isAvailable})">
                         <i class="fas fa-${isAvailable ? 'ban' : 'check'}"></i> ${isAvailable ? 'Deactivate' : 'Activate'}
                     </button>
                 </div>
@@ -5269,15 +5400,15 @@ function displayOrders(orders = AppState.orders) {
             </td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn-small btn-info" onclick="viewOrderDetails(${order.id})">
+                    <button class="btn-small btn-info" onclick="viewOrderDetails(${order.id})" title="View order details" aria-label="View order details">
                         <i class="fas fa-eye"></i> View
                     </button>
                     ${isLockedOrder ? '' : `
-                    <button class="btn-small btn-edit" onclick="editOrder(${order.id})">
+                    <button class="btn-small btn-edit" onclick="editOrder(${order.id})" title="Edit order" aria-label="Edit order">
                         <i class="fas fa-edit"></i> Edit
                     </button>`}
                     ${canResetLockedOrder ? `
-                    <button class="btn-small btn-warning" onclick="resetOrderToNew(${order.id}, '${escapeHtml(order.order_number)}')">
+                    <button class="btn-small btn-warning" onclick="resetOrderToNew(${order.id}, '${escapeHtml(order.order_number)}')" title="Reset order to new" aria-label="Reset order to new">
                         <i class="fas fa-undo"></i> Reset New
                     </button>` : ''}
                 </div>
@@ -6853,6 +6984,11 @@ async function editOrder(orderId) {
         }
 
         const itemsContainer = document.getElementById('orderItemsContainer');
+        if (!itemsContainer) {
+            console.warn('Order items container not found in edit order modal');
+            return;
+        }
+
         if (itemsData.success && itemsData.items && itemsData.items.length > 0) {
             const itemMap = new Map(itemsData.items.map(item => [String(item.id), item]));
             const readItemsFromInputs = () => Array.from(document.querySelectorAll('.item-quantity-input')).map(inp => {
@@ -6864,27 +7000,41 @@ async function editOrder(orderId) {
                     quantity: parseInt(inp.value, 10) || 0
                 };
             }).filter(Boolean);
-            itemsContainer.innerHTML = itemsData.items.map(item => `
-                <div style="display: grid; grid-template-columns: 1fr 80px 100px 80px; gap: 1rem; align-items: center; padding: 0.75rem; border-bottom: 1px solid #e2e8f0; background: #fff;">
-                    <div>
-                        <strong>${item.product_name}</strong>
-                        ${item.variant_label ? `<p style="font-size: 0.875rem; color: #475569; margin: 0.25rem 0 0 0;">Variant: ${escapeHtml(String(item.variant_label))}</p>` : ''}
-                        <p style="font-size: 0.875rem; color: #718096; margin: 0.25rem 0 0 0;">Price: PKR ${Number(item.price).toFixed(2)}</p>
-                        ${item.store_name ? `<p style="font-size: 0.875rem; color: #718096; margin: 0.25rem 0 0 0;">Store: ${item.store_name}</p>` : ''}
-                    </div>
-                    <div style="text-align: center;">
-                        <input type="number" class="item-quantity-input" data-item-id="${item.id}" value="${item.quantity}" min="1" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; text-align: center;" />
-                    </div>
-                    <div style="text-align: right;">
-                        <strong>PKR ${(Number(item.price) * item.quantity).toFixed(2)}</strong>
-                    </div>
-                    <div style="text-align: right;">
-                        <button type="button" class="btn btn-small btn-danger remove-item-btn" data-item-id="${item.id}" style="padding: 0.4rem 0.6rem;">
-                            <i class="fas fa-trash"></i> Remove
-                        </button>
-                    </div>
+
+            itemsContainer.innerHTML = `
+                <div class="edit-order-items-list">
+                    ${itemsData.items.map(item => {
+                        const itemId = escapeHtml(String(item.id));
+                        const productName = escapeHtml(String(item.product_name || 'Order item'));
+                        const variantLabel = item.variant_label ? escapeHtml(String(item.variant_label)) : '';
+                        const storeName = item.store_name ? escapeHtml(String(item.store_name)) : '';
+                        const price = Number(item.price) || 0;
+                        const quantity = Number(item.quantity) || 0;
+
+                        return `
+                            <div class="edit-order-item-row">
+                                <div class="edit-order-item-main">
+                                    <strong>${productName}</strong>
+                                    ${variantLabel ? `<span>Variant: ${variantLabel}</span>` : ''}
+                                    <span>Price: PKR ${price.toFixed(2)}</span>
+                                    ${storeName ? `<span>Store: ${storeName}</span>` : ''}
+                                </div>
+                                <label class="edit-order-item-qty">
+                                    <span>Qty</span>
+                                    <input type="number" class="item-quantity-input" data-item-id="${itemId}" value="${quantity}" min="1" />
+                                </label>
+                                <div class="edit-order-item-total">
+                                    <span>Total</span>
+                                    <strong>PKR ${(price * quantity).toFixed(2)}</strong>
+                                </div>
+                                <button type="button" class="btn btn-small btn-danger remove-item-btn" data-item-id="${itemId}">
+                                    <i class="fas fa-trash"></i> Remove
+                                </button>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
-            `).join('');
+            `;
             
             document.querySelectorAll('.remove-item-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -6969,7 +7119,7 @@ async function editOrder(orderId) {
                 showSuccess('Auto-Calculated', `Delivery fee calculated: ${storeCount} store(s) = PKR ${deliveryFee}`);
             }
         } else {
-            itemsContainer.innerHTML = '<p style="color: #718096; text-align: center; margin: 1rem 0;">No items found</p>';
+            itemsContainer.innerHTML = '<p class="edit-order-items-empty">No items found</p>';
             updateOrderSummary([], 0);
             renderStoreWiseOrderTotals('orderStoreWiseTotals', []);
         }
@@ -7598,7 +7748,7 @@ async function loadUnits() {
                         <button class="btn-small btn-edit" onclick="editUnit(${u.id})">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        <button class="btn-small btn-secondary" onclick="deleteUnit(${u.id})">
+                        <button class="btn-small btn-danger" onclick="deleteUnit(${u.id})">
                             <i class="fas fa-trash"></i> Delete
                         </button>
                     </div>
@@ -7861,7 +8011,7 @@ async function loadSizes() {
                         <button class="btn-small btn-edit" onclick="editSize(${s.id})">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        <button class="btn-small btn-secondary" onclick="deleteSize(${s.id})">
+                        <button class="btn-small btn-danger" onclick="deleteSize(${s.id})">
                             <i class="fas fa-trash"></i> Delete
                         </button>
                     </div>
@@ -11351,7 +11501,7 @@ function displayStores(stores) {
                     <button class="btn-small btn-info" onclick="showSetPriorityModal(${store.id}, '${store.name}', ${store.priority || 'null'})">
                         <i class="fas fa-star"></i> Priority
                     </button>
-                    <button class="btn-small btn-secondary" onclick="deleteStore(${store.id})">
+                    <button class="btn-small btn-danger" onclick="deleteStore(${store.id})">
                         <i class="fas fa-trash"></i> Delete
                     </button>
                 </div>
@@ -11483,7 +11633,7 @@ function displayCategories(categories) {
                     <button class="btn-small btn-edit" onclick="editCategory(${category.id})">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn-small btn-secondary" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
+                    <button class="btn-small ${category.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleCategoryStatus(${category.id}, ${category.is_active})">
                         <i class="fas fa-${category.is_active ? 'ban' : 'check'}"></i> ${category.is_active ? 'Deactivate' : 'Activate'}
                     </button>
                 </div>
@@ -11531,10 +11681,12 @@ function displayRiders(riders) {
                     <button class="btn-small btn-edit" onclick="editRider(${rider.id})">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn-small btn-secondary" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
+                    <button class="btn-small ${rider.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleRiderStatus(${rider.id}, ${rider.is_active})">
                         <i class="fas fa-${rider.is_active ? 'ban' : 'check'}"></i> ${rider.is_active ? 'Deactivate' : 'Activate'}
                     </button>
-                    <button class="btn-small btn-secondary" onclick="openFuelForRider(${rider.id})">Fuel</button>
+                    <button class="btn-small btn-info" onclick="openFuelForRider(${rider.id})">
+                        <i class="fas fa-gas-pump"></i> Fuel
+                    </button>
                 </div>
             </td>
         `;

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="css/style.css?v=4" />
-    <link rel="stylesheet" href="css/admin.css?v=17" />
+    <link rel="stylesheet" href="css/admin.css?v=35" />
     <link rel="stylesheet" href="css/aginv-theme.css?v=4" />
     <link
       rel="stylesheet"
@@ -573,6 +573,7 @@
                     <option value="store_owner">Store Owner</option>
                     <option value="admin">Admin</option>
                     <option value="standard_user">Standard User</option>
+                    <option value="rider">Rider</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -598,6 +599,17 @@
 
           <div class="table-container">
             <table id="accountsTable">
+              <colgroup>
+                <col class="accounts-col-id" />
+                <col class="accounts-col-name" />
+                <col class="accounts-col-email" />
+                <col class="accounts-col-phone" />
+                <col class="accounts-col-type" />
+                <col class="accounts-col-status" />
+                <col class="accounts-col-verified" />
+                <col class="accounts-col-joined" />
+                <col class="accounts-col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>ID</th>
@@ -971,6 +983,7 @@
                     <option value="unsettled_amounts_report">Unsettled Amounts Report</option>
                     <option value="cash_discrepancy_report">Cash Discrepancy Report</option>
                     <option value="store_order_settlement_report">Store Order Settlement Report</option>
+                    <option value="credit_store_order_reconciliation">Credit Store Order Reconciliation</option>
                     <option value="periodic_sales_report">Periodic Sales Report</option>
                     <option value="periodic_credit_cash_report">Periodic Credit Cash Report</option>
                     <option value="periodic_comprehensive_summary_report">Periodic Comprehensive Summary Report</option>
@@ -1108,127 +1121,153 @@
 
         <!-- Database Backup Tab -->
 
-        <div id="db-backup" class="tab-content">
+        <div id="db-backup" class="tab-content utilities-page">
           <h2>Utilities</h2>
 
-          <p>
-            Create and download backups of the application database. Backups are
-            stored on the server in <code>database/backups/</code>.
-          </p>
-
-          <div class="filter-controls">
-            <div class="filter-group" style="min-width: 260px;">
-              <label for="utilUsername">Restore Username</label>
-              <input
-                type="text"
-                id="utilUsername"
-                class="form-control"
-                placeholder="Enter your admin email/username"
-                autocomplete="username"
-              />
+          <div class="utilities-intro">
+            <div>
+              <h3>System Tools</h3>
+              <p>Manage database backups, restore access, delivery-charge settings, notifications, and restricted maintenance actions.</p>
             </div>
-            <div class="filter-group" style="min-width: 260px;">
-              <label for="utilPassword">Restore Passphrase</label>
-              <input
-                type="password"
-                id="utilPassword"
-                class="form-control"
-                placeholder="Enter restore passphrase"
-                autocomplete="current-password"
-              />
-            </div>
+            <span class="utilities-badge"><i class="fas fa-shield-alt"></i> Admin Only</span>
           </div>
 
-          <div class="filter-controls">
-            <div class="filter-group" style="min-width: 260px;">
-              <label for="backupFilename">Backup File Name</label>
-              <input
-                type="text"
-                id="backupFilename"
-                class="form-control"
-                placeholder="Enter backup file name"
-                autocomplete="off"
-              />
-            </div>
-            <button class="btn btn-primary" id="createBackupBtn" style="align-self: flex-end; margin-bottom: 2px;">
-              Create Backup
-            </button>
-            <button class="btn btn-secondary" id="refreshBackupsBtn" style="align-self: flex-end; margin-bottom: 2px;">
-              Refresh List
-            </button>
-            <button class="btn btn-secondary" id="testTrayNotificationBtn" style="align-self: flex-end; margin-bottom: 2px;">
-              <i class="fas fa-bell"></i> Send Test Tray Notification
-            </button>
-            <span
-              id="backupStatus"
-              style="font-size: 0.95rem; color: #666; margin-left: 0.5rem; align-self: center;"
-            ></span>
-          </div>
-
-          <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #ddd;">
-            <h3 style="color: #0f766e;"><i class="fas fa-motorcycle"></i> Delivery Charges Settings</h3>
-            <p>Set configurable delivery charges formula: <strong>Total = Base Fee + (Additional Fee x extra stores)</strong>.</p>
-            <div class="filter-controls">
-                <div class="filter-group">
-                    <label for="deliveryBaseFeeInput">Base Fee (1 store, PKR)</label>
-                    <input type="number" id="deliveryBaseFeeInput" class="form-control" min="0" step="1" placeholder="70">
+          <div class="utilities-widget-stack">
+            <details class="utility-widget" open>
+              <summary>
+                <span class="utility-summary-icon utility-icon-backup"><i class="fas fa-database"></i></span>
+                <span class="utility-summary-copy">
+                  <span class="utility-title">Backup</span>
+                  <span class="utility-subtitle">Create a new database backup file.</span>
+                </span>
+                <i class="fas fa-chevron-down utility-chevron"></i>
+              </summary>
+              <div class="utility-widget-body">
+                <div class="filter-controls utility-control-grid">
+                  <div class="filter-group">
+                    <label for="backupFilename">Backup File Name</label>
+                    <input
+                      type="text"
+                      id="backupFilename"
+                      class="form-control"
+                      placeholder="Enter backup file name"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <button class="btn btn-primary" id="createBackupBtn">
+                    <i class="fas fa-plus-circle"></i> Create Backup
+                  </button>
+                  <button class="btn btn-secondary" id="refreshBackupsBtn">
+                    <i class="fas fa-sync"></i> Refresh List
+                  </button>
+                  <span id="backupStatus" class="utility-status-text"></span>
                 </div>
-                <div class="filter-group">
-                    <label for="deliveryAdditionalFeeInput">Additional Fee Per Extra Store (PKR)</label>
-                    <input type="number" id="deliveryAdditionalFeeInput" class="form-control" min="0" step="1" placeholder="30">
-                </div>
-                <button class="btn btn-primary" id="saveDeliveryFeeSettingsBtn" style="align-self: flex-end; margin-bottom: 2px;">
-                    <i class="fas fa-save"></i> Save Charges
-                </button>
-                <button class="btn btn-secondary" id="reloadDeliveryFeeSettingsBtn" style="align-self: flex-end; margin-bottom: 2px;">
-                    <i class="fas fa-sync"></i> Reload
-                </button>
-            </div>
-          </div>
+              </div>
+            </details>
 
-          <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #ddd;">
-            <h3 style="color: #dc3545;"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
-            <p>Irreversible actions. Use with extreme caution.</p>
-            
-            <div class="filter-controls">
-                <div class="filter-group">
-                    <label for="clearTableSelect">Clear Specific Data:</label>
+            <details class="utility-widget">
+              <summary>
+                <span class="utility-summary-icon utility-icon-restore"><i class="fas fa-rotate-left"></i></span>
+                <span class="utility-summary-copy">
+                  <span class="utility-title">Restore & Backup Files</span>
+                  <span class="utility-subtitle">Enter restore credentials, select a backup, then restore or download.</span>
+                </span>
+                <i class="fas fa-chevron-down utility-chevron"></i>
+              </summary>
+              <div class="utility-widget-body">
+                <div class="filter-controls utility-control-grid utility-restore-grid">
+                  <div class="filter-group">
+                    <label for="utilUsername">Restore Username</label>
+                    <input
+                      type="text"
+                      id="utilUsername"
+                      class="form-control"
+                      placeholder="Enter your admin email/username"
+                      autocomplete="username"
+                    />
+                  </div>
+                  <div class="filter-group">
+                    <label for="utilPassword">Restore Passphrase</label>
+                    <input
+                      type="password"
+                      id="utilPassword"
+                      class="form-control"
+                      placeholder="Enter restore passphrase"
+                      autocomplete="current-password"
+                    />
+                  </div>
+                </div>
+                <div class="table-container utilities-backup-table">
+                  <table id="backupsTable">
+                    <thead>
+                      <tr>
+                        <th>Select</th>
+                        <th>Filename</th>
+                        <th>Size</th>
+                        <th>Modified</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="backupsTableBody">
+                      <!-- backup files will be listed here -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details class="utility-widget">
+              <summary>
+                <span class="utility-summary-icon utility-icon-notify"><i class="fas fa-bell"></i></span>
+                <span class="utility-summary-copy">
+                  <span class="utility-title">Notifications</span>
+                  <span class="utility-subtitle">Send a test tray notification to verify desktop alerts.</span>
+                </span>
+                <i class="fas fa-chevron-down utility-chevron"></i>
+              </summary>
+              <div class="utility-widget-body">
+                <div class="utility-inline-actions">
+                  <button class="btn btn-secondary" id="testTrayNotificationBtn">
+                    <i class="fas fa-bell"></i> Send Test Tray Notification
+                  </button>
+                </div>
+              </div>
+            </details>
+
+            <details class="utility-widget utility-widget-danger">
+              <summary>
+                <span class="utility-summary-icon utility-icon-danger"><i class="fas fa-exclamation-triangle"></i></span>
+                <span class="utility-summary-copy">
+                  <span class="utility-title">Danger Zone</span>
+                  <span class="utility-subtitle">Irreversible maintenance actions. Use with caution.</span>
+                </span>
+                <i class="fas fa-chevron-down utility-chevron"></i>
+              </summary>
+              <div class="utility-widget-body">
+                <div class="filter-controls utility-control-grid">
+                  <div class="filter-group utility-danger-select">
+                    <label for="clearTableSelect">Clear Specific Data</label>
                     <select id="clearTableSelect" class="form-control">
-                        <option value="all">ALL Transactional Data (Orders, Payments, History)</option>
-                        <option value="all_except_user_store">ALL Tables EXCEPT User/Store Related</option>
-                        <option value="all_except_core_keep">Clear All EXCEPT Core Operational Tables</option>
-                        <option value="all_tables">ALL Tables (Dangerous)</option>
-                        <option value="orders">Orders Only</option>
-                        <option value="order_items">Order Items Only</option>
-                        <option value="payments">Payments Only</option>
-                        <option value="wallet_transactions">Wallet Transactions Only</option>
-                        <option value="notifications">Notifications Only</option>
+                      <option value="all">ALL Transactional Data (Orders, Payments, History)</option>
+                      <option value="all_except_user_store">ALL Tables EXCEPT User/Store Related</option>
+                      <option value="all_except_core_keep">Clear All EXCEPT Core Operational Tables</option>
+                      <option value="all_tables">ALL Tables (Dangerous)</option>
+                      <option value="orders">Orders Only</option>
+                      <option value="order_items">Order Items Only</option>
+                      <option value="payments">Payments Only</option>
+                      <option value="wallet_transactions">Wallet Transactions Only</option>
+                      <option value="notifications">Notifications Only</option>
                     </select>
-                </div>
-                <button class="btn btn-danger" id="clearDataBtn" onclick="clearTransactionalData()" style="align-self: flex-end; margin-bottom: 2px;">
+                  </div>
+                  <button class="btn btn-danger" id="clearDataBtn" onclick="clearTransactionalData()">
                     <i class="fas fa-trash-alt"></i> Clear Data
-                </button>
-                <button class="btn btn-warning" id="shrinkDbBtn" onclick="shrinkDatabase()" style="align-self: flex-end; margin-bottom: 2px;">
+                  </button>
+                  <button class="btn btn-warning" id="shrinkDbBtn" onclick="shrinkDatabase()">
                     <i class="fas fa-compress-alt"></i> Shrink Database
-                </button>
-            </div>
-          </div>
-
-          <div class="table-container">
-            <table id="backupsTable">
-              <thead>
-                <tr>
-                  <th>Select</th>
-                  <th>Filename</th>
-                  <th>Size</th>
-                  <th>Modified</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="backupsTableBody">
-                <!-- backup files will be listed here -->
-              </tbody>
-            </table>
+                  </button>
+                </div>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -3152,6 +3191,17 @@
 
             <div class="table-container">
               <table id="ridersTable">
+                <colgroup>
+                  <col class="riders-col-id" />
+                  <col class="riders-col-name" />
+                  <col class="riders-col-email" />
+                  <col class="riders-col-phone" />
+                  <col class="riders-col-vehicle" />
+                  <col class="riders-col-license" />
+                  <col class="riders-col-available" />
+                  <col class="riders-col-status" />
+                  <col class="riders-col-actions" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -3562,6 +3612,10 @@
                 <input type="tel" id="editAccountPhone" name="phone" style="width: 100%;" />
               </div>
               <div class="form-group">
+                <label for="editAccountIdCardNum">ID Card #:</label>
+                <input type="text" id="editAccountIdCardNum" name="id_card_num" maxlength="100" style="width: 100%;" />
+              </div>
+              <div class="form-group">
                 <label for="editAccountPassword">Password (leave empty to keep):</label>
                 <input type="password" id="editAccountPassword" name="password" style="width: 100%;" />
               </div>
@@ -3572,6 +3626,7 @@
                   <option value="store_owner">Store Owner</option>
                   <option value="admin">Admin</option>
                   <option value="standard_user">Standard User</option>
+                  <option value="rider">Rider</option>
                 </select>
               </div>
               <div class="form-group" id="editAccountStoreGroup" style="display: none;">
@@ -3596,6 +3651,12 @@
               </div>
             </div>
             <div style="margin-top: 1rem;">
+              <div class="form-group">
+                <label for="editAccountImageFile">User Photo:</label>
+                <input type="file" id="editAccountImageFile" name="image_file" accept="image/*" style="width: 100%;" />
+                <img id="editAccountImagePreview" alt="User photo preview" style="display: none; max-width: 100px; max-height: 80px; border-radius: 6px; margin-top: 0.5rem; object-fit: cover;" />
+                <input type="hidden" id="editAccountImageUrl" name="image_url" />
+              </div>
               <div class="form-group">
                 <label for="editAccountAddress">Address:</label>
                 <textarea id="editAccountAddress" name="address" rows="2" style="width: 100%;"></textarea>
@@ -4288,12 +4349,16 @@
     </div>
 
     <div id="editOrderModal" class="modal">
-      <div class="modal-content" style="max-width: 1125px; display: flex; flex-direction: column; max-height: 85vh;">
-        <div class="modal-header">
-          <h3>Edit Order</h3>
+      <div class="modal-content edit-order-modal-content">
+        <div class="modal-header edit-order-modal-header">
+          <div>
+            <span class="generate-report-kicker">Order Desk</span>
+            <h3>Edit Order</h3>
+            <p>Update status, rider, customer details, delivery fee, items, and rider location.</p>
+          </div>
           <span class="close" data-modal="editOrderModal">&times;</span>
         </div>
-        <div class="modal-body" style="overflow-y: auto; flex: 1; padding: 1.5rem;">
+        <div class="modal-body edit-order-modal-body">
           <form id="editOrderForm">
             <div class="form-row">
               <div class="form-group">
@@ -4351,42 +4416,40 @@
               </div>
             </div>
 
-            <div style="background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 1rem; margin: 1rem 0;">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                  <p style="margin: 0 0 0.5rem 0; color: #475569; font-size: 0.875rem;">Items Subtotal:</p>
-                  <p style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1e293b;" id="itemsSubtotal">PKR 0.00</p>
+            <div class="edit-order-summary-card">
+              <div class="edit-order-summary-grid">
+                <div class="edit-order-summary-metric">
+                  <p>Items Subtotal</p>
+                  <strong id="itemsSubtotal">PKR 0.00</strong>
                 </div>
-                <div>
-                  <p style="margin: 0 0 0.5rem 0; color: #475569; font-size: 0.875rem;">Delivery Fee (PKR) - Editable:</p>
+                <div class="edit-order-summary-metric">
+                  <label for="orderDeliveryFee">Delivery Fee (PKR)</label>
                   <input 
                     type="number" 
                     step="0.01" 
                     id="orderDeliveryFee" 
                     name="delivery_fee" 
-                    style="font-size: 1.125rem; font-weight: 600; color: #1e293b; width: 100%; border: 1px solid #bfdbfe; border-radius: 4px; padding: 0.5rem; background: #fff;"
                   />
                 </div>
-              </div>
-              <div style="border-top: 2px solid #bfdbfe; margin-top: 1rem; padding-top: 1rem;">
-                <label for="orderTotalAmount" style="display: block; margin: 0 0 0.5rem 0; color: #475569; font-size: 0.875rem;">Total Amount (PKR) - Editable:</label>
+                <div class="edit-order-summary-metric">
+                  <label for="orderTotalAmount">Total Amount (PKR)</label>
                 <input 
                   type="number" 
                   step="0.01" 
                   id="orderTotalAmount" 
                   name="total_amount" 
-                  style="font-size: 1.375rem; font-weight: 700; color: #0369a1; width: 100%; border: 1px solid #bfdbfe; border-radius: 4px; padding: 0.5rem; background: #fff;"
                 />
+                </div>
               </div>
-              <div id="orderStoreWiseTotals" style="margin-top: 1rem; padding-top: 0.85rem; border-top: 1px dashed #bfdbfe;"></div>
+              <div id="orderStoreWiseTotals" class="edit-order-store-totals"></div>
             </div>
             
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;" />
+            <hr class="edit-order-divider" />
             
-            <div style="margin-bottom: 1.5rem;">
-              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b;">Order Items</h4>
-              <div id="orderItemsContainer" style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; background: #fafafa;">
-                <p style="color: #718096; text-align: center; margin: 2rem 0;">Loading items...</p>
+            <div class="edit-order-items-section">
+              <h4>Order Items</h4>
+              <div id="orderItemsContainer" class="edit-order-items-container">
+                <p class="edit-order-items-empty">Loading items...</p>
               </div>
             </div>
             
@@ -4399,34 +4462,34 @@
               </div>
             </div>
             
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;" />
+            <hr class="edit-order-divider" />
             
-            <div style="margin-bottom: 1.5rem;">
-              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b;">Add New Item</h4>
-              <p style="margin: 0 0 0.75rem 0; font-size: 0.875rem; color: #718096; background: #f0fdf4; padding: 0.75rem; border-left: 3px solid #10b981; border-radius: 4px;"><i class="fas fa-info-circle"></i> Products are automatically assigned to their store. Delivery charges recalculate based on total unique stores.</p>
-              <div style="display: grid; grid-template-columns: 2fr 120px 100px; gap: 1rem; padding: 1rem; background: #f7fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
-                <div class="form-group" style="margin: 0;">
-                  <label for="addItemProduct" style="font-size: 0.875rem; font-weight: 500;">Select Product:</label>
-                  <select id="addItemProduct" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+            <div class="edit-order-add-item-section">
+              <h4>Add New Item</h4>
+              <p><i class="fas fa-info-circle"></i> Products are assigned to their store. Delivery charges recalculate from unique stores.</p>
+              <div class="edit-order-add-item-grid">
+                <div class="form-group">
+                  <label for="addItemProduct">Select Product:</label>
+                  <select id="addItemProduct">
                     <option value="">Choose product...</option>
                   </select>
                 </div>
-                <div class="form-group" style="margin: 0;">
-                  <label for="addItemQuantity" style="font-size: 0.875rem; font-weight: 500;">Quantity:</label>
-                  <input type="number" id="addItemQuantity" value="1" min="1" style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;" />
+                <div class="form-group">
+                  <label for="addItemQuantity">Quantity:</label>
+                  <input type="number" id="addItemQuantity" value="1" min="1" />
                 </div>
-                <div style="display: flex; align-items: flex-end;">
-                  <button type="button" class="btn btn-small btn-primary" id="addItemBtn" style="width: 100%; height: 36px; padding: 0;">
+                <div class="edit-order-add-item-action">
+                  <button type="button" class="btn btn-small btn-primary" id="addItemBtn">
                     <i class="fas fa-plus"></i> Add
                   </button>
                 </div>
               </div>
             </div>
             
-            <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;" />
+            <hr class="edit-order-divider" />
             
-            <div>
-              <h4 style="margin: 0 0 1rem 0; font-size: 1rem; color: #1e293b;">Rider Location</h4>
+            <div class="edit-order-location-section">
+              <h4>Rider Location</h4>
               <div class="form-row">
                 <div class="form-group">
                   <label for="riderLocation">Location Description:</label>
@@ -4461,18 +4524,18 @@
             </div>
           </form>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer edit-order-modal-footer">
           <div class="action-buttons">
             <button
               type="button"
-              class="btn btn-small btn-secondary"
+              class="btn btn-small btn-secondary edit-order-action-btn edit-order-cancel-btn"
               data-modal="editOrderModal"
             >
               <i class="fas fa-ban"></i> Cancel
             </button>
             <button
               type="button"
-              class="btn btn-small btn-primary"
+              class="btn btn-small btn-primary edit-order-action-btn edit-order-save-btn"
               id="saveOrderBtn"
             >
               <i class="fas fa-check"></i> Save Changes
@@ -4721,7 +4784,7 @@
     <script src="js/notifications.js?v=2" defer></script>
     <script src="js/financial_helpers.js" defer></script>
     <script src="js/financial.js?v=19" defer></script>
-    <script src="js/admin.js?v=37" defer></script>
+    <script src="js/admin.js?v=40" defer></script>
     <script src="js/inventory-report.js?v=8" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
@@ -5399,17 +5462,22 @@
 
     <!-- Generate Report Modal -->
     <div id="generateReportModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Generate Financial Report</h2>
-          <button class="close-btn" onclick="closeModal('generateReportModal')">
+      <div class="modal-content generate-report-modal-content">
+        <div class="modal-header generate-report-modal-header">
+          <div>
+            <span class="generate-report-kicker">Financial Reports</span>
+            <h2>Generate Financial Report</h2>
+            <p>Create a preview first, then save or download after review.</p>
+          </div>
+          <button class="close-btn generate-report-close" onclick="closeModal('generateReportModal')">
             &times;
           </button>
         </div>
-        <form id="generateReportForm">
-          <div class="form-group">
-            <label>Report Type</label>
-            <select id="reportTypeModal" name="reportType" required>
+        <form id="generateReportForm" class="generate-report-form">
+          <div class="generate-report-grid">
+            <div class="form-group report-field report-field-wide">
+              <label for="reportTypeModal"><i class="fas fa-chart-pie"></i> Report Type</label>
+              <select id="reportTypeModal" name="reportType" required>
               <option value="daily_summary">Daily Summary</option>
               <option value="weekly_summary">Weekly Summary</option>
               <option value="monthly_summary" selected>Monthly Summary</option>
@@ -5431,6 +5499,7 @@
               <option value="unsettled_amounts_report">Unsettled Amounts Report</option>
               <option value="cash_discrepancy_report">Cash Discrepancy Report</option>
               <option value="store_order_settlement_report">Store Order Settlement Report</option>
+              <option value="credit_store_order_reconciliation">Credit Store Order Reconciliation</option>
               <option value="periodic_sales_report">Periodic Sales Report</option>
               <option value="periodic_credit_cash_report">Periodic Credit Cash Report</option>
               <option value="periodic_comprehensive_summary_report">Periodic Comprehensive Summary Report</option>
@@ -5441,38 +5510,43 @@
               <option value="delivery_charges_breakdown">Delivery Charges Breakdown</option>
               <option value="order_wise_sale_summary">Order Wise Sale Summary</option>
               <option value="custom">Custom</option>
-            </select>
+              </select>
+            </div>
+            <div class="form-group report-field" id="reportRiderSelectGroup" style="display: none;">
+              <label for="reportRiderSelect"><i class="fas fa-motorcycle"></i> Select Rider <span>Optional</span></label>
+              <select id="reportRiderSelect" name="riderId">
+                <option value="">All Riders</option>
+              </select>
+            </div>
+            <div class="form-group report-field" id="reportStoreSelectGroup" style="display: none;">
+              <label for="reportStoreSelect"><i class="fas fa-store"></i> Select Store <span>Optional</span></label>
+              <select id="reportStoreSelect" name="storeId">
+                <option value="">All Stores</option>
+              </select>
+            </div>
+            <div class="form-group report-field">
+              <label for="reportPeriodFrom"><i class="fas fa-calendar-day"></i> Period From</label>
+              <input type="date" id="reportPeriodFrom" name="periodFrom" />
+            </div>
+            <div class="form-group report-field">
+              <label for="reportPeriodTo"><i class="fas fa-calendar-check"></i> Period To</label>
+              <input type="date" id="reportPeriodTo" name="periodTo" />
+            </div>
           </div>
-          <div class="form-group" id="reportRiderSelectGroup" style="display: none;">
-            <label>Select Rider (Optional)</label>
-            <select id="reportRiderSelect" name="riderId">
-              <option value="">All Riders</option>
-            </select>
+          <div class="generate-report-note">
+            <i class="fas fa-eye"></i>
+            <span>Reports open as a preview first so totals can be checked before saving.</span>
           </div>
-          <div class="form-group" id="reportStoreSelectGroup" style="display: none;">
-            <label>Select Store (Optional)</label>
-            <select id="reportStoreSelect" name="storeId">
-              <option value="">All Stores</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Period From</label>
-            <input type="date" id="reportPeriodFrom" name="periodFrom" />
-          </div>
-          <div class="form-group">
-            <label>Period To</label>
-            <input type="date" id="reportPeriodTo" name="periodTo" />
-          </div>
-          <div class="form-actions">
+          <div class="form-actions generate-report-actions">
             <button
               type="button"
               class="btn btn-secondary"
               onclick="closeModal('generateReportModal')"
             >
-              Cancel
+              <i class="fas fa-times"></i> Cancel
             </button>
             <button type="submit" class="btn btn-primary report-action-btn">
-              Generate Report
+              <i class="fas fa-file-invoice-dollar"></i> Generate Report
             </button>
           </div>
         </form>
@@ -5481,23 +5555,27 @@
 
     <!-- View Report Modal -->
     <div id="viewReportModal" class="modal">
-      <div class="modal-content" style="max-width: 1250px; width: 95%;">
-        <div class="modal-header">
-          <h2>Report Details</h2>
-          <button class="close-btn" onclick="closeModal('viewReportModal')">
+      <div class="modal-content report-details-modal-content">
+        <div class="modal-header report-details-modal-header">
+          <div>
+            <span class="generate-report-kicker">Preview</span>
+            <h2>Report Details</h2>
+            <p>Review generated totals and line details before saving or downloading.</p>
+          </div>
+          <button class="close-btn generate-report-close" onclick="closeModal('viewReportModal')">
             &times;
           </button>
         </div>
-        <div id="viewReportContent" style="margin-bottom: 20px;">
+        <div id="viewReportContent" class="report-details-content">
           <!-- Content will be injected here -->
         </div>
-        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-            <button type="button" class="btn btn-primary report-action-btn report-modal-action-btn" id="viewReportDownloadBtn">
-                Download PDF
-            </button>
-            <button type="button" class="btn btn-secondary report-action-btn report-modal-action-btn" onclick="closeModal('viewReportModal')">
-                Close
-            </button>
+        <div class="modal-footer report-details-footer">
+          <button type="button" class="btn btn-primary report-action-btn report-modal-action-btn" id="viewReportDownloadBtn">
+            <i class="fas fa-file-pdf"></i> Download PDF
+          </button>
+          <button type="button" class="btn btn-secondary report-action-btn report-modal-action-btn" onclick="closeModal('viewReportModal')">
+            <i class="fas fa-times"></i> Close
+          </button>
         </div>
       </div>
     </div>
@@ -5671,21 +5749,21 @@
 
       .modal-content {
         background-color: #fefefe;
-        padding: 1.25rem;
+        padding: 0.9rem;
         border-radius: 0.5rem;
         max-width: 550px;
         width: 90%;
-        max-height: 85vh;
+        max-height: calc(100vh - 1rem);
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        overflow-y: auto;
+        overflow: hidden;
       }
 
       .modal-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
+        margin-bottom: 0.65rem;
+        padding-bottom: 0.55rem;
         border-bottom: 1px solid var(--border-color);
       }
 
@@ -5707,24 +5785,24 @@
       }
 
       .form-group {
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.42rem;
       }
 
       .form-group label {
         display: block;
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.2rem;
         font-weight: 500;
-        font-size: 0.85rem;
+        font-size: 0.78rem;
         color: #374151;
       }
 
       .form-group input,
       .form-group select {
         width: 100%;
-        padding: 0.5rem 0.75rem;
+        padding: 0.38rem 0.58rem;
         border: 1px solid #d1d5db;
         border-radius: 0.375rem;
-        font-size: 0.875rem;
+        font-size: 0.82rem;
       }
 
       .form-group input:focus,
@@ -5738,8 +5816,8 @@
         display: flex;
         gap: 0.5rem;
         justify-content: flex-end;
-        margin-top: 1rem;
-        padding-top: 0.75rem;
+        margin-top: 0.65rem;
+        padding-top: 0.6rem;
         border-top: 1px solid var(--border-color);
       }
 
