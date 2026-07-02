@@ -5,6 +5,10 @@ let currentStoreProductSalesRows = [];
 let currentCombinedProductSalesRows = [];
 let currentSalesWithDeliveryRows = [];
 let currentSalesByPaymentRows = [];
+let currentCustomerDetailsRows = [];
+let currentCustomerOrderSummaryRows = [];
+let currentCustomerSummaryRows = [];
+let currentCustomerDetailsFilterLoaded = false;
 let currentInventoryReportScope = "inventory";
 let expandedStoreSalesStoreId = null;
 
@@ -23,6 +27,7 @@ const inventoryReportOptions = {
         { value: "sales-with-delivery", label: "Sales With Delivery Charges" },
         { value: "sales-by-payment", label: "Cash/Credit Sales With Delivery" },
         { value: "sales-by-payment-simple", label: "Cash/Credit Sales With Delivery (By Type)" },
+        { value: "customer-details", label: "Customer Details by Store/Product" },
     ],
 };
 
@@ -59,6 +64,12 @@ function inventoryTitleCase(value) {
         .filter(Boolean)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(" ");
+}
+
+function inventoryPlainText(value) {
+    const div = document.createElement("div");
+    div.innerHTML = String(value ?? "");
+    return div.textContent || div.innerText || "";
 }
 
 function openInventoryModal(modalId) {
@@ -184,6 +195,27 @@ function getSelectedInventoryStoreId() {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function getSelectedInventoryCustomerId() {
+    const el = document.getElementById("inventoryCustomerFilter");
+    if (!el || !el.value) return null;
+    const parsed = Number.parseInt(el.value, 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getSelectedInventoryCustomerName() {
+    const el = document.getElementById("inventoryCustomerFilter");
+    if (!el || !el.value) return "All Customers";
+    return el.options[el.selectedIndex]?.textContent || `Customer #${el.value}`;
+}
+
+function getSelectedCustomerDetailsReportMode() {
+    const el = document.getElementById("inventoryCustomerReportMode");
+    const mode = String(el?.value || "detail").trim().toLowerCase();
+    if (mode === "summary") return "order-summary";
+    if (["detail", "order-summary", "customer-summary"].includes(mode)) return mode;
+    return "detail";
+}
+
 function getSelectedInventoryDateRange() {
     const startDate = (document.getElementById("inventoryStartDate")?.value || "").trim();
     const endDate = (document.getElementById("inventoryEndDate")?.value || "").trim();
@@ -196,9 +228,14 @@ function getSelectedInventoryDateRange() {
 function buildInventorySalesQuery() {
     const params = new URLSearchParams();
     const storeId = getSelectedInventoryStoreId();
+    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
+    const customerId = activeType === "customer-details" ? getSelectedInventoryCustomerId() : null;
+    const customerReportMode = activeType === "customer-details" ? getSelectedCustomerDetailsReportMode() : "";
     const { startDate, endDate } = getSelectedInventoryDateRange();
 
     if (storeId) params.set("store_id", String(storeId));
+    if (customerId) params.set("customer_id", String(customerId));
+    if (customerReportMode) params.set("view", customerReportMode);
     if (startDate) params.set("start_date", startDate);
     if (endDate) params.set("end_date", endDate);
 
@@ -420,6 +457,71 @@ function loadSalesByPaymentSimpleReport() {
             console.error("Error loading cash/credit sales report:", err);
             showError("Cash/Credit Sales With Delivery Report (By Type)", "Error loading cash/credit sales report");
         });
+}
+
+function loadCustomerDetailsReport() {
+    const apiBase = window.API_BASE || `${window.location.protocol}//${window.location.host}`;
+    const token = localStorage.getItem("serveNowToken");
+    const query = buildInventorySalesQuery();
+
+    fetch(`${apiBase}/api/admin/customer-details-sales-report${query}`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.success) {
+                displayCustomerDetailsReport(data);
+            } else {
+                showError("Customer Details Report", data.message || "Failed to load customer details report");
+            }
+        })
+        .catch((err) => {
+            console.error("Error loading customer details report:", err);
+            showError("Customer Details Report", "Failed to load customer details report");
+        });
+}
+
+async function loadCustomerDetailsCustomerFilter() {
+    const select = document.getElementById("inventoryCustomerFilter");
+    if (!select || currentCustomerDetailsFilterLoaded) return;
+
+    const apiBase = window.API_BASE || `${window.location.protocol}//${window.location.host}`;
+    const token = localStorage.getItem("serveNowToken");
+    select.innerHTML = `<option value="">Loading customers...</option>`;
+
+    try {
+        const response = await fetch(`${apiBase}/api/admin/customer-details-sales-report/customers`, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            select.innerHTML = `<option value="">All Customers</option>`;
+            showError("Customer Details Report", data.message || "Failed to load customer filter");
+            return;
+        }
+
+        const customers = Array.isArray(data.customers) ? data.customers : [];
+        select.innerHTML = `<option value="">All Customers</option>`;
+        customers.forEach((customer) => {
+            if (!customer.id) return;
+            const opt = document.createElement("option");
+            opt.value = String(customer.id);
+            const extra = [customer.email, customer.phone].filter(Boolean).join(" | ");
+            opt.textContent = extra ? `${customer.name} - ${extra}` : customer.name;
+            select.appendChild(opt);
+        });
+        currentCustomerDetailsFilterLoaded = true;
+    } catch (err) {
+        console.error("Error loading customer details filter:", err);
+        select.innerHTML = `<option value="">All Customers</option>`;
+        showError("Customer Details Report", "Failed to load customer filter");
+    }
 }
 
 function populateInventoryStoreFilter(stores, selectedStoreId) {
@@ -1432,6 +1534,281 @@ function displaySalesByPaymentSimpleReport(data) {
     }
 }
 
+function displayCustomerDetailsReport(data) {
+    const thead = document.getElementById("customerDetailsReportHead");
+    const tbody = document.getElementById("customerDetailsReportBody");
+    const footer = document.getElementById("customerDetailsReportFooter");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    if (footer) footer.innerHTML = "";
+
+    const reportView = data.report_view || getSelectedCustomerDetailsReportMode();
+    if (thead) {
+        thead.innerHTML = reportView === "customer-summary"
+            ? `
+                <tr>
+                  <th>Customer</th>
+                  <th>Contact No</th>
+                  <th>Address</th>
+                  <th>Total Orders</th>
+                  <th>Delivered</th>
+                  <th>Cancelled</th>
+                  <th>Active</th>
+                  <th>Qty</th>
+                  <th>Items Subtotal</th>
+                  <th>Delivery Fee</th>
+                  <th>Total Amount</th>
+                  <th>Delivered Amount</th>
+                  <th>Cancelled Amount</th>
+                  <th>Active Amount</th>
+                  <th>Last Order</th>
+                </tr>
+            `
+            : reportView === "order-summary"
+            ? `
+                <tr>
+                  <th>Order Date</th>
+                  <th>Order Number</th>
+                  <th>Customer</th>
+                  <th>Contact No</th>
+                  <th>Address</th>
+                  <th>Stores</th>
+                  <th>Products</th>
+                  <th>Qty</th>
+                  <th>Items Subtotal</th>
+                  <th>Delivery Fee</th>
+                  <th>Order Total</th>
+                  <th>Status</th>
+                </tr>
+            `
+            : `
+                <tr>
+                  <th>Order Date</th>
+                  <th>Order Number</th>
+                  <th>Store</th>
+                  <th>Product</th>
+                  <th>Customer</th>
+                  <th>Contact No</th>
+                  <th>Address</th>
+                  <th>Qty</th>
+                  <th>Sale Price</th>
+                  <th>Line Total</th>
+                  <th>Status</th>
+                </tr>
+            `;
+    }
+
+    if (reportView === "customer-summary") {
+        const rows = data.customer_summary || [];
+        currentCustomerSummaryRows = rows;
+        currentCustomerOrderSummaryRows = [];
+        currentCustomerDetailsRows = [];
+        const columnCount = 15;
+        if (!rows.length) {
+            const row = document.createElement("tr");
+            row.innerHTML = `<td colspan="${columnCount}" style="text-align:center;">No customer summary found for the selected scope.</td>`;
+            tbody.appendChild(row);
+            return;
+        }
+
+        rows.forEach((item) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>
+                    <strong>${inventoryEscapeHtml(item.customer_name || "-")}</strong>
+                    ${item.customer_email ? `<br><small>${inventoryEscapeHtml(item.customer_email)}</small>` : ""}
+                </td>
+                <td>${inventoryEscapeHtml(item.contact_no || "-")}</td>
+                <td>${inventoryEscapeHtml(item.customer_address || "-")}</td>
+                <td>${inventoryNumber(item.total_orders)}</td>
+                <td>${inventoryNumber(item.delivered_orders)}</td>
+                <td>${inventoryNumber(item.cancelled_orders)}</td>
+                <td>${inventoryNumber(item.active_orders)}</td>
+                <td>${inventoryNumber(item.total_quantity)}</td>
+                <td>${inventoryMoney(item.items_subtotal)}</td>
+                <td>${inventoryMoney(item.delivery_fee)}</td>
+                <td>${inventoryMoney(item.total_order_amount)}</td>
+                <td>${inventoryMoney(item.delivered_amount)}</td>
+                <td>${inventoryMoney(item.cancelled_amount)}</td>
+                <td>${inventoryMoney(item.active_amount)}</td>
+                <td>${inventoryDateTime(item.last_order_date)}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        const totals = rows.reduce((acc, item) => {
+            acc.totalOrders += Number(item.total_orders || 0) || 0;
+            acc.deliveredOrders += Number(item.delivered_orders || 0) || 0;
+            acc.cancelledOrders += Number(item.cancelled_orders || 0) || 0;
+            acc.activeOrders += Number(item.active_orders || 0) || 0;
+            acc.qty += Number(item.total_quantity || 0) || 0;
+            acc.itemsSubtotal += Number(item.items_subtotal || 0) || 0;
+            acc.deliveryFee += Number(item.delivery_fee || 0) || 0;
+            acc.totalAmount += Number(item.total_order_amount || 0) || 0;
+            acc.deliveredAmount += Number(item.delivered_amount || 0) || 0;
+            acc.cancelledAmount += Number(item.cancelled_amount || 0) || 0;
+            acc.activeAmount += Number(item.active_amount || 0) || 0;
+            return acc;
+        }, {
+            totalOrders: 0,
+            deliveredOrders: 0,
+            cancelledOrders: 0,
+            activeOrders: 0,
+            qty: 0,
+            itemsSubtotal: 0,
+            deliveryFee: 0,
+            totalAmount: 0,
+            deliveredAmount: 0,
+            cancelledAmount: 0,
+            activeAmount: 0,
+        });
+
+        if (footer) {
+            footer.innerHTML = `
+                <tr class="aginv-report-grand-row">
+                    <td>Totals</td>
+                    <td></td>
+                    <td>${inventoryNumber(rows.length)} customers</td>
+                    <td>${inventoryNumber(totals.totalOrders)}</td>
+                    <td>${inventoryNumber(totals.deliveredOrders)}</td>
+                    <td>${inventoryNumber(totals.cancelledOrders)}</td>
+                    <td>${inventoryNumber(totals.activeOrders)}</td>
+                    <td>${inventoryNumber(totals.qty)}</td>
+                    <td>${inventoryMoney(totals.itemsSubtotal)}</td>
+                    <td>${inventoryMoney(totals.deliveryFee)}</td>
+                    <td>${inventoryMoney(totals.totalAmount)}</td>
+                    <td>${inventoryMoney(totals.deliveredAmount)}</td>
+                    <td>${inventoryMoney(totals.cancelledAmount)}</td>
+                    <td>${inventoryMoney(totals.activeAmount)}</td>
+                    <td></td>
+                </tr>
+            `;
+        }
+        return;
+    }
+
+    if (reportView === "order-summary") {
+        const rows = data.customer_order_summary || [];
+        currentCustomerOrderSummaryRows = rows;
+        currentCustomerSummaryRows = [];
+        currentCustomerDetailsRows = [];
+        const columnCount = 12;
+        if (!rows.length) {
+            const row = document.createElement("tr");
+            row.innerHTML = `<td colspan="${columnCount}" style="text-align:center;">No customer orders found for the selected scope.</td>`;
+            tbody.appendChild(row);
+            return;
+        }
+
+        rows.forEach((item) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${inventoryDateTime(item.order_date)}</td>
+                <td>${inventoryEscapeHtml(item.order_number || "-")}</td>
+                <td>
+                    <strong>${inventoryEscapeHtml(item.customer_name || "-")}</strong>
+                    ${item.customer_email ? `<br><small>${inventoryEscapeHtml(item.customer_email)}</small>` : ""}
+                </td>
+                <td>${inventoryEscapeHtml(item.contact_no || "-")}</td>
+                <td>${inventoryEscapeHtml(item.customer_address || "-")}</td>
+                <td>${inventoryEscapeHtml(item.store_names || "-")}</td>
+                <td>${inventoryEscapeHtml(item.products_summary || "-")}</td>
+                <td>${inventoryNumber(item.total_quantity)}</td>
+                <td>${inventoryMoney(item.items_subtotal)}</td>
+                <td>${inventoryMoney(item.delivery_fee)}</td>
+                <td>${inventoryMoney(item.order_total)}</td>
+                <td>${inventoryTitleCase(item.order_status || "-")}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        const uniqueCustomers = new Set();
+        const totals = rows.reduce((acc, item) => {
+            acc.qty += Number(item.total_quantity || 0) || 0;
+            acc.itemsSubtotal += Number(item.items_subtotal || 0) || 0;
+            acc.deliveryFee += Number(item.delivery_fee || 0) || 0;
+            acc.orderTotal += Number(item.order_total || 0) || 0;
+            if (item.customer_id) uniqueCustomers.add(String(item.customer_id));
+            return acc;
+        }, { qty: 0, itemsSubtotal: 0, deliveryFee: 0, orderTotal: 0 });
+
+        if (footer) {
+            footer.innerHTML = `
+                <tr class="aginv-report-grand-row">
+                    <td colspan="2">Totals</td>
+                    <td>${inventoryNumber(uniqueCustomers.size)} unique customers</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td>${inventoryNumber(rows.length)} orders</td>
+                    <td>${inventoryNumber(totals.qty)}</td>
+                    <td>${inventoryMoney(totals.itemsSubtotal)}</td>
+                    <td>${inventoryMoney(totals.deliveryFee)}</td>
+                    <td>${inventoryMoney(totals.orderTotal)}</td>
+                    <td></td>
+                </tr>
+            `;
+        }
+        return;
+    }
+
+    const rows = data.customer_details || [];
+    currentCustomerDetailsRows = rows;
+    currentCustomerOrderSummaryRows = [];
+    currentCustomerSummaryRows = [];
+    const columnCount = 11;
+    if (!rows.length) {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td colspan="${columnCount}" style="text-align:center;">No customer sales found for the selected scope.</td>`;
+        tbody.appendChild(row);
+        return;
+    }
+
+    rows.forEach((item) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${inventoryDateTime(item.order_date)}</td>
+            <td>${inventoryEscapeHtml(item.order_number || "-")}</td>
+            <td>${inventoryEscapeHtml(item.store_name || "-")}</td>
+            <td>${inventoryEscapeHtml(item.product_name || "-")}</td>
+            <td>
+                <strong>${inventoryEscapeHtml(item.customer_name || "-")}</strong>
+                ${item.customer_email ? `<br><small>${inventoryEscapeHtml(item.customer_email)}</small>` : ""}
+            </td>
+            <td>${inventoryEscapeHtml(item.contact_no || "-")}</td>
+            <td>${inventoryEscapeHtml(item.customer_address || "-")}</td>
+            <td>${inventoryNumber(item.quantity)}</td>
+            <td>${inventoryMoney(item.sale_price)}</td>
+            <td>${inventoryMoney(item.line_total)}</td>
+            <td>${inventoryTitleCase(item.order_status || "-")}</td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    const uniqueCustomers = new Set();
+    const totals = rows.reduce((acc, item) => {
+        acc.qty += Number(item.quantity || 0) || 0;
+        acc.sales += Number(item.line_total || 0) || 0;
+        if (item.customer_id) uniqueCustomers.add(String(item.customer_id));
+        return acc;
+    }, { qty: 0, sales: 0 });
+
+    if (footer) {
+        footer.innerHTML = `
+            <tr class="aginv-report-grand-row">
+                <td colspan="4">Totals</td>
+                <td>${inventoryNumber(uniqueCustomers.size)} unique customers</td>
+                <td></td>
+                <td></td>
+                <td>${inventoryNumber(totals.qty)}</td>
+                <td></td>
+                <td>${inventoryMoney(totals.sales)}</td>
+                <td></td>
+            </tr>
+        `;
+    }
+}
+
 function fillSalesEditModal(row, options) {
     const setValue = (id, value) => {
         const el = document.getElementById(id);
@@ -1572,12 +1949,22 @@ function switchInventoryReport(reportType) {
         "salesWithDeliveryReportSection",
         "salesByPaymentReportSection",
         "salesByPaymentSimpleReportSection",
+        "customerDetailsReportSection",
         "productDetailReportSection",
     ];
     sections.forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.style.display = "none";
     });
+
+    const customerFilterGroup = document.getElementById("inventoryCustomerFilterGroup");
+    if (customerFilterGroup) {
+        customerFilterGroup.style.display = reportType === "customer-details" ? "" : "none";
+    }
+    const customerReportModeGroup = document.getElementById("inventoryCustomerReportModeGroup");
+    if (customerReportModeGroup) {
+        customerReportModeGroup.style.display = reportType === "customer-details" ? "" : "none";
+    }
 
     switch (reportType) {
         case "store":
@@ -1616,6 +2003,10 @@ function switchInventoryReport(reportType) {
         case "sales-by-payment-simple":
             document.getElementById("salesByPaymentSimpleReportSection").style.display = "block";
             loadSalesByPaymentSimpleReport();
+            break;
+        case "customer-details":
+            document.getElementById("customerDetailsReportSection").style.display = "block";
+            loadCustomerDetailsCustomerFilter().finally(() => loadCustomerDetailsReport());
             break;
         case "product-detail":
             document.getElementById("productDetailReportSection").style.display = "block";
@@ -1657,12 +2048,21 @@ function exportInventoryReportPdf() {
         "sales-with-delivery": "Sales With Delivery Charges Report",
         "sales-by-payment": "Cash/Credit Sales With Delivery Report",
         "sales-by-payment-simple": "Cash/Credit Sales With Delivery Report (By Type)",
+        "customer-details": "Customer Details by Store/Product Report",
     };
     const reportName = reportNameMap[activeType] || "Inventory Report";
     const selectedStoreId = getSelectedInventoryStoreId();
     const selectedStoreName = selectedStoreId
         ? ((currentInventoryData?.stores || []).find((s) => Number(s.id) === Number(selectedStoreId)) || {}).name || `Store #${selectedStoreId}`
         : "All Stores";
+    const selectedCustomerName = activeType === "customer-details" ? getSelectedInventoryCustomerName() : "";
+    const selectedCustomerReportMode = activeType === "customer-details"
+        ? ({
+            "order-summary": "Customer Order Summary",
+            "customer-summary": "Selected Customer Period Summary",
+            detail: "Product Detail",
+        }[getSelectedCustomerDetailsReportMode()] || "Product Detail")
+        : "";
     const { startDate, endDate } = getSelectedInventoryDateRange();
 
     doc.setFont("helvetica", "bold");
@@ -1675,19 +2075,25 @@ function exportInventoryReportPdf() {
     doc.text(`Store Scope: ${selectedStoreName}`, 14, 28);
     doc.text(`Generated: ${now.toLocaleString()}`, 14, 33);
     doc.text(`Date Range: ${startDate || "-"} to ${endDate || "-"}`, 14, 38);
+    if (selectedCustomerName) {
+        doc.text(`Customer Scope: ${selectedCustomerName}`, 14, 43);
+    }
+    if (selectedCustomerReportMode) {
+        doc.text(`Report View: ${selectedCustomerReportMode}`, 14, selectedCustomerName ? 48 : 43);
+    }
 
-    let startY = 46;
+    let startY = selectedCustomerReportMode ? (selectedCustomerName ? 56 : 51) : (selectedCustomerName ? 51 : 46);
     if (currentInventoryReportScope !== "sales") {
         const summary = currentInventoryData.summary || {};
         doc.setFont("helvetica", "bold");
-        doc.text("Summary", 14, 46);
+        doc.text("Summary", 14, startY);
         doc.setFont("helvetica", "normal");
         doc.text(
             `Stores: ${inventoryNumber(summary.total_stores)} | Categories: ${inventoryNumber(summary.total_categories)} | Products: ${inventoryNumber(summary.total_products)} | Stock: ${inventoryNumber(summary.total_stock)} | Inventory Value: ${inventoryMoney(summary.total_inventory_value)}`,
             14,
-            52
+            startY + 6
         );
-        startY = 58;
+        startY += 12;
     }
 
     let tableHead = [];
@@ -2203,6 +2609,147 @@ function exportInventoryReportPdf() {
             inventoryMoney(grandTotals.totalWithDelivery),
             inventoryMoney(grandTotals.orderTotal),
         ]);
+    } else if (activeType === "customer-details") {
+        if (getSelectedCustomerDetailsReportMode() === "customer-summary") {
+            tableHead = [["Customer", "Contact No", "Address", "Total Orders", "Delivered", "Cancelled", "Active", "Qty", "Items Subtotal", "Delivery Fee", "Total Amount", "Delivered Amount", "Cancelled Amount", "Active Amount", "Last Order"]];
+            const rows = currentCustomerSummaryRows || [];
+            tableBody = rows.map((r) => [
+                [r.customer_name, r.customer_email].filter(Boolean).join(" | ") || "-",
+                r.contact_no || "-",
+                r.customer_address || "-",
+                inventoryNumber(r.total_orders),
+                inventoryNumber(r.delivered_orders),
+                inventoryNumber(r.cancelled_orders),
+                inventoryNumber(r.active_orders),
+                inventoryNumber(r.total_quantity),
+                inventoryMoney(r.items_subtotal),
+                inventoryMoney(r.delivery_fee),
+                inventoryMoney(r.total_order_amount),
+                inventoryMoney(r.delivered_amount),
+                inventoryMoney(r.cancelled_amount),
+                inventoryMoney(r.active_amount),
+                inventoryDateTime(r.last_order_date),
+            ]);
+            const totals = rows.reduce((acc, r) => {
+                acc.totalOrders += Number(r.total_orders || 0) || 0;
+                acc.deliveredOrders += Number(r.delivered_orders || 0) || 0;
+                acc.cancelledOrders += Number(r.cancelled_orders || 0) || 0;
+                acc.activeOrders += Number(r.active_orders || 0) || 0;
+                acc.qty += Number(r.total_quantity || 0) || 0;
+                acc.itemsSubtotal += Number(r.items_subtotal || 0) || 0;
+                acc.deliveryFee += Number(r.delivery_fee || 0) || 0;
+                acc.totalAmount += Number(r.total_order_amount || 0) || 0;
+                acc.deliveredAmount += Number(r.delivered_amount || 0) || 0;
+                acc.cancelledAmount += Number(r.cancelled_amount || 0) || 0;
+                acc.activeAmount += Number(r.active_amount || 0) || 0;
+                return acc;
+            }, {
+                totalOrders: 0,
+                deliveredOrders: 0,
+                cancelledOrders: 0,
+                activeOrders: 0,
+                qty: 0,
+                itemsSubtotal: 0,
+                deliveryFee: 0,
+                totalAmount: 0,
+                deliveredAmount: 0,
+                cancelledAmount: 0,
+                activeAmount: 0,
+            });
+            tableBody.push([
+                "Totals",
+                "",
+                `${inventoryNumber(rows.length)} customers`,
+                inventoryNumber(totals.totalOrders),
+                inventoryNumber(totals.deliveredOrders),
+                inventoryNumber(totals.cancelledOrders),
+                inventoryNumber(totals.activeOrders),
+                inventoryNumber(totals.qty),
+                inventoryMoney(totals.itemsSubtotal),
+                inventoryMoney(totals.deliveryFee),
+                inventoryMoney(totals.totalAmount),
+                inventoryMoney(totals.deliveredAmount),
+                inventoryMoney(totals.cancelledAmount),
+                inventoryMoney(totals.activeAmount),
+                "",
+            ]);
+        } else if (getSelectedCustomerDetailsReportMode() === "order-summary") {
+            tableHead = [["Order Date", "Order Number", "Customer", "Contact No", "Address", "Stores", "Products", "Qty", "Items Subtotal", "Delivery Fee", "Order Total", "Status"]];
+            const rows = currentCustomerOrderSummaryRows || [];
+            tableBody = rows.map((r) => [
+                inventoryDateTime(r.order_date),
+                r.order_number || "-",
+                [r.customer_name, r.customer_email].filter(Boolean).join(" | ") || "-",
+                r.contact_no || "-",
+                r.customer_address || "-",
+                r.store_names || "-",
+                r.products_summary || "-",
+                inventoryNumber(r.total_quantity),
+                inventoryMoney(r.items_subtotal),
+                inventoryMoney(r.delivery_fee),
+                inventoryMoney(r.order_total),
+                inventoryTitleCase(r.order_status || "-"),
+            ]);
+            const uniqueCustomers = new Set();
+            const totals = rows.reduce((acc, r) => {
+                acc.qty += Number(r.total_quantity || 0) || 0;
+                acc.itemsSubtotal += Number(r.items_subtotal || 0) || 0;
+                acc.deliveryFee += Number(r.delivery_fee || 0) || 0;
+                acc.orderTotal += Number(r.order_total || 0) || 0;
+                if (r.customer_id) uniqueCustomers.add(String(r.customer_id));
+                return acc;
+            }, { qty: 0, itemsSubtotal: 0, deliveryFee: 0, orderTotal: 0 });
+            tableBody.push([
+                "Totals",
+                "",
+                `${inventoryNumber(uniqueCustomers.size)} unique customers`,
+                "",
+                "",
+                "",
+                `${inventoryNumber(rows.length)} orders`,
+                inventoryNumber(totals.qty),
+                inventoryMoney(totals.itemsSubtotal),
+                inventoryMoney(totals.deliveryFee),
+                inventoryMoney(totals.orderTotal),
+                "",
+            ]);
+        } else {
+            tableHead = [["Order Date", "Order Number", "Store", "Product", "Customer", "Contact No", "Address", "Qty", "Sale Price", "Line Total", "Status"]];
+            const rows = currentCustomerDetailsRows || [];
+            tableBody = rows.map((r) => [
+                inventoryDateTime(r.order_date),
+                r.order_number || "-",
+                r.store_name || "-",
+                r.product_name || "-",
+                [r.customer_name, r.customer_email].filter(Boolean).join(" | ") || "-",
+                r.contact_no || "-",
+                r.customer_address || "-",
+                inventoryNumber(r.quantity),
+                inventoryMoney(r.sale_price),
+                inventoryMoney(r.line_total),
+                inventoryTitleCase(r.order_status || "-"),
+            ]);
+            const uniqueCustomers = new Set();
+            const totals = rows.reduce((acc, r) => {
+                acc.qty += Number(r.quantity || 0) || 0;
+                acc.sales += Number(r.line_total || 0) || 0;
+                if (r.customer_id) uniqueCustomers.add(String(r.customer_id));
+                return acc;
+            }, { qty: 0, sales: 0 });
+            tableBody.push([
+                "Totals",
+                "",
+                "",
+                "",
+                `${inventoryNumber(uniqueCustomers.size)} unique customers`,
+                "",
+                "",
+                inventoryNumber(totals.qty),
+                "",
+                inventoryMoney(totals.sales),
+                "",
+            ]);
+        }
     } else {
         tableHead = [["Store", "Products", "Stock", "Inventory Value"]];
         tableBody = (currentInventoryData.store_wise || []).map((r) => [
@@ -2233,6 +2780,101 @@ function exportInventoryReportPdf() {
     const scope = selectedStoreId ? `store_${selectedStoreId}` : "all_stores";
     const safeReportName = reportName.replace(/[^a-z0-9]+/gi, "_");
     doc.save(`${safeReportName}_${scope}_${fileDate}.pdf`);
+}
+
+function exportInventoryReportExcel() {
+    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
+    const tableIdMap = {
+        store: "storeInventoryTable",
+        category: "categoryInventoryTable",
+        breakdown: "storeCategoryBreakdownTable",
+        "product-detail": "productDetailInventoryTable",
+        sales: "storeSalesTable",
+        "manual-sales": "manualSalesTable",
+        "store-product-sales": "storeProductSalesTable",
+        "combined-product-sales": "combinedProductSalesTable",
+        "sales-with-delivery": "salesWithDeliveryTable",
+        "sales-by-payment": "salesByPaymentTable",
+        "sales-by-payment-simple": "salesByPaymentSimpleTable",
+        "customer-details": "customerDetailsReportTable",
+    };
+    const reportNameMap = {
+        store: "Inventory Report",
+        category: "Category-wise Inventory Report",
+        breakdown: "Store-wise Category Breakdown Report",
+        "product-detail": "Product Cost Sale Detail Report",
+        sales: "Store Sale-wise Report",
+        "manual-sales": "Manual Order Product Sales Report",
+        "store-product-sales": "Store Product Sales Report",
+        "combined-product-sales": "Combined Product Sales Report",
+        "sales-with-delivery": "Sales With Delivery Charges Report",
+        "sales-by-payment": "Cash Credit Sales With Delivery Report",
+        "sales-by-payment-simple": "Cash Credit Sales With Delivery Report By Type",
+        "customer-details": "Customer Details by Store Product Report",
+    };
+
+    const table = document.getElementById(tableIdMap[activeType]);
+    if (!table) {
+        showWarning("Export Excel", "No report table found to export.");
+        return;
+    }
+
+    const clone = table.cloneNode(true);
+    clone.querySelectorAll("script, button").forEach((el) => el.remove());
+    clone.querySelectorAll("td, th").forEach((cell) => {
+        cell.textContent = inventoryPlainText(cell.innerHTML).replace(/\s+/g, " ").trim();
+    });
+
+    const now = new Date();
+    const selectedStoreId = getSelectedInventoryStoreId();
+    const selectedStoreName = selectedStoreId
+        ? ((currentInventoryData?.stores || []).find((s) => Number(s.id) === Number(selectedStoreId)) || {}).name || `Store #${selectedStoreId}`
+        : "All Stores";
+    const selectedCustomerName = activeType === "customer-details" ? getSelectedInventoryCustomerName() : "";
+    const selectedCustomerReportMode = activeType === "customer-details"
+        ? ({
+            "order-summary": "Customer Order Summary",
+            "customer-summary": "Selected Customer Period Summary",
+            detail: "Product Detail",
+        }[getSelectedCustomerDetailsReportMode()] || "Product Detail")
+        : "";
+    const { startDate, endDate } = getSelectedInventoryDateRange();
+    const reportName = reportNameMap[activeType] || "ServeNow Report";
+    const workbook = `
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }
+              th { background: #1a4f81; color: #fff; font-weight: bold; }
+              th, td { border: 1px solid #b8c4d0; padding: 6px; vertical-align: top; }
+              tfoot td { font-weight: bold; background: #eef4f8; }
+            </style>
+          </head>
+          <body>
+            <h2>ServeNow</h2>
+            <h3>${inventoryEscapeHtml(reportName)}</h3>
+            <p><strong>Store Scope:</strong> ${inventoryEscapeHtml(selectedStoreName)}</p>
+            ${selectedCustomerName ? `<p><strong>Customer Scope:</strong> ${inventoryEscapeHtml(selectedCustomerName)}</p>` : ""}
+            ${selectedCustomerReportMode ? `<p><strong>Report View:</strong> ${inventoryEscapeHtml(selectedCustomerReportMode)}</p>` : ""}
+            <p><strong>Date Range:</strong> ${inventoryEscapeHtml(startDate || "-")} to ${inventoryEscapeHtml(endDate || "-")}</p>
+            <p><strong>Generated:</strong> ${inventoryEscapeHtml(now.toLocaleString())}</p>
+            ${clone.outerHTML}
+          </body>
+        </html>
+    `;
+    const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const fileDate = now.toISOString().slice(0, 10);
+    const scope = selectedStoreId ? `store_${selectedStoreId}` : "all_stores";
+    const safeReportName = reportName.replace(/[^a-z0-9]+/gi, "_");
+    link.href = url;
+    link.download = `${safeReportName}_${scope}_${fileDate}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -2267,6 +2909,10 @@ document.addEventListener("DOMContentLoaded", () => {
         clearBtn.addEventListener("click", () => {
             const storeFilter = document.getElementById("inventoryStoreFilter");
             if (storeFilter) storeFilter.value = "";
+            const customerFilter = document.getElementById("inventoryCustomerFilter");
+            if (customerFilter) customerFilter.value = "";
+            const customerReportMode = document.getElementById("inventoryCustomerReportMode");
+            if (customerReportMode) customerReportMode.value = "detail";
             const startDateEl = document.getElementById("inventoryStartDate");
             const endDateEl = document.getElementById("inventoryEndDate");
             const today = inventoryTodayDateValue();
@@ -2278,6 +2924,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const pdfBtn = document.getElementById("inventoryExportPdfBtn");
     if (pdfBtn) pdfBtn.addEventListener("click", exportInventoryReportPdf);
+
+    const excelBtn = document.getElementById("inventoryExportExcelBtn");
+    if (excelBtn) excelBtn.addEventListener("click", exportInventoryReportExcel);
+
+    const customerReportMode = document.getElementById("inventoryCustomerReportMode");
+    if (customerReportMode) {
+        customerReportMode.addEventListener("change", () => {
+            const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "";
+            if (activeType === "customer-details") loadCustomerDetailsReport();
+        });
+    }
 
     const saveManualSalesEditBtn = document.getElementById("saveManualSalesEditBtn");
     if (saveManualSalesEditBtn) {

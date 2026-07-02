@@ -2506,6 +2506,7 @@
                   <option value="sales-with-delivery">Sales With Delivery Charges</option>
                   <option value="sales-by-payment">Cash/Credit Sales With Delivery</option>
                   <option value="sales-by-payment-simple">Cash/Credit Sales With Delivery (By Type)</option>
+                  <option value="customer-details">Customer Details by Store/Product</option>
                   <option value="product-detail">Product Cost/Sale Detail</option>
                 </select>
             </div>
@@ -2513,6 +2514,20 @@
                 <label for="inventoryStoreFilter">Store</label>
                 <select id="inventoryStoreFilter" class="form-control">
                   <option value="">All Stores</option>
+                </select>
+            </div>
+            <div class="filter-group" id="inventoryCustomerFilterGroup" style="display: none;">
+                <label for="inventoryCustomerFilter">Customer</label>
+                <select id="inventoryCustomerFilter" class="form-control">
+                  <option value="">All Customers</option>
+                </select>
+            </div>
+            <div class="filter-group" id="inventoryCustomerReportModeGroup" style="display: none;">
+                <label for="inventoryCustomerReportMode">Customer Report</label>
+                <select id="inventoryCustomerReportMode" class="form-control">
+                  <option value="detail">Product Detail</option>
+                  <option value="order-summary">Customer Order Summary</option>
+                  <option value="customer-summary">Selected Customer Period Summary</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -2531,6 +2546,9 @@
             </button>
             <button class="btn btn-danger" id="inventoryExportPdfBtn" style="align-self:flex-end; margin-bottom:2px;">
               <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+            <button class="btn btn-secondary" id="inventoryExportExcelBtn" style="align-self:flex-end; margin-bottom:2px;">
+              <i class="fas fa-file-excel"></i> Export Excel
             </button>
           </div>
 
@@ -2818,6 +2836,38 @@
                 </tbody>
                 <tfoot id="salesByPaymentSimpleFooter">
                   <!-- Order-wise sales by payment totals will be loaded here -->
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div id="customerDetailsReportSection" style="display: none">
+            <h3 style="margin-bottom: 1rem">Customer Details by Store/Product</h3>
+            <p style="margin: 0 0 0.75rem 0; color: #64748b; font-size: 0.9rem;">
+              Customer contact and delivery details for each product sold, grouped by the selected store and date scope.
+            </p>
+            <div class="table-container">
+              <table id="customerDetailsReportTable" class="table">
+                <thead id="customerDetailsReportHead">
+                  <tr>
+                    <th>Order Date</th>
+                    <th>Order Number</th>
+                    <th>Store</th>
+                    <th>Product</th>
+                    <th>Customer</th>
+                    <th>Contact No</th>
+                    <th>Address</th>
+                    <th>Qty</th>
+                    <th>Sale Price</th>
+                    <th>Line Total</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="customerDetailsReportBody">
+                  <!-- Customer detail report data will be loaded here -->
+                </tbody>
+                <tfoot id="customerDetailsReportFooter">
+                  <!-- Customer detail report totals will be loaded here -->
                 </tfoot>
               </table>
             </div>

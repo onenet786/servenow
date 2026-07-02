@@ -1614,6 +1614,418 @@ router.get(
 );
 
 router.get(
+  "/customer-details-sales-report/customers",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      if (!(await hasPermission(req, "report_sales"))) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: report_sales required",
+        });
+      }
+
+      const [rows] = await req.db.execute(
+        `
+          SELECT DISTINCT
+              u.id,
+              CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as customer_name,
+              u.email,
+              u.phone
+          FROM orders o
+          JOIN users u ON u.id = o.user_id
+          ORDER BY customer_name ASC, u.email ASC
+        `
+      );
+
+      return res.json({
+        success: true,
+        customers: rows.map((row) => ({
+          id: Number(row.id) || null,
+          name: String(row.customer_name || "").trim() || `Customer #${row.id}`,
+          email: row.email || "",
+          phone: row.phone || "",
+        })),
+      });
+    } catch (err) {
+      console.error("Customer details filter customers error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch report customers",
+        error: err.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/customer-details-sales-report",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      if (!(await hasPermission(req, "report_sales"))) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: report_sales required",
+        });
+      }
+
+      const parsedStoreId = Number.parseInt(String(req.query.store_id || ""), 10);
+      const hasStoreFilter = Number.isInteger(parsedStoreId) && parsedStoreId > 0;
+      const parsedCustomerId = Number.parseInt(String(req.query.customer_id || ""), 10);
+      const hasCustomerFilter = Number.isInteger(parsedCustomerId) && parsedCustomerId > 0;
+      const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.start_date || "").trim())
+        ? String(req.query.start_date).trim()
+        : "";
+      const endDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.end_date || "").trim())
+        ? String(req.query.end_date).trim()
+        : "";
+      const requestedReportView = String(req.query.view || "detail").trim().toLowerCase();
+      const reportView = requestedReportView === "summary"
+        ? "order-summary"
+        : (["detail", "order-summary", "customer-summary"].includes(requestedReportView)
+            ? requestedReportView
+            : "detail");
+      const queryParams = [];
+
+      if (hasStoreFilter) queryParams.push(parsedStoreId);
+      if (hasCustomerFilter) queryParams.push(parsedCustomerId);
+      if (startDate) queryParams.push(startDate);
+      if (endDate) queryParams.push(endDate);
+
+      if (reportView === "customer-summary") {
+        const [rows] = await req.db.execute(
+          `
+            SELECT
+                scoped.customer_id,
+                scoped.customer_name,
+                scoped.customer_email,
+                scoped.contact_no,
+                MAX(scoped.customer_address) as customer_address,
+                COUNT(*) as total_orders,
+                SUM(CASE WHEN scoped.order_status = 'delivered' THEN 1 ELSE 0 END) as delivered_orders,
+                SUM(CASE WHEN scoped.order_status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_orders,
+                SUM(CASE WHEN scoped.order_status NOT IN ('delivered', 'cancelled') THEN 1 ELSE 0 END) as active_orders,
+                SUM(scoped.total_quantity) as total_quantity,
+                SUM(scoped.items_subtotal) as items_subtotal,
+                SUM(scoped.delivery_fee) as delivery_fee,
+                SUM(scoped.order_total) as total_order_amount,
+                SUM(CASE WHEN scoped.order_status = 'delivered' THEN scoped.order_total ELSE 0 END) as delivered_amount,
+                SUM(CASE WHEN scoped.order_status = 'cancelled' THEN scoped.order_total ELSE 0 END) as cancelled_amount,
+                SUM(CASE WHEN scoped.order_status NOT IN ('delivered', 'cancelled') THEN scoped.order_total ELSE 0 END) as active_amount,
+                MAX(scoped.order_date) as last_order_date,
+                GROUP_CONCAT(DISTINCT scoped.store_names ORDER BY scoped.store_names SEPARATOR ', ') as store_names
+            FROM (
+                SELECT
+                    o.id as order_id,
+                    LOWER(TRIM(COALESCE(o.status, ''))) as order_status,
+                    o.created_at as order_date,
+                    u.id as customer_id,
+                    CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as customer_name,
+                    u.email as customer_email,
+                    COALESCE(NULLIF(u.phone, ''), '-') as contact_no,
+                    COALESCE(NULLIF(o.delivery_address, ''), NULLIF(u.address, ''), '-') as customer_address,
+                    GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') as store_names,
+                    SUM(oi.quantity) as total_quantity,
+                    SUM(oi.quantity * oi.price) as items_subtotal,
+                    COALESCE(o.delivery_fee, 0) as delivery_fee,
+                    COALESCE(o.total_amount, 0) as order_total
+                FROM order_items oi
+                JOIN orders o ON o.id = oi.order_id
+                JOIN users u ON u.id = o.user_id
+                JOIN products p ON p.id = oi.product_id
+                JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id, o.store_id)
+                WHERE 1 = 1
+                ${hasStoreFilter ? "AND COALESCE(oi.store_id, p.store_id, o.store_id) = ?" : ""}
+                ${hasCustomerFilter ? "AND o.user_id = ?" : ""}
+                ${startDate ? "AND DATE(o.created_at) >= ?" : ""}
+                ${endDate ? "AND DATE(o.created_at) <= ?" : ""}
+                GROUP BY
+                    o.id, o.status, o.created_at, o.delivery_fee, o.total_amount,
+                    u.id, u.first_name, u.last_name, u.email, u.phone, u.address, o.delivery_address
+            ) scoped
+            GROUP BY scoped.customer_id, scoped.customer_name, scoped.customer_email, scoped.contact_no
+            ORDER BY total_order_amount DESC, total_orders DESC, scoped.customer_name ASC
+          `,
+          queryParams
+        );
+
+        const customerSummaryRows = rows.map((row) => {
+          const customerName = String(row.customer_name || "").trim() || `Customer #${row.customer_id}`;
+          return {
+            customer_id: Number(row.customer_id) || null,
+            customer_name: customerName,
+            customer_email: row.customer_email || "",
+            contact_no: row.contact_no || "-",
+            customer_address: row.customer_address || "-",
+            store_names: row.store_names || "",
+            total_orders: Number(row.total_orders) || 0,
+            delivered_orders: Number(row.delivered_orders) || 0,
+            cancelled_orders: Number(row.cancelled_orders) || 0,
+            active_orders: Number(row.active_orders) || 0,
+            total_quantity: Number(row.total_quantity) || 0,
+            items_subtotal: parseFloat(row.items_subtotal) || 0,
+            delivery_fee: parseFloat(row.delivery_fee) || 0,
+            total_order_amount: parseFloat(row.total_order_amount) || 0,
+            delivered_amount: parseFloat(row.delivered_amount) || 0,
+            cancelled_amount: parseFloat(row.cancelled_amount) || 0,
+            active_amount: parseFloat(row.active_amount) || 0,
+            last_order_date: row.last_order_date || null,
+          };
+        });
+
+        const summary = customerSummaryRows.reduce(
+          (acc, row) => {
+            acc.customers += 1;
+            acc.total_orders += Number(row.total_orders || 0) || 0;
+            acc.delivered_orders += Number(row.delivered_orders || 0) || 0;
+            acc.cancelled_orders += Number(row.cancelled_orders || 0) || 0;
+            acc.active_orders += Number(row.active_orders || 0) || 0;
+            acc.total_quantity += Number(row.total_quantity || 0) || 0;
+            acc.items_subtotal += Number(row.items_subtotal || 0) || 0;
+            acc.delivery_fee += Number(row.delivery_fee || 0) || 0;
+            acc.total_order_amount += Number(row.total_order_amount || 0) || 0;
+            acc.delivered_amount += Number(row.delivered_amount || 0) || 0;
+            acc.cancelled_amount += Number(row.cancelled_amount || 0) || 0;
+            acc.active_amount += Number(row.active_amount || 0) || 0;
+            return acc;
+          },
+          {
+            customers: 0,
+            total_orders: 0,
+            delivered_orders: 0,
+            cancelled_orders: 0,
+            active_orders: 0,
+            total_quantity: 0,
+            items_subtotal: 0,
+            delivery_fee: 0,
+            total_order_amount: 0,
+            delivered_amount: 0,
+            cancelled_amount: 0,
+            active_amount: 0,
+          }
+        );
+
+        return res.json({
+          success: true,
+          report_view: "customer-summary",
+          customer_summary: customerSummaryRows,
+          summary: {
+            customers: summary.customers,
+            total_orders: summary.total_orders,
+            delivered_orders: summary.delivered_orders,
+            cancelled_orders: summary.cancelled_orders,
+            active_orders: summary.active_orders,
+            total_quantity: summary.total_quantity,
+            items_subtotal: Number(summary.items_subtotal.toFixed(2)),
+            delivery_fee: Number(summary.delivery_fee.toFixed(2)),
+            total_order_amount: Number(summary.total_order_amount.toFixed(2)),
+            delivered_amount: Number(summary.delivered_amount.toFixed(2)),
+            cancelled_amount: Number(summary.cancelled_amount.toFixed(2)),
+            active_amount: Number(summary.active_amount.toFixed(2)),
+          },
+        });
+      }
+
+      if (reportView === "order-summary") {
+        const [rows] = await req.db.execute(
+          `
+            SELECT
+                o.id as order_id,
+                o.order_number,
+                o.status as order_status,
+                o.created_at as order_date,
+                u.id as customer_id,
+                CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as customer_name,
+                u.email as customer_email,
+                COALESCE(NULLIF(u.phone, ''), '-') as contact_no,
+                COALESCE(NULLIF(o.delivery_address, ''), NULLIF(u.address, ''), '-') as customer_address,
+                GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') as store_names,
+                COUNT(DISTINCT p.id) as product_count,
+                SUM(oi.quantity) as total_quantity,
+                GROUP_CONCAT(CONCAT(p.name, ' x ', oi.quantity) ORDER BY p.name SEPARATOR ', ') as products_summary,
+                SUM(oi.quantity * oi.price) as items_subtotal,
+                COALESCE(o.delivery_fee, 0) as delivery_fee,
+                COALESCE(o.total_amount, 0) as order_total
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id
+            JOIN users u ON u.id = o.user_id
+            JOIN products p ON p.id = oi.product_id
+            JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id, o.store_id)
+            WHERE o.status != 'cancelled'
+            ${hasStoreFilter ? "AND COALESCE(oi.store_id, p.store_id, o.store_id) = ?" : ""}
+            ${hasCustomerFilter ? "AND o.user_id = ?" : ""}
+            ${startDate ? "AND DATE(o.created_at) >= ?" : ""}
+            ${endDate ? "AND DATE(o.created_at) <= ?" : ""}
+            GROUP BY
+                o.id, o.order_number, o.status, o.created_at, o.delivery_fee, o.total_amount,
+                u.id, u.first_name, u.last_name, u.email, u.phone, u.address, o.delivery_address
+            ORDER BY o.created_at DESC, o.order_number DESC
+          `,
+          queryParams
+        );
+
+        const summaryRows = rows.map((row) => {
+          const customerName = String(row.customer_name || "").trim() || `Customer #${row.customer_id}`;
+          return {
+            order_id: Number(row.order_id) || null,
+            order_number: row.order_number || "",
+            order_status: String(row.order_status || "").toLowerCase(),
+            order_date: row.order_date || null,
+            customer_id: Number(row.customer_id) || null,
+            customer_name: customerName,
+            customer_email: row.customer_email || "",
+            contact_no: row.contact_no || "-",
+            customer_address: row.customer_address || "-",
+            store_names: row.store_names || "",
+            product_count: Number(row.product_count) || 0,
+            total_quantity: Number(row.total_quantity) || 0,
+            products_summary: row.products_summary || "",
+            items_subtotal: parseFloat(row.items_subtotal) || 0,
+            delivery_fee: parseFloat(row.delivery_fee) || 0,
+            order_total: parseFloat(row.order_total) || 0,
+          };
+        });
+
+        const summary = summaryRows.reduce(
+          (acc, row) => {
+            acc.total_orders += 1;
+            acc.total_quantity += Number(row.total_quantity || 0) || 0;
+            acc.items_subtotal += Number(row.items_subtotal || 0) || 0;
+            acc.delivery_fee += Number(row.delivery_fee || 0) || 0;
+            acc.order_total += Number(row.order_total || 0) || 0;
+            if (row.customer_id) acc.customer_ids.add(String(row.customer_id));
+            return acc;
+          },
+          {
+            total_orders: 0,
+            total_quantity: 0,
+            items_subtotal: 0,
+            delivery_fee: 0,
+            order_total: 0,
+            customer_ids: new Set(),
+          }
+        );
+
+        return res.json({
+          success: true,
+          report_view: "order-summary",
+          customer_order_summary: summaryRows,
+          summary: {
+            total_orders: summary.total_orders,
+            total_quantity: summary.total_quantity,
+            items_subtotal: Number(summary.items_subtotal.toFixed(2)),
+            delivery_fee: Number(summary.delivery_fee.toFixed(2)),
+            order_total: Number(summary.order_total.toFixed(2)),
+            unique_customers: summary.customer_ids.size,
+          },
+        });
+      }
+
+      const [rows] = await req.db.execute(
+        `
+          SELECT
+              oi.id as order_item_id,
+              o.id as order_id,
+              o.order_number,
+              o.status as order_status,
+              o.created_at as order_date,
+              s.id as store_id,
+              s.name as store_name,
+              p.id as product_id,
+              p.name as product_name,
+              u.id as customer_id,
+              CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as customer_name,
+              u.email as customer_email,
+              COALESCE(NULLIF(u.phone, ''), '-') as contact_no,
+              COALESCE(NULLIF(o.delivery_address, ''), NULLIF(u.address, ''), '-') as customer_address,
+              oi.quantity,
+              oi.price as sale_price,
+              oi.quantity * oi.price as line_total
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          JOIN users u ON u.id = o.user_id
+          JOIN products p ON p.id = oi.product_id
+          JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id, o.store_id)
+          WHERE o.status != 'cancelled'
+          ${hasStoreFilter ? "AND COALESCE(oi.store_id, p.store_id, o.store_id) = ?" : ""}
+          ${hasCustomerFilter ? "AND o.user_id = ?" : ""}
+          ${startDate ? "AND DATE(o.created_at) >= ?" : ""}
+          ${endDate ? "AND DATE(o.created_at) <= ?" : ""}
+          ORDER BY s.name ASC, o.created_at DESC, o.order_number DESC, oi.id DESC
+        `,
+        queryParams
+      );
+
+      const reportRows = rows.map((row) => {
+        const quantity = Number(row.quantity) || 0;
+        const salePrice = parseFloat(row.sale_price) || 0;
+        const lineTotal = parseFloat(row.line_total) || quantity * salePrice;
+        const customerName = String(row.customer_name || "").trim() || `Customer #${row.customer_id}`;
+        return {
+          order_item_id: Number(row.order_item_id) || null,
+          order_id: Number(row.order_id) || null,
+          order_number: row.order_number || "",
+          order_status: String(row.order_status || "").toLowerCase(),
+          order_date: row.order_date || null,
+          store_id: Number(row.store_id) || null,
+          store_name: row.store_name || "",
+          product_id: Number(row.product_id) || null,
+          product_name: row.product_name || "",
+          customer_id: Number(row.customer_id) || null,
+          customer_name: customerName,
+          customer_email: row.customer_email || "",
+          contact_no: row.contact_no || "-",
+          customer_address: row.customer_address || "-",
+          quantity,
+          sale_price: salePrice,
+          line_total: lineTotal,
+        };
+      });
+
+      const summary = reportRows.reduce(
+        (acc, row) => {
+          acc.total_rows += 1;
+          acc.total_quantity += Number(row.quantity || 0) || 0;
+          acc.total_sales += Number(row.line_total || 0) || 0;
+          if (row.customer_id) acc.customer_ids.add(String(row.customer_id));
+          if (row.store_id) acc.store_ids.add(String(row.store_id));
+          return acc;
+        },
+        {
+          total_rows: 0,
+          total_quantity: 0,
+          total_sales: 0,
+          customer_ids: new Set(),
+          store_ids: new Set(),
+        }
+      );
+
+      return res.json({
+        success: true,
+        customer_details: reportRows,
+        summary: {
+          total_rows: summary.total_rows,
+          total_quantity: summary.total_quantity,
+          total_sales: Number(summary.total_sales.toFixed(2)),
+          unique_customers: summary.customer_ids.size,
+          total_stores: summary.store_ids.size,
+        },
+      });
+    } catch (err) {
+      console.error("Customer details sales report error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch customer details report",
+        error: err.message,
+      });
+    }
+  }
+);
+
+router.get(
   "/sales-with-delivery-report",
   authenticateToken,
   requireStaffAccess,
