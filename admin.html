@@ -4605,6 +4605,19 @@
           <form id="manualOrderForm">
             <div class="form-row">
               <div class="form-group">
+                <label for="manualOrderType">Order Type</label>
+                <select id="manualOrderType" class="form-control">
+                  <option value="product">Product / Store Item</option>
+                  <option value="parcel">Pick & Drop Parcel / Item</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="manualOrderDeliveryFee">Delivery Charges (PKR)</label>
+                <input type="number" min="0" step="0.01" id="manualOrderDeliveryFee" class="form-control" placeholder="Leave blank for default" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
                 <label for="manualOrderCustomer">Customer</label>
                 <select id="manualOrderCustomer" class="form-control" required>
                   <option value="">Select customer</option>
@@ -4657,7 +4670,7 @@
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="manualOrderStore">Store</label>
+                <label for="manualOrderStore" id="manualOrderStoreLabel">Store</label>
                 <select id="manualOrderStore" class="form-control" required>
                   <option value="">Select store</option>
                 </select>
@@ -4708,7 +4721,7 @@
                 </select>
               </div>
             </div>
-            <div class="form-row">
+            <div class="form-row manual-product-order-field">
               <div class="form-group">
                 <label for="manualOrderExistingProduct">Existing Product (optional)</label>
                 <input type="text" id="manualOrderExistingProduct" class="form-control" list="manualOrderExistingProductList" placeholder="Type to search product..." />
@@ -4716,7 +4729,7 @@
                 <input type="hidden" id="manualOrderProductId" />
               </div>
             </div>
-            <div class="form-row">
+            <div class="form-row manual-product-order-field">
               <div class="form-group">
                 <label for="manualOrderItemName">Item Name</label>
                 <input type="text" id="manualOrderItemName" class="form-control" required />
@@ -4728,7 +4741,7 @@
                 </select>
               </div>
             </div>
-            <div class="form-row">
+            <div class="form-row manual-product-order-field">
               <div class="form-group">
                 <label for="manualOrderQty">Quantity</label>
                 <input type="number" min="1" value="1" id="manualOrderQty" class="form-control" required />
@@ -4742,9 +4755,23 @@
                 <input type="number" min="0" step="0.01" id="manualOrderCostPrice" class="form-control" placeholder="For profit calculation" />
               </div>
             </div>
+            <div id="manualParcelOrderFields" style="display:none;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="manualOrderPickupLocation">Pickup Place / Location</label>
+                  <input type="text" id="manualOrderPickupLocation" class="form-control" placeholder="Where rider should pick the parcel/item" />
+                </div>
+              </div>
+              <div class="form-row-full">
+                <div class="form-group">
+                  <label for="manualOrderParcelDetails">Parcel / Item Details (optional)</label>
+                  <textarea id="manualOrderParcelDetails" class="form-control" rows="2" placeholder="Small parcel, documents, grocery bag, etc."></textarea>
+                </div>
+              </div>
+            </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="manualOrderAddress">Delivery Address</label>
+                <label for="manualOrderAddress" id="manualOrderAddressLabel">Delivery Address</label>
                 <input type="text" id="manualOrderAddress" class="form-control" required />
               </div>
             </div>
@@ -4754,7 +4781,7 @@
                 <textarea id="manualOrderInstructions" class="form-control" rows="3"></textarea>
               </div>
             </div>
-            <label class="global-delivery-toggle" style="margin-top: 0.6rem;">
+            <label class="global-delivery-toggle" id="manualOrderSaveForFutureWrap" style="margin-top: 0.6rem;">
               <input type="checkbox" id="manualOrderSaveForFuture" checked />
               <span>Save this item as product for future use</span>
             </label>

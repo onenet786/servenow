@@ -1984,10 +1984,14 @@ router.post(
       await ensureProductsProfitSchema(req.db);
 
       const {
+        order_type,
         customer_id,
         delivery_address,
+        delivery_fee,
         payment_method,
         special_instructions,
+        pickup_location,
+        parcel_details,
         store_id,
         product_id,
         item_name,
@@ -1998,11 +2002,16 @@ router.post(
         save_for_future = true,
       } = req.body || {};
 
+      const isParcelDelivery = String(order_type || "").trim() === "parcel_delivery";
       const customerId = parseInt(String(customer_id || ""), 10);
       const storeId = parseInt(String(store_id || ""), 10);
       const selectedProductId = parseInt(String(product_id || ""), 10);
       const qty = parseInt(String(quantity || ""), 10);
       const unitPrice = Number(unit_price);
+      const manualDeliveryFee =
+        delivery_fee === null || delivery_fee === undefined || String(delivery_fee).trim() === ""
+          ? null
+          : Number(delivery_fee);
       const costPrice =
         cost_price === null || cost_price === undefined || String(cost_price).trim() === ""
           ? null
@@ -2026,7 +2035,14 @@ router.post(
           message: "Delivery address is required",
         });
       }
+      if (isParcelDelivery && !String(pickup_location || "").trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Pickup place/location is required",
+        });
+      }
       if (
+        !isParcelDelivery &&
         (!Number.isInteger(selectedProductId) || selectedProductId <= 0) &&
         !String(item_name || "").trim()
       ) {
@@ -2041,16 +2057,30 @@ router.post(
           message: "Quantity must be greater than zero",
         });
       }
-      if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      if (!Number.isFinite(unitPrice) || (isParcelDelivery ? unitPrice < 0 : unitPrice <= 0)) {
         return res.status(400).json({
           success: false,
-          message: "Unit price must be greater than zero",
+          message: isParcelDelivery
+            ? "Unit price must be a non-negative number"
+            : "Unit price must be greater than zero",
         });
       }
       if (costPrice !== null && (!Number.isFinite(costPrice) || costPrice < 0)) {
         return res.status(400).json({
           success: false,
           message: "Cost price must be a non-negative number",
+        });
+      }
+      if (manualDeliveryFee !== null && (!Number.isFinite(manualDeliveryFee) || manualDeliveryFee < 0)) {
+        return res.status(400).json({
+          success: false,
+          message: "Delivery charges must be a non-negative number",
+        });
+      }
+      if (isParcelDelivery && manualDeliveryFee === null) {
+        return res.status(400).json({
+          success: false,
+          message: "Manual delivery charges are required for parcel/item delivery",
         });
       }
 
@@ -2077,7 +2107,6 @@ router.post(
       }
       const store = stores[0];
       const adminStoreSummary = String(store.name || "Unknown Store").trim();
-      const adminOrderMessage = `${adminStoreSummary} - PKR ${totalAmount}`;
       if (!store.is_active) {
         return res.status(400).json({
           success: false,
@@ -2086,9 +2115,11 @@ router.post(
       }
 
       let productId = null;
-      const normalizedItemName = String(item_name || "").trim();
+      const normalizedItemName = isParcelDelivery
+        ? "Parcel / Item Delivery"
+        : String(item_name || "").trim();
 
-      if (Number.isInteger(selectedProductId) && selectedProductId > 0) {
+      if (!isParcelDelivery && Number.isInteger(selectedProductId) && selectedProductId > 0) {
         const [pickedProducts] = await req.db.execute(
           `SELECT p.id, p.name, p.price, p.cost_price, p.discount_type, p.discount_value, p.profit_type, p.profit_value, p.category_id
              FROM products p
@@ -2120,7 +2151,7 @@ router.post(
           productId = existingProducts[0].id;
         }
       }
-      if (!productId && save_for_future) {
+      if (!productId && (save_for_future || isParcelDelivery)) {
         let finalCategoryId = null;
         const categoryIdNumber = parseInt(String(category_id || ""), 10);
         if (Number.isInteger(categoryIdNumber) && categoryIdNumber > 0) {
@@ -2169,11 +2200,27 @@ router.post(
       );
       const product = productRows[0] || {};
 
-      const feeConfig = await getDeliveryFeeConfig(req.db);
-      const deliveryFee = calculateDeliveryFeeByStoreCount(1, feeConfig);
+      const feeConfig = manualDeliveryFee === null ? await getDeliveryFeeConfig(req.db) : null;
+      const deliveryFee =
+        manualDeliveryFee !== null
+          ? roundAmount(manualDeliveryFee)
+          : calculateDeliveryFeeByStoreCount(1, feeConfig);
       const subtotal = roundAmount(qty * roundAmount(unitPrice));
       const totalAmount = roundAmount(subtotal + deliveryFee);
+      const adminOrderMessage = `${adminStoreSummary} - PKR ${totalAmount}`;
       const orderNumber = await generateOrderNumber(req.db);
+      const pickupLocationText = String(pickup_location || "").trim();
+      const parcelDetailsText = String(parcel_details || "").trim();
+      const instructionsParts = [];
+      if (isParcelDelivery) {
+        instructionsParts.push("Order Type: Pick & Drop Parcel / Item");
+        instructionsParts.push(`Pickup: ${pickupLocationText}`);
+        if (parcelDetailsText) instructionsParts.push(`Parcel/Item: ${parcelDetailsText}`);
+      }
+      if (special_instructions) {
+        instructionsParts.push(String(special_instructions).trim());
+      }
+      const finalInstructions = instructionsParts.length ? instructionsParts.join("\n") : null;
 
       const [orderResult] = await req.db.execute(
         `INSERT INTO orders (
@@ -2188,7 +2235,7 @@ router.post(
           deliveryFee,
           String(payment_method || "cash"),
           String(delivery_address).trim(),
-          special_instructions ? String(special_instructions) : null,
+          finalInstructions,
         ],
       );
       const orderId = orderResult.insertId;
