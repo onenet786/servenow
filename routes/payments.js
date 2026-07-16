@@ -22,7 +22,7 @@ try {
 router.post('/process', authenticateToken, [
     body('orderId').isInt({ min: 1 }).withMessage('Valid order ID required'),
     body('paymentMethod').isIn(['card', 'wallet', 'cash']).withMessage('Invalid payment method'),
-    body('amount').isFloat({ min: 0 }).withMessage('Valid amount required')
+    body('amount').isFloat({ min: 0.01 }).withMessage('Valid positive amount required')
 ], async (req, res) => {
     try {
         const errors = validationResult(req);
@@ -44,6 +44,7 @@ router.post('/process', authenticateToken, [
         }
 
         const order = orders[0];
+        const trustedAmount = Number(order.total_amount);
 
         // 2. Prevent duplicate payment processing
         const [existingPayment] = await req.db.execute(
@@ -56,7 +57,7 @@ router.post('/process', authenticateToken, [
         }
 
         // 3. Verify amount matches order total
-        if (parseFloat(amount) !== parseFloat(order.total_amount)) {
+        if (!Number.isFinite(trustedAmount) || Number(amount) !== trustedAmount) {
             return sendError(res, 'Payment amount does not match order total', 400);
         }
 
@@ -66,13 +67,13 @@ router.post('/process', authenticateToken, [
         // 4. Process based on payment method
         switch (paymentMethod) {
             case 'card':
-                payment = await processCardPayment(req, orderId, userId, amount, cardToken, saveCard);
+                payment = await processCardPayment(req, orderId, userId, trustedAmount, cardToken, saveCard);
                 break;
             case 'wallet':
-                payment = await processWalletPayment(req, orderId, userId, amount);
+                payment = await processWalletPayment(req, orderId, userId, trustedAmount);
                 break;
             case 'cash':
-                payment = await processCashPayment(req, orderId, userId, amount);
+                payment = await processCashPayment(req, orderId, userId, trustedAmount);
                 break;
         }
 
@@ -192,10 +193,12 @@ async function processCardPayment(req, orderId, userId, amount, cardToken, saveC
 
 // Process wallet payment
 async function processWalletPayment(req, orderId, userId, amount) {
+    const connection = await req.db.getConnection();
     try {
+        await connection.beginTransaction();
         // 1. Get wallet balance
-        const [wallets] = await req.db.execute(
-            'SELECT id, balance FROM wallets WHERE user_id = ?',
+        const [wallets] = await connection.execute(
+            'SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE',
             [userId]
         );
 
@@ -212,13 +215,13 @@ async function processWalletPayment(req, orderId, userId, amount) {
 
         // 3. Debit wallet
         const newBalance = wallet.balance - amount;
-        await req.db.execute(
+        await connection.execute(
             'UPDATE wallets SET balance = ? WHERE id = ?',
             [newBalance, wallet.id]
         );
 
         // 4. Record wallet transaction
-        await req.db.execute(
+        await connection.execute(
             `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
              reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [wallet.id, 'debit', amount, `Payment for Order ${orderId}`, 
@@ -226,12 +229,13 @@ async function processWalletPayment(req, orderId, userId, amount) {
         );
 
         // 5. Record payment
-        const [result] = await req.db.execute(
+        const [result] = await connection.execute(
             `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, 
              status) VALUES (?, ?, ?, ?, ?, ?)`,
             [orderId, userId, amount, 'wallet', 'local', 'success']
         );
 
+        await connection.commit();
         return {
             id: result.insertId,
             order_id: orderId,
@@ -243,6 +247,7 @@ async function processWalletPayment(req, orderId, userId, amount) {
         };
 
     } catch (error) {
+        await connection.rollback();
         console.error('Wallet payment error:', error);
         await req.db.execute(
             `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, 
@@ -250,6 +255,8 @@ async function processWalletPayment(req, orderId, userId, amount) {
             [orderId, userId, amount, 'wallet', 'local', 'failed', error.message]
         );
         throw error;
+    } finally {
+        connection.release();
     }
 }
 

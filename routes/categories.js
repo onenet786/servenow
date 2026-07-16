@@ -2,11 +2,11 @@ const express = require('express');
 const { authenticateToken, requireAdmin, requirePermission } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
-const multer = require('multer');
+const { createImageUpload } = require('../middleware/upload');
 const sharp = (() => {
     try { return require('sharp'); } catch (e) { return null; }
 })();
-const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') });
+const upload = createImageUpload();
 
 const router = express.Router();
 

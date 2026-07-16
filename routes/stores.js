@@ -4,11 +4,11 @@ const { authenticateToken, requireAdmin, requireStoreOwner } = require('../middl
 const { sendPushToUser, ensurePushDeviceTokensTable, getPushServiceStatus } = require('../services/pushNotifications');
 const fs = require('fs');
 const path = require('path');
-const multer = require('multer');
+const { createImageUpload } = require('../middleware/upload');
 const sharp = (() => {
     try { return require('sharp'); } catch (e) { console.warn('sharp not installed, image resizing disabled'); return null; }
 })();
-const upload = multer({ dest: path.join(__dirname, '..', 'uploads', 'tmp') });
+const upload = createImageUpload();
 const {
     ensureStoreOfferCampaignTables,
     getActiveStoreCampaignsMap,

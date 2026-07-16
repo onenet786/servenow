@@ -13,6 +13,8 @@
     // Ensure API_BASE is properly set
     const socketUrl = API_BASE || window.location.origin;
     const socket = io(socketUrl, {
+        auth: { token: localStorage.getItem('serveNowToken') || '' },
+        autoConnect: Boolean(localStorage.getItem('serveNowToken')),
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
@@ -158,11 +160,14 @@
 
     function emitUserIdentification() {
         const user = getCurrentUser();
+        const token = localStorage.getItem('serveNowToken') || '';
+        socket.auth = { token };
+        if (user && token && !socket.connected) {
+            socket.connect();
+            return;
+        }
         if (user && socket.connected) {
-            socket.emit('identify_user', {
-                user_id: user.id,
-                user_type: user.user_type
-            });
+            socket.emit('identify_user');
             console.log(`[Socket] Identified as user ${user.id} (${user.user_type})`, 'Socket ID:', socket.id);
         }
     }

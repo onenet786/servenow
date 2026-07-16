@@ -6,15 +6,17 @@ const path = require("path");
 const rateLimit = require("express-rate-limit");
 const morgan = require("morgan");
 const compression = require("compression");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
 // Load environment variables from .env and allow the .env values to override existing env vars
-const dotenvResult = dotenv.config({ override: true });
+const dotenvResult = dotenv.config({ override: false });
 console.log("Server starting... Environment variables loaded.");
 if (dotenvResult.parsed) {
   console.log(
     `Loaded ${
       Object.keys(dotenvResult.parsed).length
-    } variables from .env (overrode existing env vars).`
+    } variables from .env.`
   );
 }
 
@@ -46,13 +48,17 @@ const forcedPort =
 process.env.PORT = forcedPort;
 console.log(`Force-set process.env.PORT => ${process.env.PORT}`);
 
-// Provide a safe default JWT_SECRET in development to avoid accidental 401s
-if (process.env.NODE_ENV === "development" && !process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = "orderdrop-dev-secret";
-  console.warn(
-    "WARNING: No JWT_SECRET found in .env - using development fallback secret. Do NOT use this in production."
-  );
+function validateEnvironment() {
+  const required = ["JWT_SECRET", "DB_HOST", "DB_USER", "DB_NAME"];
+  if (process.env.NODE_ENV === "production") required.push("DB_PASSWORD", "ALLOWED_ORIGINS");
+  const missing = required.filter((name) => !String(process.env[name] || "").trim());
+  if (missing.length) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+  if (String(process.env.JWT_SECRET).length < 32) throw new Error("JWT_SECRET must contain at least 32 characters");
+  if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
+    throw new Error("STRIPE_WEBHOOK_SECRET is required when Stripe is enabled");
+  }
 }
+validateEnvironment();
 
 // Import routes
 const authRoutes = require("./routes/auth");
@@ -75,15 +81,31 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = String(process.env.ALLOWED_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean);
+const isAllowedOrigin = (origin) => !origin ||
+  (process.env.NODE_ENV !== "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) ||
+  allowedOrigins.includes(origin);
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
     methods: ["GET", "POST"],
   },
   transports: ["websocket", "polling"],
   pingInterval: 60000,
   pingTimeout: 30000,
   maxHttpBufferSize: 1e6,
+});
+
+io.use((socket, next) => {
+  const authorization = socket.handshake.headers.authorization || "";
+  const token = socket.handshake.auth?.token || (authorization.startsWith("Bearer ") ? authorization.slice(7) : null);
+  if (!token) return next(new Error("Authentication required"));
+  try {
+    socket.user = jwt.verify(token, process.env.JWT_SECRET);
+    return next();
+  } catch (_) {
+    return next(new Error("Invalid or expired token"));
+  }
 });
 
 // Export io for use in other files
@@ -102,11 +124,10 @@ io.on("connection", (socket) => {
   debugLog(`New client connected: ${socket.id}`);
   console.log(`[Socket.IO] New connection: ${socket.id}`);
   
-  socket.on("identify_user", (data) => {
-    console.log(`[Socket.IO] identify_user received from ${socket.id}:`, data);
-    if (data && (data.user_id !== undefined && data.user_id !== null) && data.user_type) {
-      const userId = String(data.user_id);
-      const userType = String(data.user_type);
+  socket.on("identify_user", () => {
+    const userId = String(socket.user.id);
+    const userType = String(socket.user.user_type);
+    if (userId && userType) {
       
       const userRoom = `user_${userId}`;
       const typeRoom = `${userType}_${userId}`;
@@ -119,13 +140,12 @@ io.on("connection", (socket) => {
         console.log(`[Socket.IO] Admin ${socket.id} joined "admins" room`);
       }
       
-      console.log(`[Socket.IO] Client ${socket.id} joined rooms: "${userRoom}", "${typeRoom}" (User ID: ${userId}, Type: ${userType})`);
       debugLog(`Client ${socket.id} joined rooms: ${userRoom}, ${typeRoom}`);
       
       const allSockets = io.engine.clientsCount || 0;
       console.log(`[Socket.IO] Total connected clients: ${allSockets}`);
     } else {
-      console.warn(`[Socket.IO] identify_user missing required fields:`, data);
+      socket.disconnect(true);
     }
   });
   
@@ -151,12 +171,7 @@ setInterval(() => {
 }, heartbeatInterval);
 
 app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    socket: !!io,
-    clients: io ? io.engine.clientsCount : 0,
-    time: new Date()
-  });
+  res.json({ status: "ok" });
 });
 
 console.log("Express application created.");
@@ -223,6 +238,14 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: process.env.NODE_ENV === "production" ? 3 : 30,
+  message: "Too many password or verification requests, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const orderLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
   max: process.env.NODE_ENV === "production" ? 20 : 100, // Prevent order spam
@@ -234,6 +257,10 @@ const orderLimiter = rateLimit({
 app.use("/api/", limiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/forgot-password", passwordResetLimiter);
+app.use("/api/auth/reset-password", passwordResetLimiter);
+app.use("/api/auth/resend-verification", passwordResetLimiter);
+app.use("/api/users/request-deletion", passwordResetLimiter);
 app.use("/api/orders", orderLimiter);
 console.log(
   `Rate limiting configured for ${
@@ -244,18 +271,10 @@ console.log(
 // CORS configuration - restrict in production
 const corsOptions = {
   origin: function (origin, callback) {
-    if (process.env.NODE_ENV === "development") {
-      callback(null, true);
-    } else {
-      const allowedOrigins = process.env.ALLOWED_ORIGINS
-        ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-        : ["http://localhost:3002", "http://localhost:3001"];
-
-      if (!origin || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
         callback(null, true);
-      } else {
+    } else {
         callback(new Error("CORS not allowed"));
-      }
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -268,8 +287,8 @@ app.use(cors(corsOptions));
 // Security headers middleware
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
-  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss: https:; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests");
   res.setHeader(
     "Strict-Transport-Security",
     "max-age=31536000; includeSubDomains"
@@ -279,6 +298,17 @@ app.use((req, res, next) => {
     "Permissions-Policy",
     "geolocation=(), microphone=(), camera=()"
   );
+  next();
+});
+
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (process.env.NODE_ENV === "production" && res.statusCode >= 500 && body && typeof body === "object") {
+      body = { success: false, message: body.message || "Something went wrong", correlation_id: crypto.randomUUID() };
+    }
+    return originalJson(body);
+  };
   next();
 });
 
@@ -299,12 +329,14 @@ async function connectDB() {
   console.log("Attempting to connect to database...");
   try {
     const connectionLimit = process.env.NODE_ENV === "production" ? 20 : 10;
+    const ssl = process.env.NODE_ENV === "production" ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" } : undefined;
     pool = await mysql.createPool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       port: process.env.DB_PORT,
+      ssl,
       waitForConnections: true,
       connectionLimit: connectionLimit,
       queueLimit: 0,
@@ -313,7 +345,6 @@ async function connectDB() {
       idleTimeout: 60000
     });
     console.log(`Connected to MySQL database pool: ${process.env.DB_NAME}`);
-    console.log(`Database host: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
     console.log(`Connection pool size: ${connectionLimit}`);
   } catch (error) {
     console.error("Database connection failed:", error);
@@ -437,7 +468,18 @@ app.use((req, res, next) => {
 
 // Serve static files from the root directory for the frontend
 console.log("Setting up frontend static file serving...");
-app.use(express.static(path.join(__dirname), { etag: true }));
+app.use("/css", express.static(path.join(__dirname, "css"), { etag: true, dotfiles: "deny" }));
+app.use("/js", express.static(path.join(__dirname, "js"), { etag: true, dotfiles: "deny" }));
+app.use("/style", express.static(path.join(__dirname, "style"), { etag: true, dotfiles: "deny" }));
+const publicHtmlFiles = new Set([
+  "index.html", "login.html", "register.html", "forgot-password.html", "reset-password.html", "profile.html",
+  "stores.html", "store.html", "products.html", "cart.html", "checkout.html", "orders.html",
+  "order-confirmation.html", "wallet.html", "admin.html", "rider.html", "data-deletion.html"
+]);
+app.get("/:page([A-Za-z0-9-]+\\.html)", (req, res, next) => {
+  if (!publicHtmlFiles.has(req.params.page)) return next();
+  return res.sendFile(path.join(__dirname, req.params.page));
+});
 console.log("Frontend static files configured.");
 
 // Catch all handler: send back index.html for any non-API routes
@@ -462,7 +504,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     success: false,
     message: "Something went wrong!",
-    error: process.env.NODE_ENV === "development" ? err.message : {},
+    correlation_id: crypto.randomUUID(),
   });
 });
 console.log("Error handling middleware configured.");
@@ -545,7 +587,6 @@ async function startServer() {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV}`);
     console.log(`Server accessible at: http://0.0.0.0:${PORT}`);
-    console.log(`External access URL: http://23.137.84.249:${PORT}`);
     console.log("Server startup complete. Ready to accept connections.");
   });
 }

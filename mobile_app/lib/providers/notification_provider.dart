@@ -358,10 +358,8 @@ class NotificationProvider with ChangeNotifier {
       final userId = _authProvider!.user!.id;
       final userType = _authProvider!.user!.userType;
 
-      _socket!.emit('identify_user', {
-        'user_id': userId,
-        'user_type': userType,
-      });
+      // The server derives identity and role from the verified handshake JWT.
+      _socket!.emit('identify_user');
       debugPrint(
         '[NotificationProvider] User identified: ID=$userId, Type=$userType, SocketID=${_socket?.id}',
       );
@@ -443,10 +441,18 @@ class NotificationProvider with ChangeNotifier {
       '[NotificationProvider] Initializing socket connection to: $baseUrl',
     );
 
+    final accessToken = _authProvider?.token?.trim() ?? '';
+    if (accessToken.isEmpty) {
+      _isSocketInitializing = false;
+      debugPrint('[NotificationProvider] Socket authentication token unavailable');
+      return;
+    }
+
     _socket = socket_io.io(
       baseUrl,
       socket_io.OptionBuilder()
           .setTransports(['websocket', 'polling'])
+          .setAuth({'token': accessToken})
           .enableAutoConnect()
           .enableReconnection()
           .setReconnectionDelay(1000)

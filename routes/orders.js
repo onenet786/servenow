@@ -22,10 +22,9 @@ const router = express.Router();
 
 const DEFAULT_BASE_DELIVERY_FEE = 70;
 const DEFAULT_ADDITIONAL_STORE_FEE = 30;
-const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set([
-  "admin@servenow.com",
-  "nazir@servenow.pk",
-]);
+const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set(
+  String(process.env.PRIVILEGED_ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean)
+);
 const riderReverseGeocodeCache = new Map();
 const riderReverseGeocodePending = new Map();
 
@@ -1338,7 +1337,7 @@ router.get("/customer-support-contact", authenticateToken, async (req, res) => {
 });
 
 // Test notification endpoint
-router.get("/test-notification", (req, res) => {
+if (process.env.NODE_ENV !== "production") router.get("/test-notification", (req, res) => {
   try {
     const fs = require("fs");
     const path = require("path");
@@ -4138,10 +4137,7 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 });
 
-const TERMINAL_ORDER_RESET_EMAILS = new Set([
-  "admin@servenow.com",
-  "nazir@servenow.pk",
-]);
+const TERMINAL_ORDER_RESET_EMAILS = RESTRICTED_FINANCIAL_REPORT_EMAILS;
 
 function canResetTerminalOrder(user) {
   const email = String(user?.email || "").trim().toLowerCase();

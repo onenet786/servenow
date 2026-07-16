@@ -195,35 +195,8 @@ INSERT INTO categories (name, description) VALUES
 ('Household', 'Household items and essentials'),
 ('Groceries', 'General grocery items');
 
--- Insert sample admin user (password: admin123)
-INSERT INTO users (first_name, last_name, email, phone, password, user_type) VALUES
-('Admin', 'User', 'admin@servenow.com', '+1234567890', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
-
--- Insert sample stores
-INSERT INTO stores (name, location, latitude, longitude, rating, delivery_time, phone, email, owner_id) VALUES
-('Fresh Market', 'Downtown', 40.7128, -74.0060, 4.5, '30-45 mins', '+1234567891', 'fresh@market.com', 1),
-('Green Grocery', 'Midtown', 40.7589, -73.9851, 4.2, '25-40 mins', '+1234567892', 'green@grocery.com', 1),
-('Local Foods', 'Brooklyn', 40.6782, -73.9442, 4.7, '35-50 mins', '+1234567893', 'local@foods.com', 1);
-
--- Insert sample products
-INSERT INTO products (name, price, category_id, store_id, stock_quantity) VALUES
-('Organic Tomatoes', 3.99, 1, 1, 50),
-('Fresh Spinach', 2.49, 1, 1, 30),
-('Carrots', 1.99, 1, 2, 40),
-('Chicken Biryani', 12.99, 2, 3, 20),
-('Vegetable Pizza', 15.99, 2, 2, 15),
-('Grilled Chicken', 18.99, 2, 1, 25),
-('Dish Soap', 4.99, 3, 1, 35),
-('Laundry Detergent', 8.99, 3, 2, 20),
-('Toilet Paper', 6.99, 3, 3, 50),
-('Milk', 3.49, 4, 1, 30),
-('Bread', 2.99, 4, 2, 40),
-('Rice', 5.99, 4, 3, 60);
-
-INSERT INTO riders (first_name, last_name, email, phone, password, vehicle_type, license_number) VALUES
-('Ahmed', 'Khan', 'ahmed.rider@servenow.com', '+1234567894', 'rider123', 'Motorcycle', 'LIC123456'),
-('Fatima', 'Ali', 'fatima.rider@servenow.com', '+1234567895', 'rider456', 'Bicycle', 'LIC123457'),
-('Omar', 'Hassan', 'omar.rider@servenow.com', '+1234567896', 'rider789', 'Scooter', 'LIC123458');
+-- Security: no default accounts, passwords, stores, products, or riders are seeded.
+-- Provision the first administrator through a controlled, audited deployment process.
 
 CREATE INDEX idx_products_store_id ON products(store_id);
 CREATE INDEX idx_products_category_id ON products(category_id);

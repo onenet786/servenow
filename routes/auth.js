@@ -759,17 +759,9 @@ router.post(
             passOk = false;
           }
         } else {
-          passOk = passStr === password;
-        }
-
-        // Optional dev backdoor (keep only if needed)
-        if (
-          !passOk &&
-          process.env.NODE_ENV === "development" &&
-          rider.email === "ahmed.rider@servenow.com" &&
-          password === "rider123"
-        ) {
-          passOk = true;
+          // Legacy plaintext credentials are deliberately rejected. The account
+          // must complete the password-reset flow before it can authenticate.
+          passOk = false;
         }
 
         if (passOk) {
@@ -1136,24 +1128,6 @@ router.post(
 // Get current user profile (users table)
 router.get("/me", authenticateToken, async (req, res) => {
   try {
-    if (
-      process.env.NODE_ENV === "development" &&
-      req.user &&
-      req.user.id === 0 &&
-      req.user.email === "admin@servenow.com"
-    ) {
-      return res.json({
-        success: true,
-        user: {
-          id: 0,
-          first_name: req.user.first_name || "Dev",
-          last_name: req.user.last_name || "Admin",
-          email: req.user.email,
-          user_type: req.user.user_type || "admin",
-        },
-      });
-    }
-
     if (req.user.user_type === "guest" || isTrue(req.user.is_guest)) {
       return res.json({
         success: true,
@@ -1340,18 +1314,15 @@ router.post(
 
       const entity = rows[0];
 
-      // Verify current password (hash or legacy plain for rider)
+      // All stored passwords must use an approved adaptive hash.
       let isPasswordValid = false;
       const passStr = String(entity.password || "");
-      if (
-        table === "riders" &&
-        !(
+      if (!(
           passStr.startsWith("$2a$") ||
           passStr.startsWith("$2b$") ||
           passStr.startsWith("$2y$")
-        )
-      ) {
-        isPasswordValid = passStr === currentPassword;
+        )) {
+        return res.status(403).json({ success: false, message: "Password reset required" });
       } else {
         try {
           isPasswordValid = await bcrypt.compare(currentPassword, passStr);
@@ -1392,24 +1363,6 @@ router.post(
 // Duplicate profile endpoint for compatibility
 router.get("/profile", authenticateToken, async (req, res) => {
   try {
-    if (
-      process.env.NODE_ENV === "development" &&
-      req.user &&
-      req.user.id === 0 &&
-      req.user.email === "admin@servenow.com"
-    ) {
-      return res.json({
-        success: true,
-        user: {
-          id: 0,
-          first_name: req.user.first_name || "Dev",
-          last_name: req.user.last_name || "Admin",
-          email: req.user.email,
-          user_type: req.user.user_type || "admin",
-        },
-      });
-    }
-
     if (req.user.user_type === "guest" || isTrue(req.user.is_guest)) {
       return res.json({
         success: true,

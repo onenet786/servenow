@@ -13,11 +13,7 @@ const authenticateToken = (req, res, next) => {
         token = req.headers['x-access-token'];
         tokenSource = 'x-access-token';
     }
-    // Check query parameter as last resort (useful for quick curl/debugging)
-    if (!token && req.query && req.query.token) {
-        token = req.query.token;
-        tokenSource = 'query.token';
-    }
+    // URL query tokens are intentionally rejected because URLs leak into logs and history.
 
     // Development-only debug logging to help diagnose 401/403 issues
     if (process.env.NODE_ENV === 'development') {

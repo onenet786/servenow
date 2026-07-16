@@ -41,12 +41,7 @@ async function setupDatabase() {
         }
 
         console.log('Database schema created successfully');
-        console.log('Sample data inserted');
-        console.log('');
-        console.log('Admin login credentials:');
-        console.log('Email: admin@servenow.com');
-        console.log('Password: admin123');
-        console.log('');
+        console.log('No default users or credentials were created.');
         console.log('Database setup complete!');
 
     } catch (error) {

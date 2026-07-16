@@ -53,12 +53,17 @@ mobile_app/pubspec.lock
 *.db
 *.sqlite
 *.sqlite3
+*.sql
+database/backups/
 
 # Uploads (can be large)
 uploads/
 
 # Secrets / credentials
 secrets/
+*.jks
+*.keystore
+*service-account*.json
 
 # Local restore snapshots
 mobile_app/_restore_points/

@@ -31,7 +31,7 @@
 
 5. **Access the application**:
    - Open http://localhost:3002 in your browser
-   - Login with default admin credentials (see Security section)
+   - Provision the first administrator through a controlled deployment process.
 
 ### Environment Variables
 
@@ -91,9 +91,11 @@ The admin dashboard provides comprehensive management capabilities:
 - **CORS Protection**: Environment-aware CORS configuration
 - **Database Connection Pooling**: Improved performance and resource management
 
-### Default Admin Credentials (⚠️ Change immediately in production)
-- **Email:** admin@servenow.com
-- **Password:** admin123
+### Credential and history safety
+
+Never deploy default or shared administrator credentials. Before deployment, rotate every credential that was ever stored in this repository, including database passwords, JWT secrets, email credentials, payment keys, Firebase/service-account credentials, reset tokens and push tokens. Removing a value from current files does not remove it from Git history; purge sensitive files with `git filter-repo` or BFG, invalidate old values, and force affected account password resets.
+
+Database backups must be encrypted and stored outside both the repository and the web document root. Backups may contain personal data even when passwords are hashed.
 
 ## 🎯 User Roles
 

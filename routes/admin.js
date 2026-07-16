@@ -7,10 +7,9 @@ const {
 } = require("../services/pushNotifications");
 
 const router = express.Router();
-const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set([
-  "admin@servenow.com",
-  "nazir@servenow.pk",
-]);
+const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set(
+  String(process.env.PRIVILEGED_ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean)
+);
 const fs = require("fs");
 const path = require("path");
 const { exec, spawn } = require("child_process");
@@ -176,7 +175,7 @@ function canViewRestrictedFinancialReports(req) {
 
 const BACKUP_DIR = path.join(__dirname, "..", "database", "backups");
 
-const multer = require("multer");
+const { createImageUpload } = require("../middleware/upload");
 const sharp = (() => {
   try {
     return require("sharp");
@@ -184,7 +183,7 @@ const sharp = (() => {
     return null;
   }
 })();
-const upload = multer({ dest: path.join(__dirname, "..", "uploads", "tmp") });
+const upload = createImageUpload();
 function ensureBackupDir() {
   if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
