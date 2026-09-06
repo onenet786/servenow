@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="css/style.css?v=5" />
-    <link rel="stylesheet" href="css/admin.css?v=37" />
+    <link rel="stylesheet" href="css/admin.css?v=39" />
     <link rel="stylesheet" href="css/aginv-theme.css?v=4" />
     <link
       rel="stylesheet"
@@ -4599,59 +4599,79 @@
     </div>
 
     <div id="manualOrderModal" class="modal">
-      <div class="modal-content" style="max-width: 980px;">
+      <div class="modal-content">
         <div class="modal-header">
-          <h3>Create Manual Order (Call/No Listing)</h3>
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <i class="fas fa-shipping-fast" style="font-size: 1.3rem; color: #ffffff;"></i>
+            <div>
+              <h3 id="manualOrderModalTitle" style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #ffffff;">Create Manual Order (Call/No Listing)</h3>
+              <p style="margin: 0.15rem 0 0; font-size: 0.8rem; color: rgba(255, 255, 255, 0.88);">Pick & Drop parcel delivery or direct manual store order</p>
+            </div>
+          </div>
           <span class="close" data-modal="manualOrderModal">&times;</span>
         </div>
         <div class="modal-body">
           <!-- Quick Order Type Tabs -->
-          <div class="manual-order-type-tabs" style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem;">
-            <button type="button" class="btn manual-type-tab-btn active" id="manualTypeProductTab" style="flex: 1; padding: 0.65rem 1rem; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: 2px solid #2563eb; background: #eff6ff; color: #1e40af; cursor: pointer;">
+          <div class="manual-order-type-tabs" style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+            <button type="button" class="btn manual-type-tab-btn active" id="manualTypeProductTab" style="flex: 1; padding: 0.65rem 1rem; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: 2px solid #2563eb; background: #eff6ff; color: #1e40af; cursor: pointer; transition: all 0.2s;">
               <i class="fas fa-store"></i> Standard Product Order
             </button>
-            <button type="button" class="btn manual-type-tab-btn" id="manualTypeParcelTab" style="flex: 1; padding: 0.65rem 1rem; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: 2px solid transparent; background: #f3f4f6; color: #4b5563; cursor: pointer;">
+            <button type="button" class="btn manual-type-tab-btn" id="manualTypeParcelTab" style="flex: 1; padding: 0.65rem 1rem; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: 2px solid transparent; background: #f3f4f6; color: #4b5563; cursor: pointer; transition: all 0.2s;">
               <i class="fas fa-box"></i> Pick & Drop Parcel Delivery
             </button>
           </div>
 
           <div id="manualParcelNotice" style="display: none; padding: 0.75rem 1rem; margin-bottom: 1rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; font-size: 0.875rem;">
-            <i class="fas fa-info-circle" style="margin-right: 0.4rem;"></i>
+            <i class="fas fa-info-circle" style="margin-right: 0.4rem; color: #059669;"></i>
             <strong>Pick & Drop Parcel Mode:</strong> Rider will pick up parcel/items from the customer and deliver to their required destination. <strong>Default delivery charge: PKR 150.00</strong> (product price = PKR 0).
           </div>
 
           <form id="manualOrderForm">
-            <div class="form-row">
-              <div class="form-group" style="display: none;">
-                <label for="manualOrderType">Order Type</label>
-                <select id="manualOrderType" class="form-control">
-                  <option value="product">Product / Store Item</option>
-                  <option value="parcel">Pick & Drop Parcel / Item</option>
-                </select>
-              </div>
-              <div class="form-group" style="flex: 1;">
-                <label for="manualOrderDeliveryFee">Delivery Charges (PKR)</label>
+            <!-- Hidden Order Type Select -->
+            <select id="manualOrderType" class="form-control" style="display: none;">
+              <option value="product">Product / Store Item</option>
+              <option value="parcel">Pick & Drop Parcel / Item</option>
+            </select>
+
+            <!-- Row 1: Delivery Charges & Assign Rider -->
+            <div class="manual-order-grid-2">
+              <div class="form-group">
+                <label for="manualOrderDeliveryFee">
+                  <i class="fas fa-money-bill-wave" style="color: #10b981;"></i> Delivery Charges (PKR)
+                </label>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                  <input type="number" min="0" step="0.01" id="manualOrderDeliveryFee" class="form-control" placeholder="Default: 150.00 (Parcel)" />
-                  <button type="button" class="btn btn-secondary btn-small" id="manualOrderApplyDefaultFeeBtn" title="Apply current delivery charges" style="white-space: nowrap; height: 38px; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <input type="number" min="0" step="0.01" id="manualOrderDeliveryFee" class="form-control" placeholder="Default: 150.00 (Parcel)" style="flex: 1 1 auto; min-width: 0;" />
+                  <button type="button" class="btn btn-secondary btn-small" id="manualOrderApplyDefaultFeeBtn" title="Apply current delivery charges" style="flex-shrink: 0; white-space: nowrap; height: 38px; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0 0.85rem; font-weight: 600; font-size: 0.82rem;">
                     <i class="fas fa-sync-alt"></i> Apply Current Fee
                   </button>
                 </div>
               </div>
-            </div>
-            <div class="form-row">
               <div class="form-group">
-                <label for="manualOrderCustomer">Customer</label>
-                <select id="manualOrderCustomer" class="form-control" required>
+                <label for="manualOrderRider">
+                  <i class="fas fa-motorcycle" style="color: #6366f1;"></i> Assign Rider (optional)
+                </label>
+                <select id="manualOrderRider" class="form-control" style="height: 38px;">
+                  <option value="">Assign later</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Row 2: Customer & Payment Method -->
+            <div class="manual-order-grid-2">
+              <div class="form-group">
+                <label for="manualOrderCustomer">
+                  <i class="fas fa-user" style="color: #2563eb;"></i> Customer
+                </label>
+                <select id="manualOrderCustomer" class="form-control" style="height: 38px;" required>
                   <option value="">Select customer</option>
                 </select>
-                <div style="margin-top: 8px;">
-                  <button type="button" class="btn btn-secondary btn-small" id="toggleCreateManualCustomerBtn">
+                <div style="margin-top: 6px;">
+                  <button type="button" class="btn btn-secondary btn-small" id="toggleCreateManualCustomerBtn" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; display: inline-flex; align-items: center; gap: 0.35rem;">
                     <i class="fas fa-user-plus"></i> Create Customer On The Fly
                   </button>
                 </div>
-                <div id="manualCreateCustomerPanel" style="display:none; margin-top: 10px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa;">
-                  <div class="form-row">
+                <div id="manualCreateCustomerPanel" style="display:none; margin-top: 10px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc;">
+                  <div class="manual-order-grid-2">
                     <div class="form-group">
                       <label for="manualCustomerFirstName">First Name</label>
                       <input type="text" id="manualCustomerFirstName" class="form-control" />
@@ -4661,7 +4681,7 @@
                       <input type="text" id="manualCustomerLastName" class="form-control" />
                     </div>
                   </div>
-                  <div class="form-row">
+                  <div class="manual-order-grid-2" style="margin-top: 0.5rem;">
                     <div class="form-group">
                       <label for="manualCustomerPhone">Phone</label>
                       <input type="text" id="manualCustomerPhone" class="form-control" placeholder="03xxxxxxxxx" />
@@ -4671,13 +4691,13 @@
                       <input type="email" id="manualCustomerEmail" class="form-control" placeholder="auto-generated if empty" />
                     </div>
                   </div>
-                  <div class="form-row">
+                  <div style="margin-top: 0.5rem;">
                     <div class="form-group">
                       <label for="manualCustomerAddress">Address (optional)</label>
                       <input type="text" id="manualCustomerAddress" class="form-control" />
                     </div>
                   </div>
-                  <div style="display:flex; justify-content:flex-end;">
+                  <div style="display:flex; justify-content:flex-end; margin-top: 8px;">
                     <button type="button" class="btn btn-primary btn-small" id="createManualCustomerBtn">
                       <i class="fas fa-check"></i> Create & Select Customer
                     </button>
@@ -4685,25 +4705,33 @@
                 </div>
               </div>
               <div class="form-group">
-                <label for="manualOrderRider">Assign Rider (optional)</label>
-                <select id="manualOrderRider" class="form-control">
-                  <option value="">Assign later</option>
+                <label for="manualOrderPaymentMethod">
+                  <i class="fas fa-credit-card" style="color: #0891b2;"></i> Payment Method
+                </label>
+                <select id="manualOrderPaymentMethod" class="form-control" style="height: 38px;">
+                  <option value="cash">Cash</option>
+                  <option value="wallet">Wallet</option>
+                  <option value="card">Card</option>
                 </select>
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="manualOrderStore" id="manualOrderStoreLabel">Store</label>
-                <select id="manualOrderStore" class="form-control" required>
+
+            <!-- Store Row (Shown in standard mode, or auto-assigned reference in parcel mode) -->
+            <div class="manual-order-grid-2" id="manualOrderStoreContainer">
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label for="manualOrderStore" id="manualOrderStoreLabel">
+                  <i class="fas fa-store" style="color: #ea580c;"></i> Store
+                </label>
+                <select id="manualOrderStore" class="form-control" style="height: 38px;" required>
                   <option value="">Select store</option>
                 </select>
-                <div style="margin-top: 8px;">
-                  <button type="button" class="btn btn-secondary btn-small" id="toggleCreateManualStoreBtn">
+                <div style="margin-top: 6px;" id="manualOrderStoreActions">
+                  <button type="button" class="btn btn-secondary btn-small" id="toggleCreateManualStoreBtn" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; display: inline-flex; align-items: center; gap: 0.35rem;">
                     <i class="fas fa-store"></i> Create Store On The Fly
                   </button>
                 </div>
-                <div id="manualCreateStorePanel" style="display:none; margin-top: 10px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fafafa;">
-                  <div class="form-row">
+                <div id="manualCreateStorePanel" style="display:none; margin-top: 10px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc;">
+                  <div class="manual-order-grid-2">
                     <div class="form-group">
                       <label for="manualStoreName">Store Name</label>
                       <input type="text" id="manualStoreName" class="form-control" />
@@ -4713,7 +4741,7 @@
                       <input type="text" id="manualStoreLocation" class="form-control" />
                     </div>
                   </div>
-                  <div class="form-row">
+                  <div class="manual-order-grid-2" style="margin-top: 0.5rem;">
                     <div class="form-group">
                       <label for="manualStorePhone">Phone (optional)</label>
                       <input type="text" id="manualStorePhone" class="form-control" />
@@ -4723,11 +4751,11 @@
                       <input type="email" id="manualStoreEmail" class="form-control" />
                     </div>
                   </div>
-                  <label class="global-delivery-toggle" style="margin-top: 0.25rem;">
+                  <label class="global-delivery-toggle" style="margin-top: 0.5rem;">
                     <input type="checkbox" id="manualStoreVisibleToCustomers" />
                     <span>Visible in customer store listing</span>
                   </label>
-                  <small style="display:block; margin-top:6px; color:#6b7280;">Default is hidden from customer app listing.</small>
+                  <small style="display:block; margin-top:4px; color:#64748b;">Default is hidden from customer app listing.</small>
                   <div style="display:flex; justify-content:flex-end; margin-top: 8px;">
                     <button type="button" class="btn btn-primary btn-small" id="createManualStoreBtn">
                       <i class="fas fa-check"></i> Create & Select Store
@@ -4735,24 +4763,18 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group">
-                <label for="manualOrderPaymentMethod">Payment Method</label>
-                <select id="manualOrderPaymentMethod" class="form-control">
-                  <option value="cash">Cash</option>
-                  <option value="wallet">Wallet</option>
-                  <option value="card">Card</option>
-                </select>
-              </div>
             </div>
-            <div class="form-row manual-product-order-field">
-              <div class="form-group">
+
+            <!-- Standard Product Mode Fields -->
+            <div class="manual-order-grid-2 manual-product-order-field">
+              <div class="form-group" style="grid-column: 1 / -1;">
                 <label for="manualOrderExistingProduct">Existing Product (optional)</label>
                 <input type="text" id="manualOrderExistingProduct" class="form-control" list="manualOrderExistingProductList" placeholder="Type to search product..." />
                 <datalist id="manualOrderExistingProductList"></datalist>
                 <input type="hidden" id="manualOrderProductId" />
               </div>
             </div>
-            <div class="form-row manual-product-order-field">
+            <div class="manual-order-grid-2 manual-product-order-field">
               <div class="form-group">
                 <label for="manualOrderItemName">Item Name</label>
                 <input type="text" id="manualOrderItemName" class="form-control" required />
@@ -4764,7 +4786,7 @@
                 </select>
               </div>
             </div>
-            <div class="form-row manual-product-order-field">
+            <div class="manual-order-grid-3 manual-product-order-field">
               <div class="form-group">
                 <label for="manualOrderQty">Quantity</label>
                 <input type="number" min="1" value="1" id="manualOrderQty" class="form-control" required />
@@ -4778,43 +4800,52 @@
                 <input type="number" min="0" step="0.01" id="manualOrderCostPrice" class="form-control" placeholder="For profit calculation" />
               </div>
             </div>
+
+            <!-- Parcel Mode Fields: 2 Columns for Pickup & Details -->
             <div id="manualParcelOrderFields" style="display:none;">
-              <div class="form-row">
+              <div class="manual-order-grid-2">
                 <div class="form-group">
-                  <label for="manualOrderPickupLocation">Pickup Place / Location</label>
-                  <input type="text" id="manualOrderPickupLocation" class="form-control" placeholder="Where rider should pick the parcel/item" />
+                  <label for="manualOrderPickupLocation">
+                    <i class="fas fa-map-marker-alt" style="color: #ef4444;"></i> Pickup Place / Location (Sender)
+                  </label>
+                  <input type="text" id="manualOrderPickupLocation" class="form-control" placeholder="Where rider should pick the parcel/item" style="height: 38px;" />
+                </div>
+                <div class="form-group">
+                  <label for="manualOrderParcelDetails">
+                    <i class="fas fa-box" style="color: #f59e0b;"></i> Parcel / Item Details (optional)
+                  </label>
+                  <input type="text" id="manualOrderParcelDetails" class="form-control" placeholder="Small parcel, documents, grocery bag, etc." style="height: 38px;" />
                 </div>
               </div>
-              <div class="form-row-full">
-                <div class="form-group">
-                  <label for="manualOrderParcelDetails">Parcel / Item Details (optional)</label>
-                  <textarea id="manualOrderParcelDetails" class="form-control" rows="2" placeholder="Small parcel, documents, grocery bag, etc."></textarea>
-                </div>
-              </div>
             </div>
-            <div class="form-row">
+
+            <!-- Destination Address & Special Instructions: 2 Equal Columns in Both Modes -->
+            <div class="manual-order-grid-2">
               <div class="form-group">
-                <label for="manualOrderAddress" id="manualOrderAddressLabel">Delivery Address</label>
-                <input type="text" id="manualOrderAddress" class="form-control" required />
+                <label for="manualOrderAddress" id="manualOrderAddressLabel">
+                  <i class="fas fa-flag-checkered" style="color: #10b981;"></i> Delivery Address
+                </label>
+                <input type="text" id="manualOrderAddress" class="form-control" placeholder="Where to deliver the parcel (Destination Address)" style="height: 38px;" required />
               </div>
-            </div>
-            <div class="form-row-full">
               <div class="form-group">
-                <label for="manualOrderInstructions">Special Instructions (optional)</label>
-                <textarea id="manualOrderInstructions" class="form-control" rows="3"></textarea>
+                <label for="manualOrderInstructions">
+                  <i class="fas fa-sticky-note" style="color: #8b5cf6;"></i> Special Instructions (optional)
+                </label>
+                <input type="text" id="manualOrderInstructions" class="form-control" placeholder="Optional notes for order / rider" style="height: 38px;" />
               </div>
             </div>
-            <label class="global-delivery-toggle" id="manualOrderSaveForFutureWrap" style="margin-top: 0.6rem;">
+
+            <label class="global-delivery-toggle" id="manualOrderSaveForFutureWrap" style="margin-top: 0.5rem;">
               <input type="checkbox" id="manualOrderSaveForFuture" checked />
               <span>Save this item as product for future use</span>
             </label>
           </form>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-small btn-secondary" data-modal="manualOrderModal">
+          <button type="button" class="btn btn-secondary" data-modal="manualOrderModal">
             <i class="fas fa-ban"></i> Cancel
           </button>
-          <button type="button" class="btn btn-small btn-primary" id="submitManualOrderBtn">
+          <button type="button" class="btn btn-primary" id="submitManualOrderBtn">
             <i class="fas fa-check"></i> Create Order
           </button>
         </div>
