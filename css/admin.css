@@ -248,15 +248,20 @@ html, body {
   width: 100%;
   overflow: hidden;
 }
-.app-content {
-  flex: 1;
+.app-content,
+main.app-content {
+  flex: 1 1 auto;
   min-width: 0;
-  padding: 1rem 1.25rem 1rem 0.35rem;
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 1.25rem 1.75rem;
   overflow-y: auto;
   overflow-x: hidden;
   background-color: var(--bg-body);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .app-footer {
@@ -797,30 +802,43 @@ img, video, canvas, svg {
   letter-spacing: 0.035em;
 }
 
-/* Dashboard Overview should match Financial Dashboard card density */
+/* Dashboard Overview styling - full width utilization */
+#dashboard > .stats-grid:first-of-type {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin-bottom: 1.5rem;
+}
+
 #dashboard .stats-grid {
-  gap: 0.7rem;
+  gap: 0.85rem;
+  width: 100%;
 }
 
 #dashboard .dashboard-overview-grid {
-  padding-right: 1.25rem;
+  padding-right: 0;
+  width: 100%;
 }
 
 #dashboard .dashboard-overview-panel {
-  padding-right: 0.85rem;
+  padding-right: 0;
+  width: 100%;
 }
 
 #dashboard .dashboard-order-cards {
-  width: 90%;
-  max-width: 90%;
-  margin-left: auto;
-  margin-right: auto;
-  grid-template-columns: repeat(4, minmax(0, 0.9fr)) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 1rem;
 }
 
 #dashboard .stat-card {
-  padding: 0.75rem 0.8rem;
-  min-height: 84px;
+  padding: 0.85rem 1rem;
+  min-height: 86px;
+  box-sizing: border-box;
 }
 
 #dashboard .stat-card h3 {
@@ -3258,27 +3276,67 @@ textarea:focus {
   }
 }
 
-/* 1280px breakpoint: tighten paddings and enforce wrapping to avoid x-overflow */
+/* Large / Wide Desktops (>= 1400px) - Full horizontal stretch, no wasted margins */
+@media (min-width: 1400px) {
+  .app-content,
+  main.app-content {
+    padding: 1.5rem 2.25rem;
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  #dashboard .dashboard-order-cards {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1.25rem;
+  }
+  .recent-activity-section .stats-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 1.5rem;
+  }
+}
+
+/* Standard Desktops / Laptops (1025px - 1399px) */
+@media (min-width: 1025px) and (max-width: 1399px) {
+  .app-content,
+  main.app-content {
+    padding: 1.2rem 1.5rem;
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  #dashboard .dashboard-order-cards {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 0.9rem;
+  }
+  .recent-activity-section .stats-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 1rem;
+  }
+}
+
+/* 1280px breakpoint adjustments */
 @media (max-width: 1280px) {
-  .app-content { padding: 0.75rem 0.9rem 0.75rem 0.35rem; }
   .table-container {
     max-width: 100vw;
     max-height: min(62vh, calc(100vh - 250px));
     margin-left: 0;
     margin-right: 0;
   }
-  /* keep dashboard tiles at 4 per row; only adjust activity/reports */
-  .recent-activity-section .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
   .reports-charts { grid-template-columns: repeat(2, 1fr) !important; }
-  /* neutralize outer dashboard wrapper if present */
-  #dashboard > .stats-grid:first-of-type { display: block !important; }
-  #dashboard > .stats-grid:first-of-type > div { width: 100% !important; max-width: none !important; }
 }
 
 /* Responsive grid overrides for narrower screens */
 @media (max-width: 1024px) {
+  .app-content,
+  main.app-content {
+    padding: 1rem 1.15rem;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
   /* tiles: 2 per row */
   .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  #dashboard .dashboard-order-cards { grid-template-columns: repeat(2, 1fr) !important; gap: 0.75rem; }
   /* reports/activity: 1 column */
   .recent-activity-section .stats-grid { grid-template-columns: 1fr !important; }
   .reports-charts { grid-template-columns: 1fr !important; }
@@ -3307,6 +3365,17 @@ textarea:focus {
   }
 }
 @media (max-width: 768px) {
+  .app-content,
+  main.app-content {
+    padding: 0.75rem 0.85rem;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  #dashboard .dashboard-order-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.6rem;
+  }
   /* tiles: 1 per row */
   .stats-grid { grid-template-columns: 1fr !important; }
   .table-container {
