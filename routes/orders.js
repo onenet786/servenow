@@ -4800,9 +4800,8 @@ router.put(
       if (delivery_fee !== undefined) {
         finalDeliveryFee = parseFloat(delivery_fee);
         newTotal = Number(itemsSubtotal) + Number(finalDeliveryFee);
-      } else if (itemsSubtotal > 0) {
-        // Ensure total_amount is correct even if delivery_fee is not being updated
-        newTotal = parseFloat(itemsSubtotal) + parseFloat(finalDeliveryFee);
+      } else {
+        newTotal = Number(itemsSubtotal) + Number(finalDeliveryFee);
       }
 
       // Assign rider and update status
@@ -5143,17 +5142,25 @@ router.put(
         }
         is_manual = true;
       } else {
-        // Count unique stores for auto-calculation
-        const storeIds = new Set(
-          items.map((item) => item.store_id).filter(Boolean),
+        const isParcelOrder = Boolean(
+          order.special_instructions &&
+          String(order.special_instructions).includes("Pick & Drop Parcel")
         );
-        const storeCount = storeIds.size;
+        if (isParcelOrder) {
+          delivery_fee = DEFAULT_PARCEL_DELIVERY_FEE;
+        } else {
+          // Count unique stores for auto-calculation
+          const storeIds = new Set(
+            items.map((item) => item.store_id).filter(Boolean),
+          );
+          const storeCount = storeIds.size;
 
-        const deliveryFeeConfig = await getDeliveryFeeConfig(req.db);
-        delivery_fee = calculateDeliveryFeeByStoreCount(
-          storeCount,
-          deliveryFeeConfig
-        );
+          const deliveryFeeConfig = await getDeliveryFeeConfig(req.db);
+          delivery_fee = calculateDeliveryFeeByStoreCount(
+            storeCount,
+            deliveryFeeConfig
+          );
+        }
       }
 
       // Recalculate total from items subtotal

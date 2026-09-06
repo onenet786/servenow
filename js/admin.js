@@ -6966,9 +6966,18 @@ function computeStoreWiseItemTotals(items) {
     return Array.from(map.values()).sort((a, b) => b.subtotal - a.subtotal);
 }
 
-function renderStoreWiseOrderTotals(containerId, items) {
+function renderStoreWiseOrderTotals(containerId, items, isParcelOrder = false) {
     const el = document.getElementById(containerId);
     if (!el) return;
+    if (isParcelOrder) {
+        el.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;color:#0369a1;font-size:0.85rem;font-weight:600;margin-top:6px;">
+                <i class="fas fa-box"></i>
+                <span>Pick & Drop Parcel Delivery Service (Direct Customer to Destination)</span>
+            </div>
+        `;
+        return;
+    }
     const rows = computeStoreWiseItemTotals(items);
     if (!rows.length) {
         el.innerHTML = '';
@@ -7229,6 +7238,19 @@ async function editOrder(orderId) {
 
         primeEditOrderCustomerField(freshOrder);
 
+        const isParcelOrder = Boolean(
+            (freshOrder?.special_instructions && String(freshOrder.special_instructions).includes('Pick & Drop Parcel')) ||
+            (itemsData.items && itemsData.items.some(item => 
+                (item.product_name && String(item.product_name).toLowerCase().includes('parcel')) ||
+                (item.store_name && String(item.store_name).toLowerCase().includes('parcel'))
+            ))
+        );
+
+        const deliveryAddressLabel = document.querySelector('label[for="editOrderDeliveryAddress"]');
+        if (deliveryAddressLabel) {
+            deliveryAddressLabel.textContent = isParcelOrder ? 'Delivery Address (Drop-off Destination):' : 'Delivery Address:';
+        }
+
         const deliveryAddressInput = document.getElementById('editOrderDeliveryAddress');
         if (deliveryAddressInput) {
             deliveryAddressInput.value = freshOrder.delivery_address || '';
@@ -7274,6 +7296,19 @@ async function editOrder(orderId) {
             storeSelect = storeSelectClone;
         }
 
+        const storeSelectGroup = storeSelect?.closest('.form-row');
+        if (storeSelectGroup) {
+            storeSelectGroup.style.display = isParcelOrder ? 'none' : '';
+        }
+        const addItemSection = document.querySelector('#editOrderModal .edit-order-add-item-section');
+        if (addItemSection) {
+            addItemSection.style.display = isParcelOrder ? 'none' : '';
+        }
+        const addItemDivider = addItemSection?.previousElementSibling;
+        if (addItemDivider && addItemDivider.classList.contains('edit-order-divider')) {
+            addItemDivider.style.display = isParcelOrder ? 'none' : '';
+        }
+
         const itemsContainer = document.getElementById('orderItemsContainer');
         if (!itemsContainer) {
             console.warn('Order items container not found in edit order modal');
@@ -7301,6 +7336,7 @@ async function editOrder(orderId) {
                         const storeName = item.store_name ? escapeHtml(String(item.store_name)) : '';
                         const price = Number(item.price) || 0;
                         const quantity = Number(item.quantity) || 0;
+                        const isParcelItem = isParcelOrder || (item.product_name && String(item.product_name).toLowerCase().includes('parcel'));
 
                         return `
                             <div class="edit-order-item-row">
@@ -7312,15 +7348,21 @@ async function editOrder(orderId) {
                                 </div>
                                 <label class="edit-order-item-qty">
                                     <span>Qty</span>
-                                    <input type="number" class="item-quantity-input" data-item-id="${itemId}" value="${quantity}" min="1" />
+                                    <input type="number" class="item-quantity-input" data-item-id="${itemId}" value="${quantity}" min="1" ${isParcelItem ? 'readonly disabled style="background:#f1f5f9;cursor:not-allowed;"' : ''} />
                                 </label>
                                 <div class="edit-order-item-total">
                                     <span>Total</span>
                                     <strong>PKR ${(price * quantity).toFixed(2)}</strong>
                                 </div>
+                                ${isParcelItem ? `
+                                <span class="badge" style="background:#e0f2fe;color:#0369a1;padding:6px 12px;border-radius:4px;font-size:12px;display:inline-flex;align-items:center;gap:4px;">
+                                    <i class="fas fa-box"></i> Parcel Item
+                                </span>
+                                ` : `
                                 <button type="button" class="btn btn-small btn-danger remove-item-btn" data-item-id="${itemId}">
                                     <i class="fas fa-trash"></i> Remove
                                 </button>
+                                `}
                             </div>
                         `;
                     }).join('')}
@@ -7337,7 +7379,7 @@ async function editOrder(orderId) {
                 const items = readItemsFromInputs();
                 const currentDeliveryFee = document.getElementById('orderDeliveryFee')?.value || 0;
                 updateOrderSummary(items, currentDeliveryFee);
-                renderStoreWiseOrderTotals('orderStoreWiseTotals', items);
+                renderStoreWiseOrderTotals('orderStoreWiseTotals', items, isParcelOrder);
             });
 
             document.querySelectorAll('.item-quantity-input').forEach(input => {
@@ -7372,7 +7414,7 @@ async function editOrder(orderId) {
                 if (itemsSubtotalEl) {
                     itemsSubtotalEl.textContent = `PKR ${itemsSubtotal.toFixed(2)}`;
                 }
-                renderStoreWiseOrderTotals('orderStoreWiseTotals', items);
+                renderStoreWiseOrderTotals('orderStoreWiseTotals', items, isParcelOrder);
                 });
             }
 
@@ -7383,28 +7425,28 @@ async function editOrder(orderId) {
             const itemsSubtotal = itemsData.items.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
             
             // Determine the delivery fee to display
-            // Priority: 1. Auto-calculate based on stores (Business Rule enforcement)
-            // Note: We override stored fee to ensure logic applies when items/stores change
-            let deliveryFee = calculateDeliveryCharges(storeCount);
-            
-            // Log if we are overriding a stored fee
-            if (freshOrder && freshOrder.delivery_fee !== undefined && Number(freshOrder.delivery_fee) !== deliveryFee) {
-                 console.log(`[Order ${orderId}] Recalculated delivery fee from ${freshOrder.delivery_fee} to ${deliveryFee} based on ${storeCount} stores`);
-            }
-
-            /* 
-            // Disabled to ensure multi-store logic always applies
-            if (freshOrder && freshOrder.delivery_fee !== undefined && freshOrder.delivery_fee !== null) {
+            let deliveryFee;
+            if (isParcelOrder) {
+                // For Pick & Drop Parcel orders:
+                // If stored fee is 100 (old default or overwritten), 0, or missing, default to 150 (DEFAULT_PARCEL_DELIVERY_FEE)
+                const storedFee = freshOrder?.delivery_fee !== undefined && freshOrder?.delivery_fee !== null ? Number(freshOrder.delivery_fee) : null;
+                if (storedFee !== null && Number.isFinite(storedFee) && storedFee > 0 && storedFee !== 100) {
+                    deliveryFee = storedFee;
+                } else {
+                    deliveryFee = typeof DEFAULT_PARCEL_DELIVERY_FEE !== 'undefined' ? DEFAULT_PARCEL_DELIVERY_FEE : 150;
+                }
+            } else if (freshOrder && freshOrder.delivery_fee !== undefined && freshOrder.delivery_fee !== null && Number.isFinite(Number(freshOrder.delivery_fee))) {
                 deliveryFee = Number(freshOrder.delivery_fee);
             } else if (freshOrder && freshOrder.total_amount !== undefined && freshOrder.total_amount !== null) {
                 deliveryFee = Math.max(0, Number(freshOrder.total_amount) - itemsSubtotal);
-            } 
-            */
+            } else {
+                deliveryFee = calculateDeliveryCharges(storeCount);
+            }
             
-            console.log(`[Order ${orderId}] Subtotal: ${itemsSubtotal}, Delivery Fee: ${deliveryFee}, Total: ${itemsSubtotal + deliveryFee}`);
+            console.log(`[Order ${orderId}] Subtotal: ${itemsSubtotal}, Delivery Fee: ${deliveryFee}, Total: ${itemsSubtotal + deliveryFee}, isParcel: ${isParcelOrder}`);
             
             updateOrderSummary(itemsData.items, deliveryFee);
-            renderStoreWiseOrderTotals('orderStoreWiseTotals', itemsData.items);
+            renderStoreWiseOrderTotals('orderStoreWiseTotals', itemsData.items, isParcelOrder);
             
             if (freshOrder?.delivery_fee === undefined && freshOrder?.total_amount === undefined) {
                 showSuccess('Auto-Calculated', `Delivery fee calculated: ${storeCount} store(s) = PKR ${deliveryFee}`);
@@ -7412,7 +7454,7 @@ async function editOrder(orderId) {
         } else {
             itemsContainer.innerHTML = '<p class="edit-order-items-empty">No items found</p>';
             updateOrderSummary([], 0);
-            renderStoreWiseOrderTotals('orderStoreWiseTotals', []);
+            renderStoreWiseOrderTotals('orderStoreWiseTotals', [], isParcelOrder);
         }
         
         const addItemBtn = document.getElementById('addItemBtn');
