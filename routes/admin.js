@@ -175,7 +175,14 @@ function canViewRestrictedFinancialReports(req) {
 
 const BACKUP_DIR = path.join(__dirname, "..", "database", "backups");
 
-const { createImageUpload } = require("../middleware/upload");
+let createImageUpload;
+try {
+  ({ createImageUpload } = require("../middleware/upload"));
+} catch (_) {
+  const multer = require("multer");
+  createImageUpload = () =>
+    multer({ dest: path.join(__dirname, "..", "uploads", "tmp") });
+}
 const sharp = (() => {
   try {
     return require("sharp");
@@ -1224,8 +1231,15 @@ router.get(
         detailParams
       );
 
+      const distinctOrderIds = new Set();
+      const distinctCustomerKeys = new Set();
       const ordersByStore = new Map();
       storeOrderDetails.forEach((row) => {
+        const orderId = Number(row.order_id) || null;
+        if (orderId) distinctOrderIds.add(orderId);
+        const custKey = (row.customer_phone || row.customer_name || "").trim();
+        if (custKey) distinctCustomerKeys.add(custKey);
+
         const storeId = Number(row.store_id) || null;
         if (!storeId) return;
         if (!ordersByStore.has(storeId)) ordersByStore.set(storeId, []);
@@ -1238,7 +1252,7 @@ router.get(
           store_name: row.store_name,
           store_payment_term: row.store_payment_term || null,
           sale_type: String(row.sale_type || "").toLowerCase(),
-          order_id: Number(row.order_id) || null,
+          order_id: orderId,
           order_number: row.order_number,
           order_status: String(row.order_status || "").toLowerCase(),
           sold_at: row.sold_at,
@@ -1259,6 +1273,10 @@ router.get(
 
       return res.json({
         success: true,
+        summary: {
+          total_orders: distinctOrderIds.size,
+          unique_customers: distinctCustomerKeys.size,
+        },
         store_sales: storeSales.map((row) => {
           const storePaymentType = String(row.store_payment_type || "").toLowerCase();
           const totalOrders = Number(row.total_orders) || 0;

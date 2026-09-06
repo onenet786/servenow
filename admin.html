@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="css/style.css?v=5" />
-    <link rel="stylesheet" href="css/admin.css?v=36" />
+    <link rel="stylesheet" href="css/admin.css?v=37" />
     <link rel="stylesheet" href="css/aginv-theme.css?v=4" />
     <link
       rel="stylesheet"
@@ -1996,9 +1996,12 @@
           <div class="orders-table-card">
             <div class="orders-section-head">
               <h3>Orders Table <span class="orders-section-inline-copy">(Review the current queue, open details, and edit order assignments or statuses.)</span></h3>
-              <div class="orders-table-actions">
-                <button class="btn btn-primary" id="openManualOrderBtn">
+              <div class="orders-table-actions" style="display: inline-flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; vertical-align: middle;">
+                <button class="btn btn-primary" id="openManualOrderBtn" style="margin: 0; display: inline-flex; align-items: center; justify-content: center; height: 38px; min-height: 38px; border-radius: 9999px; vertical-align: middle;">
                   <i class="fas fa-plus"></i> Create Manual Order
+                </button>
+                <button class="btn btn-warning" id="openParcelOrderBtn" style="margin: 0; display: inline-flex; align-items: center; justify-content: center; height: 38px; min-height: 38px; border-radius: 9999px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 700; border: 1px solid transparent; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); vertical-align: middle;">
+                  <i class="fas fa-box"></i> Pick & Drop Parcel
                 </button>
               </div>
             </div>
@@ -4602,18 +4605,38 @@
           <span class="close" data-modal="manualOrderModal">&times;</span>
         </div>
         <div class="modal-body">
+          <!-- Quick Order Type Tabs -->
+          <div class="manual-order-type-tabs" style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem;">
+            <button type="button" class="btn manual-type-tab-btn active" id="manualTypeProductTab" style="flex: 1; padding: 0.65rem 1rem; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: 2px solid #2563eb; background: #eff6ff; color: #1e40af; cursor: pointer;">
+              <i class="fas fa-store"></i> Standard Product Order
+            </button>
+            <button type="button" class="btn manual-type-tab-btn" id="manualTypeParcelTab" style="flex: 1; padding: 0.65rem 1rem; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; border: 2px solid transparent; background: #f3f4f6; color: #4b5563; cursor: pointer;">
+              <i class="fas fa-box"></i> Pick & Drop Parcel Delivery
+            </button>
+          </div>
+
+          <div id="manualParcelNotice" style="display: none; padding: 0.75rem 1rem; margin-bottom: 1rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; font-size: 0.875rem;">
+            <i class="fas fa-info-circle" style="margin-right: 0.4rem;"></i>
+            <strong>Pick & Drop Parcel Mode:</strong> Rider will pick up parcel/items from the customer and deliver to their required destination. <strong>Default delivery charge: PKR 150.00</strong> (product price = PKR 0).
+          </div>
+
           <form id="manualOrderForm">
             <div class="form-row">
-              <div class="form-group">
+              <div class="form-group" style="display: none;">
                 <label for="manualOrderType">Order Type</label>
                 <select id="manualOrderType" class="form-control">
                   <option value="product">Product / Store Item</option>
                   <option value="parcel">Pick & Drop Parcel / Item</option>
                 </select>
               </div>
-              <div class="form-group">
+              <div class="form-group" style="flex: 1;">
                 <label for="manualOrderDeliveryFee">Delivery Charges (PKR)</label>
-                <input type="number" min="0" step="0.01" id="manualOrderDeliveryFee" class="form-control" placeholder="Leave blank for default" />
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input type="number" min="0" step="0.01" id="manualOrderDeliveryFee" class="form-control" placeholder="Default: 150.00 (Parcel)" />
+                  <button type="button" class="btn btn-secondary btn-small" id="manualOrderApplyDefaultFeeBtn" title="Apply current delivery charges" style="white-space: nowrap; height: 38px; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fas fa-sync-alt"></i> Apply Current Fee
+                  </button>
+                </div>
               </div>
             </div>
             <div class="form-row">
@@ -4861,8 +4884,8 @@
     <script src="js/notifications.js?v=2" defer></script>
     <script src="js/financial_helpers.js" defer></script>
     <script src="js/financial.js?v=19" defer></script>
-    <script src="js/admin.js?v=40" defer></script>
-    <script src="js/inventory-report.js?v=8" defer></script>
+    <script src="js/admin.js?v=42" defer></script>
+    <script src="js/inventory-report.js?v=9" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
       const appSidebar = document.getElementById("appSidebar");

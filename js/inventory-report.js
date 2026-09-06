@@ -683,29 +683,63 @@ function renderStoreSaleTypeCell(store, typeKey) {
 }
 
 function createStoreSaleTotals() {
-    return {
+    const totals = {
         totalOrders: 0,
+        rawTotalOrders: 0,
         totalSales: 0,
         totalDiscount: 0,
         totalProfit: 0,
         uniqueCustomers: 0,
-        cash: { orders: 0, sales: 0 },
-        cash_discount: { orders: 0, sales: 0 },
-        credit: { orders: 0, sales: 0 },
-        credit_discount: { orders: 0, sales: 0 },
+        rawUniqueCustomers: 0,
+        orderIds: new Set(),
+        customerKeys: new Set(),
+        cash: { orders: 0, rawOrders: 0, sales: 0, orderIds: new Set() },
+        cash_discount: { orders: 0, rawOrders: 0, sales: 0, orderIds: new Set() },
+        credit: { orders: 0, rawOrders: 0, sales: 0, orderIds: new Set() },
+        credit_discount: { orders: 0, rawOrders: 0, sales: 0, orderIds: new Set() },
     };
+    return totals;
 }
 
 function addStoreSaleTotals(totals, store) {
-    totals.totalOrders += Number(store.total_orders || 0) || 0;
+    const rawOrders = Number(store.total_orders || 0) || 0;
+    const rawCustomers = Number(store.unique_customers || 0) || 0;
+    totals.rawTotalOrders += rawOrders;
+    totals.rawUniqueCustomers += rawCustomers;
     totals.totalSales += Number(store.total_sales_net || 0) || 0;
     totals.totalDiscount += Number(store.total_discount || 0) || 0;
     totals.totalProfit += Number(store.estimated_profit || 0) || 0;
-    totals.uniqueCustomers += Number(store.unique_customers || 0) || 0;
+
+    const storeOrders = store.orders || [];
+    if (storeOrders.length > 0) {
+        storeOrders.forEach((order) => {
+            const orderId = order.order_id || order.order_number;
+            if (orderId) totals.orderIds.add(orderId);
+            const custKey = (order.customer_phone || order.customer_name || "").trim();
+            if (custKey) totals.customerKeys.add(custKey);
+        });
+        totals.totalOrders = totals.orderIds.size;
+        totals.uniqueCustomers = totals.customerKeys.size;
+    } else {
+        totals.totalOrders = totals.orderIds.size > 0 ? totals.orderIds.size : totals.rawTotalOrders;
+        totals.uniqueCustomers = totals.customerKeys.size > 0 ? totals.customerKeys.size : totals.rawUniqueCustomers;
+    }
+
+    const storeType = normalizeStoreSaleType(store.store_payment_type || store.store_payment_term);
     storeSaleTypeOrder.forEach((key) => {
         const metric = storeSaleTypeMetric(store, key);
-        totals[key].orders += metric.orders;
         totals[key].sales += metric.sales;
+        totals[key].rawOrders += metric.orders;
+
+        if (storeType === key && storeOrders.length > 0) {
+            storeOrders.forEach((order) => {
+                const orderId = order.order_id || order.order_number;
+                if (orderId) totals[key].orderIds.add(orderId);
+            });
+            totals[key].orders = totals[key].orderIds.size;
+        } else {
+            totals[key].orders = totals[key].orderIds.size > 0 ? totals[key].orderIds.size : totals[key].rawOrders;
+        }
     });
 }
 
@@ -729,12 +763,17 @@ function renderStoreSaleTotalsRow(label, totals, className) {
     `;
 }
 
+let currentStoreSalesSummary = null;
+
 function displayStoreSalesReport(data) {
     const tbody = document.getElementById("storeSalesBody");
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    currentStoreSalesRows = data.store_sales || [];
+    currentStoreSalesRows = (data && data.store_sales) || [];
+    if (data && data.summary) {
+        currentStoreSalesSummary = data.summary;
+    }
     if (
         expandedStoreSalesStoreId &&
         !currentStoreSalesRows.some((store) => Number(store.store_id) === Number(expandedStoreSalesStoreId))
@@ -799,7 +838,7 @@ function displayStoreSalesReport(data) {
             `;
             row.addEventListener("click", () => {
                 expandedStoreSalesStoreId = isExpanded ? null : storeId;
-                displayStoreSalesReport({ store_sales: currentStoreSalesRows });
+                displayStoreSalesReport({ store_sales: currentStoreSalesRows, summary: currentStoreSalesSummary });
             });
             tbody.appendChild(row);
 
@@ -817,6 +856,15 @@ function displayStoreSalesReport(data) {
 
         tbody.insertAdjacentHTML("beforeend", renderStoreSaleTotalsRow(`${storeSaleTypeLabel(typeKey)} Total`, groupTotals, "aginv-report-subtotal-row"));
     });
+
+    if (currentStoreSalesSummary) {
+        if (typeof currentStoreSalesSummary.total_orders === "number" && currentStoreSalesSummary.total_orders >= 0) {
+            grandTotals.totalOrders = currentStoreSalesSummary.total_orders;
+        }
+        if (typeof currentStoreSalesSummary.unique_customers === "number" && currentStoreSalesSummary.unique_customers >= 0) {
+            grandTotals.uniqueCustomers = currentStoreSalesSummary.unique_customers;
+        }
+    }
 
     tbody.insertAdjacentHTML("beforeend", renderStoreSaleTotalsRow("Grand Total", grandTotals, "aginv-report-grand-row"));
 }

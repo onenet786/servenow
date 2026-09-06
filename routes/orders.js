@@ -21,6 +21,7 @@ const {
 const router = express.Router();
 
 const DEFAULT_BASE_DELIVERY_FEE = 70;
+const DEFAULT_PARCEL_DELIVERY_FEE = 150;
 const DEFAULT_ADDITIONAL_STORE_FEE = 30;
 const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set(
   String(process.env.PRIVILEGED_ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean)
@@ -2003,7 +2004,7 @@ router.post(
 
       const isParcelDelivery = String(order_type || "").trim() === "parcel_delivery";
       const customerId = parseInt(String(customer_id || ""), 10);
-      const storeId = parseInt(String(store_id || ""), 10);
+      let storeId = parseInt(String(store_id || ""), 10);
       const selectedProductId = parseInt(String(product_id || ""), 10);
       const qty = parseInt(String(quantity || ""), 10);
       const unitPrice = Number(unit_price);
@@ -2015,6 +2016,20 @@ router.post(
         cost_price === null || cost_price === undefined || String(cost_price).trim() === ""
           ? null
           : Number(cost_price);
+
+      if (isParcelDelivery && (!Number.isInteger(storeId) || storeId <= 0)) {
+        const [parcelStores] = await req.db.execute(
+          "SELECT id FROM stores WHERE LOWER(name) LIKE '%parcel%' OR LOWER(name) LIKE '%pick%' LIMIT 1"
+        );
+        if (parcelStores.length > 0) {
+          storeId = parcelStores[0].id;
+        } else {
+          const [anyStore] = await req.db.execute(
+            "SELECT id FROM stores WHERE is_active = true ORDER BY id ASC LIMIT 1"
+          );
+          storeId = anyStore[0]?.id || 1;
+        }
+      }
 
       if (!Number.isInteger(customerId) || customerId <= 0) {
         return res.status(400).json({
@@ -2034,10 +2049,20 @@ router.post(
           message: "Delivery address is required",
         });
       }
-      if (isParcelDelivery && !String(pickup_location || "").trim()) {
+      let finalPickupLocation = String(pickup_location || "").trim();
+      if (isParcelDelivery && !finalPickupLocation) {
+        const [custRows] = await req.db.execute(
+          "SELECT address, phone, first_name, last_name FROM users WHERE id = ? LIMIT 1",
+          [customerId]
+        );
+        if (custRows.length > 0 && custRows[0].address) {
+          finalPickupLocation = String(custRows[0].address).trim();
+        }
+      }
+      if (isParcelDelivery && !finalPickupLocation) {
         return res.status(400).json({
           success: false,
-          message: "Pickup place/location is required",
+          message: "Pickup place/location is required (customer has no saved address)",
         });
       }
       if (
@@ -2074,12 +2099,6 @@ router.post(
         return res.status(400).json({
           success: false,
           message: "Delivery charges must be a non-negative number",
-        });
-      }
-      if (isParcelDelivery && manualDeliveryFee === null) {
-        return res.status(400).json({
-          success: false,
-          message: "Manual delivery charges are required for parcel/item delivery",
         });
       }
 
@@ -2199,16 +2218,16 @@ router.post(
       );
       const product = productRows[0] || {};
 
-      const feeConfig = manualDeliveryFee === null ? await getDeliveryFeeConfig(req.db) : null;
+      const feeConfig = manualDeliveryFee === null && !isParcelDelivery ? await getDeliveryFeeConfig(req.db) : null;
       const deliveryFee =
         manualDeliveryFee !== null
           ? roundAmount(manualDeliveryFee)
-          : calculateDeliveryFeeByStoreCount(1, feeConfig);
+          : (isParcelDelivery ? DEFAULT_PARCEL_DELIVERY_FEE : calculateDeliveryFeeByStoreCount(1, feeConfig));
       const subtotal = roundAmount(qty * roundAmount(unitPrice));
       const totalAmount = roundAmount(subtotal + deliveryFee);
       const adminOrderMessage = `${adminStoreSummary} - PKR ${totalAmount}`;
       const orderNumber = await generateOrderNumber(req.db);
-      const pickupLocationText = String(pickup_location || "").trim();
+      const pickupLocationText = String(finalPickupLocation || pickup_location || "").trim();
       const parcelDetailsText = String(parcel_details || "").trim();
       const instructionsParts = [];
       if (isParcelDelivery) {

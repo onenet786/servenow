@@ -1760,7 +1760,34 @@ function initializeAdmin() {
     document.getElementById('saveRiderBtn').addEventListener('click', saveRider);
     document.getElementById('saveOrderBtn').addEventListener('click', saveOrder);
     const openManualOrderBtn = document.getElementById('openManualOrderBtn');
-    if (openManualOrderBtn) openManualOrderBtn.addEventListener('click', openManualOrderModal);
+    if (openManualOrderBtn) openManualOrderBtn.addEventListener('click', () => openManualOrderModal('product'));
+    const openParcelOrderBtn = document.getElementById('openParcelOrderBtn');
+    if (openParcelOrderBtn) openParcelOrderBtn.addEventListener('click', () => openManualOrderModal('parcel'));
+    const manualTypeProductTab = document.getElementById('manualTypeProductTab');
+    if (manualTypeProductTab && !manualTypeProductTab.dataset.boundTab) {
+        manualTypeProductTab.addEventListener('click', () => {
+            const t = document.getElementById('manualOrderType');
+            if (t) t.value = 'product';
+            updateManualOrderMode();
+        });
+        manualTypeProductTab.dataset.boundTab = '1';
+    }
+    const manualTypeParcelTab = document.getElementById('manualTypeParcelTab');
+    if (manualTypeParcelTab && !manualTypeParcelTab.dataset.boundTab) {
+        manualTypeParcelTab.addEventListener('click', () => {
+            const t = document.getElementById('manualOrderType');
+            if (t) t.value = 'parcel';
+            updateManualOrderMode();
+        });
+        manualTypeParcelTab.dataset.boundTab = '1';
+    }
+    const manualOrderApplyDefaultFeeBtn = document.getElementById('manualOrderApplyDefaultFeeBtn');
+    if (manualOrderApplyDefaultFeeBtn && !manualOrderApplyDefaultFeeBtn.dataset.boundApplyFee) {
+        manualOrderApplyDefaultFeeBtn.addEventListener('click', () => {
+            applyCurrentDeliveryCharges();
+        });
+        manualOrderApplyDefaultFeeBtn.dataset.boundApplyFee = '1';
+    }
     const submitManualOrderBtn = document.getElementById('submitManualOrderBtn');
     if (submitManualOrderBtn) submitManualOrderBtn.addEventListener('click', submitManualOrder);
     const manualOrderTypeEl = document.getElementById('manualOrderType');
@@ -5537,7 +5564,38 @@ function clearFilters() {
     loadOrders();
 }
 
-async function openManualOrderModal() {
+const DEFAULT_PARCEL_DELIVERY_FEE = 150;
+
+async function applyCurrentDeliveryCharges(forceParcel = false) {
+    const deliveryFeeEl = document.getElementById('manualOrderDeliveryFee');
+    if (!deliveryFeeEl) return;
+    const isParcel = forceParcel || isManualParcelOrder();
+    if (isParcel) {
+        deliveryFeeEl.value = Number(DEFAULT_PARCEL_DELIVERY_FEE).toFixed(2);
+        return DEFAULT_PARCEL_DELIVERY_FEE;
+    }
+    const btn = document.getElementById('manualOrderApplyDefaultFeeBtn');
+    if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fee...';
+    try {
+        const res = await fetch(`${API_BASE}/api/orders/delivery-fee-config`);
+        const data = await res.json();
+        if (data && data.success && Number.isFinite(Number(data.base_fee))) {
+            const fee = Number(data.base_fee);
+            window._deliveryFeeBase = fee;
+            deliveryFeeEl.value = fee.toFixed(2);
+            return fee;
+        }
+    } catch (e) {
+        console.warn('Could not fetch delivery-fee-config:', e);
+    } finally {
+        if (btn) btn.innerHTML = '<i class="fas fa-sync-alt"></i> Apply Current Fee';
+    }
+    const fallback = Number(window._deliveryFeeBase ?? 70);
+    deliveryFeeEl.value = fallback.toFixed(2);
+    return fallback;
+}
+
+async function openManualOrderModal(initialMode = 'product') {
     const tasks = [
         loadManualOrderCustomers(),
         loadManualOrderStores(),
@@ -5559,7 +5617,7 @@ async function openManualOrderModal() {
     const qtyEl = document.getElementById('manualOrderQty');
     if (qtyEl) qtyEl.value = '1';
     const typeEl = document.getElementById('manualOrderType');
-    if (typeEl) typeEl.value = 'product';
+    if (typeEl) typeEl.value = initialMode || 'product';
     const deliveryFeeEl = document.getElementById('manualOrderDeliveryFee');
     if (deliveryFeeEl) deliveryFeeEl.value = '';
     const existingProductInput = document.getElementById('manualOrderExistingProduct');
@@ -5569,10 +5627,21 @@ async function openManualOrderModal() {
     const existingProductList = document.getElementById('manualOrderExistingProductList');
     if (existingProductList) existingProductList.innerHTML = '';
     const saveForFutureEl = document.getElementById('manualOrderSaveForFuture');
-    if (saveForFutureEl) saveForFutureEl.checked = true;
+    if (saveForFutureEl) saveForFutureEl.checked = initialMode !== 'parcel';
     const visibleStoreEl = document.getElementById('manualStoreVisibleToCustomers');
     if (visibleStoreEl) visibleStoreEl.checked = false;
+
+    const modalTitle = document.querySelector('#manualOrderModal .modal-header h3');
+    if (modalTitle) {
+        modalTitle.textContent = initialMode === 'parcel'
+            ? 'Pick & Drop Parcel Delivery (Customer to Destination)'
+            : 'Create Manual Order (Call/No Listing)';
+    }
+
     updateManualOrderMode();
+    if (initialMode === 'parcel') {
+        applyCurrentDeliveryCharges();
+    }
 
     showModal('manualOrderModal');
 }
@@ -5583,6 +5652,37 @@ function isManualParcelOrder() {
 
 function updateManualOrderMode() {
     const isParcel = isManualParcelOrder();
+
+    // Toggle tab buttons visual state
+    const productTab = document.getElementById('manualTypeProductTab');
+    const parcelTab = document.getElementById('manualTypeParcelTab');
+    if (productTab && parcelTab) {
+        if (isParcel) {
+            productTab.style.borderColor = 'transparent';
+            productTab.style.background = '#f3f4f6';
+            productTab.style.color = '#4b5563';
+            productTab.classList.remove('active');
+
+            parcelTab.style.borderColor = '#f59e0b';
+            parcelTab.style.background = '#fef3c7';
+            parcelTab.style.color = '#92400e';
+            parcelTab.classList.add('active');
+        } else {
+            productTab.style.borderColor = '#2563eb';
+            productTab.style.background = '#eff6ff';
+            productTab.style.color = '#1e40af';
+            productTab.classList.add('active');
+
+            parcelTab.style.borderColor = 'transparent';
+            parcelTab.style.background = '#f3f4f6';
+            parcelTab.style.color = '#4b5563';
+            parcelTab.classList.remove('active');
+        }
+    }
+
+    const parcelNotice = document.getElementById('manualParcelNotice');
+    if (parcelNotice) parcelNotice.style.display = isParcel ? 'block' : 'none';
+
     document.querySelectorAll('.manual-product-order-field').forEach((el) => {
         el.style.display = isParcel ? 'none' : '';
     });
@@ -5591,10 +5691,19 @@ function updateManualOrderMode() {
     if (parcelFields) parcelFields.style.display = isParcel ? '' : 'none';
 
     const storeLabel = document.getElementById('manualOrderStoreLabel');
-    if (storeLabel) storeLabel.textContent = isParcel ? 'Pickup Place / Store Record' : 'Store';
+    if (storeLabel) storeLabel.textContent = isParcel ? 'Store Reference (Auto-assigned for Parcel)' : 'Store';
+
+    const createStoreBtn = document.getElementById('toggleCreateManualStoreBtn');
+    if (createStoreBtn) createStoreBtn.style.display = isParcel ? 'none' : '';
+    const createStorePanel = document.getElementById('manualCreateStorePanel');
+    if (isParcel && createStorePanel) createStorePanel.style.display = 'none';
 
     const addressLabel = document.getElementById('manualOrderAddressLabel');
-    if (addressLabel) addressLabel.textContent = isParcel ? 'Drop-off / Delivery Address' : 'Delivery Address';
+    const addressInput = document.getElementById('manualOrderAddress');
+    if (addressLabel) addressLabel.textContent = isParcel ? 'Drop-off / Required Destination Address' : 'Delivery Address';
+    if (addressInput) {
+        addressInput.placeholder = isParcel ? 'Where to deliver the parcel (Destination Address)' : '';
+    }
 
     const saveWrap = document.getElementById('manualOrderSaveForFutureWrap');
     if (saveWrap) saveWrap.style.display = isParcel ? 'none' : '';
@@ -5608,6 +5717,15 @@ function updateManualOrderMode() {
     const itemNameEl = document.getElementById('manualOrderItemName');
     const productIdEl = document.getElementById('manualOrderProductId');
     const existingProductEl = document.getElementById('manualOrderExistingProduct');
+    const storeEl = document.getElementById('manualOrderStore');
+    const pickupLocEl = document.getElementById('manualOrderPickupLocation');
+
+    // Manage required attributes dynamically to avoid validation errors on hidden fields
+    if (itemNameEl) itemNameEl.required = !isParcel;
+    if (unitPriceEl) unitPriceEl.required = !isParcel;
+    if (qtyEl) qtyEl.required = !isParcel;
+    if (storeEl) storeEl.required = !isParcel;
+    if (pickupLocEl) pickupLocEl.required = isParcel;
 
     if (isParcel) {
         if (qtyEl) qtyEl.value = '1';
@@ -5616,16 +5734,34 @@ function updateManualOrderMode() {
         if (itemNameEl) itemNameEl.value = 'Parcel / Item Delivery';
         if (productIdEl) productIdEl.value = '';
         if (existingProductEl) existingProductEl.value = '';
-        const deliveryFeeEl = document.getElementById('manualOrderDeliveryFee');
-        if (deliveryFeeEl && !String(deliveryFeeEl.value || '').trim()) {
-            const baseFee = Number(window._deliveryFeeBase ?? 70);
-            deliveryFeeEl.value = Number.isFinite(baseFee) && baseFee >= 0 ? baseFee.toFixed(2) : '';
+
+        // Auto-select parcel store or first available store if none selected
+        if (storeEl && (!storeEl.value || storeEl.value === '')) {
+            let matchedIdx = -1;
+            for (let i = 0; i < storeEl.options.length; i++) {
+                const txt = storeEl.options[i].text.toLowerCase();
+                if (txt.includes('parcel') || txt.includes('pick')) {
+                    matchedIdx = i;
+                    break;
+                }
+            }
+            if (matchedIdx > 0) {
+                storeEl.selectedIndex = matchedIdx;
+            } else if (storeEl.options.length > 1) {
+                storeEl.selectedIndex = 1;
+            }
         }
-        autofillManualOrderPickupFromStore();
+
+        applyCurrentDeliveryCharges(true);
+        autofillManualOrderAddressFromCustomer();
     } else {
         if (itemNameEl && itemNameEl.value === 'Parcel / Item Delivery') itemNameEl.value = '';
         if (unitPriceEl && Number(unitPriceEl.value || 0) === 0) unitPriceEl.value = '';
         if (costPriceEl && Number(costPriceEl.value || 0) === 0) costPriceEl.value = '';
+        const deliveryFeeEl = document.getElementById('manualOrderDeliveryFee');
+        if (deliveryFeeEl && deliveryFeeEl.value === Number(DEFAULT_PARCEL_DELIVERY_FEE).toFixed(2)) {
+            deliveryFeeEl.value = '';
+        }
     }
 }
 
@@ -5960,17 +6096,44 @@ async function loadManualOrderStores() {
 function autofillManualOrderAddressFromCustomer() {
     const customerId = Number(document.getElementById('manualOrderCustomer')?.value || 0);
     const addressEl = document.getElementById('manualOrderAddress');
-    if (!addressEl || !Number.isInteger(customerId) || customerId <= 0) return;
+    const pickupEl = document.getElementById('manualOrderPickupLocation');
+    if (!Number.isInteger(customerId) || customerId <= 0) return;
     const map = AppState.manualOrderCustomersById || {};
     const customer = map[customerId];
-    const customerAddress = String(customer?.address || '').trim();
-    if (customerAddress) {
-        addressEl.value = customerAddress;
-        return;
-    }
-    // Fallback only when customer has no address: use selected store location/address.
-    if (!addressEl.value.trim()) {
-        autofillManualOrderAddressFromStore();
+    if (!customer) return;
+
+    const customerAddress = String(customer.address || '').trim();
+    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
+    const customerPhone = String(customer.phone || '').trim();
+
+    if (isManualParcelOrder()) {
+        // In Pick & Drop Parcel mode:
+        // Customer is the SENDER. The rider picks up the parcel FROM the customer!
+        if (pickupEl) {
+            let pickupVal = customerAddress;
+            if (customerPhone && pickupVal) {
+                pickupVal = `${pickupVal} (Sender: ${customerName || 'Customer'}, Ph: ${customerPhone})`;
+            } else if (customerPhone && !pickupVal) {
+                pickupVal = `Customer: ${customerName || 'Customer'} (${customerPhone})`;
+            }
+            if (pickupVal) {
+                pickupEl.value = pickupVal;
+            }
+        }
+        // Delivery address is the required drop-off destination.
+        // If delivery address previously matched the customer's home address, clear it so admin enters destination.
+        if (addressEl && customerAddress && addressEl.value.trim() === customerAddress) {
+            addressEl.value = '';
+        }
+    } else {
+        // Standard Product mode: Delivery address is customer's address.
+        if (addressEl && customerAddress) {
+            addressEl.value = customerAddress;
+            return;
+        }
+        if (addressEl && !addressEl.value.trim()) {
+            autofillManualOrderAddressFromStore();
+        }
     }
 }
 
@@ -6140,42 +6303,62 @@ async function submitManualOrder() {
     const isParcel = orderType === 'parcel';
     const customerId = Number(document.getElementById('manualOrderCustomer')?.value || 0);
     const riderId = Number(document.getElementById('manualOrderRider')?.value || 0);
-    const storeId = Number(document.getElementById('manualOrderStore')?.value || 0);
+    let storeId = Number(document.getElementById('manualOrderStore')?.value || 0);
+
+    // In parcel mode, auto-resolve store if empty
+    if (isParcel && (!storeId || storeId <= 0)) {
+        const storeSel = document.getElementById('manualOrderStore');
+        if (storeSel && storeSel.options.length > 1) {
+            storeId = Number(storeSel.options[1].value || 0);
+        }
+    }
+
     const selectedProductId = Number(document.getElementById('manualOrderProductId')?.value || 0);
     const categoryIdRaw = document.getElementById('manualOrderCategory')?.value || '';
     const itemName = (document.getElementById('manualOrderItemName')?.value || '').trim();
-    const qty = Number(document.getElementById('manualOrderQty')?.value || 0);
-    const unitPrice = Number(document.getElementById('manualOrderUnitPrice')?.value || 0);
+    const qty = isParcel ? 1 : Number(document.getElementById('manualOrderQty')?.value || 0);
+    const unitPrice = isParcel ? 0 : Number(document.getElementById('manualOrderUnitPrice')?.value || 0);
     const costPriceRaw = (document.getElementById('manualOrderCostPrice')?.value || '').trim();
-    const costPrice = costPriceRaw === '' ? null : Number(costPriceRaw);
+    const costPrice = isParcel ? 0 : (costPriceRaw === '' ? null : Number(costPriceRaw));
     const address = (document.getElementById('manualOrderAddress')?.value || '').trim();
     const paymentMethod = (document.getElementById('manualOrderPaymentMethod')?.value || 'cash').trim() || 'cash';
     const instructions = (document.getElementById('manualOrderInstructions')?.value || '').trim();
-    const pickupLocation = (document.getElementById('manualOrderPickupLocation')?.value || '').trim();
+    let pickupLocation = (document.getElementById('manualOrderPickupLocation')?.value || '').trim();
+
+    // In parcel mode, if pickup location is empty, fallback to customer address
+    if (isParcel && !pickupLocation && customerId > 0) {
+        const cust = (AppState.manualOrderCustomersById || {})[customerId];
+        if (cust?.address) {
+            pickupLocation = String(cust.address).trim();
+        }
+    }
+
     const parcelDetails = (document.getElementById('manualOrderParcelDetails')?.value || '').trim();
     const deliveryFeeRaw = (document.getElementById('manualOrderDeliveryFee')?.value || '').trim();
-    const manualDeliveryFee = deliveryFeeRaw === '' ? null : Number(deliveryFeeRaw);
+    let manualDeliveryFee = deliveryFeeRaw === '' ? null : Number(deliveryFeeRaw);
+
+    // In parcel mode, if delivery fee is empty or invalid, default to 150
+    if (isParcel && (manualDeliveryFee === null || !Number.isFinite(manualDeliveryFee))) {
+        manualDeliveryFee = DEFAULT_PARCEL_DELIVERY_FEE;
+    }
+
     const saveForFuture = isParcel ? false : !!document.getElementById('manualOrderSaveForFuture')?.checked;
 
     if (!customerId || !storeId || (!isParcel && !selectedProductId && !itemName) || !qty || qty < 1 || (!isParcel && (!unitPrice || unitPrice <= 0)) || !address) {
         showWarning(
             'Missing Data',
             isParcel
-                ? 'Please select customer, pickup place, drop-off address, and delivery charges.'
+                ? 'Please select a customer and provide the destination drop-off address.'
                 : 'Please fill all required manual order fields (existing product or item name).'
         );
         return;
     }
     if (isParcel && !pickupLocation) {
-        showWarning('Missing Data', 'Pickup place/location is required for parcel/item delivery.');
+        showWarning('Missing Data', 'Pickup place/location is required (customer has no saved address).');
         return;
     }
     if (manualDeliveryFee !== null && (!Number.isFinite(manualDeliveryFee) || manualDeliveryFee < 0)) {
         showWarning('Validation Error', 'Delivery charges must be a valid non-negative number.');
-        return;
-    }
-    if (isParcel && manualDeliveryFee === null) {
-        showWarning('Missing Data', 'Manual delivery charges are required for parcel/item delivery.');
         return;
     }
     if (costPrice !== null && (!Number.isFinite(costPrice) || costPrice < 0)) {
@@ -6241,8 +6424,10 @@ async function submitManualOrder() {
         hideModal('manualOrderModal');
         loadOrders();
         showSuccess(
-            'Manual Order Created',
-            `Order ${createData.order.order_number || `#${newOrderId}`} created successfully.${saveForFuture ? ' Item saved for future use.' : ''}`
+            isParcel ? 'Parcel Order Created' : 'Manual Order Created',
+            isParcel
+                ? `Pick & Drop parcel order ${createData.order.order_number || `#${newOrderId}`} created successfully. Delivery charges applied.`
+                : `Order ${createData.order.order_number || `#${newOrderId}`} created successfully.${saveForFuture ? ' Item saved for future use.' : ''}`
         );
     } catch (error) {
         console.error('Error creating manual order:', error);
