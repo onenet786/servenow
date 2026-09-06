@@ -1921,6 +1921,21 @@ function initializeAdmin() {
     // Populate danger-zone clear table options with all tables from DB
     if (typeof loadClearableTables === 'function') loadClearableTables();
     if (typeof loadDeliveryFeeSettings === 'function') loadDeliveryFeeSettings();
+
+    // Utilities Accordion: Only one tool expanded at a time
+    const utilityToolWidgets = document.querySelectorAll('.utilities-widget-stack details.utility-widget');
+    utilityToolWidgets.forEach(widget => {
+        widget.addEventListener('toggle', function () {
+            if (this.open) {
+                utilityToolWidgets.forEach(other => {
+                    if (other !== this && other.open) {
+                        other.open = false;
+                    }
+                });
+            }
+        });
+    });
+
     const restoreBackupBtn = document.getElementById('restoreBackupBtn');
     function updateRestoreButtonState() {
         const sel = document.querySelector('input[name="selBackup"]:checked');
