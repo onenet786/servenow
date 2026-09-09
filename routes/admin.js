@@ -10,6 +10,15 @@ const router = express.Router();
 const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set(
   String(process.env.PRIVILEGED_ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean)
 );
+
+function canViewRestrictedFinancialReports(req) {
+  if (req.user && req.user.user_type === "admin") return true;
+  const email = String(req.user && req.user.email ? req.user.email : "")
+    .trim()
+    .toLowerCase();
+  if (RESTRICTED_FINANCIAL_REPORT_EMAILS.size === 0) return true;
+  return RESTRICTED_FINANCIAL_REPORT_EMAILS.has(email);
+}
 const fs = require("fs");
 const path = require("path");
 const { exec, spawn } = require("child_process");
@@ -451,6 +460,56 @@ router.get(
         WHERE DATE(created_at) = ?
       `, [targetDate]);
 
+      const [creditRows] = await req.db.execute(`
+        SELECT
+          COALESCE(SUM(
+            CASE
+              WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                   AND LOWER(TRIM(COALESCE(o.status, ''))) <> 'cancelled'
+              THEN CASE
+                WHEN COALESCE(totals.order_item_sales, 0) > 0
+                  THEN COALESCE(o.total_amount, 0) * ((oi.quantity * oi.price) / totals.order_item_sales)
+                ELSE oi.quantity * oi.price
+              END
+              ELSE 0
+            END
+          ), 0) AS total_store_credit
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        LEFT JOIN products p ON p.id = oi.product_id
+        JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id, o.store_id)
+        LEFT JOIN (
+            SELECT oi2.order_id, SUM(oi2.quantity * oi2.price) AS order_item_sales
+            FROM order_items oi2
+            JOIN orders o2 ON o2.id = oi2.order_id
+            WHERE o2.status != 'cancelled'
+            GROUP BY oi2.order_id
+        ) totals ON totals.order_id = o.id
+        WHERE DATE(o.created_at) = ?
+      `, [targetDate]);
+
+      const [orderCreditRows] = await req.db.execute(`
+        SELECT
+          COALESCE(SUM(
+            CASE
+              WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+                   AND LOWER(TRIM(COALESCE(o.status, ''))) <> 'cancelled'
+              THEN COALESCE(o.total_amount, 0)
+              ELSE 0
+            END
+          ), 0) AS store_order_credit
+        FROM orders o
+        JOIN stores s ON s.id = o.store_id
+        WHERE DATE(o.created_at) = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM order_items oi WHERE oi.order_id = o.id
+          )
+      `, [targetDate]);
+
+      const totalStoreCredit =
+        (parseFloat(creditRows[0]?.total_store_credit) || 0) +
+        (parseFloat(orderCreditRows[0]?.store_order_credit) || 0);
+
       const [riderRows] = await req.db.execute(`
         SELECT
           o.rider_id,
@@ -482,6 +541,8 @@ router.get(
           delivery_fees: money(summary.delivery_fees),
           cash_sales: money(summary.cash_sales),
           digital_sales: money(summary.digital_sales),
+          total_store_credit: money(totalStoreCredit),
+          store_credit: money(totalStoreCredit),
           rider_cash: money(summary.rider_cash),
         },
         rider_cash_breakdown: riderRows.map((row) => ({
@@ -1233,10 +1294,16 @@ router.get(
 
       const distinctOrderIds = new Set();
       const distinctCustomerKeys = new Set();
+      const distinctOrderDeliveryMap = new Map();
       const ordersByStore = new Map();
       storeOrderDetails.forEach((row) => {
         const orderId = Number(row.order_id) || null;
-        if (orderId) distinctOrderIds.add(orderId);
+        if (orderId) {
+          distinctOrderIds.add(orderId);
+          if (!distinctOrderDeliveryMap.has(orderId)) {
+            distinctOrderDeliveryMap.set(orderId, parseFloat(row.delivery_fee) || 0);
+          }
+        }
         const custKey = (row.customer_phone || row.customer_name || "").trim();
         if (custKey) distinctCustomerKeys.add(custKey);
 
@@ -1271,11 +1338,17 @@ router.get(
         });
       });
 
+      let totalDeliveryCharges = 0;
+      for (const fee of distinctOrderDeliveryMap.values()) {
+        totalDeliveryCharges += fee;
+      }
+
       return res.json({
         success: true,
         summary: {
           total_orders: distinctOrderIds.size,
           unique_customers: distinctCustomerKeys.size,
+          total_delivery_charges: totalDeliveryCharges,
         },
         store_sales: storeSales.map((row) => {
           const storePaymentType = String(row.store_payment_type || "").toLowerCase();
@@ -1294,6 +1367,13 @@ router.get(
             typeSales[storePaymentType] = Math.max(0, typeSales[storePaymentType] - totalDiscount);
           }
 
+          const storeOrders = ordersByStore.get(Number(row.store_id)) || [];
+          const storeDeliveryCharges = storeOrders.reduce(
+            (sum, o) => sum + (parseFloat(o.delivery_fee) || 0),
+            0
+          );
+          const totalWithDelivery = totalSalesNet + storeDeliveryCharges;
+
           return {
             store_id: row.store_id,
             store_name: row.store_name,
@@ -1302,6 +1382,9 @@ router.get(
             total_orders: totalOrders,
             total_sales_gross: totalSalesGross,
             total_sales_net: totalSalesNet,
+            delivery_fee: storeDeliveryCharges,
+            delivery_charges: storeDeliveryCharges,
+            total_with_delivery: totalWithDelivery,
             cash_orders: Number(row.cash_orders) || 0,
             cash_sales: typeSales.cash,
             cash_discount_orders: Number(row.cash_discount_orders) || 0,
@@ -1315,7 +1398,7 @@ router.get(
             estimated_profit: totalSalesNet - totalCost,
             average_order_value: totalOrders > 0 ? totalSalesNet / totalOrders : 0,
             unique_customers: Number(row.unique_customers) || 0,
-            orders: ordersByStore.get(Number(row.store_id)) || [],
+            orders: storeOrders,
           };
         }),
       });

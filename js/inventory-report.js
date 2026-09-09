@@ -689,6 +689,10 @@ function createStoreSaleTotals() {
         totalSales: 0,
         totalDiscount: 0,
         totalProfit: 0,
+        delivery: 0,
+        rawDelivery: 0,
+        totalWithDelivery: 0,
+        orderDeliveryMap: new Map(),
         uniqueCustomers: 0,
         rawUniqueCustomers: 0,
         orderIds: new Set(),
@@ -711,19 +715,40 @@ function addStoreSaleTotals(totals, store) {
     totals.totalProfit += Number(store.estimated_profit || 0) || 0;
 
     const storeOrders = store.orders || [];
+    const storeDelivery = typeof store.delivery_charges === "number"
+        ? store.delivery_charges
+        : (typeof store.delivery_fee === "number"
+            ? store.delivery_fee
+            : (storeOrders.length > 0
+                ? storeOrders.reduce((sum, o) => sum + (Number(o.delivery_fee || 0) || 0), 0)
+                : 0));
+    totals.rawDelivery += storeDelivery;
+
     if (storeOrders.length > 0) {
         storeOrders.forEach((order) => {
             const orderId = order.order_id || order.order_number;
-            if (orderId) totals.orderIds.add(orderId);
+            if (orderId) {
+                totals.orderIds.add(orderId);
+                if (!totals.orderDeliveryMap.has(orderId)) {
+                    totals.orderDeliveryMap.set(orderId, Number(order.delivery_fee || 0) || 0);
+                }
+            }
             const custKey = (order.customer_phone || order.customer_name || "").trim();
             if (custKey) totals.customerKeys.add(custKey);
         });
         totals.totalOrders = totals.orderIds.size;
         totals.uniqueCustomers = totals.customerKeys.size;
+        let dedupedDelivery = 0;
+        for (const fee of totals.orderDeliveryMap.values()) {
+            dedupedDelivery += fee;
+        }
+        totals.delivery = dedupedDelivery;
     } else {
         totals.totalOrders = totals.orderIds.size > 0 ? totals.orderIds.size : totals.rawTotalOrders;
         totals.uniqueCustomers = totals.customerKeys.size > 0 ? totals.customerKeys.size : totals.rawUniqueCustomers;
+        totals.delivery = totals.orderDeliveryMap.size > 0 ? totals.delivery : totals.rawDelivery;
     }
+    totals.totalWithDelivery = totals.totalSales + totals.delivery;
 
     const storeType = normalizeStoreSaleType(store.store_payment_type || store.store_payment_term);
     storeSaleTypeOrder.forEach((key) => {
@@ -756,6 +781,8 @@ function renderStoreSaleTotalsRow(label, totals, className) {
             <td>${inventoryMoney(totals.totalSales)}</td>
             <td>${inventoryMoney(totals.totalDiscount)}</td>
             <td>${inventoryMoney(totals.totalProfit)}</td>
+            <td>${inventoryMoney(totals.delivery)}</td>
+            <td>${inventoryMoney(totals.totalWithDelivery)}</td>
             ${typeCells}
             <td>${inventoryMoney(average)}</td>
             <td>${inventoryNumber(totals.uniqueCustomers)}</td>
@@ -783,7 +810,7 @@ function displayStoreSalesReport(data) {
 
     if (!currentStoreSalesRows.length) {
         const row = document.createElement("tr");
-        row.innerHTML = `<td colspan="11" style="text-align:center;">No store sales found for the selected date range.</td>`;
+        row.innerHTML = `<td colspan="13" style="text-align:center;">No store sales found for the selected date range.</td>`;
         tbody.appendChild(row);
         return;
     }
@@ -804,13 +831,25 @@ function displayStoreSalesReport(data) {
 
         const headingRow = document.createElement("tr");
         headingRow.className = `aginv-report-group-row ${storeSaleTypeClass(typeKey)}`;
-        headingRow.innerHTML = `<td colspan="11">${storeSaleTypeLabel(typeKey)} Stores</td>`;
+        headingRow.innerHTML = `<td colspan="13">${storeSaleTypeLabel(typeKey)} Stores</td>`;
         tbody.appendChild(headingRow);
 
         const groupTotals = createStoreSaleTotals();
         stores.forEach((store) => {
             addStoreSaleTotals(groupTotals, store);
             addStoreSaleTotals(grandTotals, store);
+
+            const storeOrders = store.orders || [];
+            const storeDelivery = typeof store.delivery_charges === "number"
+                ? store.delivery_charges
+                : (typeof store.delivery_fee === "number"
+                    ? store.delivery_fee
+                    : (storeOrders.length > 0
+                        ? storeOrders.reduce((sum, o) => sum + (Number(o.delivery_fee || 0) || 0), 0)
+                        : 0));
+            const storeTotalWithDelivery = typeof store.total_with_delivery === "number"
+                ? store.total_with_delivery
+                : (Number(store.total_sales_net || 0) + storeDelivery);
 
             const row = document.createElement("tr");
             const storeId = Number(store.store_id);
@@ -829,6 +868,8 @@ function displayStoreSalesReport(data) {
                 <td>${inventoryMoney(store.total_sales_net)}</td>
                 <td>${inventoryMoney(store.total_discount)}</td>
                 <td>${inventoryMoney(store.estimated_profit)}</td>
+                <td>${inventoryMoney(storeDelivery)}</td>
+                <td>${inventoryMoney(storeTotalWithDelivery)}</td>
                 <td>${renderStoreSaleTypeCell(store, "cash")}</td>
                 <td>${renderStoreSaleTypeCell(store, "cash_discount")}</td>
                 <td>${renderStoreSaleTypeCell(store, "credit")}</td>
@@ -846,7 +887,7 @@ function displayStoreSalesReport(data) {
                 const detailRow = document.createElement("tr");
                 detailRow.className = "store-sales-detail-row";
                 detailRow.innerHTML = `
-                    <td colspan="11" style="background:#f8fafc; padding:0;">
+                    <td colspan="13" style="background:#f8fafc; padding:0;">
                         ${renderStoreSalesOrdersDetail(store)}
                     </td>
                 `;
@@ -863,6 +904,10 @@ function displayStoreSalesReport(data) {
         }
         if (typeof currentStoreSalesSummary.unique_customers === "number" && currentStoreSalesSummary.unique_customers >= 0) {
             grandTotals.uniqueCustomers = currentStoreSalesSummary.unique_customers;
+        }
+        if (typeof currentStoreSalesSummary.total_delivery_charges === "number" && currentStoreSalesSummary.total_delivery_charges >= 0) {
+            grandTotals.delivery = currentStoreSalesSummary.total_delivery_charges;
+            grandTotals.totalWithDelivery = grandTotals.totalSales + grandTotals.delivery;
         }
     }
 
@@ -910,6 +955,8 @@ function renderStoreSalesOrdersDetail(store) {
         </tr>
     `).join("");
 
+    const totalDetailDelivery = Object.values(totals).reduce((sum, t) => sum + (t.delivery || 0), 0);
+
     return `
         <div style="padding:1rem;">
             <div style="display:flex; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.75rem;">
@@ -918,6 +965,9 @@ function renderStoreSalesOrdersDetail(store) {
                     <strong>${storeSaleTypeLabel(key)}:</strong> ${inventoryNumber(totals[key].orders)} orders, ${inventoryMoney(totals[key].sales)}
                 </div>
                 `).join("")}
+                <div class="store-sale-detail-card" style="background:#f1f5f9; border-color:#cbd5e1; color:#1e293b;">
+                    <strong>Total Delivery:</strong> ${inventoryMoney(totalDetailDelivery)}
+                </div>
             </div>
             <div class="table-container store-sales-detail-scroll" style="margin:0; box-shadow:none; border:1px solid #e2e8f0;">
                 <table>
@@ -935,7 +985,7 @@ function renderStoreSalesOrdersDetail(store) {
                             <th>Discount</th>
                             <th>Net Sale</th>
                             <th>Profit</th>
-                            <th>Delivery</th>
+                            <th>Delivery Charges</th>
                             <th>Order Total</th>
                         </tr>
                     </thead>
@@ -2182,7 +2232,7 @@ function exportInventoryReportPdf() {
             r.is_available ? "Active" : "Inactive",
         ]);
     } else if (activeType === "sales") {
-        tableHead = [["Store", "Orders", "Net Sales", "Discount", "Profit", "Cash", "Cash Discount", "Credit", "Credit Discount", "Avg Order", "Customers"]];
+        tableHead = [["Store", "Orders", "Net Sales", "Discount", "Profit", "Delivery Charges", "Total With Delivery", "Cash", "Cash Discount", "Credit", "Credit Discount", "Avg Order", "Customers"]];
         const rows = currentStoreSalesRows || [];
         const groups = storeSaleTypeOrder.reduce((acc, key) => {
             acc[key] = [];
@@ -2200,6 +2250,8 @@ function exportInventoryReportPdf() {
                 inventoryMoney(totals.totalSales),
                 inventoryMoney(totals.totalDiscount),
                 inventoryMoney(totals.totalProfit),
+                inventoryMoney(totals.delivery),
+                inventoryMoney(totals.totalWithDelivery),
                 `${inventoryNumber(totals.cash.orders)} / ${inventoryMoney(totals.cash.sales)}`,
                 `${inventoryNumber(totals.cash_discount.orders)} / ${inventoryMoney(totals.cash_discount.sales)}`,
                 `${inventoryNumber(totals.credit.orders)} / ${inventoryMoney(totals.credit.sales)}`,
@@ -2211,17 +2263,28 @@ function exportInventoryReportPdf() {
         storeSaleTypeOrder.forEach((typeKey) => {
             const groupRows = groups[typeKey] || [];
             if (!groupRows.length) return;
-            tableBody.push([`${storeSaleTypeLabel(typeKey)} Stores`, "", "", "", "", "", "", "", "", "", ""]);
+            tableBody.push([`${storeSaleTypeLabel(typeKey)} Stores`, "", "", "", "", "", "", "", "", "", "", "", ""]);
             const groupTotals = createStoreSaleTotals();
             groupRows.forEach((r) => {
                 addStoreSaleTotals(groupTotals, r);
                 addStoreSaleTotals(grandTotals, r);
+                const storeOrders = r.orders || [];
+                const delivery = typeof r.delivery_charges === "number"
+                    ? r.delivery_charges
+                    : (typeof r.delivery_fee === "number"
+                        ? r.delivery_fee
+                        : storeOrders.reduce((sum, o) => sum + (Number(o.delivery_fee || 0) || 0), 0));
+                const totalWithDelivery = typeof r.total_with_delivery === "number"
+                    ? r.total_with_delivery
+                    : (Number(r.total_sales_net || 0) + delivery);
                 tableBody.push([
                     r.store_name,
                     inventoryNumber(r.total_orders),
                     inventoryMoney(r.total_sales_net),
                     inventoryMoney(r.total_discount),
                     inventoryMoney(r.estimated_profit),
+                    inventoryMoney(delivery),
+                    inventoryMoney(totalWithDelivery),
                     renderStoreSaleTypeCell(r, "cash"),
                     renderStoreSaleTypeCell(r, "cash_discount"),
                     renderStoreSaleTypeCell(r, "credit"),
@@ -2232,6 +2295,18 @@ function exportInventoryReportPdf() {
             });
             tableBody.push(totalArray(`${storeSaleTypeLabel(typeKey)} Total`, groupTotals));
         });
+        if (currentStoreSalesSummary) {
+            if (typeof currentStoreSalesSummary.total_orders === "number" && currentStoreSalesSummary.total_orders >= 0) {
+                grandTotals.totalOrders = currentStoreSalesSummary.total_orders;
+            }
+            if (typeof currentStoreSalesSummary.unique_customers === "number" && currentStoreSalesSummary.unique_customers >= 0) {
+                grandTotals.uniqueCustomers = currentStoreSalesSummary.unique_customers;
+            }
+            if (typeof currentStoreSalesSummary.total_delivery_charges === "number" && currentStoreSalesSummary.total_delivery_charges >= 0) {
+                grandTotals.delivery = currentStoreSalesSummary.total_delivery_charges;
+                grandTotals.totalWithDelivery = grandTotals.totalSales + grandTotals.delivery;
+            }
+        }
         tableBody.push(totalArray("Grand Total", grandTotals));
     } else if (activeType === "manual-sales") {
         tableHead = [["Store", "Category", "Product", "Order Number", "Status", "Cost Price", "Sale Price", "Qty Sold", "Cost x Qty", "Gross Sales", "Net Sales", "Profit", "Delivery Fee", "Order Total"]];

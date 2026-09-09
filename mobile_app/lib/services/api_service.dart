@@ -1291,6 +1291,29 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> getSalesByPaymentReport(
+    String token, {
+    String? startDate,
+    String? endDate,
+  }) async {
+    final query = <String, String>{};
+    if (startDate != null && startDate.isNotEmpty) {
+      query['start_date'] = startDate;
+    }
+    if (endDate != null && endDate.isNotEmpty) {
+      query['end_date'] = endDate;
+    }
+    final uri = Uri.parse(
+      '$baseUrl/api/admin/sales-by-payment-report',
+    ).replace(queryParameters: query.isEmpty ? null : query);
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> getStoreOrderBreakdown(
     String token,
   ) async {

@@ -4129,6 +4129,7 @@ router.get("/", authenticateToken, async (req, res) => {
       `
             SELECT o.*, DATE_FORMAT(${orderBusinessDateSql("o.created_at")}, '%Y-%m-%d') AS order_business_date,
                    u.first_name, u.last_name, u.email, s.name as store_name,
+                   s.payment_term as store_payment_term,
                    s.latitude as store_latitude, s.longitude as store_longitude,
                    r.first_name as rider_first_name, r.last_name as rider_last_name
                    ${selectExtra}

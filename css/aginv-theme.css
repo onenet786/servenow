@@ -368,7 +368,7 @@ textarea:focus,
 #salesReportSection .table-container {
   border: 1px solid #cbd5e1;
   border-radius: 10px;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: visible;
 }
 
@@ -379,6 +379,7 @@ textarea:focus,
   border-radius: 10px;
   overflow: hidden;
   table-layout: fixed;
+  min-width: 1280px;
   width: 100%;
 }
 
@@ -410,15 +411,15 @@ textarea:focus,
 
 #storeSalesTable th:nth-child(1),
 #storeSalesTable td:nth-child(1) {
-  width: 17%;
+  width: 14%;
   text-align: left;
 }
 
 #storeSalesTable th:nth-child(2),
 #storeSalesTable td:nth-child(2),
-#storeSalesTable th:nth-child(11),
-#storeSalesTable td:nth-child(11) {
-  width: 6%;
+#storeSalesTable th:nth-child(13),
+#storeSalesTable td:nth-child(13) {
+  width: 5%;
   text-align: center;
 }
 
@@ -428,21 +429,25 @@ textarea:focus,
 #storeSalesTable td:nth-child(4),
 #storeSalesTable th:nth-child(5),
 #storeSalesTable td:nth-child(5),
-#storeSalesTable th:nth-child(10),
-#storeSalesTable td:nth-child(10) {
-  width: 8%;
-  text-align: right;
-}
-
 #storeSalesTable th:nth-child(6),
 #storeSalesTable td:nth-child(6),
 #storeSalesTable th:nth-child(7),
 #storeSalesTable td:nth-child(7),
+#storeSalesTable th:nth-child(12),
+#storeSalesTable td:nth-child(12) {
+  width: 7%;
+  text-align: right;
+}
+
 #storeSalesTable th:nth-child(8),
 #storeSalesTable td:nth-child(8),
 #storeSalesTable th:nth-child(9),
-#storeSalesTable td:nth-child(9) {
-  width: 9%;
+#storeSalesTable td:nth-child(9),
+#storeSalesTable th:nth-child(10),
+#storeSalesTable td:nth-child(10),
+#storeSalesTable th:nth-child(11),
+#storeSalesTable td:nth-child(11) {
+  width: 8.5%;
   text-align: center;
 }
 

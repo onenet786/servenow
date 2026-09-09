@@ -925,31 +925,106 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
   }
 
+  static final Map<int, String> _storePaymentTermsById = {};
+  static final Map<String, String> _storePaymentTermsByName = {};
+  static bool _storePaymentTermsLoaded = false;
+
+  Future<void> _ensureStorePaymentTerms(String token) async {
+    if (_storePaymentTermsLoaded && _storePaymentTermsById.isNotEmpty) return;
+    try {
+      final res = await ApiService.getStores(token: token, admin: true);
+      final stores = (res['stores'] as List?) ?? const [];
+      for (final s in stores) {
+        if (s is! Map) continue;
+        final id = int.tryParse('${s['id']}');
+        final name = (s['name'] ?? '').toString().trim().toLowerCase();
+        final term = (s['payment_term'] ?? '').toString().trim().toLowerCase();
+        if (term.isNotEmpty) {
+          if (id != null) _storePaymentTermsById[id] = term;
+          if (name.isNotEmpty) _storePaymentTermsByName[name] = term;
+        }
+      }
+      _storePaymentTermsLoaded = true;
+    } catch (e) {
+      _logger.w('Failed to load store payment terms: $e');
+    }
+  }
+
   Future<Map<String, dynamic>> _fetchDailySalesSummaryData(
     String token, {
     List<dynamic>? fallbackOrders,
   }) async {
+    final dateKey = _dateKey(_selectedDailySalesDate);
+    Map<String, dynamic> data = <String, dynamic>{};
     try {
-      return await ApiService.getAdminDailySalesSummary(
+      data = await ApiService.getAdminDailySalesSummary(
         token,
-        _dateKey(_selectedDailySalesDate),
+        dateKey,
       );
     } catch (e) {
       _logger.w('Daily sales summary API unavailable, using orders: $e');
+    }
+
+    await _ensureStorePaymentTerms(token);
+
+    if (data.isEmpty || data['summary'] is! Map) {
       final orders =
           fallbackOrders ??
           await ApiService.getOrders(
             token,
+            startDate: dateKey,
+            endDate: dateKey,
             includeItemsCount: false,
             includeStoreStatuses: false,
           );
-      return _buildDailySalesSummaryFromOrders(orders, _selectedDailySalesDate);
+      data = _buildDailySalesSummaryFromOrders(orders, _selectedDailySalesDate);
     }
+
+    final summary = (data['summary'] is Map)
+        ? Map<String, dynamic>.from(data['summary'] as Map)
+        : <String, dynamic>{};
+
+    // Always sync total_store_credit directly with sales-by-payment-report
+    // to match Order Total / Total With Delivery (including delivery charges) from the web report
+    try {
+      final report = await ApiService.getSalesByPaymentReport(
+        token,
+        startDate: dateKey,
+        endDate: dateKey,
+      );
+      if (report['sales_by_payment'] is List) {
+        final rows = report['sales_by_payment'] as List<dynamic>;
+        double creditTotalWithDelivery = 0.0;
+        for (final row in rows) {
+          if (row is! Map) continue;
+          final saleType = (row['sale_type'] ?? row['store_payment_term'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          if (saleType.contains('credit')) {
+            final orderTotal = _toDouble(
+              row['total_with_delivery'] ??
+                  row['order_total'] ??
+                  row['net_sales'],
+            );
+            creditTotalWithDelivery += orderTotal;
+          }
+        }
+        summary['total_store_credit'] = creditTotalWithDelivery;
+        summary['store_credit'] = creditTotalWithDelivery;
+      }
+    } catch (e) {
+      _logger.w('Could not sync credit sales from sales-by-payment-report: $e');
+    }
+
+    data['summary'] = summary;
+    return data;
   }
 
   void _applyDailySalesSummaryData(Map<String, dynamic> dailySalesData) {
-    _dailySalesSummary = (dailySalesData['summary'] is Map<String, dynamic>)
-        ? dailySalesData['summary'] as Map<String, dynamic>
+    final rawSummary = dailySalesData['summary'];
+    _dailySalesSummary = rawSummary is Map
+        ? Map<String, dynamic>.from(rawSummary)
         : <String, dynamic>{};
     _dailyRiderCashBreakdown = dailySalesData['rider_cash_breakdown'] is List
         ? dailySalesData['rider_cash_breakdown'] as List<dynamic>
@@ -1018,19 +1093,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     var deliveryFees = 0.0;
     var cashSales = 0.0;
     var digitalSales = 0.0;
+    var totalStoreCredit = 0.0;
     var riderCash = 0.0;
 
     for (final order in orders) {
       if (order is! Map) continue;
-      DateTime createdAt;
-      try {
-        createdAt = DateTime.parse((order['created_at'] ?? '').toString());
-      } catch (_) {
-        continue;
-      }
-      if (createdAt.year != reportDate.year ||
-          createdAt.month != reportDate.month ||
-          createdAt.day != reportDate.day) {
+      final targetDateKey = _dateKey(reportDate);
+      final businessDate = (order['order_business_date'] ?? '').toString().trim();
+      final dt = _parseServerDateTime(order['created_at']);
+      final orderDateKey = businessDate.isNotEmpty
+          ? businessDate
+          : (dt != null ? _dateKey(dt) : '');
+      if (orderDateKey.isNotEmpty && orderDateKey != targetDateKey) {
         continue;
       }
 
@@ -1040,6 +1114,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           .toString()
           .trim()
           .toLowerCase();
+      var paymentTerm = (order['store_payment_term'] ??
+              order['payment_term'] ??
+              order['store_payment_type'] ??
+              '')
+          .toString()
+          .trim()
+          .toLowerCase();
+      if (paymentTerm.isEmpty) {
+        final storeId = int.tryParse('${order['store_id']}');
+        if (storeId != null && _storePaymentTermsById.containsKey(storeId)) {
+          paymentTerm = _storePaymentTermsById[storeId]!;
+        } else {
+          final storeName = (order['store_name'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          if (storeName.isNotEmpty &&
+              _storePaymentTermsByName.containsKey(storeName)) {
+            paymentTerm = _storePaymentTermsByName[storeName]!;
+          }
+        }
+      }
+      final isStoreCredit = paymentTerm.contains('credit');
       final total = _toDouble(order['total_amount']);
       final deliveryFee = _toDouble(order['delivery_fee']);
       final itemCash = (total - deliveryFee)
@@ -1049,6 +1146,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (status != 'cancelled') {
         grossSales += total;
         deliveryFees += deliveryFee;
+        if (isStoreCredit) {
+          totalStoreCredit += total;
+        }
       }
       if (status == 'delivered') {
         deliveredOrders += 1;
@@ -1095,6 +1195,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         'delivery_fees': deliveryFees,
         'cash_sales': cashSales,
         'digital_sales': digitalSales,
+        'total_store_credit': totalStoreCredit,
+        'store_credit': totalStoreCredit,
         'rider_cash': riderCash,
       },
       'rider_cash_breakdown': breakdown.take(8).toList(),
@@ -2601,6 +2703,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       final orders = await ApiService.getOrders(
         token,
+        assignment: 'assigned',
         includeItemsCount: false,
         includeStoreStatuses: false,
       );
@@ -2941,7 +3044,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final deliveryFees = _dailySalesSummary['delivery_fees'];
     final riderCash = _dailySalesSummary['rider_cash'];
     final cashSales = _dailySalesSummary['cash_sales'];
-    final digitalSales = _dailySalesSummary['digital_sales'];
+    final totalStoreCredit =
+        _dailySalesSummary['total_store_credit'] ??
+        _dailySalesSummary['store_credit'] ??
+        0.0;
     final riderRows = _dailyRiderCashBreakdown.take(4).toList();
     final travelRows = _dailyRiderTravelSummary.take(5).toList();
     final selectedDateLabel = _friendlyDateLabel(_selectedDailySalesDate);
@@ -3089,7 +3195,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ('Rider Cash', _formatPkr(riderCash)),
             ('Delivery Fee', _formatPkr(deliveryFees)),
             ('Cash Sale', _formatPkr(cashSales)),
-            ('Digital Sale', _formatPkr(digitalSales)),
+            ('Total Store Credit', _formatPkr(totalStoreCredit)),
           ]),
           if (riderRows.isNotEmpty) ...[
             const SizedBox(height: 16),
