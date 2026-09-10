@@ -6,10 +6,9 @@ import '../models/product.dart';
 import '../services/api_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
-import '../models/cart_item.dart';
-import 'package:servenow/services/notifier.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
+import 'product_detail_screen.dart';
 
 class StoreScreen extends StatefulWidget {
   final int storeId;
@@ -22,14 +21,9 @@ class StoreScreen extends StatefulWidget {
 
 class _StoreScreenState extends State<StoreScreen> {
   late Future<Map<String, dynamic>> _storeDetailsFuture;
-  final Map<int, String> _selectedVariantKeyByProductId = {};
   Map<String, dynamic>? _globalStatus;
   Timer? _globalStatusRefreshTimer;
   bool _isUrdu = false;
-
-  String _variantKey(ProductVariant v) {
-    return '${v.sizeId ?? 'n'}:${v.unitId ?? 'n'}';
-  }
 
   int _crossAxisCountFor(double width, Orientation orientation) {
     if (orientation == Orientation.landscape) {
@@ -336,80 +330,6 @@ class _StoreScreenState extends State<StoreScreen> {
         ),
       ),
     );
-  }
-
-  void _addToCart(
-    BuildContext context,
-    Product product,
-    ProductVariant? variant, {
-    required bool isOpen,
-    required bool isGlobalBlocked,
-  }) {
-    if (isGlobalBlocked) {
-      Notifier.error(
-        context,
-        _globalStatusMessage(_globalStatus),
-        duration: const Duration(seconds: 4),
-        sanitize: false,
-      );
-      return;
-    }
-
-    if (!isOpen) {
-      if (!mounted) return;
-      Notifier.error(
-        context,
-        _tr('This store is currently closed. You cannot place orders at this time.'),
-        duration: const Duration(seconds: 4),
-        sanitize: false,
-      );
-      Navigator.of(context).pop(); // Go back to main home screen
-      return;
-    }
-
-    final cart = Provider.of<CartProvider>(context, listen: false);
-
-    if (product.stockQuantity <= 0) {
-      Notifier.info(context, _tr('Out of stock'));
-      return;
-    }
-
-    // Check if adding more exceeds stock
-    final existingItem = cart.items.firstWhere(
-      (item) =>
-          item.product.id == product.id &&
-          item.variant?.sizeId == variant?.sizeId &&
-          item.variant?.unitId == variant?.unitId,
-      orElse: () => CartItem(product: product, quantity: 0),
-    );
-
-    final offerSourceIsBxgy = variant?.isBxgyOffer ?? product.isBxgyOffer;
-    final quantityToAdd = offerSourceIsBxgy
-        ? (variant?.bxgyBundleQty ?? product.bxgyBundleQty)
-        : 1;
-
-    if (existingItem.quantity + quantityToAdd > product.stockQuantity) {
-      Notifier.info(
-        context,
-        '${_tr('Only')} ${product.stockQuantity} ${_tr('available')}',
-      );
-      return;
-    }
-
-    try {
-      final warning = cart.addItem(product, quantityToAdd, variant: variant);
-      if (warning != null) {
-        Notifier.info(context, warning);
-      } else {
-        Notifier.success(
-          context,
-          _tr('Added to cart'),
-          duration: const Duration(seconds: 1),
-        );
-      }
-    } catch (e) {
-      Notifier.error(context, e.toString());
-    }
   }
 
   @override
@@ -780,6 +700,8 @@ class _StoreScreenState extends State<StoreScreen> {
                                     crossAxisCount,
                                     isOpen,
                                     isGlobalBlocked,
+                                    store: store,
+                                    storeProducts: products,
                                   ),
                                 ),
                               );
@@ -814,460 +736,465 @@ class _StoreScreenState extends State<StoreScreen> {
       return '${parts[0]}:${parts[1]}';
     }
     return time.toString();
-  }
-
-
-  Widget _buildProductCard(
+  }  Widget _buildProductCard(
     BuildContext context,
     Product product,
     int crossAxisCount,
     bool isOpen,
-    bool isGlobalBlocked,
-  ) {
+    bool isGlobalBlocked, {
+    required Map<String, dynamic> store,
+    required List<Product> storeProducts,
+  }) {
     final variants = product.sizeVariants;
-    final selectedVariant = variants.isNotEmpty
-        ? (() {
-            final selectedKey = _selectedVariantKeyByProductId[product.id];
-            if (selectedKey == null) return variants.first;
-            return variants.firstWhere(
-              (v) => _variantKey(v) == selectedKey,
-              orElse: () => variants.first,
-            );
-          })()
-        : null;
-    final displayPrice = selectedVariant?.effectivePrice ?? product.effectivePrice;
-    final displayOriginalPrice = selectedVariant?.price ?? product.price;
-    final offerBadge = (selectedVariant?.offerBadge ?? product.offerBadge ?? '').trim();
-    final isBxgyOffer = selectedVariant?.isBxgyOffer ?? product.isBxgyOffer;
+    final hasVariants = variants.isNotEmpty;
+
+    // Price calculation
+    double minPrice = product.effectivePrice;
+    double maxPrice = product.effectivePrice;
+    if (hasVariants) {
+      minPrice = variants
+          .map((v) => v.effectivePrice)
+          .reduce((a, b) => a < b ? a : b);
+      maxPrice = variants
+          .map((v) => v.effectivePrice)
+          .reduce((a, b) => a > b ? a : b);
+    }
+
+    final displayPrice = product.effectivePrice;
+    final displayOriginalPrice = product.originalPrice ?? product.price;
+    final offerBadge = (product.offerBadge ?? '').trim();
+    final isBxgyOffer = product.isBxgyOffer;
     final hasPromo =
         !isBxgyOffer &&
         displayPrice >= 0 &&
         displayPrice + 0.001 < displayOriginalPrice;
 
-    if (crossAxisCount == 1) {
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: Colors.white.withValues(alpha: 0.98),
-        shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Product Image
-              SizedBox(
-                width: 110,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(12),
-                  ),
-                  child: ApiService.getImageUrl(product.imageUrl).isNotEmpty
-                      ? Image.network(
-                          ApiService.getImageUrl(product.imageUrl),
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, err, _) =>
-                              const Icon(Icons.image_not_supported, size: 30),
-                        )
-                      : Container(
-                          color: Colors.grey[200],
-                          child: const Center(
-                            child: Icon(
-                              Icons.fastfood,
-                              size: 30,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-              // Product Details
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        product.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      if (hasPromo)
-                        Row(
-                          children: [
-                            Text(
-                              'PKR ${displayOriginalPrice.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                                decoration: TextDecoration.lineThrough,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'PKR ${displayPrice.toStringAsFixed(0)}',
-                              style: TextStyle(
-                                color: Colors.red[700],
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        )
-                      else
-                        Text(
-                          'PKR ${displayPrice.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            color: Colors.green[700],
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      if (offerBadge.isNotEmpty) ...[
-                        const SizedBox(height: 5),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: CustomerPalette.secondary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            offerBadge,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: CustomerPalette.secondaryDark,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (variants.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        if (variants.length == 1)
-                          Text(
-                            variants.first.displayLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 11,
-                            ),
-                          )
-                        else
-                          RadioGroup<String>(
-                            groupValue: selectedVariant == null
-                                ? null
-                                : _variantKey(selectedVariant),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() {
-                                  _selectedVariantKeyByProductId[product.id] =
-                                      value;
-                                });
-                              }
-                            },
-                            child: Wrap(
-                              spacing: 8,
-                              runSpacing: 4,
-                              children: variants.map((v) {
-                                final key = _variantKey(v);
-                                final isSelected =
-                                    selectedVariant != null &&
-                                    _variantKey(selectedVariant) == key;
-                                return InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedVariantKeyByProductId[product
-                                              .id] =
-                                          key;
-                                    });
-                                  },
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        height: 24,
-                                        width: 24,
-                                        child: Radio<String>(
-                                          value: key,
-                                          materialTapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                      ),
-                                      Text(
-                                        v.displayLabel,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: isSelected
-                                               ? CustomerPalette.secondary
-                                               : Colors.black87,
-                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                      ],
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        height: 32,
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: (isGlobalBlocked || !product.isAvailable)
-                              ? null
-                              : () => _addToCart(
-                                    context,
-                                    product,
-                                    selectedVariant,
-                                    isOpen: isOpen,
-                                    isGlobalBlocked: isGlobalBlocked,
-                                  ),
-                          style: ElevatedButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            backgroundColor: CustomerPalette.primary,
-                            foregroundColor: Colors.white,
-                            textStyle: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          child: Text(
-                            isGlobalBlocked
-                                ? _tr('Unavailable')
-                                : _tr('Add to Cart'),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+    void openDetail() {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => ProductDetailScreen(
+            product: product,
+            store: store,
+            isOpen: isOpen,
+            isGlobalBlocked: isGlobalBlocked,
+            storeProducts: storeProducts,
           ),
         ),
       );
     }
 
-    return Card(
-      elevation: 2,
-      color: Colors.white.withValues(alpha: 0.98),
-      shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Fixed height image container
-          SizedBox(
-            height: 90,
-            width: double.infinity,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-              child: ApiService.getImageUrl(product.imageUrl).isNotEmpty
-                  ? Image.network(
-                      ApiService.getImageUrl(product.imageUrl),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (ctx, err, _) =>
-                          const Icon(Icons.image_not_supported, size: 30),
-                    )
-                  : Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(
-                          Icons.fastfood,
-                          size: 24,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(4.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    if (crossAxisCount == 1) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: Colors.white.withValues(alpha: 0.98),
+        shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: openDetail,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  product.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                if (hasPromo)
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 4,
+                // Product Image with Offer Badge
+                SizedBox(
+                  width: 115,
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      Text(
-                        'PKR ${displayOriginalPrice.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 9,
-                          decoration: TextDecoration.lineThrough,
-                        ),
-                      ),
-                      Text(
-                        'PKR ${displayPrice.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          color: Colors.red[700],
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Text(
-                    'PKR ${displayPrice.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      color: Colors.green[700],
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                if (offerBadge.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: CustomerPalette.secondary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      offerBadge,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: CustomerPalette.secondaryDark,
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-                if (variants.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  RadioGroup<String>(
-                    groupValue: selectedVariant == null
-                        ? null
-                        : _variantKey(selectedVariant),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedVariantKeyByProductId[product.id] = value;
-                        });
-                      }
-                    },
-                    child: Wrap(
-                      spacing: 4,
-                      runSpacing: 2,
-                      alignment: WrapAlignment.start,
-                      children: variants.map((v) {
-                        final key = _variantKey(v);
-                        final isSelected =
-                            selectedVariant != null &&
-                            _variantKey(selectedVariant) == key;
-                        return InkWell(
-                          onTap: () {
-                            setState(() {
-                              _selectedVariantKeyByProductId[product.id] = key;
-                            });
-                          },
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: Radio<String>(
-                                  value: key,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  visualDensity: const VisualDensity(
-                                    horizontal: VisualDensity.minimumDensity,
-                                    vertical: VisualDensity.minimumDensity,
+                      ApiService.getImageUrl(product.imageUrl).isNotEmpty
+                          ? Hero(
+                              tag: 'product_image_${product.id}',
+                              child: Image.network(
+                                ApiService.getImageUrl(product.imageUrl),
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, err, _) => Container(
+                                  color: Colors.grey.shade200,
+                                  child: const Icon(
+                                    Icons.fastfood,
+                                    size: 30,
+                                    color: Colors.grey,
                                   ),
                                 ),
                               ),
+                            )
+                          : Container(
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.fastfood,
+                                  size: 30,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                      if (offerBadge.isNotEmpty)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: CustomerPalette.primary,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              offerBadge,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // Product Details
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          product.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: CustomerPalette.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (hasVariants && minPrice != maxPrice)
+                          Text(
+                            'PKR ${minPrice.toStringAsFixed(0)} - ${maxPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: CustomerPalette.primaryDark,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          )
+                        else if (hasPromo)
+                          Row(
+                            children: [
                               Text(
-                                v.displayLabel,
+                                'PKR ${displayOriginalPrice.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 12,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'PKR ${displayPrice.toStringAsFixed(0)}',
                                 style: TextStyle(
-                                  fontSize: 8,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  color: isSelected
-                                      ? CustomerPalette.secondary
-                                      : CustomerPalette.textMuted,
+                                  color: Colors.red[700],
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
                               ),
                             ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 4),
-                SizedBox(
-                  width: double.infinity,
-                  height: 28,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      backgroundColor: CustomerPalette.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: product.isAvailable
-                        ? () => _addToCart(
-                            context,
-                            product,
-                            selectedVariant,
-                            isOpen: isOpen,
-                            isGlobalBlocked: isGlobalBlocked,
                           )
-                        : null,
-                    child: Text(
-                      isGlobalBlocked
-                          ? 'BLOCKED'
-                          : (product.isAvailable ? 'ADD' : 'N/A'),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
+                        else
+                          Text(
+                            'PKR ${displayPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: CustomerPalette.primaryDark,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            if (hasVariants)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: CustomerPalette.secondary
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.tune_rounded,
+                                      size: 12,
+                                      color: CustomerPalette.secondaryDark,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${variants.length} ${_tr('Options')}',
+                                      style: const TextStyle(
+                                        color: CustomerPalette.secondaryDark,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const Spacer(),
+                            SizedBox(
+                              height: 30,
+                              child: ElevatedButton(
+                                onPressed: (isGlobalBlocked ||
+                                        !product.isAvailable ||
+                                        product.stockQuantity <= 0)
+                                    ? null
+                                    : openDetail,
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  backgroundColor: CustomerPalette.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                child: Text(
+                                  isGlobalBlocked
+                                      ? _tr('Unavailable')
+                                      : (!product.isAvailable ||
+                                              product.stockQuantity <= 0
+                                          ? _tr('Out of stock')
+                                          : (hasVariants
+                                              ? _tr('Select')
+                                              : _tr('Add'))),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
+      );
+    }
+
+    // Grid View Card (crossAxisCount >= 2)
+    return Card(
+      elevation: 2,
+      color: Colors.white.withValues(alpha: 0.98),
+      shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: openDetail,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image with Offer Badge
+            SizedBox(
+              height: 100,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ApiService.getImageUrl(product.imageUrl).isNotEmpty
+                      ? Hero(
+                          tag: 'product_image_${product.id}',
+                          child: Image.network(
+                            ApiService.getImageUrl(product.imageUrl),
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, _) => Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(
+                                Icons.fastfood,
+                                size: 28,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: Icon(
+                              Icons.fastfood,
+                              size: 28,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                  if (offerBadge.isNotEmpty)
+                    Positioned(
+                      top: 6,
+                      left: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: CustomerPalette.primary,
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          offerBadge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (hasVariants)
+                    Positioned(
+                      bottom: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${variants.length} ${_tr('Options')}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12.5,
+                      color: CustomerPalette.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  if (hasVariants && minPrice != maxPrice)
+                    Text(
+                      'PKR ${minPrice.toStringAsFixed(0)}+',
+                      style: const TextStyle(
+                        color: CustomerPalette.primaryDark,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    )
+                  else if (hasPromo)
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        Text(
+                          'PKR ${displayOriginalPrice.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 9,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                        Text(
+                          'PKR ${displayPrice.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            color: Colors.red[700],
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      'PKR ${displayPrice.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        color: CustomerPalette.primaryDark,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 28,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        backgroundColor: CustomerPalette.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: (isGlobalBlocked ||
+                              !product.isAvailable ||
+                              product.stockQuantity <= 0)
+                          ? null
+                          : openDetail,
+                      child: Text(
+                        isGlobalBlocked
+                            ? _tr('Unavailable')
+                            : (!product.isAvailable ||
+                                    product.stockQuantity <= 0
+                                ? _tr('Out of stock')
+                                : (hasVariants
+                                    ? _tr('Options')
+                                    : _tr('Add'))),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
