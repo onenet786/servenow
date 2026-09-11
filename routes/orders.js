@@ -955,6 +955,77 @@ function roundAmount(value) {
   return Math.round(n * 100) / 100;
 }
 
+async function syncOrderFinancialsAndDeliveryFee(db, orderId, options = {}) {
+  const [orders] = await db.execute(
+    "SELECT id, order_number, status, delivery_fee, total_amount, special_instructions FROM orders WHERE id = ?",
+    [orderId]
+  );
+  if (!orders || orders.length === 0) return null;
+  const order = orders[0];
+
+  const [items] = await db.execute(
+    `SELECT oi.id, oi.product_id, oi.quantity, oi.price,
+            COALESCE(oi.store_id, p.store_id) AS effective_store_id
+     FROM order_items oi
+     LEFT JOIN products p ON oi.product_id = p.id
+     WHERE oi.order_id = ?`,
+    [orderId]
+  );
+
+  let itemsSubtotal = 0;
+  const storeIds = new Set();
+  for (const item of items) {
+    const qty = parseInt(item.quantity, 10) || 0;
+    const price = parseFloat(item.price) || 0;
+    itemsSubtotal += qty * price;
+    if (item.effective_store_id) {
+      storeIds.add(Number(item.effective_store_id));
+    }
+  }
+  itemsSubtotal = roundAmount(itemsSubtotal);
+
+  const storeCount = storeIds.size;
+  let newOrderStoreId = null;
+  if (storeCount === 1) {
+    newOrderStoreId = Array.from(storeIds)[0];
+  }
+
+  const isParcelOrder = Boolean(
+    order.special_instructions &&
+    String(order.special_instructions).includes("Pick & Drop Parcel")
+  );
+
+  let deliveryFee;
+  if (isParcelOrder) {
+    deliveryFee = DEFAULT_PARCEL_DELIVERY_FEE;
+  } else if (
+    options.manualDeliveryFee !== undefined &&
+    options.manualDeliveryFee !== null &&
+    !isNaN(parseFloat(options.manualDeliveryFee))
+  ) {
+    deliveryFee = roundAmount(parseFloat(options.manualDeliveryFee));
+  } else {
+    const deliveryFeeConfig = await getDeliveryFeeConfig(db);
+    deliveryFee = calculateDeliveryFeeByStoreCount(storeCount, deliveryFeeConfig);
+  }
+
+  const newTotalAmount = roundAmount(itemsSubtotal + deliveryFee);
+
+  await db.execute(
+    "UPDATE orders SET total_amount = ?, delivery_fee = ?, store_id = ? WHERE id = ?",
+    [newTotalAmount, deliveryFee, newOrderStoreId, orderId]
+  );
+
+  return {
+    order_id: orderId,
+    subtotal: itemsSubtotal,
+    delivery_fee: deliveryFee,
+    total_amount: newTotalAmount,
+    store_count: storeCount,
+    store_id: newOrderStoreId,
+  };
+}
+
 async function generateOrderNumber(db) {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
@@ -5114,72 +5185,31 @@ router.put(
         });
       }
 
-      const order = orders[0];
-
-      // Get order items to calculate items subtotal
-      const [items] = await req.db.execute(
-        `
-            SELECT DISTINCT store_id, price, quantity FROM order_items WHERE order_id = ?
-        `,
-        [id],
-      );
-
-      // Calculate items subtotal from actual items
-      let itemsSubtotal = 0;
-      for (const item of items) {
-        itemsSubtotal +=
-          (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0);
-      }
-
-      let delivery_fee;
       let is_manual = false;
-
-      if (manual_delivery_fee !== undefined && manual_delivery_fee !== null) {
-        delivery_fee = parseFloat(manual_delivery_fee);
-        if (isNaN(delivery_fee)) {
+      let manualFee = undefined;
+      if (manual_delivery_fee !== undefined && manual_delivery_fee !== null && String(manual_delivery_fee).trim() !== "") {
+        const parsed = parseFloat(manual_delivery_fee);
+        if (isNaN(parsed) || parsed < 0) {
           return res
             .status(400)
             .json({ success: false, message: "Invalid delivery fee provided" });
         }
+        manualFee = parsed;
         is_manual = true;
-      } else {
-        const isParcelOrder = Boolean(
-          order.special_instructions &&
-          String(order.special_instructions).includes("Pick & Drop Parcel")
-        );
-        if (isParcelOrder) {
-          delivery_fee = DEFAULT_PARCEL_DELIVERY_FEE;
-        } else {
-          // Count unique stores for auto-calculation
-          const storeIds = new Set(
-            items.map((item) => item.store_id).filter(Boolean),
-          );
-          const storeCount = storeIds.size;
-
-          const deliveryFeeConfig = await getDeliveryFeeConfig(req.db);
-          delivery_fee = calculateDeliveryFeeByStoreCount(
-            storeCount,
-            deliveryFeeConfig
-          );
-        }
       }
 
-      // Recalculate total from items subtotal
-      const newTotal = itemsSubtotal + delivery_fee;
-
-      // Update delivery fee and total
-      await req.db.execute(
-        "UPDATE orders SET delivery_fee = ?, total_amount = ? WHERE id = ?",
-        [Number(delivery_fee), newTotal, id],
-      );
+      const synced = await syncOrderFinancialsAndDeliveryFee(req.db, id, {
+        manualDeliveryFee: manualFee,
+      });
 
       res.json({
         success: true,
         message: is_manual
           ? "Delivery fee updated manually"
           : "Delivery fee auto-calculated and updated successfully",
-        delivery_fee: parseFloat(delivery_fee),
-        total_amount: newTotal,
+        delivery_fee: parseFloat(synced?.delivery_fee || 0),
+        total_amount: parseFloat(synced?.total_amount || 0),
+        store_count: synced?.store_count || 0,
       });
     } catch (error) {
       console.error("Error updating delivery fee:", error);
@@ -5990,32 +6020,15 @@ router.put(
         }
       }
 
-      // Recalculate totals and store_id from DB to ensure consistency across all items
-      const [currentItems] = await req.db.execute(
-        "SELECT SUM(quantity * price) as total, COUNT(DISTINCT store_id) as store_count, MAX(store_id) as single_store_id FROM order_items WHERE order_id = ?",
-        [id],
-      );
-
-      const dbSubtotal = Number(currentItems[0]?.total || 0);
-      const storeCount = currentItems[0]?.store_count || 0;
-      let newOrderStoreId = null;
-
-      // If all items belong to exactly one store, assign that store to the order
-      if (storeCount === 1) {
-        newOrderStoreId = currentItems[0]?.single_store_id;
-      }
-      // If storeCount > 1, newOrderStoreId remains null (Multiple Stores)
-
-      const totalAmount = dbSubtotal + Number(order.delivery_fee || 0);
-
-      await req.db.execute(
-        "UPDATE orders SET total_amount = ?, store_id = ? WHERE id = ?",
-        [totalAmount, newOrderStoreId, id],
-      );
+      // Recalculate totals, delivery fee and store_id from DB to ensure consistency across all items
+      const synced = await syncOrderFinancialsAndDeliveryFee(req.db, id);
 
       res.json({
         success: true,
         message: "Order items updated successfully",
+        delivery_fee: synced?.delivery_fee,
+        total_amount: synced?.total_amount,
+        store_count: synced?.store_count,
       });
     } catch (error) {
       console.error("Error updating order items:", error);
@@ -6048,12 +6061,14 @@ router.get(
         ),
         req.db.execute(
           `
-              SELECT oi.id, oi.product_id, oi.quantity, oi.price, oi.store_id, oi.variant_label,
+              SELECT oi.id, oi.product_id, oi.quantity, oi.price,
+                     COALESCE(oi.store_id, p.store_id) AS store_id,
+                     oi.variant_label,
                      p.name as product_name, p.image_url,
                      s.name as store_name
               FROM order_items oi
               JOIN products p ON oi.product_id = p.id
-              LEFT JOIN stores s ON oi.store_id = s.id
+              LEFT JOIN stores s ON COALESCE(oi.store_id, p.store_id) = s.id
               WHERE oi.order_id = ?
               ORDER BY oi.id ASC
           `,
@@ -6374,29 +6389,15 @@ router.post(
         ],
       );
 
-      const [currentItems] = await req.db.execute(
-        "SELECT SUM(quantity * price) as total, COUNT(DISTINCT store_id) as store_count, MAX(store_id) as single_store_id FROM order_items WHERE order_id = ?",
-        [id],
-      );
-
-      const itemsSubtotal = Number(currentItems[0]?.total || 0);
-      const storeCount = currentItems[0]?.store_count || 0;
-      let newOrderStoreId = null;
-
-      if (storeCount === 1) {
-        newOrderStoreId = currentItems[0]?.single_store_id;
-      }
-
-      const newTotal = itemsSubtotal + Number(order.delivery_fee || 0);
-      await req.db.execute(
-        "UPDATE orders SET total_amount = ?, store_id = ? WHERE id = ?",
-        [newTotal, newOrderStoreId, id],
-      );
+      const synced = await syncOrderFinancialsAndDeliveryFee(req.db, id);
 
       res.json({
         success: true,
         message: "Item added successfully",
         item_id: result.insertId,
+        delivery_fee: synced?.delivery_fee,
+        total_amount: synced?.total_amount,
+        store_count: synced?.store_count,
       });
     } catch (error) {
       console.error("Error adding item to order:", error);
@@ -6455,31 +6456,14 @@ router.delete(
         [itemId, id],
       );
 
-      const [currentItems] = await req.db.execute(
-        "SELECT SUM(quantity * price) as total, COUNT(DISTINCT store_id) as store_count, MAX(store_id) as single_store_id FROM order_items WHERE order_id = ?",
-        [id],
-      );
-
-      const itemsSubtotal = Number(currentItems[0]?.total || 0);
-      const storeCount = currentItems[0]?.store_count || 0;
-      let newOrderStoreId = null;
-
-      if (storeCount === 1) {
-        newOrderStoreId = currentItems[0]?.single_store_id;
-      }
-
-      const newTotal = itemsSubtotal + Number(order.delivery_fee || 0);
-      await req.db.execute(
-        "UPDATE orders SET total_amount = ?, store_id = ? WHERE id = ?",
-        [newTotal, newOrderStoreId, id],
-      );
+      const synced = await syncOrderFinancialsAndDeliveryFee(req.db, id);
 
       const [remainingItems] = await req.db.execute(
         "SELECT COUNT(*) as count FROM order_items WHERE order_id = ?",
         [id],
       );
 
-      if (remainingItems[0].count === 0) {
+      if (remainingItems[0]?.count === 0) {
         return res.json({
           success: true,
           message: "Item removed. Order has no items left.",
@@ -6490,6 +6474,9 @@ router.delete(
       res.json({
         success: true,
         message: "Item removed successfully",
+        delivery_fee: synced?.delivery_fee,
+        total_amount: synced?.total_amount,
+        store_count: synced?.store_count,
       });
     } catch (error) {
       console.error("Error removing item from order:", error);

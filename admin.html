@@ -2495,10 +2495,24 @@
             </div>
           </div>
 
+          <div class="period-preset-bar" id="inventoryPeriodPresetBar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; width: 100%;">
+            <span style="font-weight: 700; font-size: 0.9rem; color: #334155; display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fas fa-calendar-alt" style="color: #6366f1;"></i> Period:
+            </span>
+            <button type="button" class="btn btn-sm period-btn active" data-period="today">Daily (Today)</button>
+            <button type="button" class="btn btn-sm period-btn" data-period="yesterday">Yesterday</button>
+            <button type="button" class="btn btn-sm period-btn" data-period="this-week">Weekly (This Week)</button>
+            <button type="button" class="btn btn-sm period-btn" data-period="last-7-days">Last 7 Days</button>
+            <button type="button" class="btn btn-sm period-btn" data-period="this-month">Monthly (This Month)</button>
+            <button type="button" class="btn btn-sm period-btn" data-period="last-30-days">Last 30 Days</button>
+            <button type="button" class="btn btn-sm period-btn" data-period="custom">Custom Date</button>
+          </div>
+
           <div class="filter-controls">
             <div class="filter-group">
                 <label for="inventoryReportSelect">Select Report</label>
                 <select id="inventoryReportSelect" class="form-control">
+                  <option value="order-wise-sales">Order-Wise Sales Report (Daily / Weekly / Monthly / Custom)</option>
                   <option value="store">Store-wise Inventory</option>
                   <option value="category">Category-wise Inventory</option>
                   <option value="breakdown">Store-wise Category Breakdown</option>
@@ -2841,6 +2855,118 @@
                 </tbody>
                 <tfoot id="salesByPaymentSimpleFooter">
                   <!-- Order-wise sales by payment totals will be loaded here -->
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Order-Wise Comprehensive Sales Report -->
+          <div id="orderWiseSalesReportSection" style="display: none">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 1.25rem;">
+              <div>
+                <h3 id="orderWiseSalesHeading" style="margin: 0; font-size: 1.45rem; font-weight: 800; color: #0f172a;">
+                  Order-Wise Sales Report
+                </h3>
+                <p id="orderWiseSalesSubheading" style="margin: 4px 0 0 0; color: #64748b; font-size: 0.9rem;">
+                  Comprehensive order-level audit showing customers, items, product sales, delivery charges, COGS, and net profit margins.
+                </p>
+              </div>
+              <div id="orderWisePeriodBadge" style="padding: 6px 14px; background: #e0f2fe; color: #0369a1; border-radius: 999px; font-weight: 700; font-size: 0.85rem; border: 1px solid #bae6fd;">
+                Daily (Today)
+              </div>
+            </div>
+
+            <!-- Executive KPI Summary Cards -->
+            <div class="stats-grid" id="orderWiseKpiCards" style="margin-bottom: 1.25rem;">
+              <div class="stat-card" style="border-left: 4px solid #3b82f6;">
+                <h3 id="owsKpiTotalOrders">0</h3>
+                <p>Total Orders</p>
+                <small id="owsKpiTotalItems" style="color: #64748b; font-size: 0.8rem; font-weight: 600;">0 items sold</small>
+              </div>
+              <div class="stat-card" style="border-left: 4px solid #10b981;">
+                <h3 id="owsKpiProductSales">PKR 0.00</h3>
+                <p>Product Sales (Gross)</p>
+                <small style="color: #64748b; font-size: 0.8rem;">Item subtotals</small>
+              </div>
+              <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+                <h3 id="owsKpiDeliveryFees">PKR 0.00</h3>
+                <p>Delivery Charges</p>
+                <small style="color: #64748b; font-size: 0.8rem;">Total delivery fees</small>
+              </div>
+              <div class="stat-card" style="border-left: 4px solid #6366f1;">
+                <h3 id="owsKpiGrandTotal">PKR 0.00</h3>
+                <p>Grand Total Revenue</p>
+                <small id="owsKpiAvgOrderValue" style="color: #64748b; font-size: 0.8rem; font-weight: 600;">Avg: PKR 0.00 / order</small>
+              </div>
+              <div class="stat-card" style="border-left: 4px solid #ef4444;">
+                <h3 id="owsKpiTotalCost">PKR 0.00</h3>
+                <p>Total Cost (COGS)</p>
+                <small style="color: #64748b; font-size: 0.8rem;">Cost of goods sold</small>
+              </div>
+              <div class="stat-card" style="border-left: 4px solid #059669;">
+                <h3 id="owsKpiNetProfit">PKR 0.00</h3>
+                <p>Estimated Net Profit</p>
+                <small id="owsKpiProfitMargin" style="color: #059669; font-weight: 800; font-size: 0.85rem;">Margin: 0.0%</small>
+              </div>
+            </div>
+
+            <!-- In-Report Toolbar (Search, Filter, Toggle) -->
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 0.75rem; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+              <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex: 1;">
+                <div style="position: relative; min-width: 220px; flex: 1; max-width: 360px;">
+                  <i class="fas fa-search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
+                  <input type="text" id="owsSearchInput" class="form-control" placeholder="Search order #, customer, phone, store..." style="padding-left: 32px; font-size: 0.88rem; height: 36px;">
+                </div>
+                <select id="owsStatusFilter" class="form-control" style="width: auto; height: 36px; font-size: 0.88rem;">
+                  <option value="">All Statuses</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="completed">Completed</option>
+                  <option value="pending">Pending</option>
+                  <option value="preparing">Preparing</option>
+                  <option value="ready">Ready</option>
+                  <option value="out_for_delivery">Out for Delivery</option>
+                </select>
+                <select id="owsPaymentFilter" class="form-control" style="width: auto; height: 36px; font-size: 0.88rem;">
+                  <option value="">All Payment Types</option>
+                  <option value="cash">Cash on Delivery</option>
+                  <option value="credit">Store Credit</option>
+                  <option value="wallet">Wallet</option>
+                  <option value="card">Card / Digital</option>
+                </select>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="owsToggleAllItemsBtn" title="Expand or collapse all order items">
+                  <i class="fas fa-expand-arrows-alt"></i> Expand All
+                </button>
+              </div>
+            </div>
+
+            <!-- Order-Wise Table -->
+            <div class="table-container">
+              <table id="orderWiseSalesTable" class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 36px; text-align: center;"></th>
+                    <th>Order #</th>
+                    <th>Date & Time</th>
+                    <th>Customer</th>
+                    <th>Store(s)</th>
+                    <th>Status</th>
+                    <th>Payment</th>
+                    <th style="text-align: right;">Qty</th>
+                    <th style="text-align: right;">Product Sales</th>
+                    <th style="text-align: right;">Delivery</th>
+                    <th style="text-align: right;">Total Amount</th>
+                    <th style="text-align: right;">Cost (COGS)</th>
+                    <th style="text-align: right;">Profit</th>
+                    <th style="text-align: right;">Margin</th>
+                  </tr>
+                </thead>
+                <tbody id="orderWiseSalesBody">
+                  <!-- Order-wise rows will be loaded here -->
+                </tbody>
+                <tfoot id="orderWiseSalesFooter">
+                  <!-- Order-wise totals will be loaded here -->
                 </tfoot>
               </table>
             </div>

@@ -5597,6 +5597,9 @@ async function applyCurrentDeliveryCharges(forceParcel = false) {
         if (data && data.success && Number.isFinite(Number(data.base_fee))) {
             const fee = Number(data.base_fee);
             window._deliveryFeeBase = fee;
+            if (Number.isFinite(Number(data.additional_per_store))) {
+                window._deliveryFeeAdditional = Number(data.additional_per_store);
+            }
             deliveryFeeEl.value = fee.toFixed(2);
             return fee;
         }
@@ -5605,7 +5608,7 @@ async function applyCurrentDeliveryCharges(forceParcel = false) {
     } finally {
         if (btn) btn.innerHTML = '<i class="fas fa-sync-alt"></i> Apply Current Fee';
     }
-    const fallback = Number(window._deliveryFeeBase ?? 70);
+    const fallback = Number(window._deliveryFeeBase ?? 100);
     deliveryFeeEl.value = fallback.toFixed(2);
     return fallback;
 }
@@ -6955,10 +6958,30 @@ async function viewOrderDetails(orderId) {
     }
 }
 
+async function ensureDeliveryFeeConfigLoaded() {
+    if (window._deliveryFeeBase !== undefined && window._deliveryFeeAdditional !== undefined) {
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/api/orders/delivery-fee-config`);
+        const data = await res.json();
+        if (data && data.success) {
+            if (Number.isFinite(Number(data.base_fee))) {
+                window._deliveryFeeBase = Number(data.base_fee);
+            }
+            if (Number.isFinite(Number(data.additional_per_store))) {
+                window._deliveryFeeAdditional = Number(data.additional_per_store);
+            }
+        }
+    } catch (e) {
+        console.warn('Could not fetch delivery-fee-config:', e);
+    }
+}
+
 function calculateDeliveryCharges(uniqueStoreCount) {
     if (uniqueStoreCount <= 0) return 0;
-    const base = Number(window._deliveryFeeBase ?? 70);
-    const extra = Number(window._deliveryFeeAdditional ?? 30);
+    const base = Number(window._deliveryFeeBase ?? 100);
+    const extra = Number(window._deliveryFeeAdditional ?? 50);
     return base + (uniqueStoreCount - 1) * extra;
 }
 
@@ -7246,6 +7269,8 @@ async function editOrder(orderId) {
 
         captureOrderEditSnapshot(freshOrder, itemsData.items || []);
 
+        await ensureDeliveryFeeConfigLoaded();
+
         const ridersData = await ridersPromise;
         if (ridersData?.status === 403) {
             console.warn('Access denied to fetch riders');
@@ -7441,6 +7466,7 @@ async function editOrder(orderId) {
             
             // Determine the delivery fee to display
             let deliveryFee;
+            const standardMultiStoreFee = calculateDeliveryCharges(storeCount);
             if (isParcelOrder) {
                 // For Pick & Drop Parcel orders:
                 // If stored fee is 100 (old default or overwritten), 0, or missing, default to 150 (DEFAULT_PARCEL_DELIVERY_FEE)
@@ -7450,12 +7476,15 @@ async function editOrder(orderId) {
                 } else {
                     deliveryFee = typeof DEFAULT_PARCEL_DELIVERY_FEE !== 'undefined' ? DEFAULT_PARCEL_DELIVERY_FEE : 150;
                 }
+            } else if (storeCount > 1 && (!freshOrder?.delivery_fee || Number(freshOrder.delivery_fee) < standardMultiStoreFee)) {
+                // If order spans multiple stores and stored fee was undercalculated (e.g. single-store 100), default to proper multi-store rate
+                deliveryFee = standardMultiStoreFee;
             } else if (freshOrder && freshOrder.delivery_fee !== undefined && freshOrder.delivery_fee !== null && Number.isFinite(Number(freshOrder.delivery_fee))) {
                 deliveryFee = Number(freshOrder.delivery_fee);
             } else if (freshOrder && freshOrder.total_amount !== undefined && freshOrder.total_amount !== null) {
                 deliveryFee = Math.max(0, Number(freshOrder.total_amount) - itemsSubtotal);
             } else {
-                deliveryFee = calculateDeliveryCharges(storeCount);
+                deliveryFee = standardMultiStoreFee;
             }
             
             console.log(`[Order ${orderId}] Subtotal: ${itemsSubtotal}, Delivery Fee: ${deliveryFee}, Total: ${itemsSubtotal + deliveryFee}, isParcel: ${isParcelOrder}`);

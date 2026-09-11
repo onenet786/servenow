@@ -2244,6 +2244,275 @@ router.get(
 );
 
 router.get(
+  "/order-wise-sales-report",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      await ensureManualOrderItemCostColumn(req.db);
+
+      if (!(await hasPermission(req, "report_sales"))) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: report_sales required",
+        });
+      }
+
+      const parsedStoreId = Number.parseInt(String(req.query.store_id || ""), 10);
+      const hasStoreFilter = Number.isInteger(parsedStoreId) && parsedStoreId > 0;
+      const startDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.start_date || "").trim())
+        ? String(req.query.start_date).trim()
+        : "";
+      const endDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.end_date || "").trim())
+        ? String(req.query.end_date).trim()
+        : "";
+      const status = String(req.query.status || "").trim().toLowerCase();
+      const paymentMethod = String(req.query.payment_method || "").trim().toLowerCase();
+      const search = String(req.query.search || "").trim();
+
+      const whereConditions = [];
+      const queryParams = [];
+
+      if (status && status !== "all") {
+        whereConditions.push("o.status = ?");
+        queryParams.push(status);
+      } else {
+        whereConditions.push("o.status != 'cancelled'");
+      }
+
+      if (hasStoreFilter) {
+        whereConditions.push(
+          "EXISTS (SELECT 1 FROM order_items oi_filter JOIN products p_filter ON p_filter.id = oi_filter.product_id WHERE oi_filter.order_id = o.id AND COALESCE(oi_filter.store_id, p_filter.store_id) = ?)"
+        );
+        queryParams.push(parsedStoreId);
+      }
+
+      if (startDate) {
+        whereConditions.push("DATE(o.created_at) >= ?");
+        queryParams.push(startDate);
+      }
+      if (endDate) {
+        whereConditions.push("DATE(o.created_at) <= ?");
+        queryParams.push(endDate);
+      }
+
+      if (paymentMethod && paymentMethod !== "all") {
+        whereConditions.push("LOWER(TRIM(COALESCE(o.payment_method, ''))) = ?");
+        queryParams.push(paymentMethod);
+      }
+
+      if (search) {
+        whereConditions.push(
+          "(o.order_number LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ? OR u.phone LIKE ?)"
+        );
+        const searchWildcard = `%${search}%`;
+        queryParams.push(searchWildcard, searchWildcard, searchWildcard, searchWildcard);
+      }
+
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
+
+      // Fetch distinct orders matching filters
+      const [orderRows] = await req.db.execute(
+        `
+          SELECT
+            o.id as order_id,
+            o.order_number,
+            o.status as order_status,
+            o.payment_method,
+            o.created_at,
+            COALESCE(o.delivery_fee, 0) as delivery_fee,
+            COALESCE(o.total_amount, 0) as order_total,
+            o.delivery_address,
+            u.id as customer_id,
+            TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) as customer_name,
+            u.phone as customer_phone,
+            u.email as customer_email
+          FROM orders o
+          LEFT JOIN users u ON u.id = o.user_id
+          ${whereClause}
+          ORDER BY o.created_at DESC, o.id DESC
+        `,
+        queryParams
+      );
+
+      if (orderRows.length === 0) {
+        return res.json({
+          success: true,
+          summary: {
+            total_orders: 0,
+            total_items_sold: 0,
+            total_product_sales: 0,
+            total_delivery_fees: 0,
+            grand_total_revenue: 0,
+            total_cost: 0,
+            total_profit: 0,
+            avg_order_value: 0,
+            profit_margin: 0,
+            payment_breakdown: {},
+          },
+          orders: [],
+        });
+      }
+
+      const orderIds = orderRows.map((o) => o.order_id);
+      const placeholders = orderIds.map(() => "?").join(",");
+
+      // Fetch all items for these orders with product and store details
+      const [itemRows] = await req.db.execute(
+        `
+          SELECT
+            oi.id as order_item_id,
+            oi.order_id,
+            oi.product_id,
+            p.name as product_name,
+            COALESCE(sz.label, '') as size_label,
+            COALESCE(u.name, u.abbreviation, '') as unit_name,
+            s.id as store_id,
+            s.name as store_name,
+            s.payment_term as store_payment_term,
+            oi.quantity,
+            oi.price as unit_price,
+            COALESCE(oi.cost_price, psp.cost_price, p.cost_price, 0) as unit_cost,
+            (oi.quantity * oi.price) as total_price,
+            (oi.quantity * COALESCE(oi.cost_price, psp.cost_price, p.cost_price, 0)) as total_cost,
+            (oi.quantity * (oi.price - COALESCE(oi.cost_price, psp.cost_price, p.cost_price, 0))) as item_profit
+          FROM order_items oi
+          JOIN products p ON p.id = oi.product_id
+          LEFT JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
+          LEFT JOIN product_size_prices psp ON oi.product_id = psp.product_id
+              AND (
+                  (oi.size_id IS NOT NULL AND psp.size_id = oi.size_id)
+                  OR
+                  (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id)
+              )
+          LEFT JOIN sizes sz ON sz.id = oi.size_id
+          LEFT JOIN units u ON u.id = oi.unit_id
+          WHERE oi.order_id IN (${placeholders})
+          ${hasStoreFilter ? `AND COALESCE(oi.store_id, p.store_id) = ${parsedStoreId}` : ""}
+          ORDER BY oi.order_id DESC, oi.id ASC
+        `,
+        orderIds
+      );
+
+      // Group items by order_id
+      const itemsByOrderId = {};
+      itemRows.forEach((item) => {
+        if (!itemsByOrderId[item.order_id]) {
+          itemsByOrderId[item.order_id] = [];
+        }
+        const variantParts = [item.size_label, item.unit_name].filter(Boolean);
+        itemsByOrderId[item.order_id].push({
+          order_item_id: item.order_item_id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          variant_label: variantParts.length > 0 ? variantParts.join(" ") : "-",
+          store_id: item.store_id,
+          store_name: item.store_name || "Unknown Store",
+          store_payment_term: item.store_payment_term || "cash",
+          quantity: Number(item.quantity) || 0,
+          unit_price: parseFloat(item.unit_price) || 0,
+          unit_cost: parseFloat(item.unit_cost) || 0,
+          total_price: parseFloat(item.total_price) || 0,
+          total_cost: parseFloat(item.total_cost) || 0,
+          item_profit: parseFloat(item.item_profit) || 0,
+        });
+      });
+
+      // Assemble orders with calculated financial metrics
+      let totalItemsSold = 0;
+      let totalProductSales = 0;
+      let totalDeliveryFees = 0;
+      let grandTotalRevenue = 0;
+      let totalCostOfGoods = 0;
+      let totalEstimatedProfit = 0;
+      const paymentBreakdown = {};
+
+      const compiledOrders = [];
+
+      orderRows.forEach((order) => {
+        const items = itemsByOrderId[order.order_id] || [];
+        if (hasStoreFilter && items.length === 0) return;
+
+        const orderQty = items.reduce((sum, it) => sum + it.quantity, 0);
+        const orderProductSales = items.reduce((sum, it) => sum + it.total_price, 0);
+        const orderCost = items.reduce((sum, it) => sum + it.total_cost, 0);
+        const orderDeliveryFee = parseFloat(order.delivery_fee) || 0;
+        const orderTotal = parseFloat(order.order_total) || (orderProductSales + orderDeliveryFee);
+        const orderProfit = orderProductSales - orderCost;
+        const profitMargin = orderProductSales > 0 ? (orderProfit / orderProductSales) * 100 : 0;
+
+        const distinctStores = [...new Set(items.map((it) => it.store_name).filter(Boolean))];
+        const storeNamesStr = distinctStores.join(", ") || "-";
+
+        const paymentKey = String(order.payment_method || "cash").toLowerCase();
+        if (!paymentBreakdown[paymentKey]) {
+          paymentBreakdown[paymentKey] = { orders: 0, amount: 0 };
+        }
+        paymentBreakdown[paymentKey].orders += 1;
+        paymentBreakdown[paymentKey].amount += orderTotal;
+
+        totalItemsSold += orderQty;
+        totalProductSales += orderProductSales;
+        totalDeliveryFees += orderDeliveryFee;
+        grandTotalRevenue += orderTotal;
+        totalCostOfGoods += orderCost;
+        totalEstimatedProfit += orderProfit;
+
+        compiledOrders.push({
+          order_id: order.order_id,
+          order_number: order.order_number || `ORD-${order.order_id}`,
+          created_at: order.created_at,
+          order_status: String(order.order_status || "").toLowerCase(),
+          payment_method: paymentKey,
+          delivery_address: order.delivery_address || "-",
+          customer_id: order.customer_id || null,
+          customer_name: (order.customer_name || "").trim() || "Guest Customer",
+          customer_phone: order.customer_phone || "-",
+          customer_email: order.customer_email || "-",
+          store_names: storeNamesStr,
+          total_quantity: orderQty,
+          unique_items_count: items.length,
+          product_sales: orderProductSales,
+          delivery_fee: orderDeliveryFee,
+          order_total: orderTotal,
+          total_cost: orderCost,
+          profit: orderProfit,
+          profit_margin: profitMargin,
+          items: items,
+        });
+      });
+
+      const overallMargin = totalProductSales > 0 ? (totalEstimatedProfit / totalProductSales) * 100 : 0;
+      const avgOrderVal = compiledOrders.length > 0 ? grandTotalRevenue / compiledOrders.length : 0;
+
+      return res.json({
+        success: true,
+        summary: {
+          total_orders: compiledOrders.length,
+          total_items_sold: totalItemsSold,
+          total_product_sales: totalProductSales,
+          total_delivery_fees: totalDeliveryFees,
+          grand_total_revenue: grandTotalRevenue,
+          total_cost: totalCostOfGoods,
+          total_profit: totalEstimatedProfit,
+          avg_order_value: avgOrderVal,
+          profit_margin: overallMargin,
+          payment_breakdown: paymentBreakdown,
+        },
+        orders: compiledOrders,
+      });
+    } catch (err) {
+      console.error("Order-wise sales report error:", err);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch order-wise sales report",
+        error: err.message,
+      });
+    }
+  }
+);
+
+router.get(
   "/sales-by-payment-report",
   authenticateToken,
   requireStaffAccess,

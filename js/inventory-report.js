@@ -11,6 +11,10 @@ let currentCustomerSummaryRows = [];
 let currentCustomerDetailsFilterLoaded = false;
 let currentInventoryReportScope = "inventory";
 let expandedStoreSalesStoreId = null;
+let currentOrderWiseSalesData = null;
+let currentOrderWiseOrders = [];
+let currentOrderWisePeriod = "today";
+let expandedOrderIds = new Set();
 
 const inventoryReportOptions = {
     inventory: [
@@ -20,6 +24,7 @@ const inventoryReportOptions = {
         { value: "product-detail", label: "Product Cost/Sale Detail" },
     ],
     sales: [
+        { value: "order-wise-sales", label: "Order-Wise Sales Report (Daily / Weekly / Monthly / Custom)" },
         { value: "sales", label: "Store Sale-wise" },
         { value: "manual-sales", label: "Manual Order Product Sales" },
         { value: "store-product-sales", label: "Store Product Sales" },
@@ -119,7 +124,7 @@ function applyInventoryReportScope() {
     const hasCurrent = options.some((option) => option.value === currentValue);
     reportSelect.value = hasCurrent
         ? currentValue
-        : (currentInventoryReportScope === "sales" ? "combined-product-sales" : "store");
+        : (currentInventoryReportScope === "sales" ? "order-wise-sales" : "store");
 }
 
 function setInventoryReportScope(scope) {
@@ -2035,8 +2040,430 @@ async function saveManualSalesEdit() {
     }
 }
 
+function formatIsoDateOnly(d) {
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+}
+
+function setInventoryPeriodPreset(periodKey, autoReload = true) {
+    currentOrderWisePeriod = periodKey;
+    const now = new Date();
+    let startDate = "";
+    let endDate = formatIsoDateOnly(now);
+
+    switch (periodKey) {
+        case "today":
+            startDate = endDate;
+            break;
+        case "yesterday": {
+            const y = new Date();
+            y.setDate(now.getDate() - 1);
+            startDate = formatIsoDateOnly(y);
+            endDate = startDate;
+            break;
+        }
+        case "this-week": {
+            const day = now.getDay();
+            const diff = (day === 0 ? -6 : 1) - day;
+            const monday = new Date(now);
+            monday.setDate(now.getDate() + diff);
+            startDate = formatIsoDateOnly(monday);
+            break;
+        }
+        case "last-7-days": {
+            const past = new Date(now);
+            past.setDate(now.getDate() - 6);
+            startDate = formatIsoDateOnly(past);
+            break;
+        }
+        case "this-month": {
+            const first = new Date(now.getFullYear(), now.getMonth(), 1);
+            startDate = formatIsoDateOnly(first);
+            break;
+        }
+        case "last-30-days": {
+            const past = new Date(now);
+            past.setDate(now.getDate() - 29);
+            startDate = formatIsoDateOnly(past);
+            break;
+        }
+        case "custom":
+        default:
+            break;
+    }
+
+    if (periodKey !== "custom" && startDate) {
+        const startEl = document.getElementById("inventoryStartDate");
+        const endEl = document.getElementById("inventoryEndDate");
+        if (startEl) startEl.value = startDate;
+        if (endEl) endEl.value = endDate;
+    }
+
+    document.querySelectorAll(".period-preset-bar .period-btn").forEach((btn) => {
+        if (btn.getAttribute("data-period") === periodKey) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    updateInventoryPeriodBadge();
+
+    if (autoReload) {
+        loadSelectedInventoryReport();
+    }
+}
+window.setInventoryPeriodPreset = setInventoryPeriodPreset;
+
+function updateInventoryPeriodBadge() {
+    const badge = document.getElementById("orderWisePeriodBadge");
+    if (!badge) return;
+
+    const startEl = document.getElementById("inventoryStartDate");
+    const endEl = document.getElementById("inventoryEndDate");
+    const s = startEl?.value || "";
+    const e = endEl?.value || "";
+
+    const labels = {
+        today: "Daily (Today)",
+        yesterday: "Yesterday",
+        "this-week": "Weekly (This Week)",
+        "last-7-days": "Last 7 Days",
+        "this-month": "Monthly (This Month)",
+        "last-30-days": "Last 30 Days",
+        custom: `Custom Range (${s || "-"} to ${e || "-"})`,
+    };
+
+    badge.textContent = labels[currentOrderWisePeriod] || `Custom (${s} to ${e})`;
+}
+
+function getOrderWiseStatusBadge(status) {
+    const s = String(status || "").toLowerCase();
+    const map = {
+        delivered: { bg: "#dcfce7", color: "#166534", border: "#bbf7d0", icon: "fa-check-circle" },
+        completed: { bg: "#dcfce7", color: "#166534", border: "#bbf7d0", icon: "fa-check-double" },
+        pending: { bg: "#fef9c3", color: "#854d0e", border: "#fde047", icon: "fa-clock" },
+        preparing: { bg: "#e0f2fe", color: "#075985", border: "#bae6fd", icon: "fa-cog fa-spin" },
+        ready: { bg: "#f3e8ff", color: "#6b21a8", border: "#e9d5ff", icon: "fa-box" },
+        out_for_delivery: { bg: "#ffedd5", color: "#9a3412", border: "#fed7aa", icon: "fa-truck" },
+        cancelled: { bg: "#fee2e2", color: "#991b1b", border: "#fecaca", icon: "fa-times-circle" },
+    };
+    const cfg = map[s] || { bg: "#f1f5f9", color: "#475569", border: "#cbd5e1", icon: "fa-circle" };
+    const label = inventoryTitleCase(s);
+    return `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 0.76rem; font-weight: 700; background: ${cfg.bg}; color: ${cfg.color}; border: 1px solid ${cfg.border}; white-space: nowrap;">
+        <i class="fas ${cfg.icon}" style="font-size: 0.7rem;"></i> ${label}
+    </span>`;
+}
+
+function getOrderWisePaymentBadge(method) {
+    const m = String(method || "").toLowerCase();
+    const map = {
+        cash: { bg: "#ecfdf5", color: "#065f46", border: "#a7f3d0", label: "Cash on Delivery", icon: "fa-money-bill-wave" },
+        credit: { bg: "#eff6ff", color: "#1e40af", border: "#bfdbfe", label: "Store Credit", icon: "fa-book" },
+        wallet: { bg: "#faf5ff", color: "#6b21a8", border: "#e9d5ff", label: "Wallet", icon: "fa-wallet" },
+        card: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0", label: "Card / Digital", icon: "fa-credit-card" },
+    };
+    const cfg = map[m] || { bg: "#f8fafc", color: "#475569", border: "#e2e8f0", label: inventoryTitleCase(m), icon: "fa-receipt" };
+    return `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 0.76rem; font-weight: 600; background: ${cfg.bg}; color: ${cfg.color}; border: 1px solid ${cfg.border}; white-space: nowrap;">
+        <i class="fas ${cfg.icon}" style="font-size: 0.7rem;"></i> ${cfg.label}
+    </span>`;
+}
+
+function loadOrderWiseSalesReport() {
+    const apiBase = window.API_BASE || `${window.location.protocol}//${window.location.host}`;
+    const token = localStorage.getItem("serveNowToken");
+    const baseQuery = buildInventorySalesQuery();
+    const statusVal = (document.getElementById("owsStatusFilter")?.value || "").trim();
+    const paymentVal = (document.getElementById("owsPaymentFilter")?.value || "").trim();
+    const searchVal = (document.getElementById("owsSearchInput")?.value || "").trim();
+
+    const params = new URLSearchParams(baseQuery.startsWith("?") ? baseQuery.slice(1) : baseQuery);
+    if (statusVal) params.set("status", statusVal);
+    if (paymentVal) params.set("payment_method", paymentVal);
+    if (searchVal) params.set("search", searchVal);
+
+    const queryStr = params.toString() ? `?${params.toString()}` : "";
+
+    fetch(`${apiBase}/api/admin/order-wise-sales-report${queryStr}`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.success) {
+                currentOrderWiseSalesData = data;
+                currentOrderWiseOrders = data.orders || [];
+                displayOrderWiseSalesReport(data);
+            } else {
+                showError("Order-Wise Sales Report", data.message || "Failed to load order-wise sales report");
+            }
+        })
+        .catch((err) => {
+            console.error("Error loading order-wise sales report:", err);
+            showError("Order-Wise Sales Report", "Error loading order-wise sales report");
+        });
+}
+
+function displayOrderWiseSalesReport(data) {
+    const summary = data.summary || {};
+    const setElemText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    };
+
+    setElemText("owsKpiTotalOrders", inventoryNumber(summary.total_orders));
+    setElemText("owsKpiTotalItems", `${inventoryNumber(summary.total_items_sold)} items sold`);
+    setElemText("owsKpiProductSales", inventoryMoney(summary.total_product_sales));
+    setElemText("owsKpiDeliveryFees", inventoryMoney(summary.total_delivery_fees));
+    setElemText("owsKpiGrandTotal", inventoryMoney(summary.grand_total_revenue));
+    setElemText("owsKpiAvgOrderValue", `Avg: ${inventoryMoney(summary.avg_order_value)} / order`);
+    setElemText("owsKpiTotalCost", inventoryMoney(summary.total_cost));
+    setElemText("owsKpiNetProfit", inventoryMoney(summary.total_profit));
+    setElemText("owsKpiProfitMargin", `Margin: ${Number(summary.profit_margin || 0).toFixed(1)}%`);
+
+    const profitCardMarginEl = document.getElementById("owsKpiProfitMargin");
+    if (profitCardMarginEl) {
+        const marginVal = Number(summary.profit_margin || 0);
+        profitCardMarginEl.style.color = marginVal >= 20 ? "#059669" : marginVal >= 0 ? "#d97706" : "#dc2626";
+    }
+
+    updateInventoryPeriodBadge();
+    renderOrderWiseSalesTable();
+}
+
+function toggleOrderWiseRow(orderId) {
+    if (expandedOrderIds.has(orderId)) {
+        expandedOrderIds.delete(orderId);
+    } else {
+        expandedOrderIds.add(orderId);
+    }
+    const row = document.getElementById(`ows-row-items-${orderId}`);
+    const btn = document.getElementById(`ows-expand-btn-${orderId}`);
+    if (row) {
+        row.style.display = expandedOrderIds.has(orderId) ? "table-row" : "none";
+    }
+    if (btn) {
+        if (expandedOrderIds.has(orderId)) {
+            btn.classList.add("expanded");
+            btn.innerHTML = '<i class="fas fa-minus"></i>';
+        } else {
+            btn.classList.remove("expanded");
+            btn.innerHTML = '<i class="fas fa-plus"></i>';
+        }
+    }
+}
+window.toggleOrderWiseRow = toggleOrderWiseRow;
+
+function toggleAllOrderWiseRows() {
+    const btn = document.getElementById("owsToggleAllItemsBtn");
+    const allMatchingIds = (currentOrderWiseOrders || []).map((o) => o.order_id);
+    const allExpanded = allMatchingIds.length > 0 && allMatchingIds.every((id) => expandedOrderIds.has(id));
+
+    if (allExpanded) {
+        expandedOrderIds.clear();
+        if (btn) btn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i> Expand All';
+    } else {
+        allMatchingIds.forEach((id) => expandedOrderIds.add(id));
+        if (btn) btn.innerHTML = '<i class="fas fa-compress-arrows-alt"></i> Collapse All';
+    }
+
+    renderOrderWiseSalesTable();
+}
+window.toggleAllOrderWiseRows = toggleAllOrderWiseRows;
+
+function renderOrderWiseSalesTable() {
+    const tbody = document.getElementById("orderWiseSalesBody");
+    const tfoot = document.getElementById("orderWiseSalesFooter");
+    if (!tbody || !tfoot) return;
+
+    const searchTerm = (document.getElementById("owsSearchInput")?.value || "").toLowerCase().trim();
+    const statusFilter = (document.getElementById("owsStatusFilter")?.value || "").toLowerCase().trim();
+    const paymentFilter = (document.getElementById("owsPaymentFilter")?.value || "").toLowerCase().trim();
+
+    const orders = (currentOrderWiseOrders || []).filter((order) => {
+        if (statusFilter && statusFilter !== "all" && order.order_status !== statusFilter) return false;
+        if (paymentFilter && paymentFilter !== "all" && order.payment_method !== paymentFilter) return false;
+        if (searchTerm) {
+            const haystack = [
+                order.order_number,
+                order.customer_name,
+                order.customer_phone,
+                order.customer_email,
+                order.delivery_address,
+                order.store_names,
+                ...(order.items || []).map((i) => i.product_name),
+            ].join(" ").toLowerCase();
+            if (!haystack.includes(searchTerm)) return false;
+        }
+        return true;
+    });
+
+    if (orders.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="14" style="text-align: center; padding: 48px 16px; color: #64748b;">
+                    <i class="fas fa-inbox" style="font-size: 2.2rem; color: #cbd5e1; margin-bottom: 12px; display: block;"></i>
+                    <strong style="font-size: 1.05rem; color: #334155;">No Orders Found</strong>
+                    <p style="margin: 4px 0 0 0; font-size: 0.88rem;">No sales records match your chosen date range and filters.</p>
+                </td>
+            </tr>
+        `;
+        tfoot.innerHTML = "";
+        return;
+    }
+
+    let runningQty = 0;
+    let runningProductSales = 0;
+    let runningDeliveryFee = 0;
+    let runningGrandTotal = 0;
+    let runningTotalCost = 0;
+    let runningProfit = 0;
+
+    const rowsHtml = orders.map((order) => {
+        runningQty += Number(order.total_quantity || 0);
+        runningProductSales += Number(order.product_sales || 0);
+        runningDeliveryFee += Number(order.delivery_fee || 0);
+        runningGrandTotal += Number(order.order_total || 0);
+        runningTotalCost += Number(order.total_cost || 0);
+        runningProfit += Number(order.profit || 0);
+
+        const isExpanded = expandedOrderIds.has(order.order_id);
+        const marginColor = order.profit_margin >= 20 ? "#059669" : order.profit_margin >= 0 ? "#d97706" : "#dc2626";
+        const profitColor = order.profit >= 0 ? "#10b981" : "#ef4444";
+
+        const items = order.items || [];
+        const itemsRowsHtml = items.length > 0
+            ? items.map((item, idx) => {
+                const itemMargin = item.total_price > 0 ? (item.item_profit / item.total_price) * 100 : 0;
+                const itemMarginColor = itemMargin >= 20 ? "#059669" : itemMargin >= 0 ? "#d97706" : "#dc2626";
+                return `
+                    <tr>
+                        <td style="text-align: center; color: #94a3b8; font-size: 0.78rem;">${idx + 1}</td>
+                        <td style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.product_name)}</td>
+                        <td style="color: #64748b;">${inventoryEscapeHtml(item.variant_label || "-")}</td>
+                        <td style="color: #475569; font-weight: 500;">${inventoryEscapeHtml(item.store_name)}</td>
+                        <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.quantity)}</td>
+                        <td style="text-align: right; color: #64748b;">${inventoryMoney(item.unit_cost)}</td>
+                        <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.unit_price)}</td>
+                        <td style="text-align: right; color: #64748b;">${inventoryMoney(item.total_cost)}</td>
+                        <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.total_price)}</td>
+                        <td style="text-align: right; font-weight: 700; color: ${item.item_profit >= 0 ? '#10b981' : '#ef4444'};">${inventoryMoney(item.item_profit)}</td>
+                        <td style="text-align: right; font-weight: 700; color: ${itemMarginColor};">${itemMargin.toFixed(1)}%</td>
+                    </tr>
+                `;
+            }).join("")
+            : `<tr><td colspan="11" style="text-align: center; color: #94a3b8; padding: 12px;">No line items recorded for this order.</td></tr>`;
+
+        return `
+            <tr style="cursor: pointer; transition: background 0.15s ease;" onclick="if (!event.target.closest('button') && !event.target.closest('a')) toggleOrderWiseRow(${order.order_id})">
+                <td style="text-align: center; width: 36px; padding: 8px 4px;">
+                    <button type="button" class="ows-expand-btn ${isExpanded ? 'expanded' : ''}" id="ows-expand-btn-${order.order_id}" onclick="event.stopPropagation(); toggleOrderWiseRow(${order.order_id})" title="View line items">
+                        <i class="fas ${isExpanded ? 'fa-minus' : 'fa-plus'}"></i>
+                    </button>
+                </td>
+                <td style="font-family: monospace; font-weight: 700; color: #2563eb; white-space: nowrap;">
+                    #${inventoryEscapeHtml(order.order_number)}
+                </td>
+                <td style="white-space: nowrap; font-size: 0.82rem; color: #475569;">
+                    ${inventoryDateTime(order.created_at)}
+                </td>
+                <td style="min-width: 140px;">
+                    <div style="font-weight: 600; color: #0f172a; font-size: 0.88rem;">${inventoryEscapeHtml(order.customer_name)}</div>
+                    <div style="font-size: 0.78rem; color: #64748b;"><i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i> ${inventoryEscapeHtml(order.customer_phone)}</div>
+                    ${order.delivery_address && order.delivery_address !== '-' ? `<div style="font-size: 0.74rem; color: #94a3b8; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${inventoryEscapeHtml(order.delivery_address)}"><i class="fas fa-map-marker-alt" style="font-size: 0.7rem;"></i> ${inventoryEscapeHtml(order.delivery_address)}</div>` : ''}
+                </td>
+                <td style="font-size: 0.84rem; font-weight: 500; color: #334155;">
+                    ${inventoryEscapeHtml(order.store_names)}
+                </td>
+                <td>
+                    ${getOrderWiseStatusBadge(order.order_status)}
+                </td>
+                <td>
+                    ${getOrderWisePaymentBadge(order.payment_method)}
+                </td>
+                <td style="text-align: right; font-weight: 600;">
+                    ${inventoryNumber(order.total_quantity)}
+                </td>
+                <td style="text-align: right; font-weight: 600; color: #0f172a;">
+                    ${inventoryMoney(order.product_sales)}
+                </td>
+                <td style="text-align: right; color: #f59e0b; font-weight: 600;">
+                    ${inventoryMoney(order.delivery_fee)}
+                </td>
+                <td style="text-align: right; font-weight: 800; color: #0f172a;">
+                    ${inventoryMoney(order.order_total)}
+                </td>
+                <td style="text-align: right; color: #64748b;">
+                    ${inventoryMoney(order.total_cost)}
+                </td>
+                <td style="text-align: right; font-weight: 700; color: ${profitColor};">
+                    ${inventoryMoney(order.profit)}
+                </td>
+                <td style="text-align: right; font-weight: 700; color: ${marginColor};">
+                    ${order.profit_margin.toFixed(1)}%
+                </td>
+            </tr>
+            <tr class="ows-detail-row" id="ows-row-items-${order.order_id}" style="display: ${isExpanded ? 'table-row' : 'none'};">
+                <td colspan="14" style="padding: 10px 14px 14px 14px; background: #f8fafc; border-left: 3px solid #6366f1; border-bottom: 2px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 0.82rem; font-weight: 700; color: #4338ca; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fas fa-boxes"></i> Line Items in #${inventoryEscapeHtml(order.order_number)} (${items.length} item${items.length === 1 ? '' : 's'})
+                        </span>
+                        <span style="font-size: 0.8rem; color: #64748b;">
+                            Delivery Address: <strong>${inventoryEscapeHtml(order.delivery_address || 'N/A')}</strong>
+                        </span>
+                    </div>
+                    <table class="ows-nested-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 32px; text-align: center;">#</th>
+                                <th>Product Name</th>
+                                <th>Variant / Size</th>
+                                <th>Store</th>
+                                <th style="text-align: right;">Qty</th>
+                                <th style="text-align: right;">Unit Cost</th>
+                                <th style="text-align: right;">Unit Price</th>
+                                <th style="text-align: right;">Total Cost</th>
+                                <th style="text-align: right;">Total Sales</th>
+                                <th style="text-align: right;">Item Profit</th>
+                                <th style="text-align: right;">Margin %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsRowsHtml}
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    tbody.innerHTML = rowsHtml;
+
+    const overallMargin = runningProductSales > 0 ? (runningProfit / runningProductSales) * 100 : 0;
+    const overallMarginColor = overallMargin >= 20 ? "#059669" : overallMargin >= 0 ? "#d97706" : "#dc2626";
+
+    tfoot.innerHTML = `
+        <tr style="font-weight: 800; background: #f1f5f9; border-top: 2px solid #cbd5e1; font-size: 0.92rem;">
+            <td colspan="7" style="padding: 10px 14px; text-align: right;">
+                Summary Totals (${inventoryNumber(orders.length)} Orders):
+            </td>
+            <td style="text-align: right; padding: 10px 8px;">${inventoryNumber(runningQty)}</td>
+            <td style="text-align: right; padding: 10px 8px; color: #0f172a;">${inventoryMoney(runningProductSales)}</td>
+            <td style="text-align: right; padding: 10px 8px; color: #f59e0b;">${inventoryMoney(runningDeliveryFee)}</td>
+            <td style="text-align: right; padding: 10px 8px; color: #0f172a;">${inventoryMoney(runningGrandTotal)}</td>
+            <td style="text-align: right; padding: 10px 8px; color: #64748b;">${inventoryMoney(runningTotalCost)}</td>
+            <td style="text-align: right; padding: 10px 8px; color: ${runningProfit >= 0 ? '#10b981' : '#ef4444'};">${inventoryMoney(runningProfit)}</td>
+            <td style="text-align: right; padding: 10px 8px; color: ${overallMarginColor};">${overallMargin.toFixed(1)}%</td>
+        </tr>
+    `;
+}
+
 function switchInventoryReport(reportType) {
     const sections = [
+        "orderWiseSalesReportSection",
         "storeReportSection",
         "categoryReportSection",
         "breakdownReportSection",
@@ -2064,7 +2491,16 @@ function switchInventoryReport(reportType) {
         customerReportModeGroup.style.display = reportType === "customer-details" ? "" : "none";
     }
 
+    const periodBar = document.getElementById("inventoryPeriodPresetBar");
+    if (periodBar) {
+        periodBar.style.display = currentInventoryReportScope === "sales" ? "flex" : "none";
+    }
+
     switch (reportType) {
+        case "order-wise-sales":
+            document.getElementById("orderWiseSalesReportSection").style.display = "block";
+            loadOrderWiseSalesReport();
+            break;
         case "store":
             document.getElementById("storeReportSection").style.display = "block";
             break;
@@ -2135,6 +2571,7 @@ function exportInventoryReportPdf() {
     const now = new Date();
     const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
     const reportNameMap = {
+        "order-wise-sales": "Order-Wise Sales Report",
         store: "Inventory Report",
         category: "Category-wise Inventory Report",
         breakdown: "Store-wise Category Breakdown Report",
@@ -2197,7 +2634,52 @@ function exportInventoryReportPdf() {
     let tableHead = [];
     let tableBody = [];
 
-    if (activeType === "category") {
+    if (activeType === "order-wise-sales") {
+        tableHead = [["Order #", "Date & Time", "Customer", "Phone", "Store", "Status", "Payment", "Qty", "Product Sales", "Delivery", "Total", "Cost", "Profit", "Margin"]];
+        const orders = currentOrderWiseOrders || [];
+        let rQty = 0, rSales = 0, rDelivery = 0, rTotal = 0, rCost = 0, rProfit = 0;
+        tableBody = orders.map((o) => {
+            rQty += Number(o.total_quantity || 0);
+            rSales += Number(o.product_sales || 0);
+            rDelivery += Number(o.delivery_fee || 0);
+            rTotal += Number(o.order_total || 0);
+            rCost += Number(o.total_cost || 0);
+            rProfit += Number(o.profit || 0);
+            return [
+                `#${o.order_number || o.order_id}`,
+                inventoryDateTime(o.created_at),
+                o.customer_name || "-",
+                o.customer_phone || "-",
+                o.store_names || "-",
+                inventoryTitleCase(o.order_status || "-"),
+                inventoryTitleCase(o.payment_method || "-"),
+                inventoryNumber(o.total_quantity),
+                inventoryMoney(o.product_sales),
+                inventoryMoney(o.delivery_fee),
+                inventoryMoney(o.order_total),
+                inventoryMoney(o.total_cost),
+                inventoryMoney(o.profit),
+                `${Number(o.profit_margin || 0).toFixed(1)}%`,
+            ];
+        });
+        const ovMargin = rSales > 0 ? (rProfit / rSales) * 100 : 0;
+        tableBody.push([
+            `Totals (${inventoryNumber(orders.length)})`,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            inventoryNumber(rQty),
+            inventoryMoney(rSales),
+            inventoryMoney(rDelivery),
+            inventoryMoney(rTotal),
+            inventoryMoney(rCost),
+            inventoryMoney(rProfit),
+            `${ovMargin.toFixed(1)}%`,
+        ]);
+    } else if (activeType === "category") {
         tableHead = [["Category", "Products", "Stock", "Inventory Value"]];
         tableBody = (currentInventoryData.category_wise || []).map((r) => [
             r.category_name,
@@ -2908,6 +3390,7 @@ function exportInventoryReportPdf() {
 function exportInventoryReportExcel() {
     const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
     const tableIdMap = {
+        "order-wise-sales": "orderWiseSalesTable",
         store: "storeInventoryTable",
         category: "categoryInventoryTable",
         breakdown: "storeCategoryBreakdownTable",
@@ -2922,6 +3405,7 @@ function exportInventoryReportExcel() {
         "customer-details": "customerDetailsReportTable",
     };
     const reportNameMap = {
+        "order-wise-sales": "Order-Wise Sales Report",
         store: "Inventory Report",
         category: "Category-wise Inventory Report",
         breakdown: "Store-wise Category Breakdown Report",
@@ -2943,7 +3427,7 @@ function exportInventoryReportExcel() {
     }
 
     const clone = table.cloneNode(true);
-    clone.querySelectorAll("script, button").forEach((el) => el.remove());
+    clone.querySelectorAll("script, button, .ows-detail-row").forEach((el) => el.remove());
     clone.querySelectorAll("td, th").forEach((cell) => {
         cell.textContent = inventoryPlainText(cell.innerHTML).replace(/\s+/g, " ").trim();
     });
@@ -3004,6 +3488,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const initialScope = window.location.hash === "#sale-reports" ? "sales" : "inventory";
     setInventoryReportScope(initialScope);
     ensureInventoryDateDefaults();
+    setInventoryPeriodPreset("today", false);
 
     const tabLinks = document.querySelectorAll(".tab-link");
     tabLinks.forEach((link) => {
@@ -3011,8 +3496,31 @@ document.addEventListener("DOMContentLoaded", () => {
             link.addEventListener("click", (e) => {
                 e.preventDefault();
                 setTimeout(() => {
-                    loadInventoryReport();
+                    if (currentInventoryReportScope === "sales") {
+                        loadSelectedInventoryReport();
+                    } else {
+                        loadInventoryReport();
+                    }
                 }, 100);
+            });
+        }
+    });
+
+    const periodButtons = document.querySelectorAll(".period-preset-bar .period-btn");
+    periodButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const period = btn.getAttribute("data-period");
+            if (period) {
+                setInventoryPeriodPreset(period, true);
+            }
+        });
+    });
+
+    ["inventoryStartDate", "inventoryEndDate"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener("change", () => {
+                setInventoryPeriodPreset("custom", false);
             });
         }
     });
@@ -3021,6 +3529,38 @@ document.addEventListener("DOMContentLoaded", () => {
     if (reportSelect) {
         reportSelect.addEventListener("change", (e) => {
             switchInventoryReport(e.target.value);
+        });
+    }
+
+    const owsSearch = document.getElementById("owsSearchInput");
+    if (owsSearch) {
+        let debounceTimer;
+        owsSearch.addEventListener("input", () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                renderOrderWiseSalesTable();
+            }, 250);
+        });
+    }
+
+    const owsStatus = document.getElementById("owsStatusFilter");
+    if (owsStatus) {
+        owsStatus.addEventListener("change", () => {
+            loadOrderWiseSalesReport();
+        });
+    }
+
+    const owsPayment = document.getElementById("owsPaymentFilter");
+    if (owsPayment) {
+        owsPayment.addEventListener("change", () => {
+            loadOrderWiseSalesReport();
+        });
+    }
+
+    const owsToggleAll = document.getElementById("owsToggleAllItemsBtn");
+    if (owsToggleAll) {
+        owsToggleAll.addEventListener("click", () => {
+            toggleAllOrderWiseRows();
         });
     }
 
@@ -3036,11 +3576,13 @@ document.addEventListener("DOMContentLoaded", () => {
             if (customerFilter) customerFilter.value = "";
             const customerReportMode = document.getElementById("inventoryCustomerReportMode");
             if (customerReportMode) customerReportMode.value = "detail";
-            const startDateEl = document.getElementById("inventoryStartDate");
-            const endDateEl = document.getElementById("inventoryEndDate");
-            const today = inventoryTodayDateValue();
-            if (startDateEl) startDateEl.value = today;
-            if (endDateEl) endDateEl.value = today;
+            const owsSearchInput = document.getElementById("owsSearchInput");
+            if (owsSearchInput) owsSearchInput.value = "";
+            const owsStatusSel = document.getElementById("owsStatusFilter");
+            if (owsStatusSel) owsStatusSel.value = "";
+            const owsPaymentSel = document.getElementById("owsPaymentFilter");
+            if (owsPaymentSel) owsPaymentSel.value = "";
+            setInventoryPeriodPreset("today", false);
             loadSelectedInventoryReport();
         });
     }
