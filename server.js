@@ -88,14 +88,32 @@ const server = http.createServer(app);
 // Optimize TCP connection reuse for mobile apps and web browsers (eliminates TLS renegotiation lag)
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
-const allowedOrigins = String(process.env.ALLOWED_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean);
-const isAllowedOrigin = (origin) => !origin ||
-  (process.env.NODE_ENV !== "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) ||
-  allowedOrigins.includes(origin);
+const allowedOrigins = String(process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // Same-origin or non-browser client (mobile apps, curl)
+  const norm = origin.trim().replace(/\/+$/, "");
+  if (allowedOrigins.includes(norm)) return true;
+  if (process.env.NODE_ENV !== "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(norm)) {
+    return true;
+  }
+  // Automatically trust servenow.pk and its subdomains
+  try {
+    const parsed = new URL(norm);
+    if (parsed.hostname === "servenow.pk" || parsed.hostname.endsWith(".servenow.pk")) {
+      return true;
+    }
+  } catch (_) {}
+  return false;
+};
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
     methods: ["GET", "POST"],
+    credentials: true,
   },
   transports: ["websocket", "polling"],
   pingInterval: 60000,
@@ -104,11 +122,23 @@ const io = new Server(server, {
 });
 
 io.use((socket, next) => {
-  const authorization = socket.handshake.headers.authorization || "";
-  const token = socket.handshake.auth?.token || (authorization.startsWith("Bearer ") ? authorization.slice(7) : null);
-  if (!token) return next(new Error("Authentication required"));
+  const authHeader = socket.handshake.headers.authorization || "";
+  const queryToken = socket.handshake.query?.token || "";
+  const authToken = socket.handshake.auth?.token || socket.handshake.auth?.accessToken || "";
+  const xAccessToken = socket.handshake.headers?.["x-access-token"] || "";
+
+  let rawToken = authToken || (authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader) || queryToken || xAccessToken;
+
+  if (typeof rawToken === "string") {
+    rawToken = rawToken.trim();
+    if (rawToken.startsWith("Bearer ")) {
+      rawToken = rawToken.slice(7).trim();
+    }
+  }
+
+  if (!rawToken) return next(new Error("Authentication required"));
   try {
-    socket.user = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = jwt.verify(rawToken, process.env.JWT_SECRET);
     return next();
   } catch (_) {
     return next(new Error("Invalid or expired token"));
@@ -142,9 +172,9 @@ io.on("connection", (socket) => {
       socket.join(userRoom);
       socket.join(typeRoom);
       
-      if (userType === 'admin') {
+      if (userType === 'admin' || userType === 'standard_user') {
         socket.join('admins');
-        console.log(`[Socket.IO] Admin ${socket.id} joined "admins" room`);
+        console.log(`[Socket.IO] Admin/Manager ${socket.id} joined "admins" room`);
       }
       
       debugLog(`Client ${socket.id} joined rooms: ${userRoom}, ${typeRoom}`);
@@ -280,13 +310,13 @@ console.log(
 const corsOptions = {
   origin: function (origin, callback) {
     if (isAllowedOrigin(origin)) {
-        callback(null, true);
+      callback(null, true);
     } else {
-        callback(new Error("CORS not allowed"));
+      callback(null, false);
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-access-token"],
   credentials: true,
 };
 
@@ -296,7 +326,23 @@ app.use(cors(corsOptions));
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss: https:; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests");
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://js.stripe.com",
+      "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com",
+      "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' ws: wss: https:",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
+    ].join("; ")
+  );
   res.setHeader(
     "Strict-Transport-Security",
     "max-age=31536000; includeSubDomains"
@@ -304,7 +350,7 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader(
     "Permissions-Policy",
-    "geolocation=(), microphone=(), camera=()"
+    "geolocation=(self), microphone=(), camera=()"
   );
   next();
 });
@@ -547,6 +593,29 @@ async function startServer() {
     console.log("Verified login_logs table exists");
   } catch (err) {
     console.error("Error creating login_logs table:", err);
+  }
+
+  // Create refresh_tokens table if not exists
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        user_type VARCHAR(32) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked_at TIMESTAMP NULL,
+        replaced_by_hash CHAR(64) NULL,
+        device_id VARCHAR(128) DEFAULT NULL,
+        INDEX idx_refresh_token_hash (token_hash),
+        INDEX idx_refresh_user (user_id, user_type),
+        INDEX idx_refresh_expires (expires_at)
+      )
+    `);
+    console.log("Verified refresh_tokens table exists");
+  } catch (err) {
+    console.error("Error creating refresh_tokens table:", err && err.message ? err.message : err);
   }
 
   try {

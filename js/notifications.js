@@ -10,15 +10,36 @@
         return;
     }
 
+    function getStoredToken() {
+        try {
+            return (
+                localStorage.getItem('serveNowToken') ||
+                sessionStorage.getItem('serveNowToken') ||
+                ''
+            ).trim();
+        } catch (_) {
+            return '';
+        }
+    }
+
     // Ensure API_BASE is properly set
-    const socketUrl = API_BASE || window.location.origin;
+    const socketUrl = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE : window.location.origin;
+    const initialToken = getStoredToken();
     const socket = io(socketUrl, {
-        auth: { token: localStorage.getItem('serveNowToken') || '' },
-        autoConnect: Boolean(localStorage.getItem('serveNowToken')),
+        auth: (cb) => {
+            const token = getStoredToken();
+            cb({ token });
+        },
+        query: () => {
+            const token = getStoredToken();
+            return token ? { token } : {};
+        },
+        transports: ['websocket', 'polling'],
+        autoConnect: Boolean(initialToken),
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5
+        reconnectionAttempts: 10
     });
     const eventListeners = new Map();
 
@@ -158,16 +179,19 @@
         }
     }
 
-    function emitUserIdentification() {
-        const user = getCurrentUser();
-        const token = localStorage.getItem('serveNowToken') || '';
+    function emitUserIdentification(userOverride) {
+        const user = userOverride || getCurrentUser() || (typeof currentUser !== 'undefined' ? currentUser : null) || window.currentUser;
+        const token = getStoredToken();
         socket.auth = { token };
-        if (user && token && !socket.connected) {
+        if (token && !socket.connected) {
             socket.connect();
             return;
         }
         if (user && socket.connected) {
-            socket.emit('identify_user');
+            socket.emit('identify_user', {
+                user_id: user.id,
+                user_type: user.user_type
+            });
             console.log(`[Socket] Identified as user ${user.id} (${user.user_type})`, 'Socket ID:', socket.id);
         }
     }
@@ -192,8 +216,15 @@
     });
 
     socket.on('connect_error', (error) => {
+        const errorMsg = error && error.message ? error.message : String(error || '');
+        if (errorMsg.includes('Authentication required') || errorMsg.includes('Invalid or expired token')) {
+            const currentToken = getStoredToken();
+            if (currentToken && !socket.connected) {
+                socket.auth = { token: currentToken };
+            }
+        }
         emitEvent('connect_error', {
-            message: error && error.message ? error.message : String(error || '')
+            message: errorMsg
         });
     });
 
@@ -213,11 +244,12 @@
 
     function getCurrentUser() {
         try {
-            const userData = localStorage.getItem('serveNowUser');
-            return userData ? JSON.parse(userData) : null;
-        } catch (e) {
-            return null;
-        }
+            const userData = localStorage.getItem('serveNowUser') || sessionStorage.getItem('serveNowUser');
+            if (userData) return JSON.parse(userData);
+        } catch (e) {}
+        if (typeof currentUser !== 'undefined' && currentUser) return currentUser;
+        if (window.currentUser) return window.currentUser;
+        return null;
     }
 
     // Notification Bell UI Management

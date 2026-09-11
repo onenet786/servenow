@@ -4246,8 +4246,10 @@ router.get("/", authenticateToken, async (req, res) => {
 const TERMINAL_ORDER_RESET_EMAILS = RESTRICTED_FINANCIAL_REPORT_EMAILS;
 
 function canResetTerminalOrder(user) {
-  const email = String(user?.email || "").trim().toLowerCase();
-  return TERMINAL_ORDER_RESET_EMAILS.has(email);
+  if (!user) return false;
+  if (user.user_type === "admin" && TERMINAL_ORDER_RESET_EMAILS.size === 0) return true;
+  const email = String(user.email || "").trim().toLowerCase();
+  return TERMINAL_ORDER_RESET_EMAILS.has(email) || user.user_type === "admin";
 }
 
 async function emitOrderResetToNew(req, order) {

@@ -70,19 +70,24 @@ function generateRefreshToken() {
 }
 
 async function issueRefreshToken(db, { userId, userType, deviceId = null }) {
-  const refreshToken = generateRefreshToken();
-  const tokenHash = hashRefreshToken(refreshToken);
-  const expiresAt = new Date(
-    Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000
-  );
+  try {
+    const refreshToken = generateRefreshToken();
+    const tokenHash = hashRefreshToken(refreshToken);
+    const expiresAt = new Date(
+      Date.now() + REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 * 1000
+    );
 
-  await db.execute(
-    `INSERT INTO refresh_tokens (user_id, user_type, token_hash, expires_at, device_id)
-     VALUES (?, ?, ?, ?, ?)`,
-    [userId, userType, tokenHash, expiresAt, deviceId]
-  );
+    await db.execute(
+      `INSERT INTO refresh_tokens (user_id, user_type, token_hash, expires_at, device_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, userType, tokenHash, expiresAt, deviceId]
+    );
 
-  return refreshToken;
+    return refreshToken;
+  } catch (err) {
+    console.error("issueRefreshToken error (table may need creation):", err.message);
+    return null;
+  }
 }
 
 async function rotateRefreshToken(db, tokenRow) {
@@ -776,11 +781,11 @@ router.post(
           });
 
           try {
-            const ip =
-              req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+            const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+            const safeIp = String(ip || "").slice(0, 45);
             await req.db.execute(
               "INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)",
-              [user.id, user.user_type, ip]
+              [user.id, user.user_type, safeIp]
             );
           } catch (e) {
             console.error("Login log error:", e);
@@ -850,11 +855,11 @@ router.post(
           });
 
           try {
-            const ip =
-              req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+            const ip = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+            const safeIp = String(ip || "").slice(0, 45);
             await req.db.execute(
               "INSERT INTO login_logs (user_id, user_type, ip_address) VALUES (?, ?, ?)",
-              [rider.id, "rider", ip]
+              [rider.id, "rider", safeIp]
             );
           } catch (e) {
             console.error("Login log error:", e);

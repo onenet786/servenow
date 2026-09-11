@@ -1440,7 +1440,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data && data.success && data.user) {
                 if (data.user.user_type === 'admin' || data.user.user_type === 'standard_user') {
                     currentUser = data.user;
-                    try { window.ServeNowNotifications?.identifyCurrentUser?.(); } catch (_) {}
+                    window.currentUser = data.user;
+                    try {
+                        localStorage.setItem('serveNowUser', JSON.stringify(data.user));
+                    } catch (_) {}
+                    try { window.ServeNowNotifications?.identifyCurrentUser?.(data.user); } catch (_) {}
                     initializeAdmin();
                 } else if (data.user.user_type === 'rider') {
                     window.location.href = 'rider.html';
