@@ -122,7 +122,13 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   }
 
   Future<void> _openWhatsApp(String phoneNumber) async {
-    final cleanPhone = phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
+    var cleanPhone = phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanPhone.isEmpty) return;
+    if (cleanPhone.startsWith('0') && cleanPhone.length == 11) {
+      cleanPhone = '92${cleanPhone.substring(1)}';
+    } else if (cleanPhone.startsWith('0092')) {
+      cleanPhone = cleanPhone.substring(2);
+    }
     final uri = Uri.parse('https://wa.me/$cleanPhone');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);

@@ -222,7 +222,12 @@ async function getCustomerSupportContact(db) {
     }
   }
 
-  if (!whatsapp) whatsapp = phone;
+  // Ensure WhatsApp matches the call contact number
+  if (phone) {
+    whatsapp = phone;
+  } else if (!whatsapp) {
+    whatsapp = phone;
+  }
   if (!name) name = "ServeNow Support";
 
   return {
