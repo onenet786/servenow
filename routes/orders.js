@@ -17,6 +17,7 @@ const {
   campaignsForProduct,
   applyCampaignToCartLine,
 } = require("../utils/offerCampaigns");
+const cache = require("../utils/cache");
 
 const router = express.Router();
 
@@ -332,8 +333,20 @@ async function ensureGlobalDeliveryStatusTable(db) {
 
 router.get("/delivery-fee-config", async (req, res) => {
   try {
+    const cached = cache.get("delivery_fee_config");
+    if (cached) {
+      res.setHeader("X-Cache", "HIT");
+      res.setHeader("Cache-Control", "public, max-age=60");
+      return res.json(cached);
+    }
+
     const cfg = await getDeliveryFeeConfig(req.db);
-    return res.json({ success: true, ...cfg });
+    const payload = { success: true, ...cfg };
+    cache.set("delivery_fee_config", payload, 60 * 1000);
+
+    res.setHeader("X-Cache", "MISS");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.json(payload);
   } catch (error) {
     console.error("Error loading delivery fee config:", error);
     return res.status(500).json({
@@ -3993,14 +4006,11 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
       }
     }
 
-    if (
-      req.user.user_type !== "admin" &&
-      req.user.user_type !== "standard_user" &&
-      req.user.id !== order.user_id &&
-      req.user.user_type === "rider" &&
-      req.user.id !== order.rider_id &&
-      !isStoreOwner
-    ) {
+    const isStaff = req.user.user_type === "admin" || req.user.user_type === "standard_user";
+    const isOrderCustomer = req.user.id === order.user_id;
+    const isAssignedRider = req.user.user_type === "rider" && req.user.id === order.rider_id;
+
+    if (!isStaff && !isOrderCustomer && !isAssignedRider && !isStoreOwner) {
       return res.status(403).json({
         success: false,
         message: "Access denied",

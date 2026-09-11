@@ -3,6 +3,7 @@ const { authenticateToken, requireAdmin, requirePermission } = require('../middl
 const fs = require('fs');
 const path = require('path');
 const { createImageUpload } = require('../middleware/upload');
+const cache = require('../utils/cache');
 const sharp = (() => {
     try { return require('sharp'); } catch (e) { return null; }
 })();
@@ -10,19 +11,33 @@ const upload = createImageUpload();
 
 const router = express.Router();
 
-// Get all categories
+// Get all categories (cached for 60s)
 router.get('/', async (req, res) => {
     try {
         const { includeInactive } = req.query;
+        const cacheKey = `categories_list_${includeInactive === 'true' ? 'all' : 'active'}`;
+        const cached = cache.get(cacheKey);
+
+        if (cached) {
+            res.setHeader('X-Cache', 'HIT');
+            res.setHeader('Cache-Control', 'public, max-age=60');
+            return res.json(cached);
+        }
+
         const whereClause = includeInactive === 'true' ? '' : 'WHERE is_active = true';
         const [categories] = await req.db.execute(
             `SELECT * FROM categories ${whereClause} ORDER BY name ASC`
         );
 
-        res.json({
+        const responsePayload = {
             success: true,
             categories
-        });
+        };
+
+        cache.set(cacheKey, responsePayload, 60 * 1000);
+        res.setHeader('X-Cache', 'MISS');
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        return res.json(responsePayload);
 
     } catch (error) {
         console.error('Error fetching categories:', error);
@@ -109,6 +124,8 @@ router.post('/', authenticateToken, requirePermission('action_manage_categories'
             [name.trim(), description.trim(), image_url]
         );
 
+        cache.clearPrefix('categories_');
+
         res.status(201).json({
             success: true,
             message: 'Category created successfully',
@@ -185,6 +202,8 @@ router.put('/:id', authenticateToken, requirePermission('action_manage_categorie
             `UPDATE categories SET ${updateFields.join(', ')} WHERE id = ?`,
             updateValues
         );
+
+        cache.clearPrefix('categories_');
 
         res.json({
             success: true,

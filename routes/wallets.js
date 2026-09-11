@@ -465,6 +465,7 @@ router.post('/transfers/send', authenticateToken, [
     body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0'),
     body('description').optional().trim().isLength({ max: 255 }).withMessage('Description too long')
 ], async (req, res) => {
+    let conn;
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -473,51 +474,73 @@ router.post('/transfers/send', authenticateToken, [
 
         const senderId = req.user.id;
         const { recipientId, amount, description } = req.body;
+        const transferAmount = parseFloat(amount);
 
-        if (senderId === recipientId) {
+        if (senderId === parseInt(recipientId, 10)) {
             return sendError(res, 'Cannot send money to yourself', 400);
         }
 
-        const [recipients] = await req.db.execute(
+        conn = await req.db.getConnection();
+        await conn.beginTransaction();
+
+        const [recipients] = await conn.execute(
             'SELECT id FROM users WHERE id = ?',
             [recipientId]
         );
 
         if (!recipients.length) {
+            await conn.rollback();
             return sendError(res, 'Recipient not found', 404);
         }
 
-        const senderWallet = await getOrCreateWallet(req.db, senderId);
-        
-        if (parseFloat(senderWallet.balance) < parseFloat(amount)) {
+        // Lock sender wallet
+        const senderWallet = await getOrCreateWallet(conn, senderId);
+        if (parseFloat(senderWallet.balance) < transferAmount) {
+            await conn.rollback();
             return sendError(res, 'Insufficient wallet balance', 400);
         }
 
-        const recipientWallet = await getOrCreateWallet(req.db, recipientId);
+        // Atomically deduct from sender wallet
+        const [updateRes] = await conn.execute(
+            'UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ? AND balance >= ?',
+            [transferAmount, transferAmount, senderWallet.id, transferAmount]
+        );
 
-        const [result] = await req.db.execute(
+        if (updateRes.affectedRows === 0) {
+            await conn.rollback();
+            return sendError(res, 'Insufficient wallet balance', 400);
+        }
+
+        const recipientWallet = await getOrCreateWallet(conn, recipientId);
+
+        const [result] = await conn.execute(
             `INSERT INTO wallet_transfers 
              (sender_id, recipient_id, amount, description, sender_wallet_id, recipient_wallet_id, status) 
              VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-            [senderId, recipientId, amount, description || '', senderWallet.id, recipientWallet.id]
+            [senderId, recipientId, transferAmount, description || '', senderWallet.id, recipientWallet.id]
         );
 
-        const newSenderBalance = parseFloat(senderWallet.balance) - parseFloat(amount);
+        const newSenderBalance = parseFloat(senderWallet.balance) - transferAmount;
         await recordWalletTransaction(
-            req.db, senderWallet.id, 'debit', amount, 
+            conn, senderWallet.id, 'debit', transferAmount, 
             `Transfer to user #${recipientId}`, 'transfer', result.insertId, newSenderBalance
         );
+
+        await conn.commit();
 
         return sendSuccess(res, { 
             transfer_id: result.insertId,
             status: 'pending',
-            amount,
+            amount: transferAmount,
             recipient_id: recipientId
         }, 'Transfer request created', 201);
 
     } catch (error) {
+        if (conn) await conn.rollback();
         logError('Transfer send', error);
         return sendServerError(res, error);
+    } finally {
+        if (conn) conn.release();
     }
 });
 
@@ -644,90 +667,68 @@ router.get('/transfers/received', authenticateToken, async (req, res) => {
 
 // Accept transfer
 router.post('/transfers/:id/accept', authenticateToken, async (req, res) => {
+    let conn;
     try {
         const transferId = req.params.id;
         const userId = req.user.id;
 
-        // 1. Get transfer
-        const [transfers] = await req.db.execute(
-            'SELECT * FROM wallet_transfers WHERE id = ?',
+        conn = await req.db.getConnection();
+        await conn.beginTransaction();
+
+        // 1. Get transfer with row lock
+        const [transfers] = await conn.execute(
+            'SELECT * FROM wallet_transfers WHERE id = ? FOR UPDATE',
             [transferId]
         );
 
         if (!transfers.length) {
+            await conn.rollback();
             return sendError(res, 'Transfer not found', 404);
         }
 
         const transfer = transfers[0];
 
         if (transfer.recipient_id !== userId) {
+            await conn.rollback();
             return sendError(res, 'Not authorized to accept this transfer', 403);
         }
 
         if (transfer.status !== 'pending') {
+            await conn.rollback();
             return sendError(res, `Cannot accept transfer with status: ${transfer.status}`, 400);
         }
 
-        // 2. Get wallets
-        const [senderWallets] = await req.db.execute(
-            'SELECT id, balance FROM wallets WHERE user_id = ?',
-            [transfer.sender_id]
+        // 2. Atomically mark completed
+        const [updateTransfer] = await conn.execute(
+            'UPDATE wallet_transfers SET status = ?, completed_at = NOW() WHERE id = ? AND status = ?',
+            ['completed', transferId, 'pending']
         );
 
-        const [recipientWallets] = await req.db.execute(
-            'SELECT id, balance FROM wallets WHERE user_id = ?',
-            [transfer.recipient_id]
-        );
-
-        if (!senderWallets.length || !recipientWallets.length) {
-            return sendError(res, 'Wallet not found', 404);
+        if (updateTransfer.affectedRows === 0) {
+            await conn.rollback();
+            return sendError(res, 'Transfer has already been processed', 400);
         }
 
-        const senderWallet = senderWallets[0];
-        const recipientWallet = recipientWallets[0];
+        // 3. Credit recipient's wallet
+        const recipientWallet = await getOrCreateWallet(conn, transfer.recipient_id);
+        const transferAmount = parseFloat(transfer.amount);
 
-        // 3. Verify sender still has enough balance
-        if (parseFloat(senderWallet.balance) < parseFloat(transfer.amount)) {
-            await req.db.execute(
-                'UPDATE wallet_transfers SET status = ?, rejection_reason = ? WHERE id = ?',
-                ['rejected', 'Sender insufficient balance', transferId]
-            );
-            return sendError(res, 'Transfer rejected: Sender has insufficient balance', 400);
-        }
-
-        // 4. Update balances
-        const newSenderBalance = parseFloat(senderWallet.balance) - parseFloat(transfer.amount);
-        const newRecipientBalance = parseFloat(recipientWallet.balance) + parseFloat(transfer.amount);
-
-        await req.db.execute(
-            'UPDATE wallets SET balance = ? WHERE id = ?',
-            [newSenderBalance, senderWallet.id]
+        await conn.execute(
+            'UPDATE wallets SET balance = balance + ?, total_credited = total_credited + ? WHERE id = ?',
+            [transferAmount, transferAmount, recipientWallet.id]
         );
 
-        await req.db.execute(
-            'UPDATE wallets SET balance = ? WHERE id = ?',
-            [newRecipientBalance, recipientWallet.id]
-        );
+        const newRecipientBalance = parseFloat(recipientWallet.balance) + transferAmount;
 
-        // 5. Update transfer status
-        await req.db.execute(
-            'UPDATE wallet_transfers SET status = ?, completed_at = NOW() WHERE id = ?',
-            ['completed', transferId]
-        );
-
-        // 6. Create wallet transaction for recipient
-        await req.db.execute(
+        // 4. Create wallet transaction for recipient
+        await conn.execute(
             `INSERT INTO wallet_transactions 
              (wallet_id, type, amount, description, reference_type, reference_id, balance_after) 
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [recipientWallet.id, 'credit', transfer.amount, `Transfer from user #${transfer.sender_id}`, 'transfer', transferId, newRecipientBalance]
+            [recipientWallet.id, 'credit', transferAmount, `Transfer from user #${transfer.sender_id}`, 'transfer', transferId, newRecipientBalance]
         );
 
-        // 7. Update sender's transaction
-        await req.db.execute(
-            'UPDATE wallet_transactions SET balance_after = ? WHERE reference_type = ? AND reference_id = ? AND type = ?',
-            [newSenderBalance, 'transfer', transferId, 'debit']
-        );
+        await conn.commit();
 
         return sendSuccess(res, {
             transfer_id: transferId,
@@ -736,8 +737,11 @@ router.post('/transfers/:id/accept', authenticateToken, async (req, res) => {
         }, 'Transfer accepted', 200);
 
     } catch (error) {
+        if (conn) await conn.rollback();
         console.error('Accept transfer error:', error);
         return sendServerError(res, error);
+    } finally {
+        if (conn) conn.release();
     }
 });
 
@@ -745,6 +749,7 @@ router.post('/transfers/:id/accept', authenticateToken, async (req, res) => {
 router.post('/transfers/:id/reject', authenticateToken, [
     body('reason').optional().trim().isLength({ max: 255 }).withMessage('Reason too long')
 ], async (req, res) => {
+    let conn;
     try {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
@@ -755,51 +760,68 @@ router.post('/transfers/:id/reject', authenticateToken, [
         const userId = req.user.id;
         const { reason } = req.body;
 
-        // 1. Get transfer
-        const [transfers] = await req.db.execute(
-            'SELECT * FROM wallet_transfers WHERE id = ?',
+        conn = await req.db.getConnection();
+        await conn.beginTransaction();
+
+        // 1. Get transfer with row lock
+        const [transfers] = await conn.execute(
+            'SELECT * FROM wallet_transfers WHERE id = ? FOR UPDATE',
             [transferId]
         );
 
         if (!transfers.length) {
+            await conn.rollback();
             return sendError(res, 'Transfer not found', 404);
         }
 
         const transfer = transfers[0];
 
         if (transfer.recipient_id !== userId) {
+            await conn.rollback();
             return sendError(res, 'Not authorized to reject this transfer', 403);
         }
 
         if (transfer.status !== 'pending') {
+            await conn.rollback();
             return sendError(res, `Cannot reject transfer with status: ${transfer.status}`, 400);
         }
 
-        // 2. Restore sender's balance
-        const [wallets] = await req.db.execute(
-            'SELECT id, balance FROM wallets WHERE user_id = ?',
+        // 2. Atomically mark rejected
+        const [updateTransfer] = await conn.execute(
+            'UPDATE wallet_transfers SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?',
+            ['rejected', reason || 'Not specified', transferId, 'pending']
+        );
+
+        if (updateTransfer.affectedRows === 0) {
+            await conn.rollback();
+            return sendError(res, 'Transfer has already been processed', 400);
+        }
+
+        // 3. Refund sender's wallet
+        const transferAmount = parseFloat(transfer.amount);
+        const [wallets] = await conn.execute(
+            'SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE',
             [transfer.sender_id]
         );
 
+        let newBalance = 0;
         if (wallets.length) {
-            const newBalance = parseFloat(wallets[0].balance) + parseFloat(transfer.amount);
-            await req.db.execute(
-                'UPDATE wallets SET balance = ? WHERE id = ?',
-                [newBalance, wallets[0].id]
+            newBalance = parseFloat(wallets[0].balance) + transferAmount;
+            await conn.execute(
+                'UPDATE wallets SET balance = balance + ?, total_spent = GREATEST(0, total_spent - ?) WHERE id = ?',
+                [transferAmount, transferAmount, wallets[0].id]
+            );
+
+            // Record refund in wallet_transactions
+            await conn.execute(
+                `INSERT INTO wallet_transactions 
+                 (wallet_id, type, amount, description, reference_type, reference_id, balance_after) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [wallets[0].id, 'credit', transferAmount, `Refund: Rejected transfer #${transferId}`, 'transfer', transferId, newBalance]
             );
         }
 
-        // 3. Update transfer status
-        await req.db.execute(
-            'UPDATE wallet_transfers SET status = ?, rejection_reason = ? WHERE id = ?',
-            ['rejected', reason || 'Not specified', transferId]
-        );
-
-        // 4. Delete sender's pending debit transaction
-        await req.db.execute(
-            'DELETE FROM wallet_transactions WHERE reference_type = ? AND reference_id = ? AND type = ?',
-            ['transfer', transferId, 'debit']
-        );
+        await conn.commit();
 
         return sendSuccess(res, {
             transfer_id: transferId,
@@ -807,62 +829,83 @@ router.post('/transfers/:id/reject', authenticateToken, [
         }, 'Transfer rejected', 200);
 
     } catch (error) {
+        if (conn) await conn.rollback();
         console.error('Reject transfer error:', error);
         return sendServerError(res, error);
+    } finally {
+        if (conn) conn.release();
     }
 });
 
 // Cancel transfer (sender only, before acceptance)
 router.post('/transfers/:id/cancel', authenticateToken, async (req, res) => {
+    let conn;
     try {
         const transferId = req.params.id;
         const userId = req.user.id;
 
-        // 1. Get transfer
-        const [transfers] = await req.db.execute(
-            'SELECT * FROM wallet_transfers WHERE id = ?',
+        conn = await req.db.getConnection();
+        await conn.beginTransaction();
+
+        // 1. Get transfer with row lock
+        const [transfers] = await conn.execute(
+            'SELECT * FROM wallet_transfers WHERE id = ? FOR UPDATE',
             [transferId]
         );
 
         if (!transfers.length) {
+            await conn.rollback();
             return sendError(res, 'Transfer not found', 404);
         }
 
         const transfer = transfers[0];
 
         if (transfer.sender_id !== userId) {
+            await conn.rollback();
             return sendError(res, 'Not authorized to cancel this transfer', 403);
         }
 
         if (transfer.status !== 'pending') {
+            await conn.rollback();
             return sendError(res, `Cannot cancel transfer with status: ${transfer.status}`, 400);
         }
 
-        // 2. Restore sender's balance
-        const [wallets] = await req.db.execute(
-            'SELECT id, balance FROM wallets WHERE user_id = ?',
+        // 2. Atomically mark cancelled
+        const [updateTransfer] = await conn.execute(
+            'UPDATE wallet_transfers SET status = ? WHERE id = ? AND status = ?',
+            ['cancelled', transferId, 'pending']
+        );
+
+        if (updateTransfer.affectedRows === 0) {
+            await conn.rollback();
+            return sendError(res, 'Transfer has already been processed', 400);
+        }
+
+        // 3. Refund sender's wallet
+        const transferAmount = parseFloat(transfer.amount);
+        const [wallets] = await conn.execute(
+            'SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE',
             [transfer.sender_id]
         );
 
+        let newBalance = 0;
         if (wallets.length) {
-            const newBalance = parseFloat(wallets[0].balance) + parseFloat(transfer.amount);
-            await req.db.execute(
-                'UPDATE wallets SET balance = ? WHERE id = ?',
-                [newBalance, wallets[0].id]
+            newBalance = parseFloat(wallets[0].balance) + transferAmount;
+            await conn.execute(
+                'UPDATE wallets SET balance = balance + ?, total_spent = GREATEST(0, total_spent - ?) WHERE id = ?',
+                [transferAmount, transferAmount, wallets[0].id]
+            );
+
+            // Record refund in wallet_transactions
+            await conn.execute(
+                `INSERT INTO wallet_transactions 
+                 (wallet_id, type, amount, description, reference_type, reference_id, balance_after) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [wallets[0].id, 'credit', transferAmount, `Refund: Cancelled transfer #${transferId}`, 'transfer', transferId, newBalance]
             );
         }
 
-        // 3. Update transfer status
-        await req.db.execute(
-            'UPDATE wallet_transfers SET status = ? WHERE id = ?',
-            ['cancelled', transferId]
-        );
-
-        // 4. Delete pending debit transaction
-        await req.db.execute(
-            'DELETE FROM wallet_transactions WHERE reference_type = ? AND reference_id = ? AND type = ?',
-            ['transfer', transferId, 'debit']
-        );
+        await conn.commit();
 
         return sendSuccess(res, {
             transfer_id: transferId,
@@ -870,8 +913,11 @@ router.post('/transfers/:id/cancel', authenticateToken, async (req, res) => {
         }, 'Transfer cancelled', 200);
 
     } catch (error) {
+        if (conn) await conn.rollback();
         console.error('Cancel transfer error:', error);
         return sendServerError(res, error);
+    } finally {
+        if (conn) conn.release();
     }
 });
 

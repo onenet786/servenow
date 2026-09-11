@@ -212,6 +212,22 @@ router.post(
   requirePermission('menu_settings_database'),
   async (req, res) => {
     try {
+      // SECURITY: Restrict to full admin role
+      if (req.user.user_type !== "admin") {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Only super administrators may execute database schema changes.",
+        });
+      }
+
+      // SECURITY: Require explicit server-level feature flag
+      if (process.env.ALLOW_EXECUTE_SQL !== "true") {
+        return res.status(403).json({
+          success: false,
+          message: "Dynamic SQL execution is disabled for security. Set ALLOW_EXECUTE_SQL=true in environment to enable.",
+        });
+      }
+
       const { sql } = req.body || {};
       if (!sql || typeof sql !== "string")
         return res
@@ -239,10 +255,10 @@ router.post(
       return res.json({ success: true, result });
     } catch (err) {
       console.error("Error executing SQL:", err && err.stack ? err.stack : err);
-      const payload = { success: false, message: "SQL execution failed" };
-      if (err && err.message) payload.error = err.message;
-      if (err && err.sqlMessage) payload.sqlMessage = err.sqlMessage;
-      return res.status(500).json(payload);
+      return res.status(500).json({
+        success: false,
+        message: "SQL execution failed",
+      });
     }
   }
 );
@@ -3296,6 +3312,14 @@ router.get(
   requirePermission('menu_settings_backup'),
   async (req, res) => {
     try {
+      // SECURITY: Require admin role for full database export download
+      if (req.user.user_type !== "admin") {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Only super administrators may download database backups.",
+        });
+      }
+
       const file = req.query.file;
       if (!file)
         return res
@@ -3307,13 +3331,14 @@ router.get(
         return res
           .status(404)
           .json({ success: false, message: "File not found" });
+
+      console.warn(`[SECURITY AUDIT] Backup downloaded: "${safe}" by user #${req.user.id} (${req.user.email || req.user.phone || 'admin'}) from IP ${req.ip}`);
       return res.download(filepath);
     } catch (err) {
       console.error("Download backup error:", err);
       return res.status(500).json({
         success: false,
         message: "Download failed",
-        error: err.message,
       });
     }
   }

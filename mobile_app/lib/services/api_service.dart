@@ -39,8 +39,10 @@ class ApiService {
   static final Map<String, _CacheEntry<Map<String, dynamic>>> _storesCache = {};
   static final Map<String, _CacheEntry<Map<String, dynamic>>>
   _storeDetailsCache = {};
+  static _CacheEntry<List<dynamic>>? _categoriesCache;
   static const Duration _storesCacheTtl = Duration(minutes: 2);
   static const Duration _storeDetailsCacheTtl = Duration(minutes: 2);
+  static const Duration _categoriesCacheTtl = Duration(minutes: 5);
   static DateTime? _lastServerTime;
 
   static DateTime? get lastServerTime => _lastServerTime;
@@ -503,12 +505,20 @@ class ApiService {
     return data;
   }
 
-  static Future<List<dynamic>> getCategories() async {
+  static Future<List<dynamic>> getCategories({bool forceRefresh = false}) async {
+    if (!forceRefresh && _categoriesCache != null && _categoriesCache!.isFresh) {
+      return _categoriesCache!.value;
+    }
     final uri = Uri.parse('$baseUrl/api/categories');
     _logger.d('ApiService: GET $uri');
     final response = await _get(uri);
     final data = _handleResponse(response);
-    return data['categories'] ?? [];
+    final categories = (data['categories'] as List<dynamic>?) ?? [];
+    _categoriesCache = _CacheEntry<List<dynamic>>(
+      value: categories,
+      expiresAt: DateTime.now().add(_categoriesCacheTtl),
+    );
+    return categories;
   }
 
   static Future<Map<String, dynamic>> getStoreDetails(

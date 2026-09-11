@@ -80,7 +80,14 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
+// Enable reverse proxy support (aaPanel / Nginx / Cloudflare) to read real client IP from X-Forwarded-For
+app.set("trust proxy", 1);
+
 const server = http.createServer(app);
+
+// Optimize TCP connection reuse for mobile apps and web browsers (eliminates TLS renegotiation lag)
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
 const allowedOrigins = String(process.env.ALLOWED_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean);
 const isAllowedOrigin = (origin) => !origin ||
   (process.env.NODE_ENV !== "production" && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) ||
@@ -258,6 +265,7 @@ app.use("/api/", limiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/forgot-password", passwordResetLimiter);
+app.use("/api/auth/verify-reset-otp", passwordResetLimiter);
 app.use("/api/auth/reset-password", passwordResetLimiter);
 app.use("/api/auth/resend-verification", passwordResetLimiter);
 app.use("/api/users/request-deletion", passwordResetLimiter);
@@ -316,20 +324,51 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 console.log("Middleware setup complete.");
 
-// Static files
+// Static files - High-performance caching options
 console.log("Setting up static file serving...");
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use("/images", express.static(path.join(__dirname, "images")));
-app.use("/next", express.static(path.join(__dirname, "webapp_v2"), { etag: true }));
-console.log("Static files configured for /uploads and /images paths.");
+const isProd = process.env.NODE_ENV === "production";
+
+// Images & uploads: Cache for 30 days in production with immutable directive
+const staticMediaOptions = {
+  maxAge: isProd ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => {
+    if (isProd) {
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=86400");
+    }
+  },
+};
+
+// Web scripts & styles: Cache for 7 days in production
+const staticAssetOptions = {
+  maxAge: isProd ? 7 * 24 * 60 * 60 * 1000 : 0,
+  etag: true,
+  lastModified: true,
+  dotfiles: "deny",
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith(".html")) {
+      res.setHeader("Cache-Control", "no-cache");
+    } else if (isProd) {
+      res.setHeader("Cache-Control", "public, max-age=604800");
+    }
+  },
+};
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), staticMediaOptions));
+app.use("/images", express.static(path.join(__dirname, "images"), staticMediaOptions));
+app.use("/next", express.static(path.join(__dirname, "webapp_v2"), staticAssetOptions));
+console.log("Static files configured with 30-day client cache for /uploads and /images.");
 
 // Database connection pool
 let pool;
 async function connectDB() {
   console.log("Attempting to connect to database...");
   try {
-    const connectionLimit = process.env.NODE_ENV === "production" ? 20 : 10;
-    const ssl = process.env.NODE_ENV === "production" ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" } : undefined;
+    const connectionLimit = isProd ? 25 : 10;
+    const ssl = isProd ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" } : undefined;
     pool = await mysql.createPool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
@@ -341,7 +380,8 @@ async function connectDB() {
       connectionLimit: connectionLimit,
       queueLimit: 0,
       enableKeepAlive: true,
-      maxIdle: 30000,
+      keepAliveInitialDelay: 10000,
+      maxIdle: connectionLimit,
       idleTimeout: 60000
     });
     console.log(`Connected to MySQL database pool: ${process.env.DB_NAME}`);
@@ -442,35 +482,11 @@ app.get("/next/verify-email", (req, res) => {
   res.sendFile(path.join(__dirname, "webapp_v2", "verify-email.html"));
 });
 
-// Caching strategy for frontend assets
-app.use((req, res, next) => {
-  if (req.path.endsWith(".js") || req.path.endsWith(".css")) {
-    if (process.env.NODE_ENV === "production") {
-      res.setHeader("Cache-Control", "public, max-age=86400");
-    } else {
-      res.setHeader("Cache-Control", "no-store");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-    }
-  } else if (req.path.endsWith(".html")) {
-    if (process.env.NODE_ENV === "production") {
-      res.setHeader("Cache-Control", "no-cache");
-    } else {
-      res.setHeader("Cache-Control", "no-store");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-    }
-  } else if (req.path.startsWith("/images/") || req.path.startsWith("/uploads/")) {
-    res.setHeader("Cache-Control", "public, max-age=604800");
-  }
-  next();
-});
-
 // Serve static files from the root directory for the frontend
 console.log("Setting up frontend static file serving...");
-app.use("/css", express.static(path.join(__dirname, "css"), { etag: true, dotfiles: "deny" }));
-app.use("/js", express.static(path.join(__dirname, "js"), { etag: true, dotfiles: "deny" }));
-app.use("/style", express.static(path.join(__dirname, "style"), { etag: true, dotfiles: "deny" }));
+app.use("/css", express.static(path.join(__dirname, "css"), staticAssetOptions));
+app.use("/js", express.static(path.join(__dirname, "js"), staticAssetOptions));
+app.use("/style", express.static(path.join(__dirname, "style"), staticAssetOptions));
 const publicHtmlFiles = new Set([
   "index.html", "login.html", "register.html", "forgot-password.html", "reset-password.html", "profile.html",
   "stores.html", "store.html", "products.html", "cart.html", "checkout.html", "orders.html",

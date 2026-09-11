@@ -13,6 +13,43 @@ const {
 
 const router = express.Router();
 
+// In-memory brute-force protection for password reset OTPs
+const otpAttemptsMap = new Map();
+const MAX_OTP_ATTEMPTS = 5;
+const OTP_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkOtpLockout(email) {
+  const normEmail = (email || "").toLowerCase().trim();
+  const record = otpAttemptsMap.get(normEmail);
+  if (!record) return { locked: false, attempts: 0 };
+  if (Date.now() - record.lastAttempt > OTP_LOCKOUT_MS) {
+    otpAttemptsMap.delete(normEmail);
+    return { locked: false, attempts: 0 };
+  }
+  if (record.attempts >= MAX_OTP_ATTEMPTS) {
+    return {
+      locked: true,
+      attempts: record.attempts,
+      remainingMinutes: Math.ceil((OTP_LOCKOUT_MS - (Date.now() - record.lastAttempt)) / 60000),
+    };
+  }
+  return { locked: false, attempts: record.attempts };
+}
+
+function recordOtpFailure(email) {
+  const normEmail = (email || "").toLowerCase().trim();
+  const record = otpAttemptsMap.get(normEmail) || { attempts: 0, lastAttempt: Date.now() };
+  record.attempts += 1;
+  record.lastAttempt = Date.now();
+  otpAttemptsMap.set(normEmail, record);
+  return record.attempts;
+}
+
+function clearOtpAttempts(email) {
+  const normEmail = (email || "").toLowerCase().trim();
+  otpAttemptsMap.delete(normEmail);
+}
+
 const ACCESS_TOKEN_EXPIRE = process.env.JWT_EXPIRE || "7d";
 const REFRESH_TOKEN_EXPIRE_DAYS = parseInt(
   process.env.REFRESH_TOKEN_EXPIRE_DAYS || "30",
@@ -280,6 +317,7 @@ router.post(
       }
 
       await sendPasswordResetOTP(email, otp);
+      clearOtpAttempts(email);
 
       return res.json({
         success: true,
@@ -316,6 +354,15 @@ router.post(
 
       const { email, otp } = req.body;
 
+      // Check brute-force lockout
+      const lockout = checkOtpLockout(email);
+      if (lockout.locked) {
+        return res.status(429).json({
+          success: false,
+          message: `Too many failed attempts. Please wait ${lockout.remainingMinutes} minute(s) before trying again or request a new OTP.`,
+        });
+      }
+
       // Check users
       const [users] = await req.db.execute(
         "SELECT id FROM users WHERE email = ? AND reset_password_token = ? AND reset_password_expires > NOW()",
@@ -329,11 +376,32 @@ router.post(
       );
 
       if (users.length === 0 && riders.length === 0) {
+        const attempts = recordOtpFailure(email);
+        if (attempts >= MAX_OTP_ATTEMPTS) {
+          // Invalidate tokens immediately in the database
+          await req.db.execute(
+            "UPDATE users SET reset_password_token = NULL, reset_password_expires = NULL WHERE email = ?",
+            [email]
+          );
+          await req.db.execute(
+            "UPDATE riders SET reset_password_token = NULL, reset_password_expires = NULL WHERE email = ?",
+            [email]
+          );
+          return res.status(429).json({
+            success: false,
+            message: "Maximum verification attempts exceeded. Your OTP has been invalidated for security. Please request a new OTP.",
+          });
+        }
+
+        const remaining = MAX_OTP_ATTEMPTS - attempts;
         return res.status(400).json({
           success: false,
-          message: "Invalid or expired OTP.",
+          message: `Invalid or expired OTP. ${remaining} attempt(s) remaining.`,
         });
       }
+
+      // Success: clear failed attempts
+      clearOtpAttempts(email);
 
       // Generate a temporary secure token for the password reset step
       const resetToken = crypto.randomBytes(32).toString("hex");
@@ -361,7 +429,6 @@ router.post(
       return res.status(500).json({
         success: false,
         message: "Failed to verify OTP.",
-        error: error.message,
       });
     }
   }
