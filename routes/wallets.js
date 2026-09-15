@@ -117,12 +117,16 @@ router.get('/balance', authenticateToken, async (req, res) => {
                 const correctionAmount = (2 * legacyDebitTotal) - legacyCreditTotal;
 
                 if (correctionAmount > 0) {
-                    const updatedBalance = parseFloat(wallet.balance || 0) + correctionAmount;
-
                     await req.db.execute(
-                        'UPDATE wallets SET balance = ?, total_credited = total_credited + ? WHERE id = ?',
-                        [updatedBalance, correctionAmount, wallet.id]
+                        'UPDATE wallets SET balance = balance + ?, total_credited = total_credited + ? WHERE id = ?',
+                        [correctionAmount, correctionAmount, wallet.id]
                     );
+
+                    const [refreshedWallet] = await req.db.execute(
+                        'SELECT balance FROM wallets WHERE id = ?',
+                        [wallet.id]
+                    );
+                    const updatedBalance = parseFloat(refreshedWallet[0]?.balance || (parseFloat(wallet.balance || 0) + correctionAmount));
 
                     await req.db.execute(
                         `INSERT INTO wallet_transactions
@@ -215,11 +219,16 @@ router.post('/topup', authenticateToken, [
             return sendError(res, 'Payment failed', 400);
         }
 
-        const newBalance = parseFloat(wallet.balance || 0) + parseFloat(amount);
         await req.db.execute(
-            'UPDATE wallets SET balance = ?, total_credited = total_credited + ?, last_credited_at = NOW() WHERE id = ?',
-            [newBalance, amount, wallet.id]
+            'UPDATE wallets SET balance = balance + ?, total_credited = total_credited + ?, last_credited_at = NOW() WHERE id = ?',
+            [amount, amount, wallet.id]
         );
+
+        const [freshRows] = await req.db.execute(
+            'SELECT balance FROM wallets WHERE id = ?',
+            [wallet.id]
+        );
+        const newBalance = parseFloat(freshRows[0]?.balance || (parseFloat(wallet.balance || 0) + parseFloat(amount)));
 
         const transactionId = await recordWalletTransaction(
             req.db, wallet.id, 'credit', amount, 

@@ -7523,33 +7523,6 @@ async function recordUserWalletTransaction(db, userId, type, amount, description
     return { walletId: wallet.id, newBalance };
 }
 
-router.delete('/reports/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const [result] = await req.db.execute('DELETE FROM financial_reports WHERE id = ?', [id]);
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Report not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            message: 'Report deleted successfully'
-        });
-    } catch (error) {
-        console.error('Error deleting report:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to delete report',
-            error: error.message
-        });
-    }
-});
-
 router.post('/banks', [
     body('name').trim().notEmpty(),
     body('account_number').optional().trim(),

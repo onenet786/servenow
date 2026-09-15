@@ -2807,11 +2807,19 @@ function switchTab(tabName) {
             break;
         case 'inventory-report':
             if (typeof window.setInventoryReportScope === 'function') window.setInventoryReportScope('inventory');
-            loadInventoryReport();
+            if (typeof window.loadSelectedInventoryReport === 'function') {
+                window.loadSelectedInventoryReport();
+            } else if (typeof loadInventoryReport === 'function') {
+                loadInventoryReport();
+            }
             break;
         case 'sale-reports':
             if (typeof window.setInventoryReportScope === 'function') window.setInventoryReportScope('sales');
-            loadInventoryReport();
+            if (typeof window.loadSelectedInventoryReport === 'function') {
+                window.loadSelectedInventoryReport();
+            } else if (typeof loadInventoryReport === 'function') {
+                loadInventoryReport();
+            }
             break;
         case 'rider-reports':
             if (typeof populateReportFilters === 'function') populateReportFilters();

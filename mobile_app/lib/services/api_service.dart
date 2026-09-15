@@ -104,9 +104,7 @@ class ApiService {
         lower.contains('timeout') ||
         lower.contains('network request failed') ||
         lower.contains('socketexception') ||
-        lower.contains('clientexception') ||
-        lower.contains('23.137.84.249') ||
-        lower.contains('servenow.pk');
+        lower.contains('clientexception');
   }
 
   static Future<String?> _refreshAccessTokenOnce() async {

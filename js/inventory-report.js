@@ -9,7 +9,7 @@ let currentCustomerDetailsRows = [];
 let currentCustomerOrderSummaryRows = [];
 let currentCustomerSummaryRows = [];
 let currentCustomerDetailsFilterLoaded = false;
-let currentInventoryReportScope = "inventory";
+let currentInventoryReportScope = "sales";
 let expandedStoreSalesStoreId = null;
 let currentOrderWiseSalesData = null;
 let currentOrderWiseOrders = [];
@@ -18,6 +18,7 @@ let expandedOrderIds = new Set();
 
 const inventoryReportOptions = {
     inventory: [
+        { value: "order-wise-sales", label: "Order-Wise Sales Report (Daily / Weekly / Monthly / Custom)" },
         { value: "store", label: "Store-wise Inventory" },
         { value: "category", label: "Category-wise Inventory" },
         { value: "breakdown", label: "Store-wise Category Breakdown" },
@@ -38,13 +39,17 @@ const inventoryReportOptions = {
 
 function inventoryMoney(value) {
     const n = Number(value);
-    if (!Number.isFinite(n)) return "N/A";
-    return `PKR ${n.toFixed(2)}`;
+    if (!Number.isFinite(n)) return "PKR 0.00";
+    return `PKR ${n.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function inventoryNumber(value) {
     const n = Number(value);
-    return Number.isFinite(n) ? n.toLocaleString() : "0";
+    if (!Number.isFinite(n)) return "0";
+    if (Math.round(n) === n) {
+        return n.toLocaleString("en-PK");
+    }
+    return n.toLocaleString("en-PK", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function inventoryDateTime(value) {
@@ -107,12 +112,7 @@ function applyInventoryReportScope() {
 
     const heading = document.getElementById("inventoryReportHeading");
     if (heading) {
-        heading.textContent = currentInventoryReportScope === "sales" ? "Sale Reports" : "Inventory Report";
-    }
-
-    const summaryCards = document.getElementById("inventorySummaryCards");
-    if (summaryCards) {
-        summaryCards.style.display = currentInventoryReportScope === "sales" ? "none" : "";
+        heading.textContent = currentInventoryReportScope === "sales" ? "Order-Wise Sales Report" : "Inventory & Sales Reports";
     }
 
     const options = getInventoryReportOptionsForScope(currentInventoryReportScope);
@@ -122,13 +122,16 @@ function applyInventoryReportScope() {
         .join("");
 
     const hasCurrent = options.some((option) => option.value === currentValue);
-    reportSelect.value = hasCurrent
-        ? currentValue
-        : (currentInventoryReportScope === "sales" ? "order-wise-sales" : "store");
+    reportSelect.value = hasCurrent ? currentValue : "order-wise-sales";
+
+    const summaryCards = document.getElementById("inventorySummaryCards");
+    if (summaryCards) {
+        summaryCards.style.display = (reportSelect.value === "order-wise-sales" || currentInventoryReportScope === "sales") ? "none" : "";
+    }
 }
 
 function setInventoryReportScope(scope) {
-    currentInventoryReportScope = scope === "sales" ? "sales" : "inventory";
+    currentInventoryReportScope = scope === "inventory" ? "inventory" : "sales";
     applyInventoryReportScope();
 }
 
@@ -233,7 +236,7 @@ function getSelectedInventoryDateRange() {
 function buildInventorySalesQuery() {
     const params = new URLSearchParams();
     const storeId = getSelectedInventoryStoreId();
-    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
+    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "order-wise-sales";
     const customerId = activeType === "customer-details" ? getSelectedInventoryCustomerId() : null;
     const customerReportMode = activeType === "customer-details" ? getSelectedCustomerDetailsReportMode() : "";
     const { startDate, endDate } = getSelectedInventoryDateRange();
@@ -547,6 +550,29 @@ function populateInventoryStoreFilter(stores, selectedStoreId) {
     }
 }
 
+async function ensureInventoryStoresLoaded() {
+    const select = document.getElementById("inventoryStoreFilter");
+    if (!select || select.options.length > 1) return;
+    if (window.AppState && Array.isArray(window.AppState.stores) && window.AppState.stores.length > 0) {
+        populateInventoryStoreFilter(window.AppState.stores);
+        return;
+    }
+    try {
+        const apiBase = window.API_BASE || `${window.location.protocol}//${window.location.host}`;
+        const token = localStorage.getItem("serveNowToken");
+        const res = await fetch(`${apiBase}/api/stores?admin=1`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        const stores = data.stores || (Array.isArray(data) ? data : []);
+        if (stores.length > 0) {
+            populateInventoryStoreFilter(stores);
+        }
+    } catch (e) {
+        console.warn("Failed to load stores for inventory filter", e);
+    }
+}
+
 function displayInventoryReport(data) {
     const summary = data.summary || {};
 
@@ -574,12 +600,17 @@ function displayStoreWiseInventory(stores) {
     tbody.innerHTML = "";
 
     (stores || []).forEach((store) => {
+        const stock = Number(store.total_stock) || 0;
+        const isZero = stock <= 0;
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${store.store_name}</td>
-            <td>${inventoryNumber(store.total_products)}</td>
-            <td>${inventoryNumber(store.total_stock)}</td>
-            <td>${inventoryMoney(store.total_inventory_value)}</td>
+            <td><strong class="store-row-title">${inventoryEscapeHtml(store.store_name)}</strong></td>
+            <td class="text-right num-cell">${inventoryNumber(store.total_products)}</td>
+            <td class="text-right num-cell ${isZero ? 'stock-warning-cell' : ''}">
+                ${inventoryNumber(store.total_stock)}
+                ${isZero ? '<span class="badge-stock-zero">0 stock</span>' : ''}
+            </td>
+            <td class="text-right num-cell font-bold text-money">${inventoryMoney(store.total_inventory_value)}</td>
         `;
         tbody.appendChild(row);
     });
@@ -593,10 +624,10 @@ function displayCategoryWiseInventory(categories) {
     (categories || []).forEach((category) => {
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${category.category_name}</td>
-            <td>${inventoryNumber(category.total_products)}</td>
-            <td>${inventoryNumber(category.total_stock)}</td>
-            <td>${inventoryMoney(category.total_inventory_value)}</td>
+            <td><strong class="category-row-title">${inventoryEscapeHtml(category.category_name)}</strong></td>
+            <td class="text-right num-cell">${inventoryNumber(category.total_products)}</td>
+            <td class="text-right num-cell">${inventoryNumber(category.total_stock)}</td>
+            <td class="text-right num-cell font-bold text-money">${inventoryMoney(category.total_inventory_value)}</td>
         `;
         tbody.appendChild(row);
     });
@@ -2240,18 +2271,12 @@ function toggleOrderWiseRow(orderId) {
         expandedOrderIds.add(orderId);
     }
     const row = document.getElementById(`ows-row-items-${orderId}`);
-    const btn = document.getElementById(`ows-expand-btn-${orderId}`);
+    const chevron = document.getElementById(`ows-chevron-${orderId}`);
     if (row) {
         row.style.display = expandedOrderIds.has(orderId) ? "table-row" : "none";
     }
-    if (btn) {
-        if (expandedOrderIds.has(orderId)) {
-            btn.classList.add("expanded");
-            btn.innerHTML = '<i class="fas fa-minus"></i>';
-        } else {
-            btn.classList.remove("expanded");
-            btn.innerHTML = '<i class="fas fa-plus"></i>';
-        }
+    if (chevron) {
+        chevron.className = expandedOrderIds.has(orderId) ? "fas fa-chevron-down" : "fas fa-chevron-right";
     }
 }
 window.toggleOrderWiseRow = toggleOrderWiseRow;
@@ -2303,10 +2328,8 @@ function renderOrderWiseSalesTable() {
     if (orders.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="14" style="text-align: center; padding: 48px 16px; color: #64748b;">
-                    <i class="fas fa-inbox" style="font-size: 2.2rem; color: #cbd5e1; margin-bottom: 12px; display: block;"></i>
-                    <strong style="font-size: 1.05rem; color: #334155;">No Orders Found</strong>
-                    <p style="margin: 4px 0 0 0; font-size: 0.88rem;">No sales records match your chosen date range and filters.</p>
+                <td colspan="14" style="text-align: center; padding: 2rem 1rem; color: #64748b;">
+                    No orders found for the selected date range.
                 </td>
             </tr>
         `;
@@ -2340,10 +2363,10 @@ function renderOrderWiseSalesTable() {
                 const itemMarginColor = itemMargin >= 20 ? "#059669" : itemMargin >= 0 ? "#d97706" : "#dc2626";
                 return `
                     <tr>
-                        <td style="text-align: center; color: #94a3b8; font-size: 0.78rem;">${idx + 1}</td>
-                        <td style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.product_name)}</td>
-                        <td style="color: #64748b;">${inventoryEscapeHtml(item.variant_label || "-")}</td>
-                        <td style="color: #475569; font-weight: 500;">${inventoryEscapeHtml(item.store_name)}</td>
+                        <td style="text-align: center; color: #94a3b8; font-size: 0.74rem;">${idx + 1}</td>
+                        <td style="font-weight: 600; color: #0f172a; text-align: left;">${inventoryEscapeHtml(item.product_name)}</td>
+                        <td style="color: #64748b; text-align: left;">${inventoryEscapeHtml(item.variant_label || "-")}</td>
+                        <td style="color: #475569; font-weight: 500; text-align: left;">${inventoryEscapeHtml(item.store_name)}</td>
                         <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.quantity)}</td>
                         <td style="text-align: right; color: #64748b;">${inventoryMoney(item.unit_cost)}</td>
                         <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.unit_price)}</td>
@@ -2354,33 +2377,30 @@ function renderOrderWiseSalesTable() {
                     </tr>
                 `;
             }).join("")
-            : `<tr><td colspan="11" style="text-align: center; color: #94a3b8; padding: 12px;">No line items recorded for this order.</td></tr>`;
+            : `<tr><td colspan="11" style="text-align: center; color: #94a3b8; padding: 10px;">No line items recorded for this order.</td></tr>`;
 
         return `
-            <tr style="cursor: pointer; transition: background 0.15s ease;" onclick="if (!event.target.closest('button') && !event.target.closest('a')) toggleOrderWiseRow(${order.order_id})">
-                <td style="text-align: center; width: 36px; padding: 8px 4px;">
-                    <button type="button" class="ows-expand-btn ${isExpanded ? 'expanded' : ''}" id="ows-expand-btn-${order.order_id}" onclick="event.stopPropagation(); toggleOrderWiseRow(${order.order_id})" title="View line items">
-                        <i class="fas ${isExpanded ? 'fa-minus' : 'fa-plus'}"></i>
-                    </button>
+            <tr class="store-sales-summary-row" style="cursor: pointer;" onclick="toggleOrderWiseRow(${order.order_id})" title="Click to show order line items">
+                <td style="text-align: center;">
+                    <i id="ows-chevron-${order.order_id}" class="fas ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="color: #64748b; font-size: 0.72rem;"></i>
                 </td>
-                <td style="font-family: monospace; font-weight: 700; color: #2563eb; white-space: nowrap;">
+                <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">
                     #${inventoryEscapeHtml(order.order_number)}
                 </td>
-                <td style="white-space: nowrap; font-size: 0.82rem; color: #475569;">
+                <td style="text-align: center; color: #475569;">
                     ${inventoryDateTime(order.created_at)}
                 </td>
-                <td style="min-width: 140px;">
-                    <div style="font-weight: 600; color: #0f172a; font-size: 0.88rem;">${inventoryEscapeHtml(order.customer_name)}</div>
-                    <div style="font-size: 0.78rem; color: #64748b;"><i class="fas fa-phone-alt" style="font-size: 0.7rem;"></i> ${inventoryEscapeHtml(order.customer_phone)}</div>
-                    ${order.delivery_address && order.delivery_address !== '-' ? `<div style="font-size: 0.74rem; color: #94a3b8; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${inventoryEscapeHtml(order.delivery_address)}"><i class="fas fa-map-marker-alt" style="font-size: 0.7rem;"></i> ${inventoryEscapeHtml(order.delivery_address)}</div>` : ''}
+                <td style="text-align: left;">
+                    <div style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(order.customer_name)}</div>
+                    <div style="font-size: 0.72rem; color: #64748b;"><i class="fas fa-phone-alt" style="font-size: 0.65rem;"></i> ${inventoryEscapeHtml(order.customer_phone)}</div>
                 </td>
-                <td style="font-size: 0.84rem; font-weight: 500; color: #334155;">
+                <td style="text-align: left; font-weight: 500; color: #334155;">
                     ${inventoryEscapeHtml(order.store_names)}
                 </td>
-                <td>
+                <td style="text-align: center;">
                     ${getOrderWiseStatusBadge(order.order_status)}
                 </td>
-                <td>
+                <td style="text-align: center;">
                     ${getOrderWisePaymentBadge(order.payment_method)}
                 </td>
                 <td style="text-align: right; font-weight: 600;">
@@ -2389,10 +2409,10 @@ function renderOrderWiseSalesTable() {
                 <td style="text-align: right; font-weight: 600; color: #0f172a;">
                     ${inventoryMoney(order.product_sales)}
                 </td>
-                <td style="text-align: right; color: #f59e0b; font-weight: 600;">
+                <td style="text-align: right; color: #d97706; font-weight: 600;">
                     ${inventoryMoney(order.delivery_fee)}
                 </td>
-                <td style="text-align: right; font-weight: 800; color: #0f172a;">
+                <td style="text-align: right; font-weight: 700; color: #0f172a;">
                     ${inventoryMoney(order.order_total)}
                 </td>
                 <td style="text-align: right; color: #64748b;">
@@ -2405,36 +2425,38 @@ function renderOrderWiseSalesTable() {
                     ${order.profit_margin.toFixed(1)}%
                 </td>
             </tr>
-            <tr class="ows-detail-row" id="ows-row-items-${order.order_id}" style="display: ${isExpanded ? 'table-row' : 'none'};">
-                <td colspan="14" style="padding: 10px 14px 14px 14px; background: #f8fafc; border-left: 3px solid #6366f1; border-bottom: 2px solid #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span style="font-size: 0.82rem; font-weight: 700; color: #4338ca; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <i class="fas fa-boxes"></i> Line Items in #${inventoryEscapeHtml(order.order_number)} (${items.length} item${items.length === 1 ? '' : 's'})
-                        </span>
-                        <span style="font-size: 0.8rem; color: #64748b;">
-                            Delivery Address: <strong>${inventoryEscapeHtml(order.delivery_address || 'N/A')}</strong>
-                        </span>
+            <tr class="store-sales-detail-row" id="ows-row-items-${order.order_id}" style="display: ${isExpanded ? 'table-row' : 'none'};">
+                <td colspan="14" style="background: #f8fafc; padding: 0;">
+                    <div class="store-sales-detail-scroll" style="padding: 0.6rem 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span style="font-size: 0.76rem; font-weight: 700; color: #1e293b;">
+                                <i class="fas fa-boxes" style="color: #3b82f6;"></i> Order #${inventoryEscapeHtml(order.order_number)} Line Items (${items.length} item${items.length === 1 ? '' : 's'})
+                            </span>
+                            <span style="font-size: 0.72rem; color: #64748b;">
+                                Address: <strong>${inventoryEscapeHtml(order.delivery_address || 'N/A')}</strong>
+                            </span>
+                        </div>
+                        <table style="border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; width: 100%; min-width: 960px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 32px; text-align: center;">#</th>
+                                    <th style="text-align: left;">Product Name</th>
+                                    <th style="text-align: left;">Variant / Size</th>
+                                    <th style="text-align: left;">Store</th>
+                                    <th style="text-align: right;">Qty</th>
+                                    <th style="text-align: right;">Unit Cost</th>
+                                    <th style="text-align: right;">Unit Price</th>
+                                    <th style="text-align: right;">Total Cost</th>
+                                    <th style="text-align: right;">Total Sales</th>
+                                    <th style="text-align: right;">Item Profit</th>
+                                    <th style="text-align: right;">Margin %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsRowsHtml}
+                            </tbody>
+                        </table>
                     </div>
-                    <table class="ows-nested-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 32px; text-align: center;">#</th>
-                                <th>Product Name</th>
-                                <th>Variant / Size</th>
-                                <th>Store</th>
-                                <th style="text-align: right;">Qty</th>
-                                <th style="text-align: right;">Unit Cost</th>
-                                <th style="text-align: right;">Unit Price</th>
-                                <th style="text-align: right;">Total Cost</th>
-                                <th style="text-align: right;">Total Sales</th>
-                                <th style="text-align: right;">Item Profit</th>
-                                <th style="text-align: right;">Margin %</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${itemsRowsHtml}
-                        </tbody>
-                    </table>
                 </td>
             </tr>
         `;
@@ -2443,20 +2465,19 @@ function renderOrderWiseSalesTable() {
     tbody.innerHTML = rowsHtml;
 
     const overallMargin = runningProductSales > 0 ? (runningProfit / runningProductSales) * 100 : 0;
-    const overallMarginColor = overallMargin >= 20 ? "#059669" : overallMargin >= 0 ? "#d97706" : "#dc2626";
 
     tfoot.innerHTML = `
-        <tr style="font-weight: 800; background: #f1f5f9; border-top: 2px solid #cbd5e1; font-size: 0.92rem;">
-            <td colspan="7" style="padding: 10px 14px; text-align: right;">
-                Summary Totals (${inventoryNumber(orders.length)} Orders):
+        <tr class="aginv-report-grand-row">
+            <td colspan="7" style="text-align: right; font-weight: 900;">
+                Grand Total (${inventoryNumber(orders.length)} Orders):
             </td>
-            <td style="text-align: right; padding: 10px 8px;">${inventoryNumber(runningQty)}</td>
-            <td style="text-align: right; padding: 10px 8px; color: #0f172a;">${inventoryMoney(runningProductSales)}</td>
-            <td style="text-align: right; padding: 10px 8px; color: #f59e0b;">${inventoryMoney(runningDeliveryFee)}</td>
-            <td style="text-align: right; padding: 10px 8px; color: #0f172a;">${inventoryMoney(runningGrandTotal)}</td>
-            <td style="text-align: right; padding: 10px 8px; color: #64748b;">${inventoryMoney(runningTotalCost)}</td>
-            <td style="text-align: right; padding: 10px 8px; color: ${runningProfit >= 0 ? '#10b981' : '#ef4444'};">${inventoryMoney(runningProfit)}</td>
-            <td style="text-align: right; padding: 10px 8px; color: ${overallMarginColor};">${overallMargin.toFixed(1)}%</td>
+            <td style="text-align: right; font-weight: 900;">${inventoryNumber(runningQty)}</td>
+            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningProductSales)}</td>
+            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningDeliveryFee)}</td>
+            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningGrandTotal)}</td>
+            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningTotalCost)}</td>
+            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningProfit)}</td>
+            <td style="text-align: right; font-weight: 900;">${overallMargin.toFixed(1)}%</td>
         </tr>
     `;
 }
@@ -2493,7 +2514,7 @@ function switchInventoryReport(reportType) {
 
     const periodBar = document.getElementById("inventoryPeriodPresetBar");
     if (periodBar) {
-        periodBar.style.display = currentInventoryReportScope === "sales" ? "flex" : "none";
+        periodBar.style.display = (currentInventoryReportScope === "sales" || reportType === "order-wise-sales") ? "flex" : "none";
     }
 
     switch (reportType) {
@@ -2503,12 +2524,21 @@ function switchInventoryReport(reportType) {
             break;
         case "store":
             document.getElementById("storeReportSection").style.display = "block";
+            if (!currentInventoryData) {
+                loadInventoryReport();
+            }
             break;
         case "category":
             document.getElementById("categoryReportSection").style.display = "block";
+            if (!currentInventoryData) {
+                loadInventoryReport();
+            }
             break;
         case "breakdown":
             document.getElementById("breakdownReportSection").style.display = "block";
+            if (!currentInventoryData) {
+                loadInventoryReport();
+            }
             break;
         case "sales":
             document.getElementById("salesReportSection").style.display = "block";
@@ -2544,15 +2574,19 @@ function switchInventoryReport(reportType) {
             break;
         case "product-detail":
             document.getElementById("productDetailReportSection").style.display = "block";
+            if (!currentInventoryData) {
+                loadInventoryReport();
+            }
             break;
         default:
-            document.getElementById("storeReportSection").style.display = "block";
+            document.getElementById("orderWiseSalesReportSection").style.display = "block";
+            loadOrderWiseSalesReport();
             break;
     }
 }
 
 function loadSelectedInventoryReport() {
-    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
+    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "order-wise-sales";
     switchInventoryReport(activeType);
 }
 
@@ -2561,7 +2595,8 @@ function exportInventoryReportPdf() {
         showError("Inventory Report", "PDF library not loaded");
         return;
     }
-    if (!currentInventoryData && currentInventoryReportScope !== "sales") {
+    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "order-wise-sales";
+    if (!currentInventoryData && currentInventoryReportScope !== "sales" && activeType !== "order-wise-sales") {
         showWarning("Inventory Report", "Load inventory report first");
         return;
     }
@@ -2569,7 +2604,6 @@ function exportInventoryReportPdf() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF("l", "mm", "a4");
     const now = new Date();
-    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
     const reportNameMap = {
         "order-wise-sales": "Order-Wise Sales Report",
         store: "Inventory Report",
@@ -3388,7 +3422,7 @@ function exportInventoryReportPdf() {
 }
 
 function exportInventoryReportExcel() {
-    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "store";
+    const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "order-wise-sales";
     const tableIdMap = {
         "order-wise-sales": "orderWiseSalesTable",
         store: "storeInventoryTable",
@@ -3485,22 +3519,25 @@ function exportInventoryReportExcel() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    const initialScope = window.location.hash === "#sale-reports" ? "sales" : "inventory";
+    const initialScope = window.location.hash === "#inventory-report" ? "inventory" : "sales";
     setInventoryReportScope(initialScope);
     ensureInventoryDateDefaults();
     setInventoryPeriodPreset("today", false);
+    ensureInventoryStoresLoaded();
+
+    const reportSelect = document.getElementById("inventoryReportSelect");
+    if (reportSelect) {
+        reportSelect.value = "order-wise-sales";
+    }
+    switchInventoryReport("order-wise-sales");
 
     const tabLinks = document.querySelectorAll(".tab-link");
     tabLinks.forEach((link) => {
-        if (link.getAttribute("data-tab") === "inventory-report") {
-            link.addEventListener("click", (e) => {
-                e.preventDefault();
+        const tab = link.getAttribute("data-tab");
+        if (tab === "inventory-report" || tab === "sale-reports") {
+            link.addEventListener("click", () => {
                 setTimeout(() => {
-                    if (currentInventoryReportScope === "sales") {
-                        loadSelectedInventoryReport();
-                    } else {
-                        loadInventoryReport();
-                    }
+                    loadSelectedInventoryReport();
                 }, 100);
             });
         }
@@ -3525,7 +3562,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    const reportSelect = document.getElementById("inventoryReportSelect");
     if (reportSelect) {
         reportSelect.addEventListener("change", (e) => {
             switchInventoryReport(e.target.value);
@@ -3614,3 +3650,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+window.loadSelectedInventoryReport = loadSelectedInventoryReport;
+window.loadOrderWiseSalesReport = loadOrderWiseSalesReport;
+window.switchInventoryReport = switchInventoryReport;
+window.ensureInventoryStoresLoaded = ensureInventoryStoresLoaded;
+

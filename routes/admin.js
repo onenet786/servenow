@@ -175,13 +175,6 @@ async function hasPermission(req, permissionKey) {
     }
 }
 
-function canViewRestrictedFinancialReports(req) {
-  const email = String(req.user && req.user.email ? req.user.email : "")
-    .trim()
-    .toLowerCase();
-  return RESTRICTED_FINANCIAL_REPORT_EMAILS.has(email);
-}
-
 const BACKUP_DIR = path.join(__dirname, "..", "database", "backups");
 
 let createImageUpload;

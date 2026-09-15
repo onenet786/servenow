@@ -208,13 +208,7 @@ body {
 }
 
 body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: url('../images/servenow_brand_logo.png') center/420px no-repeat;
-  opacity: 0.06;
-  pointer-events: none;
-  z-index: 0;
+  display: none !important;
 }
 
 .app-content {
@@ -222,13 +216,7 @@ body::before {
 }
 
 .app-content::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: url('../images/servenow_brand_logo.png') center/420px no-repeat;
-  opacity: 0.06;
-  pointer-events: none;
-  z-index: 0;
+  display: none !important;
 }
 
 .app-content > * {
@@ -949,13 +937,7 @@ img, video, canvas, svg {
 .modal-content::after,
 .search-container::after,
 .store-order-block::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--watermark-image) center/var(--watermark-size-surface) no-repeat;
-  opacity: var(--watermark-opacity-surface);
-  pointer-events: none;
-  z-index: 0;
+  display: none !important;
 }
 
 .table-container > *,

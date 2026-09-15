@@ -1790,8 +1790,9 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const grandTotal = roundAmount(itemsSubtotal + delivery_fee);
 
-    // Check Wallet
+    // Check & Deduct Wallet Atomically
     let wallet = null;
+    let walletNewBalance = 0;
     if (payment_method === "wallet") {
       const [wallets] = await req.db.execute(
         "SELECT id, balance FROM wallets WHERE user_id = ?",
@@ -1814,6 +1815,25 @@ router.post("/", authenticateToken, async (req, res) => {
           message: `Insufficient wallet balance. Required: PKR ${grandTotal.toFixed(2)}, Available: PKR ${balance.toFixed(2)}`,
         });
       }
+
+      // Atomically deduct balance with guard against concurrent double-spending
+      const [deductResult] = await req.db.execute(
+        "UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ? AND balance >= ?",
+        [grandTotal, grandTotal, wallet.id, grandTotal],
+      );
+
+      if (deductResult.affectedRows === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Insufficient wallet balance or concurrent transaction conflict. Please try again.",
+        });
+      }
+
+      const [freshWallet] = await req.db.execute(
+        "SELECT balance FROM wallets WHERE id = ?",
+        [wallet.id],
+      );
+      walletNewBalance = parseFloat(freshWallet[0]?.balance || (balance - grandTotal));
     }
 
     // Create Single Order
@@ -1861,17 +1881,26 @@ router.post("/", authenticateToken, async (req, res) => {
           item.discount_value || null,
         ],
       );
+
+      // Decrement product inventory stock where tracked
+      try {
+        if (item.sizeId) {
+          await req.db.execute(
+            "UPDATE product_size_prices SET stock = GREATEST(0, stock - ?) WHERE product_id = ? AND size_id = ? AND stock IS NOT NULL",
+            [item.quantity, item.productId, item.sizeId],
+          );
+        }
+        await req.db.execute(
+          "UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ? AND stock IS NOT NULL",
+          [item.quantity, item.productId],
+        );
+      } catch (stockErr) {
+        console.warn(`[orders] Stock decrement warning for item ${item.productId}:`, stockErr?.message || stockErr);
+      }
     }
 
-    // Update Wallet
+    // Record Wallet Transaction
     if (payment_method === "wallet" && wallet) {
-      const newBalance = parseFloat(wallet.balance) - grandTotal;
-
-      await req.db.execute(
-        "UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?",
-        [newBalance, grandTotal, wallet.id],
-      );
-
       await req.db.execute(
         `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
                  reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -1882,7 +1911,7 @@ router.post("/", authenticateToken, async (req, res) => {
           `Order payment - ${order_number}`,
           "order",
           orderId,
-          newBalance,
+          walletNewBalance,
         ],
       );
     }
@@ -4590,6 +4619,71 @@ router.put(
           "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
           [newGlobalStatus, id],
         );
+      }
+
+      // Order Cancellation Hooks: Refund wallet payment & Restore inventory stock
+      if (newGlobalStatus === "cancelled" && currentOrderStatus !== "cancelled") {
+        try {
+          // 1. Restore product inventory stock
+          const [orderItemsToRestore] = await req.db.execute(
+            "SELECT product_id, size_id, quantity FROM order_items WHERE order_id = ?",
+            [id],
+          );
+          for (const item of orderItemsToRestore) {
+            const qty = Number(item.quantity || 0);
+            if (qty > 0) {
+              if (item.size_id) {
+                await req.db.execute(
+                  "UPDATE product_size_prices SET stock = stock + ? WHERE product_id = ? AND size_id = ? AND stock IS NOT NULL",
+                  [qty, item.product_id, item.size_id],
+                );
+              }
+              await req.db.execute(
+                "UPDATE products SET stock = stock + ? WHERE id = ? AND stock IS NOT NULL",
+                [qty, item.product_id],
+              );
+            }
+          }
+
+          // 2. Automated wallet refund if paid by wallet
+          const isWalletPayment = String(order.payment_method || "").toLowerCase() === "wallet";
+          const refundAmount = parseFloat(order.total_amount || 0);
+          if (isWalletPayment && refundAmount > 0 && order.user_id) {
+            const [existingRefund] = await req.db.execute(
+              "SELECT id FROM wallet_transactions WHERE reference_type = 'order_refund' AND reference_id = ? LIMIT 1",
+              [id],
+            );
+            if (existingRefund.length === 0) {
+              await req.db.execute(
+                "UPDATE wallets SET balance = balance + ?, total_spent = GREATEST(0, total_spent - ?) WHERE user_id = ?",
+                [refundAmount, refundAmount, order.user_id],
+              );
+              const [userWallet] = await req.db.execute(
+                "SELECT id, balance FROM wallets WHERE user_id = ? LIMIT 1",
+                [order.user_id],
+              );
+              if (userWallet.length > 0) {
+                await req.db.execute(
+                  `INSERT INTO wallet_transactions (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
+                   VALUES (?, 'credit', ?, ?, 'order_refund', ?, ?)`,
+                  [
+                    userWallet[0].id,
+                    refundAmount,
+                    `Refund for cancelled order #${order.order_number}`,
+                    id,
+                    userWallet[0].balance,
+                  ],
+                );
+              }
+              await req.db.execute(
+                "UPDATE orders SET payment_status = 'refunded' WHERE id = ?",
+                [id],
+              );
+            }
+          }
+        } catch (cancelErr) {
+          console.error("[orders] Error during cancellation hooks:", cancelErr);
+        }
       }
 
       // Pickup-paid store settlement:

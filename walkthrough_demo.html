@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ServeNow Admin Console — Interactive Operational Walkthrough</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Exact Live ServeNow Web Admin Palette from attached screenshot */
+      --adm-sidebar-bg: #16172b;
+      --adm-sidebar-hover: #22243d;
+      --adm-sidebar-active: #2a2c4a;
+      --adm-sidebar-text: #c5c8e4;
+      --adm-sidebar-muted: #797fa5;
+      --adm-primary: #4338ca;
+      --adm-primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      
+      --adm-bg: #f4f6fb;
+      --adm-card-bg: #ffffff;
+      --adm-text-dark: #1e2438;
+      --adm-text-muted: #64748b;
+      --adm-text-dim: #94a3b8;
+      --adm-border: #e2e8f0;
+      
+      --card-blue: #3b82f6;
+      --card-green: #10b981;
+      --card-yellow: #f59e0b;
+      --card-red: #ef4444;
+
+      /* Mobile App Palette */
+      --mob-primary: #E06A2E;
+      --mob-secondary: #147D7E;
+      --mob-bg: #FFF4EA;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--adm-bg);
+      color: var(--adm-text-dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Universal Control Bar at Top */
+    .top-control-ribbon {
+      background: #0f101f;
+      color: white;
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #232542;
+      z-index: 100;
+    }
+
+    .ribbon-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .ribbon-brand img {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+
+    .ribbon-switchers {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ribbon-btn {
+      background: #1c1e36;
+      border: 1px solid #2e3256;
+      color: #c5c8e4;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+
+    .ribbon-btn:hover, .ribbon-btn.active {
+      background: #4f46e5;
+      color: white;
+      border-color: #6366f1;
+    }
+
+    .ribbon-tour-btn {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* App Workspace */
+    .app-workspace {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 45px);
+      overflow: hidden;
+    }
+
+    /* ================= 1. EXACT WEB ADMIN PANEL (1:1 from Screenshot) ================= */
+    .admin-panel-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      background: var(--adm-bg);
+    }
+
+    /* Exact Sidebar */
+    .adm-sidebar {
+      width: 240px;
+      background: var(--adm-sidebar-bg);
+      color: var(--adm-sidebar-text);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #232542;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .adm-sidebar-logo {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #232542;
+    }
+
+    .adm-logo-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #ffffff;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .adm-logo-circle img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .adm-logo-text {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      color: #ffffff;
+    }
+
+    .adm-menu-list {
+      list-style: none;
+      padding: 10px 0;
+      flex: 1;
+    }
+
+    .adm-menu-item {
+      position: relative;
+    }
+
+    .adm-menu-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      color: var(--adm-sidebar-text);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .adm-menu-link:hover {
+      background: var(--adm-sidebar-hover);
+      color: #ffffff;
+    }
+
+    .adm-menu-link.active {
+      background: var(--adm-sidebar-active);
+      color: #ffffff;
+      font-weight: 700;
+      border-radius: 0 8px 8px 0;
+      margin-right: 8px;
+    }
+
+    .adm-link-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .adm-link-content i {
+      font-size: 14px;
+      width: 18px;
+      text-align: center;
+      color: var(--adm-sidebar-muted);
+    }
+
+    .adm-menu-link.active .adm-link-content i {
+      color: #818cf8;
+    }
+
+    .adm-chevron {
+      font-size: 10px;
+      color: var(--adm-sidebar-muted);
+      transition: transform 0.2s;
+    }
+
+    .adm-chevron.open {
+      transform: rotate(180deg);
+    }
+
+    /* Submenu Dropdown */
+    .adm-submenu {
+      display: none;
+      background: #111222;
+      list-style: none;
+      padding: 4px 0;
+    }
+
+    .adm-submenu.show {
+      display: block;
+    }
+
+    .adm-submenu-item a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 20px 8px 50px;
+      color: #9da3cd;
+      font-size: 12px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .adm-submenu-item a:hover, .adm-submenu-item a.active {
+      color: #ffffff;
+      background: #1a1c36;
+    }
+
+    /* Sidebar Footer (Theme & Logout) */
+    .adm-sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid #232542;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .adm-theme-box {
+      background: #111222;
+      border: 1px solid #2e3256;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .adm-theme-label {
+      font-size: 10px;
+      font-weight: 800;
+      color: #797fa5;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .adm-theme-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .adm-theme-select {
+      flex: 1;
+      background: #1a1c36;
+      border: 1px solid #2e3256;
+      color: #ffffff;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .adm-theme-save-btn {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .adm-logout-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #ef4444;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 6px 4px;
+      cursor: pointer;
+    }
+
+    /* Main Content Viewport */
+    .adm-main-viewport {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+      background: var(--adm-bg);
+    }
+
+    /* Exact Dashboard Tab Content */
+    .dashboard-view-header h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #1a202c;
+      letter-spacing: -0.3px;
+    }
+
+    .dashboard-section-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #1a202c;
+      margin: 20px 0 12px 0;
+    }
+
+    /* 4 Stat Cards Row (1:1 with Screenshot) */
+    .stat-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .stat-card-custom {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px 20px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .stat-card-custom.blue {
+      border-left: 5px solid #3b82f6;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(255, 255, 255, 0.9) 100%);
+    }
+
+    .stat-card-custom.green {
+      border-left: 5px solid #10b981;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(255, 255, 255, 0.9) 100%);
+    }
+
+    .stat-card-custom.orange {
+      border-left: 5px solid #f59e0b;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(255, 255, 255, 0.9) 100%);
+    }
+
+    .stat-card-custom.red {
+      border-left: 5px solid #ef4444;
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(255, 255, 255, 0.9) 100%);
+    }
+
+    .stat-number {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .stat-number.blue { color: #2563eb; }
+    .stat-number.green { color: #059669; }
+    .stat-number.orange { color: #d97706; }
+    .stat-number.red { color: #dc2626; }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* Recent Activity Card Container (Exact from Screenshot) */
+    .recent-activity-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+
+    .recent-activity-card h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1e2438;
+      margin-bottom: 18px;
+    }
+
+    .activity-columns-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .activity-col-header {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+    }
+
+    .activity-item-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      position: relative;
+    }
+
+    .activity-item-card.blue { border-left: 4px solid #3b82f6; }
+    .activity-item-card.green { border-left: 4px solid #10b981; }
+    .activity-item-card.orange { border-left: 4px solid #f59e0b; }
+
+    .act-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #1e2438;
+      margin-bottom: 3px;
+    }
+
+    .act-subtitle {
+      font-size: 11.5px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .act-date {
+      font-size: 10.5px;
+      color: #94a3b8;
+    }
+
+    /* Other Admin Tabs (Orders, CPV, Store Settlements, etc.) */
+    .tab-content-area {
+      display: none;
+    }
+
+    .tab-content-area.active {
+      display: block;
+    }
+
+    .table-card-wrapper {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+      margin-top: 16px;
+    }
+
+    .custom-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    .custom-table th {
+      text-align: left;
+      padding: 10px 14px;
+      background: #f8fafc;
+      color: #64748b;
+      font-weight: 700;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .custom-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #1e2438;
+    }
+
+    /* ================= 2. FLUTTER MOBILE APP VIEW ================= */
+    .mobile-app-wrapper {
+      display: none;
+      flex: 1;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      background: #0b0f19;
+    }
+
+    .phone-device {
+      width: 410px;
+      height: 820px;
+      background: var(--mob-bg);
+      border-radius: 46px;
+      border: 8px solid #1e293b;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ================= 3. RIGHT LOGIC INSPECTOR ================= */
+    .inspector-drawer {
+      width: 440px;
+      background: #0f101f;
+      border-left: 1px solid #232542;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .ins-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #232542;
+      background: #14162b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .ins-header h2 {
+      font-size: 13px;
+      font-weight: 800;
+      color: #818cf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ins-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .ins-card {
+      background: #16172b;
+      border: 1px solid #2e3256;
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .ins-title {
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ins-code {
+      background: #090a14;
+      border: 1px solid #1e2038;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin-top: 6px;
+    }
+
+    /* Toast */
+    .demo-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 460px;
+      background: #16172b;
+      border: 1px solid #6366f1;
+      border-radius: 8px;
+      padding: 12px 18px;
+      color: white;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 200;
+    }
+
+    .demo-toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP CONTROL RIBBON -->
+  <header class="top-control-ribbon">
+    <div class="ribbon-brand">
+      <div style="background: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <img src="images/servenow_brand_logo.png" onerror="this.src='https://placehold.co/24x24/4338ca/ffffff?text=SN'" alt="ServeNow" />
+      </div>
+      <span>ServeNow.pk Operational Console & Screen Manual</span>
+    </div>
+
+    <div class="ribbon-switchers">
+      <button class="ribbon-btn active" id="btn-show-web" onclick="switchViewMode('web')">
+        <i class="fas fa-desktop"></i> Web Admin Panel (Live Screenshot Replica)
+      </button>
+      <button class="ribbon-btn" id="btn-show-mob" onclick="switchViewMode('mobile')">
+        <i class="fas fa-mobile-alt"></i> Flutter Mobile App (servenow.pk)
+      </button>
+      <button class="ribbon-tour-btn" onclick="runAutomatedTour()">
+        <i class="fas fa-play"></i> Auto-Play Live Workflow Tour
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <div class="app-workspace">
+    
+    <!-- ================= VIEW 1: EXACT WEB ADMIN PANEL (Screenshot 1:1) ================= -->
+    <div class="admin-panel-container" id="web-admin-wrapper">
+      
+      <!-- EXACT SIDEBAR -->
+      <aside class="adm-sidebar">
+        <div class="adm-sidebar-logo">
+          <div class="adm-logo-circle">
+            <img src="images/servenow_brand_logo.png" onerror="this.src='https://placehold.co/32x32/4338ca/ffffff?text=SN'" alt="ServeNow" />
+          </div>
+          <span class="adm-logo-text">ServeNow</span>
+        </div>
+
+        <ul class="adm-menu-list">
+          <!-- 1. Dashboard -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link active" id="menu-dashboard" onclick="openAdminTab('dashboard')">
+              <div class="adm-link-content">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+              </div>
+            </a>
+          </li>
+
+          <!-- 2. Accounts (Dropdown) -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" onclick="toggleSubmenu('sub-accounts', this)">
+              <div class="adm-link-content">
+                <i class="fas fa-user-circle"></i>
+                <span>Accounts</span>
+              </div>
+              <i class="fas fa-chevron-down adm-chevron"></i>
+            </a>
+            <ul class="adm-submenu" id="sub-accounts">
+              <li class="adm-submenu-item"><a onclick="openAdminTab('users')"><i class="fas fa-users"></i> Users</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('riders')"><i class="fas fa-motorcycle"></i> Riders</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('user-rights')"><i class="fas fa-user-shield"></i> User Rights</a></li>
+            </ul>
+          </li>
+
+          <!-- 3. Stores (Dropdown) -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" onclick="toggleSubmenu('sub-stores', this)">
+              <div class="adm-link-content">
+                <i class="fas fa-store"></i>
+                <span>Stores</span>
+              </div>
+              <i class="fas fa-chevron-down adm-chevron"></i>
+            </a>
+            <ul class="adm-submenu" id="sub-stores">
+              <li class="adm-submenu-item"><a onclick="openAdminTab('stores')"><i class="fas fa-store"></i> Stores List</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('store-status')"><i class="fas fa-bullhorn"></i> Store Status & Notice</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('offer-campaigns')"><i class="fas fa-tags"></i> Offer Campaigns</a></li>
+            </ul>
+          </li>
+
+          <!-- 4. Products -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" id="menu-products" onclick="openAdminTab('products')">
+              <div class="adm-link-content">
+                <i class="fas fa-box"></i>
+                <span>Products</span>
+              </div>
+            </a>
+          </li>
+
+          <!-- 5. Orders -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" id="menu-orders" onclick="openAdminTab('orders')">
+              <div class="adm-link-content">
+                <i class="fas fa-shopping-cart"></i>
+                <span>Orders</span>
+              </div>
+            </a>
+          </li>
+
+          <!-- 6. Payments & Wallets (Dropdown) -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" onclick="toggleSubmenu('sub-payments', this)">
+              <div class="adm-link-content">
+                <i class="fas fa-credit-card"></i>
+                <span>Payments & Wallets</span>
+              </div>
+              <i class="fas fa-chevron-down adm-chevron"></i>
+            </a>
+            <ul class="adm-submenu" id="sub-payments">
+              <li class="adm-submenu-item"><a onclick="openAdminTab('payments')"><i class="fas fa-money-check-alt"></i> Payments</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('wallets')"><i class="fas fa-wallet"></i> Wallets</a></li>
+            </ul>
+          </li>
+
+          <!-- 7. Reports (Dropdown) -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" onclick="toggleSubmenu('sub-reports', this)">
+              <div class="adm-link-content">
+                <i class="fas fa-chart-bar"></i>
+                <span>Reports</span>
+              </div>
+              <i class="fas fa-chevron-down adm-chevron"></i>
+            </a>
+            <ul class="adm-submenu" id="sub-reports">
+              <li class="adm-submenu-item"><a onclick="openAdminTab('order-reports')"><i class="fas fa-chart-line"></i> Order Reports</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('inventory-report')"><i class="fas fa-boxes"></i> Inventory Report</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('sale-reports')"><i class="fas fa-coins"></i> Sale Reports</a></li>
+            </ul>
+          </li>
+
+          <!-- 8. Catalog (Dropdown) -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" onclick="toggleSubmenu('sub-catalog', this)">
+              <div class="adm-link-content">
+                <i class="fas fa-layer-group"></i>
+                <span>Catalog</span>
+              </div>
+              <i class="fas fa-chevron-down adm-chevron"></i>
+            </a>
+            <ul class="adm-submenu" id="sub-catalog">
+              <li class="adm-submenu-item"><a onclick="openAdminTab('categories')"><i class="fas fa-tags"></i> Categories</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('units')"><i class="fas fa-balance-scale"></i> Units</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('sizes')"><i class="fas fa-ruler-horizontal"></i> Sizes</a></li>
+            </ul>
+          </li>
+
+          <!-- 9. Financial (Dropdown: CPV, CRV, Settlements) -->
+          <li class="adm-menu-item">
+            <a class="adm-menu-link" onclick="toggleSubmenu('sub-financial', this)">
+              <div class="adm-link-content">
+                <i class="fas fa-coins"></i>
+                <span>Financial</span>
+              </div>
+              <i class="fas fa-chevron-down adm-chevron"></i>
+            </a>
+            <ul class="adm-submenu" id="sub-financial">
+              <li class="adm-submenu-item"><a onclick="openAdminTab('cpv')"><i class="fas fa-money-bill-wave"></i> CPV (Cash Payment)</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('crv')"><i class="fas fa-cash-register"></i> CRV (Cash Receive)</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('settlements')"><i class="fas fa-store-alt"></i> Store Settlements</a></li>
+              <li class="adm-submenu-item"><a onclick="openAdminTab('rider-cash')"><i class="fas fa-hand-holding-usd"></i> Rider Cash Debt</a></li>
+            </ul>
+          </li>
+
+          <!-- 10. Settings, Utilities, Problems, Change Password -->
+          <li class="adm-menu-item"><a class="adm-menu-link" onclick="openAdminTab('settings')"><div class="adm-link-content"><i class="fas fa-sliders-h"></i><span>Settings</span></div></a></li>
+          <li class="adm-menu-item"><a class="adm-menu-link" onclick="openAdminTab('utilities')"><div class="adm-link-content"><i class="fas fa-database"></i><span>Utilities</span></div></a></li>
+          <li class="adm-menu-item"><a class="adm-menu-link" onclick="openAdminTab('problems')"><div class="adm-link-content"><i class="fas fa-exclamation-triangle"></i><span>Problems</span></div></a></li>
+          <li class="adm-menu-item"><a class="adm-menu-link" onclick="triggerToast('Change Password Modal')"><div class="adm-link-content"><i class="fas fa-key"></i><span>Change Password</span></div></a></li>
+        </ul>
+
+        <!-- Exact Theme Control Box & Logout -->
+        <div class="adm-sidebar-footer">
+          <div class="adm-theme-box">
+            <div class="adm-theme-label"><i class="fas fa-palette"></i> THEME</div>
+            <div class="adm-theme-controls">
+              <select class="adm-theme-select">
+                <option selected>Default</option>
+                <option>Ocean</option>
+                <option>Emerald</option>
+              </select>
+              <button class="adm-theme-save-btn" onclick="triggerToast('Theme settings saved')">Save</button>
+            </div>
+          </div>
+          <a class="adm-logout-link" onclick="triggerToast('Session Logout')">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </a>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT VIEWPORT -->
+      <main class="adm-main-viewport">
+        
+        <!-- ================= TAB 1: DASHBOARD OVERVIEW (EXACT FROM SCREENSHOT) ================= -->
+        <div class="tab-content-area active" id="pane-dashboard">
+          <div class="dashboard-view-header">
+            <h2>Dashboard Overview</h2>
+          </div>
+
+          <!-- Section: Today's Orders (Exact 4 Cards) -->
+          <div class="dashboard-section-title">Today's Orders</div>
+          <div class="stat-cards-grid">
+            <div class="stat-card-custom blue">
+              <div class="stat-number blue" id="num-today-total">0</div>
+              <div class="stat-label">TOTAL ORDERS</div>
+            </div>
+            <div class="stat-card-custom green">
+              <div class="stat-number green" id="num-today-delivered">0</div>
+              <div class="stat-label">TOTAL DELIVERED</div>
+            </div>
+            <div class="stat-card-custom orange">
+              <div class="stat-number orange" id="num-today-pending">0</div>
+              <div class="stat-label">PENDING ORDERS</div>
+            </div>
+            <div class="stat-card-custom red">
+              <div class="stat-number red" id="num-today-cancelled">0</div>
+              <div class="stat-label">CANCELLED</div>
+            </div>
+          </div>
+
+          <!-- Section: All Orders (Exact 4 Cards from Screenshot with 5330, 5290, 3, 37) -->
+          <div class="dashboard-section-title">All Orders</div>
+          <div class="stat-cards-grid">
+            <div class="stat-card-custom blue">
+              <div class="stat-number blue">5330</div>
+              <div class="stat-label">TOTAL ORDERS</div>
+            </div>
+            <div class="stat-card-custom green">
+              <div class="stat-number green">5290</div>
+              <div class="stat-label">TOTAL DELIVERED</div>
+            </div>
+            <div class="stat-card-custom orange">
+              <div class="stat-number orange">3</div>
+              <div class="stat-label">PENDING ORDERS</div>
+            </div>
+            <div class="stat-card-custom red">
+              <div class="stat-number red">37</div>
+              <div class="stat-label">CANCELLED</div>
+            </div>
+          </div>
+
+          <!-- Section: Recent Activity (Exact 3 Columns from Screenshot) -->
+          <div class="recent-activity-card">
+            <h3>Recent Activity</h3>
+            <div class="activity-columns-grid">
+              
+              <!-- Column 1: NEW ORDERS -->
+              <div class="activity-column">
+                <div class="activity-col-header">NEW ORDERS</div>
+                <div class="activity-item-card blue">
+                  <div class="act-title">New Order #5658</div>
+                  <div class="act-subtitle">out_for_delivery - PKR 200.00</div>
+                  <div class="act-date">9/15/2026 10:40 PM</div>
+                </div>
+                <div class="activity-item-card blue">
+                  <div class="act-title">New Order #5657</div>
+                  <div class="act-subtitle">delivered - PKR 650.00</div>
+                  <div class="act-date">9/15/2026 10:34 PM</div>
+                </div>
+              </div>
+
+              <!-- Column 2: NEW USERS -->
+              <div class="activity-column">
+                <div class="activity-col-header">NEW USERS</div>
+                <div class="activity-item-card green">
+                  <div class="act-title">New User Registered</div>
+                  <div class="act-subtitle">Muhammad Sarim</div>
+                  <div class="act-date">9/15/2026 08:16 PM</div>
+                </div>
+                <div class="activity-item-card green">
+                  <div class="act-title">New User Registered</div>
+                  <div class="act-subtitle">Sabih Khan</div>
+                  <div class="act-date">9/15/2026 06:18 PM</div>
+                </div>
+              </div>
+
+              <!-- Column 3: NEW STORES -->
+              <div class="activity-column">
+                <div class="activity-col-header">NEW STORES</div>
+                <div class="activity-item-card orange">
+                  <div class="act-title">New Store "Halwa Puri By Faisalabad Bakery"</div>
+                  <div class="act-subtitle">Store registered</div>
+                  <div class="act-date">9/14/2026 08:54 AM</div>
+                </div>
+                <div class="activity-item-card orange">
+                  <div class="act-title">New Store "Al Hudayah Restaurant"</div>
+                  <div class="act-subtitle">Store registered</div>
+                  <div class="act-date">7/27/2026 08:52 PM</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= TAB 2: ORDERS MANAGEMENT ================= -->
+        <div class="tab-content-area" id="pane-orders">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h2>Orders Management (Operations Desk)</h2>
+            <div style="display: flex; gap: 8px;">
+              <button style="background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;" onclick="triggerToast('Create Manual Order Modal')">
+                <i class="fas fa-plus"></i> Create Manual Order
+              </button>
+              <button style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 8px 16px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer;" onclick="triggerToast('Pick & Drop Parcel Modal')">
+                <i class="fas fa-box"></i> Pick & Drop Parcel
+              </button>
+            </div>
+          </div>
+
+          <div class="table-card-wrapper">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Customer</th>
+                  <th>Store</th>
+                  <th>Status</th>
+                  <th>Assigned Rider</th>
+                  <th>Total Amount</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight: 800; color: #4338ca;">#5658</td>
+                  <td>Muhammad Sarim</td>
+                  <td>Halwa Puri By Faisalabad Bakery</td>
+                  <td><span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-weight: 700;">out_for_delivery</span></td>
+                  <td>Ahmed Ali (LEA-8910)</td>
+                  <td style="font-weight: 800;">PKR 200.00</td>
+                  <td><button style="background: #e0e7ff; color: #4338ca; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;" onclick="triggerToast('Manual Dispatch Reassignment')">Reassign</button></td>
+                </tr>
+                <tr>
+                  <td style="font-weight: 800; color: #4338ca;">#5657</td>
+                  <td>Sabih Khan</td>
+                  <td>Al Hudayah Restaurant</td>
+                  <td><span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-weight: 700;">delivered</span></td>
+                  <td>Bilal Tariq</td>
+                  <td style="font-weight: 800;">PKR 650.00</td>
+                  <td><button style="background: #f1f5f9; color: #475569; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;" onclick="triggerToast('View Order Details')">View</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ================= TAB 3: FINANCIAL CPV (Cash Payment Vouchers) ================= -->
+        <div class="tab-content-area" id="pane-cpv">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h2>CPV - Cash Payment Vouchers</h2>
+            <button style="background: #4f46e5; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" onclick="triggerToast('New CPV Voucher Form')">
+              + Create Payment Voucher
+            </button>
+          </div>
+          <div class="table-card-wrapper">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Voucher #</th>
+                  <th>Date</th>
+                  <th>Payee Name</th>
+                  <th>Amount</th>
+                  <th>Purpose</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight: 800; color: #4338ca;">CPV-5657</td>
+                  <td>9/15/2026</td>
+                  <td>Al Hudayah Restaurant</td>
+                  <td style="font-weight: 800; color: #dc2626;">PKR 585.00</td>
+                  <td>Store Settlement (Order #5657 minus 10% commission)</td>
+                  <td><span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-weight: 700;">Approved</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ================= TAB 4: STORE SETTLEMENTS ================= -->
+        <div class="tab-content-area" id="pane-settlements">
+          <h2>Store Settlements & Payouts</h2>
+          <div class="table-card-wrapper">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Store Name</th>
+                  <th>Gross Sales</th>
+                  <th>Platform Comm (10%)</th>
+                  <th>Net Payable</th>
+                  <th>Bank Account</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight: 700;">Al Hudayah Restaurant</td>
+                  <td>PKR 145,000.00</td>
+                  <td style="color: #dc2626;">- PKR 14,500.00</td>
+                  <td style="font-weight: 800; color: #059669;">PKR 130,500.00</td>
+                  <td>Meezan Bank (PK44MEZN...)</td>
+                  <td><button style="background: #10b981; color: white; border: none; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; cursor: pointer;" onclick="triggerToast('Settlement Payment Processed')">Process Payout</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- ================= 2. FLUTTER MOBILE APP (servenow.pk) ================= -->
+    <div class="mobile-app-wrapper" id="mobile-app-wrapper">
+      <div class="phone-device">
+        <div style="background: #1e293b; height: 22px; width: 140px; margin: 0 auto; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;"></div>
+        
+        <!-- Mobile Header with CustomerPalette -->
+        <div style="background: #ffffff; padding: 12px 16px; border-bottom: 1px solid var(--mob-border); display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 10px; color: var(--mob-text-muted);"><i class="fas fa-map-marker-alt" style="color: var(--mob-primary);"></i> Gulberg III, Lahore</div>
+            <div style="font-size: 14px; font-weight: 800; color: var(--mob-text-dark);">ServeNow.pk</div>
+          </div>
+          <button style="background: var(--mob-bg); border: 1px solid var(--mob-border); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; color: var(--mob-primary); cursor: pointer;" onclick="triggerToast('Urdu Translation Toggled (CustomerLanguage.dart)')">
+            اردو
+          </button>
+        </div>
+
+        <!-- Mobile Scroll Content -->
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1;">
+          <div style="background: linear-gradient(135deg, #E06A2E, #9E4318); color: white; padding: 14px; border-radius: 12px;">
+            <div style="font-size: 10px; font-weight: 800; background: #F2B134; color: #2F221A; width: fit-content; padding: 2px 6px; border-radius: 4px;">SPECIAL DEAL</div>
+            <h4 style="font-size: 14px; margin-top: 4px;">Halwa Puri By Faisalabad Bakery</h4>
+            <p style="font-size: 11px; opacity: 0.9;">Fresh Breakfast & Sweets delivered in 25 mins</p>
+          </div>
+
+          <div style="background: white; border: 1px solid var(--mob-border); border-radius: 12px; padding: 12px;">
+            <div style="font-size: 13px; font-weight: 800;">Special Halwa Puri Thali</div>
+            <div style="font-size: 11px; color: var(--mob-secondary); font-weight: 600;">2 Puris, Chana, Halwa, Achar</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+              <span style="font-size: 14px; font-weight: 800; color: var(--mob-primary);">PKR 200.00</span>
+              <button style="background: var(--mob-primary); color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;" onclick="executeSimulatedMobileOrder()">
+                + Order Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 3. SYSTEM LOGIC & WORKFLOW INSPECTOR ================= -->
+    <aside class="inspector-drawer">
+      <div class="ins-header">
+        <h2><i class="fas fa-code-branch"></i> <span>Workflow & System Inspector</span></h2>
+        <span style="font-size: 10px; background: #22243d; color: #818cf8; padding: 3px 8px; border-radius: 4px; font-weight: 700;">Live Logic</span>
+      </div>
+
+      <div class="ins-body">
+        <div class="ins-card">
+          <div class="ins-title" style="color: #818cf8;"><i class="fas fa-info-circle"></i> ACTIVE SCREEN PURPOSE</div>
+          <div style="font-size: 12.5px; line-height: 1.5;" id="ins-purp-text">
+            <strong>Dashboard Overview</strong>: Serves as the high-level operations mission control of <strong>servenow.pk</strong>. Tracks Today's and All-time order totals, delivered counts, pending kitchen preparation, and real-time activity feed.
+          </div>
+        </div>
+
+        <div class="ins-card">
+          <div class="ins-title" style="color: #ef4444;"><i class="fas fa-exclamation-triangle"></i> WHY ESSENTIAL & FAILURE RISK</div>
+          <div style="font-size: 12.5px; line-height: 1.5;" id="ins-risk-text">
+            Without this dashboard, platform supervisors cannot detect order bottlenecks (e.g. pending orders piling up in Lahore kitchens) or track cancelled orders, leading to massive customer churn.
+          </div>
+        </div>
+
+        <div class="ins-card">
+          <div class="ins-title" style="color: #10b981;"><i class="fas fa-database"></i> BACKEND API & SQL PIPELINE</div>
+          <div style="font-size: 12.5px; line-height: 1.5;">
+            <span style="color: #818cf8; font-weight: 700;">GET /api/admin/dashboard-stats</span>
+            <div class="ins-code" id="ins-code-text">
+// routes/admin.js
+SELECT COUNT(*) AS today_orders,
+SUM(status = 'delivered') AS today_delivered,
+SUM(status = 'pending') AS today_pending,
+SUM(status = 'cancelled') AS today_cancelled
+FROM orders WHERE DATE(created_at) = CURDATE();
+            </div>
+          </div>
+        </div>
+
+        <div class="ins-card">
+          <div class="ins-title" style="color: #f59e0b;"><i class="fas fa-user-check"></i> OPERATIONAL USER DECISION</div>
+          <div style="font-size: 12.5px; line-height: 1.5;" id="ins-dec-text">
+            Operations managers review order volume velocity and inspect recent stores like "Halwa Puri By Faisalabad Bakery" to ensure merchant onboarding compliance.
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="demo-toast" id="demo-toast">
+    <i class="fas fa-bell" style="color: #818cf8;"></i>
+    <span id="toast-text">Event broadcasted</span>
+  </div>
+
+  <script>
+    function triggerToast(msg) {
+      const toast = document.getElementById('demo-toast');
+      document.getElementById('toast-text').innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function switchViewMode(mode) {
+      document.getElementById('btn-show-web').classList.toggle('active', mode === 'web');
+      document.getElementById('btn-show-mob').classList.toggle('active', mode === 'mobile');
+
+      document.getElementById('web-admin-wrapper').style.display = mode === 'web' ? 'flex' : 'none';
+      document.getElementById('mobile-app-wrapper').style.display = mode === 'mobile' ? 'flex' : 'none';
+
+      if (mode === 'web') {
+        openAdminTab('dashboard');
+      } else {
+        document.getElementById('ins-purp-text').innerText = "Customer mobile order placement on servenow.pk with CustomerPalette styling and Urdu localization.";
+        document.getElementById('ins-risk-text').innerText = "Without client-side stock and single-store guard, multiple store items will collide and delivery fleet will fail.";
+        document.getElementById('ins-code-text').innerText = "// mobile_app/lib/screens/checkout_screen.dart\nawait ApiService.createOrder({ store_id: 1, items: [...] });";
+      }
+    }
+
+    function toggleSubmenu(submenuId, element) {
+      const submenu = document.getElementById(submenuId);
+      const chevron = element.querySelector('.adm-chevron');
+      const isShow = submenu.classList.contains('show');
+
+      document.querySelectorAll('.adm-submenu').forEach(s => s.classList.remove('show'));
+      document.querySelectorAll('.adm-chevron').forEach(c => c.classList.remove('open'));
+
+      if (!isShow) {
+        submenu.classList.add('show');
+        if (chevron) chevron.classList.add('open');
+      }
+    }
+
+    function openAdminTab(tabName) {
+      document.querySelectorAll('.adm-menu-link').forEach(l => l.classList.remove('active'));
+      const activeLink = document.getElementById('menu-' + tabName);
+      if (activeLink) activeLink.classList.add('active');
+
+      document.querySelectorAll('.tab-content-area').forEach(p => p.classList.remove('active'));
+      const targetPane = document.getElementById('pane-' + tabName);
+      if (targetPane) {
+        targetPane.classList.add('active');
+      } else {
+        document.getElementById('pane-dashboard').classList.add('active');
+      }
+
+      // Update Inspector
+      const purp = document.getElementById('ins-purp-text');
+      const risk = document.getElementById('ins-risk-text');
+      const code = document.getElementById('ins-code-text');
+
+      if (tabName === 'orders') {
+        purp.innerText = "Orders Management (Operations Desk): Real-time live queue, filter by Date/Rider/Store/Status, Create Manual Order, and Manual Dispatch Override.";
+        risk.innerText = "If unassigned orders are not manually overridden during rush hours, customer deliveries get stuck beyond 45 mins.";
+        code.innerText = "// routes/orders.js\nUPDATE orders SET assigned_rider_id = ?, status = 'confirmed' WHERE id = ?;";
+      } else if (tabName === 'cpv') {
+        purp.innerText = "Cash Payment Vouchers (CPV): Double-entry ledger recording cash outflows, supplier payouts, and store settlements.";
+        risk.innerText = "Without CPV audit logs, merchant payouts cannot be verified and company faces legal tax disputes.";
+        code.innerText = "// routes/financial.js\nINSERT INTO vouchers (type, voucher_no, amount, status) VALUES ('CPV', 'CPV-5657', 585.00, 'approved');";
+      } else if (tabName === 'settlements') {
+        purp.innerText = "Store Settlements: Computes Gross Merchant Sales minus 10% platform commission and releases verified bank payouts.";
+        risk.innerText = "Merchant revenue calculation errors cause store boycotts and loss of partner restaurants.";
+        code.innerText = "// routes/financial.js\nSELECT (SUM(gross) - SUM(commission)) AS net_payable FROM store_orders WHERE store_id = ?;";
+      } else {
+        purp.innerText = "Dashboard Overview: High-level operations mission control of servenow.pk tracking Today's and All-time order totals, delivered counts, and recent activity feed.";
+        risk.innerText = "Without this dashboard, platform supervisors cannot detect order bottlenecks or track cancelled orders.";
+        code.innerText = "// routes/admin.js\nSELECT COUNT(*) AS today_orders FROM orders WHERE DATE(created_at) = CURDATE();";
+      }
+    }
+
+    function executeSimulatedMobileOrder() {
+      triggerToast("Customer placed Order #5659 for PKR 200.00 via Wallet!");
+      setTimeout(() => {
+        switchViewMode('web');
+        openAdminTab('orders');
+        triggerToast("Order #5659 arrived on Web Admin Orders Desk via Socket.IO!");
+      }, 1500);
+    }
+
+    function runAutomatedTour() {
+      switchViewMode('web');
+      openAdminTab('dashboard');
+      triggerToast("Tour Step 1: Admin reviews Dashboard Overview and All Orders (5330 total)");
+      
+      setTimeout(() => {
+        openAdminTab('orders');
+        triggerToast("Tour Step 2: Admin monitors Order #5658 out_for_delivery (PKR 200.00)");
+        
+        setTimeout(() => {
+          openAdminTab('cpv');
+          triggerToast("Tour Step 3: Double-Entry CPV Voucher CPV-5657 auto-posted for store settlement");
+          
+          setTimeout(() => {
+            openAdminTab('settlements');
+            triggerToast("Tour Step 4: Store Settlement payout released to Al Hudayah Restaurant");
+          }, 2500);
+        }, 2500);
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
