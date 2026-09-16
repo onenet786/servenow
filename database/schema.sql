@@ -116,6 +116,8 @@ CREATE TABLE products (
     store_id INT NOT NULL,
     stock_quantity INT DEFAULT 0,
     is_available BOOLEAN DEFAULT TRUE,
+    available_from TIME DEFAULT NULL,
+    available_to TIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,

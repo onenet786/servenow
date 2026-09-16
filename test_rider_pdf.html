@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Rider Statement PDF Generation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background: #f1f5f9; }
+        .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .btn { background: #1e3a8a; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .btn:hover { background: #1e40af; }
+        iframe { width: 100%; height: 850px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2><i class="fas fa-file-pdf" style="color: #dc2626;"></i> Rider Shift & Cash Audit Statement PDF Verification</h2>
+        <p>This test harness verifies complete PDF generation for rider shift activities, COD cash movements, float advance, store disbursements, and day closing sign-off.</p>
+        <button class="btn" onclick="testGeneratePDF()"><i class="fas fa-play"></i> Generate & Preview PDF</button>
+        <button class="btn" style="background: #16a34a; margin-left: 10px;" onclick="testDownloadPDF()"><i class="fas fa-download"></i> Download PDF</button>
+        <span id="statusText" style="margin-left: 15px; font-weight: bold; color: #16a34a;"></span>
+    </div>
+
+    <div class="card">
+        <iframe id="pdfFrame"></iframe>
+    </div>
+
+    <script>
+/**
+ * Render Comprehensive Audit-Grade Rider Activity & Cash Movement Statement PDF
+ * Covering Shift Opening Float Advance, COD Collections, Store Disbursements,
+ * Fuel Expenses, and Final Shift Closing Cash Submission with Verification Signatures.
+ */
+function renderRiderStatementPDF(statement, outputBlobCallback) {
+    if (!statement || !statement.rider) {
+        if (typeof showWarning === 'function') showWarning('Error', 'Invalid rider statement data');
+        else alert('Invalid rider statement data');
+        return;
+    }
+
+    if (!window.jspdf) {
+        alert('PDF generator library not loaded. Please refresh the page.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4'); // A4 Portrait (210mm x 297mm)
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const contentWidth = pageWidth - (margin * 2);
+
+    const rider = statement.rider || {};
+    const period = statement.period || {};
+    const summary = statement.summary || {};
+    const movements = statement.movements || [];
+    const orders = statement.orders || [];
+    const fuelHistory = statement.fuelHistory || [];
+
+    // Corporate Color Palette
+    const primaryColor = [26, 54, 93]; // Deep Navy (#1A365D)
+    const primaryDark = [15, 23, 42]; // Slate 900
+    const borderGray = [226, 232, 240];
+    const bgLight = [248, 250, 252];
+
+    // 1. Corporate Header Banner
+    doc.setFillColor(...primaryColor);
+    doc.rect(margin, 12, contentWidth, 22, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ServeNow Logistics & Financial Services', margin + 6, 20);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('RIDER COMPREHENSIVE SHIFT & CASH AUDIT STATEMENT', margin + 6, 26);
+    doc.setFontSize(7.5);
+    doc.text('End-to-End Activity, Cash Inflows, Float Advance, Store Disbursements & Shift Day-Closing', margin + 6, 31);
+
+    // Right Side of Banner
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`STATEMENT REF: STM-R-${rider.id}-${Date.now().toString().slice(-6)}`, pageWidth - margin - 6, 20, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    const genDate = new Date(statement.generated_at || Date.now()).toLocaleString();
+    doc.text(`Generated: ${genDate}`, pageWidth - margin - 6, 26, { align: 'right' });
+    doc.text(`Status: ${summary.is_balanced ? 'VERIFIED BALANCED' : 'VARIANCE FLAGGED'}`, pageWidth - margin - 6, 31, { align: 'right' });
+
+    // 2. Rider Profile & Statement Period Information Box
+    let startY = 38;
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderGray);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, startY, contentWidth, 26, 2, 2, 'FD');
+
+    doc.setTextColor(...primaryDark);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RIDER INFORMATION', margin + 6, startY + 6);
+    doc.text('AUDIT PERIOD & WALLET ASSETS', margin + 96, startY + 6);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    // Left column
+    doc.text('Rider Name: ', margin + 6, startY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.name || 'N/A'} (ID: #${rider.id})`, margin + 28, startY + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Phone / Email: ', margin + 6, startY + 17);
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.phone || '-'}  |  ${rider.email || '-'}`, margin + 28, startY + 17);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Vehicle / Status: ', margin + 6, startY + 22);
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.vehicle_type || 'Motorcycle'}  |  Status: ${String(rider.status || 'Active').toUpperCase()}`, margin + 28, startY + 22);
+
+    // Right column
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Audit Period: ', margin + 96, startY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text(`${period.label || 'All Dates'}`, margin + 124, startY + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('CNIC / License: ', margin + 96, startY + 17);
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.id_card_num || 'N/A'}  /  ${rider.license_number || 'N/A'}`, margin + 124, startY + 17);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Wallet Balance: ', margin + 96, startY + 22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 64, 175);
+    doc.text(`Rs ${parseFloat(rider.wallet_balance || 0).toFixed(2)}`, margin + 124, startY + 22);
+
+    // 3. Shift Financial Summary Table (Executive KPI Breakdown)
+    startY = 68;
+    const formatCurrency = (v) => `Rs ${parseFloat(v || 0).toFixed(2)}`;
+
+    const kpiHead = [['SHIFT CASH RECONCILIATION SUMMARY', 'AMOUNT (PKR)', 'OPERATIONAL METRIC', 'COUNT / VALUE']];
+    const kpiBody = [
+        ['Shift Opening Float / Advance Taken (Cash In)', formatCurrency(summary.advance_taken), 'Total Orders Assigned', `${summary.total_orders || 0}`],
+        ['Customer COD Cash Collected (Cash In)', formatCurrency(summary.cash_collected), 'Orders Delivered (Completed)', `${summary.delivered_count || 0}`],
+        ['Office Settlement / Other Cash Inflow', formatCurrency(summary.settlement_received), 'Orders Cancelled / Returned', `${summary.cancelled_count || 0}`],
+        ['TOTAL SHIFT CASH INFLOW (A)', formatCurrency(summary.total_inflow), 'Delivery Fees Earned by Rider', formatCurrency(summary.delivery_fees_earned)],
+        ['Vendor Purchases / Paid to Stores (Cash Out)', formatCurrency(summary.store_payments), 'Fuel Cost Reimbursed / Logged', formatCurrency(summary.fuel_payments)],
+        ['TOTAL CASH DISBURSEMENTS (B)', formatCurrency(summary.total_disbursements), 'Total In-Shift Disbursements', formatCurrency(summary.total_disbursements)],
+        ['NET EXPECTED CASH TO SUBMIT (A - B)', formatCurrency(summary.expected_closing_cash), 'Shift Closing Status', summary.is_balanced ? 'VERIFIED BALANCED' : 'VARIANCE FLAGGED'],
+        ['CLOSING CASH PHYSICALLY SUBMITTED', formatCurrency(summary.cash_submitted), 'Pending In-Hand Cash', formatCurrency(summary.pending_cash_in_hand)],
+        ['CASH VARIANCE (Submitted - Expected)', formatCurrency(summary.cash_variance), 'Shift Audit Result', summary.is_balanced ? '0.00 DIFFERENCE (OK)' : (summary.cash_variance < 0 ? 'SHORTAGE DETECTED' : 'SURPLUS DETECTED')]
+    ];
+
+    doc.autoTable({
+        startY: startY,
+        head: kpiHead,
+        body: kpiBody,
+        theme: 'grid',
+        styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+        columnStyles: {
+            0: { fontStyle: 'normal', cellWidth: 70 },
+            1: { fontStyle: 'bold', halign: 'right', cellWidth: 28 },
+            2: { fontStyle: 'normal', cellWidth: 56 },
+            3: { fontStyle: 'bold', halign: 'right', cellWidth: 28 }
+        },
+        didParseCell: function(data) {
+            if (data.row.index === 3 || data.row.index === 5) {
+                data.cell.styles.fillColor = [241, 245, 249];
+                data.cell.styles.fontStyle = 'bold';
+            }
+            if (data.row.index === 6) {
+                data.cell.styles.fillColor = [238, 242, 255];
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = [30, 58, 138];
+            }
+            if (data.row.index === 7) {
+                data.cell.styles.fillColor = [240, 253, 244];
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = [22, 101, 52];
+            }
+            if (data.row.index === 8) {
+                const varVal = parseFloat(summary.cash_variance || 0);
+                data.cell.styles.fillColor = varVal < -0.01 ? [254, 242, 242] : (varVal > 0.01 ? [254, 243, 199] : [240, 253, 244]);
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = varVal < -0.01 ? [185, 28, 28] : (varVal > 0.01 ? [180, 83, 9] : [22, 101, 52]);
+            }
+        }
+    });
+
+    let currentY = doc.lastAutoTable.finalY + 8;
+
+    // Helper to render Section Title Bars
+    const renderSectionHeader = (title, subtitle) => {
+        if (currentY + 20 > pageHeight) {
+            doc.addPage();
+            currentY = 16;
+        }
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, currentY, contentWidth, 7, 'F');
+        doc.setFontSize(8.2);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryDark);
+        doc.text(title, margin + 4, currentY + 4.8);
+        if (subtitle) {
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 116, 139);
+            doc.text(subtitle, pageWidth - margin - 4, currentY + 4.8, { align: 'right' });
+        }
+        currentY += 9;
+    };
+
+    // 4. Section 1: Chronological Cash Movement Audit Trail Table
+    renderSectionHeader(
+        '1. CHRONOLOGICAL CASH MOVEMENT AUDIT TRAIL (Advance Taken to Closing Cash Handover)',
+        'Float Inflows, Store Outflows, Running Cash Balance'
+    );
+
+    const movementTypeLabels = {
+        'advance': 'Shift Advance Float',
+        'cash_collection': 'Order COD Collection',
+        'store_payment': 'Store Cash Purchase',
+        'fuel_payment': 'Fuel Allowance',
+        'cash_submission': 'Closing Cash Submission',
+        'settlement': 'Settlement Inflow',
+        'adjustment': 'Balance Adjustment'
+    };
+
+    const movementRows = movements.length > 0 ? movements.map(m => {
+        const mDate = m.movement_date ? new Date(m.movement_date).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+        const typeLabel = movementTypeLabels[m.movement_type] || m.movement_type || '-';
+        const amt = parseFloat(m.amount || 0);
+        const inflowStr = m.is_inflow ? `+ Rs ${amt.toFixed(2)}` : '-';
+        const outflowStr = m.is_outflow ? `- Rs ${amt.toFixed(2)}` : '-';
+        const runBalStr = `Rs ${parseFloat(m.running_balance || 0).toFixed(2)}`;
+        const refStr = m.movement_number || (m.reference_type ? `${m.reference_type} #${m.reference_id || ''}` : '-');
+        const descStr = (m.description || m.notes || '-').substring(0, 42);
+
+        return [
+            m.index || '',
+            mDate,
+            refStr,
+            typeLabel,
+            descStr,
+            inflowStr,
+            outflowStr,
+            runBalStr,
+            String(m.status || 'approved').toUpperCase()
+        ];
+    }) : [[
+        '-', 'No cash movement records found for this period', '', '', '', '-', '-', '-', '-'
+    ]];
+
+    doc.autoTable({
+        startY: currentY,
+        head: [['#', 'Date & Time', 'Movement / Ref #', 'Type', 'Description / Related Entity', 'Inflow (+)', 'Outflow (-)', 'Running Balance', 'Status']],
+        body: movementRows,
+        foot: movements.length > 0 ? [[
+            'TOTAL',
+            `${movements.length} Record(s)`,
+            '',
+            '',
+            'Net Movement Closing Position',
+            `+ Rs ${summary.total_inflow.toFixed(2)}`,
+            `- Rs ${summary.total_disbursements.toFixed(2)}`,
+            `Rs ${(summary.total_inflow - summary.total_disbursements).toFixed(2)}`,
+            summary.is_balanced ? 'VERIFIED' : 'VARIANCE'
+        ]] : undefined,
+        theme: 'grid',
+        styles: { fontSize: 6.8, cellPadding: 1.8, textColor: [30, 41, 59] },
+        headStyles: { fillColor: [47, 79, 117], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
+        footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 7.2 },
+        columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            1: { cellWidth: 26 },
+            2: { cellWidth: 22 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 41 },
+            5: { cellWidth: 16, halign: 'right', textColor: [22, 101, 52] },
+            6: { cellWidth: 16, halign: 'right', textColor: [185, 28, 28] },
+            7: { cellWidth: 16, halign: 'right', fontStyle: 'bold' },
+            8: { cellWidth: 12, halign: 'center', fontSize: 6 }
+        }
+    });
+
+    currentY = doc.lastAutoTable.finalY + 8;
+
+    // 5. Section 2: Order Deliveries & Operations Activity Breakdown Table
+    renderSectionHeader(
+        '2. ORDER DELIVERIES & SHIFT OPERATIONAL BREAKDOWN',
+        'Assigned Orders, Bill Value, Customer COD & Store Payments'
+    );
+
+    let totalOrderBill = 0;
+    let totalOrderCod = 0;
+    let totalOrderStorePay = 0;
+    let totalOrderFees = 0;
+
+    const orderRows = orders.length > 0 ? orders.map(o => {
+        const oDate = o.created_at ? new Date(o.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
+        const billAmt = parseFloat(o.total_amount || 0);
+        const codAmt = parseFloat(o.cash_collected || 0);
+        const storePaid = parseFloat(o.paid_to_stores || 0);
+        const fee = parseFloat(o.delivery_fee || 0);
+
+        totalOrderBill += billAmt;
+        totalOrderCod += codAmt;
+        totalOrderStorePay += storePaid;
+        totalOrderFees += fee;
+
+        const customerInfo = `${(o.customer_name || '-').substring(0, 16)}${o.customer_phone ? `\n${o.customer_phone}` : ''}`;
+        const storeInfo = (o.store_names || '-').substring(0, 24);
+        const payMethod = `${(o.payment_method || 'Cash').toUpperCase()} / ${(o.payment_status || 'paid').toUpperCase()}`;
+
+        return [
+            o.order_number || `#${o.id}`,
+            oDate,
+            customerInfo,
+            storeInfo,
+            (o.status || '-').toUpperCase(),
+            payMethod,
+            `Rs ${billAmt.toFixed(2)}`,
+            `Rs ${codAmt.toFixed(2)}`,
+            `Rs ${storePaid.toFixed(2)}`,
+            `Rs ${fee.toFixed(2)}`
+        ];
+    }) : [[
+        '-', 'No orders assigned during this statement period', '', '', '', '', '-', '-', '-', '-'
+    ]];
+
+    doc.autoTable({
+        startY: currentY,
+        head: [['Order #', 'Date/Time', 'Customer & Phone', 'Store(s)', 'Status', 'Payment Method', 'Bill Total', 'COD Cash', 'Store Paid', 'Rider Fee']],
+        body: orderRows,
+        foot: orders.length > 0 ? [[
+            'TOTALS',
+            `${orders.length} Order(s)`,
+            '',
+            '',
+            `Delivered: ${summary.delivered_count || 0}`,
+            '',
+            `Rs ${totalOrderBill.toFixed(2)}`,
+            `Rs ${totalOrderCod.toFixed(2)}`,
+            `Rs ${totalOrderStorePay.toFixed(2)}`,
+            `Rs ${totalOrderFees.toFixed(2)}`
+        ]] : undefined,
+        theme: 'grid',
+        styles: { fontSize: 6.8, cellPadding: 1.8, textColor: [30, 41, 59] },
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
+        footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 7.2 },
+        columnStyles: {
+            0: { cellWidth: 18, fontStyle: 'bold' },
+            1: { cellWidth: 20 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 26 },
+            4: { cellWidth: 16, halign: 'center' },
+            5: { cellWidth: 21 },
+            6: { cellWidth: 14, halign: 'right' },
+            7: { cellWidth: 14, halign: 'right', fontStyle: 'bold', textColor: [22, 101, 52] },
+            8: { cellWidth: 14, halign: 'right', textColor: [185, 28, 28] },
+            9: { cellWidth: 14, halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    currentY = doc.lastAutoTable.finalY + 8;
+
+    // 6. Section 3: Fuel Logs (if applicable)
+    if (fuelHistory && fuelHistory.length > 0) {
+        renderSectionHeader(
+            '3. RIDER FUEL & TRAVEL EXPENSE ENTRIES',
+            'Odometer Readings, Petrol Rate & Authorized Fuel Costs'
+        );
+
+        let totFuelKm = 0;
+        let totFuelCost = 0;
+
+        const fuelRows = fuelHistory.map(f => {
+            const fDate = f.entry_date ? new Date(f.entry_date).toLocaleDateString() : '-';
+            const km = parseFloat(f.distance || (f.end_meter && f.start_meter ? f.end_meter - f.start_meter : 0));
+            const cost = parseFloat(f.fuel_cost || 0);
+            totFuelKm += km;
+            totFuelCost += cost;
+
+            return [
+                fDate,
+                f.start_meter || '-',
+                f.end_meter || '-',
+                `${km.toFixed(1)} km`,
+                f.petrol_rate ? `Rs ${parseFloat(f.petrol_rate).toFixed(2)}` : '-',
+                `Rs ${cost.toFixed(2)}`,
+                f.notes || '-'
+            ];
+        });
+
+        doc.autoTable({
+            startY: currentY,
+            head: [['Date', 'Start Meter', 'End Meter', 'Distance', 'Rate / Liter', 'Fuel Cost', 'Notes']],
+            body: fuelRows,
+            foot: [[
+                'TOTAL',
+                '',
+                '',
+                `${totFuelKm.toFixed(1)} km`,
+                '',
+                `Rs ${totFuelCost.toFixed(2)}`,
+                ''
+            ]],
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 2, textColor: [30, 41, 59] },
+            headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 7.5 },
+            columnStyles: {
+                0: { cellWidth: 22 },
+                1: { cellWidth: 22 },
+                2: { cellWidth: 22 },
+                3: { cellWidth: 24, halign: 'right' },
+                4: { cellWidth: 24, halign: 'right' },
+                5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+                6: { cellWidth: 44 }
+            }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 8;
+    }
+
+    // 7. Section 4: Formal Closing & Verification Signatures Block
+    if (currentY + 42 > pageHeight) {
+        doc.addPage();
+        currentY = 16;
+    }
+
+    renderSectionHeader(
+        '4. SHIFT DAY-CLOSING CERTIFICATION & SIGN-OFF',
+        'Physical Cash Handover Audit & Legal Declaration'
+    );
+
+    const sigBoxY = currentY;
+    const boxWidth = (contentWidth - 6) / 2;
+    const boxHeight = 32;
+
+    // Box 1: Rider Declaration
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderGray);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, sigBoxY, boxWidth, boxHeight, 2, 2, 'FD');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text('RIDER DECLARATION & HANDOVER', margin + 4, sigBoxY + 6);
+
+    doc.setFontSize(6.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('I hereby certify that all cash collections, float advances, store payments,', margin + 4, sigBoxY + 11);
+    doc.text('and the final cash submission stated above are true, complete and verified.', margin + 4, sigBoxY + 15);
+
+    doc.setDrawColor(148, 163, 184);
+    doc.line(margin + 4, sigBoxY + 27, margin + boxWidth - 30, sigBoxY + 27);
+    doc.line(margin + boxWidth - 26, sigBoxY + 27, margin + boxWidth - 4, sigBoxY + 27);
+
+    doc.setFontSize(6.5);
+    doc.text('Rider Signature', margin + 4, sigBoxY + 30);
+    doc.text('Date', margin + boxWidth - 26, sigBoxY + 30);
+
+    // Box 2: Finance / Cashier Verification
+    const box2X = margin + boxWidth + 6;
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderGray);
+    doc.roundedRect(box2X, sigBoxY, boxWidth, boxHeight, 2, 2, 'FD');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text('CASHIER / FINANCE AUDIT VERIFICATION', box2X + 4, sigBoxY + 6);
+
+    doc.setFontSize(6.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    const subAmtStr = `Rs ${parseFloat(summary.cash_submitted || 0).toFixed(2)}`;
+    doc.text(`Physically received closing cash of ${subAmtStr}. System reconciliation:`, box2X + 4, sigBoxY + 11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(summary.is_balanced ? 22 : 185, summary.is_balanced ? 101 : 28, summary.is_balanced ? 52 : 28);
+    doc.text(`Status: [ ${summary.is_balanced ? 'X' : ' '} ] BALANCED (0.00)     [ ${!summary.is_balanced ? 'X' : ' '} ] VARIANCE: Rs ${parseFloat(summary.cash_variance || 0).toFixed(2)}`, box2X + 4, sigBoxY + 15);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.setDrawColor(148, 163, 184);
+    doc.line(box2X + 4, sigBoxY + 27, box2X + boxWidth - 30, sigBoxY + 27);
+    doc.line(box2X + boxWidth - 26, sigBoxY + 27, box2X + boxWidth - 4, sigBoxY + 27);
+
+    doc.setFontSize(6.5);
+    doc.text('Authorized Finance Officer Stamp / Signature', box2X + 4, sigBoxY + 30);
+    doc.text('Date', box2X + boxWidth - 26, sigBoxY + 30);
+
+    // 8. Add Document Footers on All Pages (Page X of Y + Confidential Audit Stamp)
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184);
+        doc.setDrawColor(...borderGray);
+        doc.setLineWidth(0.2);
+        doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
+
+        doc.text(
+            'ServeNow Financial Audit System  •  Confidential Rider Statement  •  Official Operational Record',
+            margin,
+            pageHeight - 6
+        );
+        doc.text(
+            `Page ${i} of ${pageCount}`,
+            pageWidth - margin,
+            pageHeight - 6,
+            { align: 'right' }
+        );
+    }
+
+    if (typeof outputBlobCallback === 'function') {
+        const blob = doc.output('blob');
+        outputBlobCallback(blob);
+        return;
+    }
+
+    // Save File
+    const safeRiderName = (rider.name || 'Rider').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeDate = (period.start_date || new Date().toISOString().split('T')[0]);
+    const fileName = `Rider_Audit_Statement_${safeRiderName}_${safeDate}.pdf`;
+    doc.save(fileName);
+}
+
+        const mockStatement = {
+            rider: {
+                id: 104,
+                name: "Tariq Mehmood",
+                email: "tariq.rider@servenow.pk",
+                phone: "+92 301 7654321",
+                vehicle_type: "Honda CD-70 (Motorcycle)",
+                license_number: "LHR-984210",
+                id_card_num: "35202-8765432-1",
+                status: "active",
+                wallet_balance: 3450.00
+            },
+            period: {
+                start_date: "2026-09-16",
+                end_date: "2026-09-16",
+                label: "2026-09-16 (Morning-Evening Shift)"
+            },
+            summary: {
+                advance_taken: 1000.00,
+                cash_collected: 5650.00,
+                settlement_received: 0.00,
+                total_inflow: 6650.00,
+                store_payments: 3550.00,
+                fuel_payments: 450.00,
+                total_disbursements: 4000.00,
+                expected_closing_cash: 2650.00,
+                cash_submitted: 2650.00,
+                cash_variance: 0.00,
+                pending_cash_in_hand: 0.00,
+                is_balanced: true,
+                total_orders: 5,
+                delivered_count: 5,
+                cancelled_count: 0,
+                other_count: 0,
+                delivery_fees_earned: 650.00
+            },
+            movements: [
+                {
+                    index: 1,
+                    movement_number: "RCM-2026-0916-01",
+                    movement_date: "2026-09-16T08:30:00.000Z",
+                    movement_type: "advance",
+                    amount: 1000.00,
+                    description: "Shift float advance issued by Dispatch Office",
+                    is_inflow: true,
+                    is_outflow: false,
+                    running_balance: 1000.00,
+                    recorded_by_name: "Asim Khan (Cashier)",
+                    status: "approved"
+                },
+                {
+                    index: 2,
+                    movement_number: "RCM-2026-0916-02",
+                    movement_date: "2026-09-16T09:45:00.000Z",
+                    movement_type: "cash_collection",
+                    reference_type: "order",
+                    reference_id: 1081,
+                    amount: 1450.00,
+                    description: "COD collected for Order #ORD-1081 (Customer: Bilal Ahmed)",
+                    is_inflow: true,
+                    is_outflow: false,
+                    running_balance: 2450.00,
+                    status: "completed"
+                },
+                {
+                    index: 3,
+                    movement_number: "RCM-2026-0916-03",
+                    movement_date: "2026-09-16T10:15:00.000Z",
+                    movement_type: "store_payment",
+                    reference_type: "order",
+                    reference_id: 1081,
+                    amount: 1200.00,
+                    description: "Cash paid to vendor Apna Food Ghar for Order #ORD-1081",
+                    is_inflow: false,
+                    is_outflow: true,
+                    running_balance: 1250.00,
+                    status: "completed"
+                },
+                {
+                    index: 4,
+                    movement_number: "RCM-2026-0916-04",
+                    movement_date: "2026-09-16T11:40:00.000Z",
+                    movement_type: "cash_collection",
+                    reference_type: "order",
+                    reference_id: 1085,
+                    amount: 2100.00,
+                    description: "COD collected for Order #ORD-1085 (Customer: Sara Khan)",
+                    is_inflow: true,
+                    is_outflow: false,
+                    running_balance: 3350.00,
+                    status: "completed"
+                },
+                {
+                    index: 5,
+                    movement_number: "RCM-2026-0916-05",
+                    movement_date: "2026-09-16T12:05:00.000Z",
+                    movement_type: "store_payment",
+                    reference_type: "order",
+                    reference_id: 1085,
+                    amount: 1400.00,
+                    description: "Cash paid to vendor Pizza Point for Order #ORD-1085",
+                    is_inflow: false,
+                    is_outflow: true,
+                    running_balance: 1950.00,
+                    status: "completed"
+                },
+                {
+                    index: 6,
+                    movement_number: "RCM-2026-0916-06",
+                    movement_date: "2026-09-16T14:10:00.000Z",
+                    movement_type: "fuel_payment",
+                    amount: 450.00,
+                    description: "Fuel refill allowance approved (Shell Filling Station)",
+                    is_inflow: false,
+                    is_outflow: true,
+                    running_balance: 1500.00,
+                    status: "approved"
+                },
+                {
+                    index: 7,
+                    movement_number: "RCM-2026-0916-07",
+                    movement_date: "2026-09-16T16:20:00.000Z",
+                    movement_type: "cash_collection",
+                    reference_type: "order",
+                    reference_id: 1092,
+                    amount: 2100.00,
+                    description: "COD collected for Order #ORD-1092 (Customer: Omar Farooq)",
+                    is_inflow: true,
+                    is_outflow: false,
+                    running_balance: 3600.00,
+                    status: "completed"
+                },
+                {
+                    index: 8,
+                    movement_number: "RCM-2026-0916-08",
+                    movement_date: "2026-09-16T16:45:00.000Z",
+                    movement_type: "store_payment",
+                    reference_type: "order",
+                    reference_id: 1092,
+                    amount: 950.00,
+                    description: "Cash paid to vendor Gourmet Bakers for Order #ORD-1092",
+                    is_inflow: false,
+                    is_outflow: true,
+                    running_balance: 2650.00,
+                    status: "completed"
+                },
+                {
+                    index: 9,
+                    movement_number: "RCM-2026-0916-09",
+                    movement_date: "2026-09-16T18:00:00.000Z",
+                    movement_type: "cash_submission",
+                    amount: 2650.00,
+                    description: "Final shift closing cash submitted to Cashier Desk",
+                    is_inflow: false,
+                    is_outflow: true,
+                    running_balance: 0.00,
+                    recorded_by_name: "Asim Khan (Cashier)",
+                    status: "completed"
+                }
+            ],
+            orders: [
+                {
+                    id: 1081,
+                    order_number: "ORD-1081",
+                    created_at: "2026-09-16T09:20:00.000Z",
+                    status: "delivered",
+                    payment_method: "Cash",
+                    payment_status: "paid",
+                    total_amount: 1450.00,
+                    delivery_fee: 150.00,
+                    customer_name: "Bilal Ahmed",
+                    customer_phone: "0300-1122334",
+                    store_names: "Apna Food Ghar",
+                    paid_to_stores: 1200.00,
+                    cash_collected: 1450.00
+                },
+                {
+                    id: 1085,
+                    order_number: "ORD-1085",
+                    created_at: "2026-09-16T11:15:00.000Z",
+                    status: "delivered",
+                    payment_method: "Cash",
+                    payment_status: "paid",
+                    total_amount: 2100.00,
+                    delivery_fee: 150.00,
+                    customer_name: "Sara Khan",
+                    customer_phone: "0321-4455667",
+                    store_names: "Pizza Point",
+                    paid_to_stores: 1400.00,
+                    cash_collected: 2100.00
+                },
+                {
+                    id: 1092,
+                    order_number: "ORD-1092",
+                    created_at: "2026-09-16T15:50:00.000Z",
+                    status: "delivered",
+                    payment_method: "Cash",
+                    payment_status: "paid",
+                    total_amount: 2100.00,
+                    delivery_fee: 150.00,
+                    customer_name: "Omar Farooq",
+                    customer_phone: "0333-8899001",
+                    store_names: "Gourmet Bakers",
+                    paid_to_stores: 950.00,
+                    cash_collected: 2100.00
+                }
+            ],
+            fuelHistory: [
+                {
+                    entry_date: "2026-09-16",
+                    start_meter: 14210,
+                    end_meter: 14238,
+                    distance: 28,
+                    petrol_rate: 275.50,
+                    fuel_cost: 450.00,
+                    notes: "Morning and afternoon shift delivery rounds"
+                }
+            ],
+            generated_at: new Date().toISOString()
+        };
+
+        function testGeneratePDF() {
+            try {
+                renderRiderStatementPDF(mockStatement, (blob) => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    document.getElementById('pdfFrame').src = blobUrl;
+                    document.getElementById('statusText').textContent = 'PDF generated successfully! (Ready in Preview)';
+                    document.getElementById('statusText').style.color = '#16a34a';
+                });
+            } catch (err) {
+                console.error(err);
+                document.getElementById('statusText').textContent = 'Error: ' + err.message;
+                document.getElementById('statusText').style.color = 'red';
+            }
+        }
+
+        function testDownloadPDF() {
+            renderRiderStatementPDF(mockStatement);
+        }
+
+        window.onload = () => {
+            testGeneratePDF();
+        };
+    </script>
+</body>
+</html>

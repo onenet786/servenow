@@ -2574,14 +2574,15 @@ router.get('/store-settlements/due-stores', async (req, res) => {
                 0,
                 Number(store.total_payable || 0) - Number(store.total_paid || 0)
             );
-            if (pendingSettlement <= 0.005) continue;
+            const effectivePending = Math.max(pendingSettlement, currentSettlementBalance);
+            if (effectivePending <= 0.005) continue;
 
             dueStores.push({
                 id: store.id,
                 name: store.name,
                 payment_term: store.payment_term || null,
                 is_active: !!store.is_active,
-                pending_settlement: pendingSettlement,
+                pending_settlement: effectivePending,
                 current_settlement_balance: currentSettlementBalance,
                 open_settlement_amount: Number(store.open_settlement_amount || 0),
                 item_count: settlementBalance.displayItems.length,
@@ -7225,6 +7226,281 @@ router.get('/reports/riders-detailed', async (req, res) => {
         );
         res.json({ success: true, riders });
     } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Comprehensive Rider Activity & Cash Movement Statement (Advance to Closing Submission)
+router.get('/reports/rider-statement', async (req, res) => {
+    try {
+        const { start_date, end_date } = req.query;
+        let rider_id = req.query.rider_id;
+
+        // If rider_id is missing or 'all', pick the first available active rider or fail gracefully
+        if (!rider_id || rider_id === 'all') {
+            const [firstRider] = await req.db.execute('SELECT id FROM riders ORDER BY id ASC LIMIT 1');
+            if (firstRider && firstRider.length > 0) {
+                rider_id = firstRider[0].id;
+            } else {
+                return res.status(400).json({ success: false, message: 'No riders found to generate statement' });
+            }
+        }
+
+        // 1. Fetch Rider Profile & Wallet Balance
+        const [riderRows] = await req.db.execute(
+            `SELECT r.*, COALESCE(w.balance, 0) as wallet_balance
+             FROM riders r
+             LEFT JOIN wallets w ON w.rider_id = r.id
+             WHERE r.id = ?`,
+            [rider_id]
+        );
+
+        if (!riderRows.length) {
+            return res.status(404).json({ success: false, message: 'Rider not found' });
+        }
+        const rider = riderRows[0];
+        const riderName = (rider.full_name || `${rider.first_name || ''} ${rider.last_name || ''}`).trim();
+        const riderStatus = rider.status || (rider.is_active ? 'active' : 'inactive');
+
+        // 2. Build Date Filters
+        let movementDateFilter = '';
+        let orderDateFilter = '';
+        let fuelDateFilter = '';
+        const mParams = [rider_id];
+        const oParams = [rider_id];
+        const fParams = [rider_id];
+
+        if (start_date && end_date) {
+            movementDateFilter = ' AND rcm.movement_date BETWEEN ? AND ?';
+            mParams.push(start_date, end_date);
+
+            orderDateFilter = ' AND DATE(o.created_at) BETWEEN ? AND ?';
+            oParams.push(start_date, end_date);
+
+            fuelDateFilter = ' AND rfh.entry_date BETWEEN ? AND ?';
+            fParams.push(start_date, end_date);
+        } else if (start_date) {
+            movementDateFilter = ' AND rcm.movement_date >= ?';
+            mParams.push(start_date);
+
+            orderDateFilter = ' AND DATE(o.created_at) >= ?';
+            oParams.push(start_date);
+
+            fuelDateFilter = ' AND rfh.entry_date >= ?';
+            fParams.push(start_date);
+        } else if (end_date) {
+            movementDateFilter = ' AND rcm.movement_date <= ?';
+            mParams.push(end_date);
+
+            orderDateFilter = ' AND DATE(o.created_at) <= ?';
+            oParams.push(end_date);
+
+            fuelDateFilter = ' AND rfh.entry_date <= ?';
+            fParams.push(end_date);
+        }
+
+        // 3. Cash Movements (Advance, Collections, Store Payments, Fuel, Submission, Settlement, Adjustments)
+        const [movements] = await req.db.execute(
+            `SELECT rcm.id, rcm.movement_number, rcm.movement_date, rcm.movement_type,
+                    rcm.amount, rcm.description, rcm.reference_type, rcm.reference_id,
+                    rcm.status, rcm.notes, rcm.created_at,
+                    CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as recorded_by_name
+             FROM rider_cash_movements rcm
+             LEFT JOIN users u ON u.id = rcm.recorded_by
+             WHERE rcm.rider_id = ? ${movementDateFilter}
+             ORDER BY rcm.movement_date ASC, rcm.id ASC`,
+            mParams
+        );
+
+        // 4. Order Activities
+        const [orders] = await req.db.execute(
+            `SELECT o.id, o.order_number, o.created_at, o.updated_at, o.status,
+                    o.payment_method, o.payment_status, o.total_amount, o.delivery_fee,
+                    CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) as customer_name,
+                    u.phone as customer_phone,
+                    COALESCE(
+                        (SELECT GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ')
+                         FROM order_items oi
+                         JOIN stores s ON s.id = oi.store_id
+                         WHERE oi.order_id = o.id),
+                        (SELECT s2.name FROM stores s2 WHERE s2.id = o.store_id),
+                        'Store'
+                    ) as store_names,
+                    COALESCE((
+                        SELECT SUM(rsp.amount)
+                        FROM rider_store_payments rsp
+                        WHERE rsp.order_id = o.id AND rsp.rider_id = o.rider_id
+                    ), 0) as paid_to_stores
+             FROM orders o
+             LEFT JOIN users u ON u.id = o.user_id
+             WHERE o.rider_id = ? ${orderDateFilter}
+             ORDER BY o.created_at ASC`,
+            oParams
+        );
+
+        // 5. Fuel History (if any)
+        let fuelHistory = [];
+        try {
+            const [fuelRows] = await req.db.execute(
+                `SELECT rfh.*
+                 FROM riders_fuel_history rfh
+                 WHERE rfh.rider_id = ? ${fuelDateFilter}
+                 ORDER BY rfh.entry_date ASC`,
+                fParams
+            );
+            fuelHistory = fuelRows || [];
+        } catch (_) {
+            fuelHistory = [];
+        }
+
+        // 6. Day Closing Record (if closed)
+        let dayClosings = [];
+        try {
+            const [closingRows] = await req.db.execute(
+                `SELECT *
+                 FROM rider_day_closings
+                 WHERE rider_id = ? ${start_date && end_date ? 'AND closed_date BETWEEN ? AND ?' : ''}
+                 ORDER BY closed_date DESC`,
+                [rider_id, ...(start_date && end_date ? [start_date, end_date] : [])]
+            );
+            dayClosings = closingRows || [];
+        } catch (_) {
+            dayClosings = [];
+        }
+
+        // 7. Calculate Shift Financial Metrics & Running Balances
+        let advance_taken = 0;
+        let cash_collected = 0;
+        let settlement_received = 0;
+        let store_payments = 0;
+        let fuel_payments = 0;
+        let cash_submitted = 0;
+        let other_adjustments = 0;
+
+        let runningBalance = 0;
+        const movementAudit = (movements || []).map((m, idx) => {
+            const amt = parseFloat(m.amount || 0);
+            let isInflow = false;
+            let isOutflow = false;
+
+            if (m.movement_type === 'advance') {
+                advance_taken += amt;
+                isInflow = true;
+            } else if (m.movement_type === 'cash_collection') {
+                cash_collected += amt;
+                isInflow = true;
+            } else if (m.movement_type === 'settlement') {
+                settlement_received += amt;
+                isInflow = true;
+            } else if (m.movement_type === 'store_payment') {
+                store_payments += amt;
+                isOutflow = true;
+            } else if (m.movement_type === 'fuel_payment') {
+                fuel_payments += amt;
+                isOutflow = true;
+            } else if (m.movement_type === 'cash_submission') {
+                cash_submitted += amt;
+                isOutflow = true;
+            } else if (m.movement_type === 'adjustment') {
+                other_adjustments += amt;
+                if (amt >= 0) isInflow = true;
+                else isOutflow = true;
+            }
+
+            if (isInflow) runningBalance += Math.abs(amt);
+            if (isOutflow) runningBalance -= Math.abs(amt);
+
+            return {
+                ...m,
+                index: idx + 1,
+                amount: amt,
+                is_inflow: isInflow,
+                is_outflow: isOutflow,
+                running_balance: runningBalance
+            };
+        });
+
+        // Compute order delivery statistics & customer COD cash
+        let cod_cash_orders_total = 0;
+        let delivery_fees_earned = 0;
+        let delivered_count = 0;
+        let cancelled_count = 0;
+        let other_count = 0;
+
+        (orders || []).forEach(o => {
+            delivery_fees_earned += parseFloat(o.delivery_fee || 0);
+            const isCash = String(o.payment_method || '').toLowerCase().trim() === 'cash';
+            const orderAmt = parseFloat(o.total_amount || 0);
+            o.cash_collected = (o.status === 'delivered' && isCash) ? orderAmt : 0;
+
+            if (o.status === 'delivered') {
+                delivered_count++;
+                if (isCash) cod_cash_orders_total += orderAmt;
+            } else if (o.status === 'cancelled') {
+                cancelled_count++;
+            } else {
+                other_count++;
+            }
+        });
+
+        // If no cash_collection movements are logged, use COD orders delivered as effective collections
+        const effectiveCashCollection = cash_collected > 0 ? cash_collected : cod_cash_orders_total;
+        const total_inflow = advance_taken + effectiveCashCollection + settlement_received;
+        const total_disbursements = store_payments + fuel_payments + Math.max(0, other_adjustments);
+        const expected_closing_cash = Math.max(0, total_inflow - total_disbursements);
+        const cash_variance = cash_submitted - expected_closing_cash;
+        const pending_cash_in_hand = Math.max(0, expected_closing_cash - cash_submitted);
+
+        res.json({
+            success: true,
+            statement: {
+                rider: {
+                    id: rider.id,
+                    name: riderName,
+                    email: rider.email || '',
+                    phone: rider.phone || '',
+                    vehicle_type: rider.vehicle_type || 'Motorcycle',
+                    license_number: rider.license_number || 'N/A',
+                    id_card_num: rider.id_card_num || 'N/A',
+                    status: riderStatus,
+                    wallet_balance: parseFloat(rider.wallet_balance || 0)
+                },
+                period: {
+                    start_date: start_date || null,
+                    end_date: end_date || null,
+                    label: start_date && end_date
+                        ? `${start_date} to ${end_date}`
+                        : (start_date ? `From ${start_date}` : (end_date ? `Until ${end_date}` : 'All Dates'))
+                },
+                summary: {
+                    advance_taken,
+                    cash_collected: effectiveCashCollection,
+                    settlement_received,
+                    total_inflow,
+                    store_payments,
+                    fuel_payments,
+                    total_disbursements,
+                    expected_closing_cash,
+                    cash_submitted,
+                    cash_variance,
+                    pending_cash_in_hand,
+                    is_balanced: Math.abs(cash_variance) < 0.01,
+                    // Operational stats
+                    total_orders: (orders || []).length,
+                    delivered_count,
+                    cancelled_count,
+                    other_count,
+                    delivery_fees_earned
+                },
+                movements: movementAudit,
+                orders,
+                fuelHistory,
+                dayClosings,
+                generated_at: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('Error generating rider statement:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

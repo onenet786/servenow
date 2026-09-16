@@ -17,6 +17,9 @@ const {
     campaignBadge,
     isCampaignActiveNow
 } = require('../utils/offerCampaigns');
+const {
+    checkProductTimeAvailability
+} = require('../utils/timeAvailability');
 
 const router = express.Router();
 
@@ -2567,6 +2570,7 @@ router.get('/:id', async (req, res) => {
                         cost_price: product.cost_price === null || product.cost_price === undefined ? null : Number(product.cost_price)
                     }] : []);
                 const productOffer = applyBestCampaignToPrice(Number(product.price), applicableCampaigns);
+                const timeInfo = checkProductTimeAvailability(product.available_from, product.available_to);
                 const enrichedVariants = baseVariants.map((v) => {
                     const offer = applyBestCampaignToPrice(Number(v.price), applicableCampaigns);
                     return {
@@ -2594,6 +2598,11 @@ router.get('/:id', async (req, res) => {
                     store_id: product.store_id,
                     stock_quantity: product.stock_quantity,
                     is_available: product.is_available,
+                    available_from: product.available_from || null,
+                    available_to: product.available_to || null,
+                    is_time_available: timeInfo.isTimeAvailable,
+                    availability_window: timeInfo.label,
+                    is_currently_available: Boolean(Number(product.is_available) === 1 || product.is_available === true) && timeInfo.isTimeAvailable,
                     unit_id: product.unit_id,
                     unit_name: product.unit_name,
                     unit_abbreviation: product.unit_abbreviation,

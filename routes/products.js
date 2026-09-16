@@ -16,6 +16,10 @@ const {
     campaignsForProduct,
     applyBestCampaignToPrice
 } = require('../utils/offerCampaigns');
+const {
+    checkProductTimeAvailability,
+    normalizeTimeHHMM
+} = require('../utils/timeAvailability');
 
 function roundMoney(val) {
     const n = Number(val);
@@ -151,7 +155,9 @@ async function ensureProductColumns(db) {
             { name: 'discount_value', definition: 'DECIMAL(10, 2) NULL' },
             { name: 'profit_type', definition: "ENUM('amount', 'percent') NULL" },
             { name: 'profit_value', definition: 'DECIMAL(10, 2) NULL' },
-            { name: 'manual_variant_cost_override', definition: 'TINYINT(1) NOT NULL DEFAULT 0' }
+            { name: 'manual_variant_cost_override', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+            { name: 'available_from', definition: 'TIME NULL DEFAULT NULL' },
+            { name: 'available_to', definition: 'TIME NULL DEFAULT NULL' }
         ];
 
         for (const col of columns) {
@@ -446,6 +452,7 @@ router.get('/', optionalAuth, async (req, res) => {
             products: products.map(product => {
                 const applicable = campaignsForProduct(activeCampaignMap[Number(product.store_id)] || [], product.id);
                 const offer = applyBestCampaignToPrice(Number(product.price), applicable);
+                const timeInfo = checkProductTimeAvailability(product.available_from, product.available_to);
                 const baseVariants = includeVariants
                     ? ((variantsByProductId[product.id] && variantsByProductId[product.id].length)
                         ? variantsByProductId[product.id]
@@ -493,6 +500,11 @@ router.get('/', optionalAuth, async (req, res) => {
                     store_location: product.store_location,
                     stock_quantity: product.stock_quantity,
                     is_available: product.is_available,
+                    available_from: product.available_from || null,
+                    available_to: product.available_to || null,
+                    is_time_available: timeInfo.isTimeAvailable,
+                    availability_window: timeInfo.label,
+                    is_currently_available: Boolean(Number(product.is_available) === 1 || product.is_available === true) && timeInfo.isTimeAvailable,
                     store_id: product.store_id,
                     category_id: product.category_id,
                     unit_id: product.unit_id,
@@ -627,6 +639,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
         const activeCampaignMap = await getActiveStoreCampaignsMap(req.db, [Number(product.store_id)]);
         const applicable = campaignsForProduct(activeCampaignMap[Number(product.store_id)] || [], product.id);
         const productOffer = applyBestCampaignToPrice(Number(product.price), applicable);
+        const timeInfo = checkProductTimeAvailability(product.available_from, product.available_to);
 
         res.json({
             success: true,
@@ -653,6 +666,11 @@ router.get('/:id', optionalAuth, async (req, res) => {
                 store_location: product.store_location,
                 stock_quantity: product.stock_quantity,
                 is_available: product.is_available,
+                available_from: product.available_from || null,
+                available_to: product.available_to || null,
+                is_time_available: timeInfo.isTimeAvailable,
+                availability_window: timeInfo.label,
+                is_currently_available: Boolean(Number(product.is_available) === 1 || product.is_available === true) && timeInfo.isTimeAvailable,
                 store_id: product.store_id,
                 category_id: product.category_id,
                 unit_id: product.unit_id,
@@ -815,6 +833,8 @@ router.post('/', authenticateToken, requireStaffAccess, [
         const discount_value = req.body.discount_value;
         const profit_value = req.body.profit_value;
         const profit_type = req.body.profit_type;
+        const available_from = normalizeTimeHHMM(req.body.available_from);
+        const available_to = normalizeTimeHHMM(req.body.available_to);
         const manualVariantMode = normalizeBoolean(req.body.manual_variant_cost_override);
         let image_url = req.body.image_url ?? null;
 
@@ -977,6 +997,11 @@ router.post('/', authenticateToken, requireStaffAccess, [
         if (!hasRequestedVariants) {
             if (unit_id) { insertFields.push('unit_id'); insertPlaceholders.push('?'); insertValues.push(unit_id); }
             if (size_id) { insertFields.push('size_id'); insertPlaceholders.push('?'); insertValues.push(size_id); }
+        }
+        if (available_from !== null || available_to !== null) {
+            insertFields.push('available_from', 'available_to');
+            insertPlaceholders.push('?', '?');
+            insertValues.push(available_from, available_to);
         }
         if (meta) {
             insertFields.push('image_bg_r','image_bg_g','image_bg_b','image_overlay_alpha','image_contrast');
@@ -1404,6 +1429,16 @@ router.put('/:id', authenticateToken, requireStaffAccess, [
         if (category_id !== undefined) { updateFields.push('category_id = ?'); updateValues.push(category_id); }
         if (stock_quantity !== undefined) { updateFields.push('stock_quantity = ?'); updateValues.push(stock_quantity); }
         if (is_available !== undefined) { updateFields.push('is_available = ?'); updateValues.push(is_available); }
+        if (req.body.available_from !== undefined) {
+            const val = normalizeTimeHHMM(req.body.available_from);
+            updateFields.push('available_from = ?');
+            updateValues.push(val);
+        }
+        if (req.body.available_to !== undefined) {
+            const val = normalizeTimeHHMM(req.body.available_to);
+            updateFields.push('available_to = ?');
+            updateValues.push(val);
+        }
         if (variantsProvided) {
             updateFields.push('unit_id = ?'); updateValues.push(null);
             updateFields.push('size_id = ?'); updateValues.push(null);

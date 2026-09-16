@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Store Settlement Modal Preview</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin.css">
+  <link rel="stylesheet" href="css/aginv-theme.css">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    .modal.persistent-modal {
+      display: flex !important;
+      position: relative !important;
+      z-index: 10 !important;
+      background: transparent !important;
+      padding: 0 !important;
+      width: 100%;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Store Settlement Modal -->
+  <div id="storeSettlementModal" class="modal persistent-modal">
+    <div class="modal-content store-settlement-modal-content">
+      <div class="modal-header settlement-modal-header">
+        <div class="settlement-header-left">
+          <div class="settlement-header-icon">
+            <i class="fas fa-file-invoice-dollar"></i>
+          </div>
+          <div>
+            <h2>Create Store Settlement</h2>
+            <p class="settlement-header-subtitle">Reconcile store vendor sales, commissions, and payout balances</p>
+          </div>
+        </div>
+        <button type="button" class="settlement-close-btn" title="Close" aria-label="Close modal">
+          &times;
+        </button>
+      </div>
+      <form id="storeSettlementForm">
+        <input type="hidden" id="storeSettlementId" name="id" />
+        <div class="store-settlement-form-grid">
+          <div class="form-group">
+            <label for="settlementStoreSelect"><i class="fas fa-store"></i> Store</label>
+            <select id="settlementStoreSelect" name="storeId" required>
+              <option value="">-- Select Store --</option>
+              <option value="1" selected>Apna Food Ghar</option>
+              <option value="2">Al Baik</option>
+              <option value="3">Bismillah Bakers & Sweets</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="settlementPaymentMethod"><i class="fas fa-credit-card"></i> Payment Method</label>
+            <select id="settlementPaymentMethod" name="paymentMethod" required>
+              <option value="cash" selected>Cash</option>
+              <option value="cheque">Cheque</option>
+              <option value="bank_transfer">Bank Transfer</option>
+            </select>
+          </div>
+          <div class="form-group settlement-amount-group">
+            <label for="settlementAmount"><i class="fas fa-coins"></i> Net Amount (Rs)</label>
+            <div class="settlement-input-prefix-wrap">
+              <span class="settlement-currency-badge">PKR</span>
+              <input
+                type="number"
+                id="settlementAmount"
+                name="netAmount"
+                min="0.01"
+                step="0.01"
+                value="8390.40"
+                placeholder="0.00"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-group settlement-period-mode">
+            <label><i class="fas fa-filter"></i> Settlement Scope</label>
+            <div class="settlement-segmented-control">
+              <label class="settlement-scope-option" for="settlementWholeDataMode">
+                <input type="radio" name="settlementPeriodMode" id="settlementWholeDataMode" value="all" checked />
+                <span><i class="fas fa-layer-group"></i> Whole Data</span>
+              </label>
+              <label class="settlement-scope-option" for="settlementDatePeriodMode">
+                <input type="radio" name="settlementPeriodMode" id="settlementDatePeriodMode" value="period" />
+                <span><i class="fas fa-calendar-alt"></i> Date Period</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="periodFrom"><i class="fas fa-calendar-day"></i> Period From</label>
+            <input type="date" id="periodFrom" name="periodFrom" value="2026-09-01" />
+          </div>
+          <div class="form-group">
+            <label for="periodTo"><i class="fas fa-calendar-check"></i> Period To</label>
+            <input type="date" id="periodTo" name="periodTo" value="2026-09-16" />
+          </div>
+        </div>
+
+        <div class="form-group store-settlement-due-stores-group">
+          <div class="settlement-due-header-row">
+            <div class="settlement-section-title">
+              <i class="fas fa-store-alt text-indigo"></i>
+              <span>Stores With Pending Amount</span>
+              <span class="settlement-badge-pill">11 Stores Due</span>
+            </div>
+            <div class="settlement-multi-controls">
+              <label class="settlement-toggle-pill" for="settlementMultiStoreMode">
+                <input type="checkbox" id="settlementMultiStoreMode" />
+                <span>Multiple settlements</span>
+              </label>
+              <label class="settlement-toggle-pill" for="settlementSelectAllDueStores">
+                <input type="checkbox" id="settlementSelectAllDueStores" />
+                <span>Select all due stores</span>
+              </label>
+            </div>
+          </div>
+          <div class="settlement-due-stores-panel">
+            <div id="settlementDueStoresList" class="settlement-due-stores-list">
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="1" checked>
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Apna Food Ghar</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 8,390.40</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 8,390.40</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="2">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Al Baik</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 19,255.90</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 19,255.90</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="2">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Bismillah Sweets</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 16,492.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 16,492.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="3">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Gourmet Bakery</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 7,200.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 7,200.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="4">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Fresh Meat Mart</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 5,229.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 5,229.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="5">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> City Pharmacy</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 2,428.80</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 2,428.80</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="6">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Chai Khana Express</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 2,259.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 2,259.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="7">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Pizza Point</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 1,638.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 1,638.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="8">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Student Biryani</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 585.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 585.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="9">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Super Store 24/7</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 450.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 450.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="10">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Green Organic Veg</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 450.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 450.00</small>
+                </div>
+              </label>
+
+              <label class="settlement-due-store-option is-creatable">
+                <div class="settlement-card-top">
+                  <input type="checkbox" class="settlement-due-store-checkbox" value="11">
+                  <span class="settlement-due-store-name"><i class="fas fa-store text-slate"></i> Quick Stop</span>
+                </div>
+                <div class="settlement-card-bottom">
+                  <span class="settlement-due-store-amount">Rs 180.00</span>
+                  <small class="settlement-due-helper" style="color: #059669; font-weight: 600;">Ready to create: Rs 180.00</small>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Auto Calculate Row -->
+        <div class="form-group store-settlement-auto-row">
+          <label class="settlement-auto-calc-card" for="autoCalculateSettlement">
+            <input type="checkbox" id="autoCalculateSettlement" name="autoCalculate" checked>
+            <div class="auto-calc-content">
+              <div class="auto-calc-title">
+                <i class="fas fa-bolt text-amber"></i> Auto-Calculate from Unpaid Items
+                <span class="auto-calc-tag">Recommended</span>
+              </div>
+              <p class="auto-calc-desc">Automatically tallies delivered order items, calculates commissions/discounts, and updates the net payable amount.</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-actions settlement-form-actions">
+          <button
+            type="button"
+            class="btn btn-secondary settlement-btn-cancel"
+          >
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary settlement-btn-submit">
+            Create Settlement
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>

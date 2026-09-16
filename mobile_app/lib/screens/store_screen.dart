@@ -952,7 +952,7 @@ class _StoreScreenState extends State<StoreScreen> {
                               height: 30,
                               child: ElevatedButton(
                                 onPressed: (isGlobalBlocked ||
-                                        !product.isAvailable ||
+                                        !product.isCurrentlyAvailable ||
                                         product.stockQuantity <= 0)
                                     ? null
                                     : openDetail,
@@ -973,12 +973,17 @@ class _StoreScreenState extends State<StoreScreen> {
                                 child: Text(
                                   isGlobalBlocked
                                       ? _tr('Unavailable')
-                                      : (!product.isAvailable ||
-                                              product.stockQuantity <= 0
-                                          ? _tr('Out of stock')
-                                          : (hasVariants
-                                              ? _tr('Select')
-                                              : _tr('Add'))),
+                                      : (!product.isAvailable
+                                          ? _tr('Unavailable')
+                                          : (!product.isTimeAvailable
+                                              ? (product.availabilityWindow != null
+                                                  ? product.availabilityWindow!
+                                                  : _tr('Outside Hours'))
+                                              : (product.stockQuantity <= 0
+                                                  ? _tr('Out of stock')
+                                                  : (hasVariants
+                                                      ? _tr('Select')
+                                                      : _tr('Add'))))),
                                 ),
                               ),
                             ),
@@ -1170,19 +1175,24 @@ class _StoreScreenState extends State<StoreScreen> {
                         elevation: 0,
                       ),
                       onPressed: (isGlobalBlocked ||
-                              !product.isAvailable ||
+                              !product.isCurrentlyAvailable ||
                               product.stockQuantity <= 0)
                           ? null
                           : openDetail,
                       child: Text(
                         isGlobalBlocked
                             ? _tr('Unavailable')
-                            : (!product.isAvailable ||
-                                    product.stockQuantity <= 0
-                                ? _tr('Out of stock')
-                                : (hasVariants
-                                    ? _tr('Options')
-                                    : _tr('Add'))),
+                            : (!product.isAvailable
+                                ? _tr('Unavailable')
+                                : (!product.isTimeAvailable
+                                    ? (product.availabilityWindow != null
+                                        ? product.availabilityWindow!
+                                        : _tr('Outside Hours'))
+                                    : (product.stockQuantity <= 0
+                                        ? _tr('Out of stock')
+                                        : (hasVariants
+                                            ? _tr('Options')
+                                            : _tr('Add'))))),
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,

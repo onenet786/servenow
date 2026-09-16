@@ -886,6 +886,9 @@
           <button class="btn btn-primary" id="addRiderCashMovementBtn">
             Add Movement
           </button>
+          <button class="btn btn-secondary" id="riderCashDownloadPdfBtn" onclick="promptDownloadRiderStatementPDF()" style="margin-left: 8px;">
+            <i class="fas fa-file-pdf"></i> Rider Statement PDF
+          </button>
           <div class="filter-controls">
             <div class="filter-group">
                 <label for="riderCashMovementTypeFilter">Type</label>
@@ -3024,6 +3027,9 @@
             <button class="btn btn-secondary" id="exportRiderReportBtn">
               <i class="fas fa-file-export"></i> Export CSV
             </button>
+            <button class="btn btn-success" id="exportRiderStatementPdfBtn" onclick="downloadSelectedRiderStatementPDF()" style="margin-left: 5px;">
+              <i class="fas fa-file-pdf"></i> Download PDF Statement
+            </button>
           </div>
 
           <div class="table-container" style="margin-top: 1rem">
@@ -3039,6 +3045,7 @@
                   <th>Cash Collected</th>
                   <th>Cash Submitted</th>
                   <th>Pending Cash</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="riderReportsTableBody">
@@ -4205,11 +4212,52 @@
                 <input type="file" id="productImageFile" name="image_file" accept="image/*" style="width: 100%;" />
                 <img id="productImagePreview" src="" alt="Preview" style="max-height: 48px; border-radius: 6px; display: none; margin-top: 0.5rem;" />
               </div>
-              <div class="form-group">
+              <!-- Time-Based Availability Section -->
+              <div id="productTimeAvailabilitySection" style="grid-column: span 4; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.85rem; margin: 0.15rem 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+                  <label style="display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: #0f172a; font-size: 0.86rem; margin-bottom: 0;">
+                    <i class="fas fa-clock" style="color: #4f46e5;"></i>
+                    <span>Shift / Time-Based Availability (e.g. Breakfast 7am-12pm, Evening 4pm-7pm)</span>
+                  </label>
+                  <span style="font-size: 0.75rem; color: #64748b;">Leave blank for unrestricted all-day availability (24/7)</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 140px 140px 1fr; gap: 0.75rem; align-items: flex-end;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label for="productAvailableFrom" style="font-size: 0.78rem; font-weight: 600; color: #334155; margin-bottom: 0.2rem;">Available From:</label>
+                    <input type="time" id="productAvailableFrom" name="available_from" style="width: 100%; padding: 0.38rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;" />
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label for="productAvailableTo" style="font-size: 0.78rem; font-weight: 600; color: #334155; margin-bottom: 0.2rem;">Available To:</label>
+                    <input type="time" id="productAvailableTo" name="available_to" style="width: 100%; padding: 0.38rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;" />
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                    <span style="font-size: 0.75rem; font-weight: 600; color: #475569;">Quick Presets:</span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.35rem;">
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('07:00', '12:00')" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                        <i class="fas fa-sun"></i> Breakfast (7am-12pm)
+                      </button>
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('12:00', '16:00')" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                        <i class="fas fa-utensils"></i> Lunch (12pm-4pm)
+                      </button>
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('16:00', '19:00')" style="background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                        <i class="fas fa-mug-hot"></i> Evening (4pm-7pm)
+                      </button>
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('19:00', '23:59')" style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                        <i class="fas fa-moon"></i> Dinner (7pm-12am)
+                      </button>
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('', '')" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                        <i class="fas fa-infinity"></i> All Day (24/7)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group" style="grid-column: span 3;">
                 <label for="productDescription">Description:</label>
                 <textarea id="productDescription" name="description" rows="2" style="width: 100%;"></textarea>
               </div>
-              <div class="form-group" style="display: flex; align-items: flex-end; justify-content: flex-end; gap: 0.6rem;">
+              <div class="form-group" style="grid-column: span 1; display: flex; align-items: flex-end; justify-content: flex-end; gap: 0.6rem;">
                 <button type="button" class="btn btn-secondary" data-modal="addProductModal" style="padding: 0.55rem 1rem;">
                   <i class="fas fa-ban"></i> Cancel
                 </button>
@@ -5542,11 +5590,20 @@
     </div>
 
     <!-- Store Settlement Modal -->
+    <!-- Store Settlement Modal -->
     <div id="storeSettlementModal" class="modal persistent-modal">
       <div class="modal-content store-settlement-modal-content">
-        <div class="modal-header">
-          <h2>Create Store Settlement</h2>
-          <button class="close-btn" disabled title="Use Cancel button to close">
+        <div class="modal-header settlement-modal-header">
+          <div class="settlement-header-left">
+            <div class="settlement-header-icon">
+              <i class="fas fa-file-invoice-dollar"></i>
+            </div>
+            <div>
+              <h2>Create Store Settlement</h2>
+              <p class="settlement-header-subtitle">Reconcile store vendor sales, commissions, and payout balances</p>
+            </div>
+          </div>
+          <button type="button" class="settlement-close-btn" onclick="closeModal('storeSettlementModal')" title="Close" aria-label="Close modal">
             &times;
           </button>
         </div>
@@ -5554,62 +5611,74 @@
           <input type="hidden" id="storeSettlementId" name="id" />
           <div class="store-settlement-form-grid">
             <div class="form-group">
-              <label>Store</label>
+              <label for="settlementStoreSelect"><i class="fas fa-store"></i> Store</label>
               <select id="settlementStoreSelect" name="storeId" required>
                 <option value="">-- Select Store --</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Payment Method</label>
+              <label for="settlementPaymentMethod"><i class="fas fa-credit-card"></i> Payment Method</label>
               <select id="settlementPaymentMethod" name="paymentMethod" required>
                 <option value="cash">Cash</option>
                 <option value="cheque">Cheque</option>
                 <option value="bank_transfer">Bank Transfer</option>
               </select>
             </div>
-            <div class="form-group">
-              <label>Net Amount (Rs )</label>
-              <input
-                type="number"
-                id="settlementAmount"
-                name="netAmount"
-                min="0.01"
-                step="0.01"
-                required
-              />
+            <div class="form-group settlement-amount-group">
+              <label for="settlementAmount"><i class="fas fa-coins"></i> Net Amount (Rs)</label>
+              <div class="settlement-input-prefix-wrap">
+                <span class="settlement-currency-badge">PKR</span>
+                <input
+                  type="number"
+                  id="settlementAmount"
+                  name="netAmount"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
             </div>
             <div class="form-group settlement-period-mode">
-              <label>Settlement Scope</label>
-              <label class="settlement-scope-option">
-                <input type="radio" name="settlementPeriodMode" id="settlementWholeDataMode" value="all" checked />
-                Whole Data
-              </label>
-              <label class="settlement-scope-option">
-                <input type="radio" name="settlementPeriodMode" id="settlementDatePeriodMode" value="period" />
-                Date Period
-              </label>
+              <label><i class="fas fa-filter"></i> Settlement Scope</label>
+              <div class="settlement-segmented-control">
+                <label class="settlement-scope-option" for="settlementWholeDataMode">
+                  <input type="radio" name="settlementPeriodMode" id="settlementWholeDataMode" value="all" checked />
+                  <span><i class="fas fa-layer-group"></i> Whole Data</span>
+                </label>
+                <label class="settlement-scope-option" for="settlementDatePeriodMode">
+                  <input type="radio" name="settlementPeriodMode" id="settlementDatePeriodMode" value="period" />
+                  <span><i class="fas fa-calendar-alt"></i> Date Period</span>
+                </label>
+              </div>
             </div>
             <div class="form-group">
-              <label>Period From</label>
+              <label for="periodFrom"><i class="fas fa-calendar-day"></i> Period From</label>
               <input type="date" id="periodFrom" name="periodFrom" />
             </div>
             <div class="form-group">
-              <label>Period To</label>
+              <label for="periodTo"><i class="fas fa-calendar-check"></i> Period To</label>
               <input type="date" id="periodTo" name="periodTo" />
             </div>
           </div>
 
           <div class="form-group store-settlement-due-stores-group">
-            <label>Stores With Pending Amount</label>
-            <div class="settlement-multi-controls">
-              <label class="settlement-scope-option">
-                <input type="checkbox" id="settlementMultiStoreMode" />
-                Multiple settlements
-              </label>
-              <label class="settlement-scope-option">
-                <input type="checkbox" id="settlementSelectAllDueStores" />
-                Select all due stores
-              </label>
+            <div class="settlement-due-header-row">
+              <div class="settlement-section-title">
+                <i class="fas fa-store-alt text-indigo"></i>
+                <span>Stores With Pending Amount</span>
+                <span class="settlement-badge-pill">Receivables</span>
+              </div>
+              <div class="settlement-multi-controls">
+                <label class="settlement-toggle-pill" for="settlementMultiStoreMode">
+                  <input type="checkbox" id="settlementMultiStoreMode" />
+                  <span>Multiple settlements</span>
+                </label>
+                <label class="settlement-toggle-pill" for="settlementSelectAllDueStores">
+                  <input type="checkbox" id="settlementSelectAllDueStores" />
+                  <span>Select all due stores</span>
+                </label>
+              </div>
             </div>
             <div class="settlement-due-stores-panel">
               <div id="settlementDueStoresList" class="settlement-due-stores-list">
@@ -5618,59 +5687,72 @@
             </div>
           </div>
           
-          <!-- Auto Calculate Checkbox -->
-          <div class="form-group store-settlement-auto-row" style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
-            <input type="checkbox" id="autoCalculateSettlement" name="autoCalculate" style="width: auto; margin: 0;">
-            <label for="autoCalculateSettlement" style="margin: 0;">Auto-Calculate from Unpaid Items</label>
+          <!-- Auto Calculate Row -->
+          <div class="form-group store-settlement-auto-row">
+            <label class="settlement-auto-calc-card" for="autoCalculateSettlement">
+              <input type="checkbox" id="autoCalculateSettlement" name="autoCalculate">
+              <div class="auto-calc-content">
+                <div class="auto-calc-title">
+                  <i class="fas fa-bolt text-amber"></i> Auto-Calculate from Unpaid Items
+                  <span class="auto-calc-tag">Recommended</span>
+                </div>
+                <p class="auto-calc-desc">Automatically tallies delivered order items, calculates commissions/discounts, and updates the net payable amount.</p>
+              </div>
+            </label>
           </div>
 
           <!-- Unsettled Items Container -->
-          <div id="unsettledItemsContainer" class="store-settlement-items-container" style="display: none; border: 1px solid #ddd; padding: 10px; border-radius: 4px; margin-bottom: 15px; background: #f9f9f9;">
-            <h4>Unpaid Sale Items</h4>
+          <div id="unsettledItemsContainer" class="store-settlement-items-container" style="display: none;">
+            <div class="settlement-unsettled-header">
+              <div class="unsettled-title-wrap">
+                <i class="fas fa-receipt text-emerald"></i>
+                <h4>Unpaid Sale Items Breakdown</h4>
+              </div>
+            </div>
             <div class="store-settlement-items-scroll">
-              <table class="table" style="font-size: 0.9em;">
+              <table class="table settlement-unsettled-table">
                 <thead>
                   <tr>
-                    <th>
+                    <th style="width: 40px; text-align: center;">
                       <input type="checkbox" id="selectAllUnsettledItems" checked />
                     </th>
                     <th>Date</th>
                     <th>Order #</th>
                     <th>Items</th>
                     <th>Lines</th>
-                    <th>Total</th>
+                    <th style="text-align: right;">Total</th>
                   </tr>
                 </thead>
                 <tbody id="unsettledItemsBody">
                   <!-- Items injected here -->
                 </tbody>
-                <tfoot style="font-weight: bold; background: #eee;">
+                <tfoot>
                   <tr>
-                    <td colspan="5" style="text-align: right;">Total Sales:</td>
-                    <td id="unsettledTotalSales">Rs  0.00</td>
+                    <td colspan="5" style="text-align: right; font-weight: 600;">Total Sales:</td>
+                    <td id="unsettledTotalSales" style="text-align: right; font-weight: 700;">Rs  0.00</td>
                   </tr>
                   <tr>
-                    <td colspan="5" style="text-align: right;">Profit/Discount Adjustment:</td>
-                    <td id="unsettledCommission">Rs  0.00</td>
+                    <td colspan="5" style="text-align: right; font-weight: 600;">Profit / Discount Adjustment:</td>
+                    <td id="unsettledCommission" style="text-align: right; font-weight: 700; color: #b45309;">Rs  0.00</td>
                   </tr>
-                  <tr>
-                    <td colspan="5" style="text-align: right;">Net Payable:</td>
-                    <td id="unsettledNetPayable" style="color: green;">Rs  0.00</td>
+                  <tr class="settlement-summary-payable-row">
+                    <td colspan="5" style="text-align: right; font-weight: 800; font-size: 1rem;">Net Payable:</td>
+                    <td id="unsettledNetPayable" style="text-align: right; font-weight: 800; font-size: 1.05rem; color: #059669;">Rs  0.00</td>
                   </tr>
                 </tfoot>
               </table>
               <div id="unsettledLegacyPaidNote" style="display: none; margin-top: 8px; color: #64748b; font-size: 0.9em;"></div>
             </div>
           </div>
-          <div class="form-actions">
+          <div class="form-actions settlement-form-actions">
             <button
               type="button"
-              class="btn btn-secondary"
+              class="btn btn-secondary settlement-btn-cancel"
               onclick="closeModal('storeSettlementModal')"
             >
               Cancel
             </button>
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary settlement-btn-submit">
               Create Settlement
             </button>
           </div>

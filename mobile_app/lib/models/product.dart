@@ -138,6 +138,11 @@ class Product {
   final int? storeId;
   final int? categoryId;
   final List<ProductVariant> sizeVariants;
+  final String? availableFrom;
+  final String? availableTo;
+  final bool isTimeAvailable;
+  final String? availabilityWindow;
+  final bool isCurrentlyAvailable;
 
   Product({
     required this.id,
@@ -163,6 +168,11 @@ class Product {
     this.storeId,
     this.categoryId,
     this.sizeVariants = const [],
+    this.availableFrom,
+    this.availableTo,
+    this.isTimeAvailable = true,
+    this.availabilityWindow,
+    this.isCurrentlyAvailable = true,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -209,6 +219,23 @@ class Product {
       storeId: json['store_id'],
       categoryId: json['category_id'],
       sizeVariants: variants,
+      availableFrom: json['available_from']?.toString(),
+      availableTo: json['available_to']?.toString(),
+      isTimeAvailable: json['is_time_available'] == null
+          ? true
+          : (json['is_time_available'] is bool
+              ? json['is_time_available']
+              : (json['is_time_available'] == 1 ||
+                  json['is_time_available'] == 'true')),
+      availabilityWindow: json['availability_window']?.toString(),
+      isCurrentlyAvailable: json['is_currently_available'] == null
+          ? (json['is_available'] is bool
+              ? json['is_available']
+              : (json['is_available'] == 1 || json['is_available'] == 'true'))
+          : (json['is_currently_available'] is bool
+              ? json['is_currently_available']
+              : (json['is_currently_available'] == 1 ||
+                  json['is_currently_available'] == 'true')),
     );
   }
 
@@ -236,9 +263,20 @@ class Product {
       'is_available': isAvailable,
       'store_id': storeId,
       'category_id': categoryId,
+      'available_from': availableFrom,
+      'available_to': availableTo,
+      'is_time_available': isTimeAvailable,
+      'availability_window': availabilityWindow,
+      'is_currently_available': isCurrentlyAvailable,
       'size_variants': sizeVariants.map((v) => v.toJson()).toList(),
     };
   }
+
+  bool get hasTimeConstraint =>
+      availableFrom != null &&
+      availableFrom!.trim().isNotEmpty &&
+      availableTo != null &&
+      availableTo!.trim().isNotEmpty;
 
   double get effectivePrice {
     if (hasActiveOffer &&

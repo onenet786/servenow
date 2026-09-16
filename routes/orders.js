@@ -17,6 +17,7 @@ const {
   campaignsForProduct,
   applyCampaignToCartLine,
 } = require("../utils/offerCampaigns");
+const { checkProductTimeAvailability } = require("../utils/timeAvailability");
 const cache = require("../utils/cache");
 
 const router = express.Router();
@@ -462,6 +463,8 @@ async function ensureProductsProfitSchema(db) {
   const columns = [
     { name: "profit_type", definition: "ENUM('amount', 'percent') NULL" },
     { name: "profit_value", definition: "DECIMAL(10, 2) NULL" },
+    { name: "available_from", definition: "TIME NULL DEFAULT NULL" },
+    { name: "available_to", definition: "TIME NULL DEFAULT NULL" },
   ];
   for (const col of columns) {
     try {
@@ -1557,6 +1560,7 @@ router.post("/", authenticateToken, async (req, res) => {
       const [products] = await req.db.execute(
         `SELECT p.id, p.price, p.cost_price, p.store_id, p.name, p.size_id, p.unit_id,
                 p.discount_type, p.discount_value, p.profit_type, p.profit_value,
+                p.available_from, p.available_to,
                 s.payment_term
            FROM products p
            LEFT JOIN stores s ON s.id = p.store_id
@@ -1572,6 +1576,14 @@ router.post("/", authenticateToken, async (req, res) => {
       }
 
       const product = products[0];
+      const timeInfo = checkProductTimeAvailability(product.available_from, product.available_to);
+      if (!timeInfo.isTimeAvailable) {
+        return res.status(400).json({
+          success: false,
+          message: `"${product.name}" is only available between ${timeInfo.label}`,
+        });
+      }
+
       storeIds.add(product.store_id);
       let unitPrice = Number(product.price);
       const parsedBaseCost = Number(product.cost_price);
@@ -6388,7 +6400,9 @@ router.post(
 
       const [products] = await req.db.execute(
         `SELECT p.id, p.name, p.price, p.cost_price, p.store_id, p.size_id, p.unit_id,
-                p.discount_type, p.discount_value, p.profit_type, p.profit_value, s.payment_term
+                p.discount_type, p.discount_value, p.profit_type, p.profit_value,
+                p.available_from, p.available_to,
+                s.payment_term
            FROM products p
            LEFT JOIN stores s ON s.id = p.store_id
           WHERE p.id = ? AND p.is_available = true`,
@@ -6403,6 +6417,14 @@ router.post(
       }
 
       const product = products[0];
+      const timeInfo = checkProductTimeAvailability(product.available_from, product.available_to);
+      if (!timeInfo.isTimeAvailable) {
+        return res.status(400).json({
+          success: false,
+          message: `"${product.name}" is only available between ${timeInfo.label}`,
+        });
+      }
+
       let price = Number(product.price);
       const parsedBaseCost = Number(product.cost_price);
       let costPrice = Number.isFinite(parsedBaseCost) ? parsedBaseCost : null;
@@ -6635,7 +6657,7 @@ router.get(
       }
 
       let query = `
-            SELECT p.id, p.name, p.price, p.store_id, s.name as store_name
+            SELECT p.id, p.name, p.price, p.store_id, p.available_from, p.available_to, s.name as store_name
             FROM products p
             INNER JOIN stores s ON p.store_id = s.id
             WHERE p.is_available = true AND s.is_active = true
@@ -6658,6 +6680,7 @@ router.get(
       const expandedProducts = [];
 
       for (const product of products || []) {
+        const timeInfo = checkProductTimeAvailability(product.available_from, product.available_to);
         const variants = variantsByProductId[product.id] || [];
         if (variants.length) {
           for (const variant of variants) {
@@ -6672,6 +6695,11 @@ router.get(
               price: Number(variant.price),
               store_id: product.store_id,
               store_name: product.store_name,
+              available_from: product.available_from || null,
+              available_to: product.available_to || null,
+              is_time_available: timeInfo.isTimeAvailable,
+              availability_window: timeInfo.label,
+              is_currently_available: timeInfo.isTimeAvailable,
               size_id: variant.size_id,
               unit_id: variant.unit_id,
               variant_label: variantLabel,
@@ -6686,6 +6714,11 @@ router.get(
           price: Number(product.price),
           store_id: product.store_id,
           store_name: product.store_name,
+          available_from: product.available_from || null,
+          available_to: product.available_to || null,
+          is_time_available: timeInfo.isTimeAvailable,
+          availability_window: timeInfo.label,
+          is_currently_available: timeInfo.isTimeAvailable,
           size_id: null,
           unit_id: null,
           variant_label: null,

@@ -119,6 +119,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       return;
     }
 
+    if (!widget.product.isTimeAvailable) {
+      final window = widget.product.availabilityWindow;
+      Notifier.info(
+        context,
+        window != null
+            ? '${_tr("Available only during")} $window'
+            : _tr('Item is currently outside available hours'),
+      );
+      return;
+    }
+
     if (_availableStock <= 0 || !widget.product.isAvailable) {
       Notifier.info(context, _tr('Out of stock'));
       return;
@@ -201,7 +212,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final totalPrice = _currentEffectivePrice * _quantity;
     final isStoreOpen = widget.isOpen;
     final canAddToCart =
-        isStoreOpen && !widget.isGlobalBlocked && widget.product.isAvailable && _availableStock > 0;
+        isStoreOpen && !widget.isGlobalBlocked && widget.product.isCurrentlyAvailable && _availableStock > 0;
 
     final relatedItems = _relatedProducts;
 
@@ -615,6 +626,48 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             height: 1.25,
           ),
         ),
+        if (widget.product.hasTimeConstraint && widget.product.availabilityWindow != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: widget.product.isTimeAvailable
+                  ? CustomerPalette.primary.withValues(alpha: 0.1)
+                  : Colors.amber.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: widget.product.isTimeAvailable
+                    ? CustomerPalette.primary.withValues(alpha: 0.3)
+                    : Colors.amber.shade700.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  widget.product.isTimeAvailable
+                      ? Icons.access_time_filled_rounded
+                      : Icons.hourglass_bottom_rounded,
+                  size: 14,
+                  color: widget.product.isTimeAvailable
+                      ? CustomerPalette.primary
+                      : Colors.amber.shade800,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${_tr("Available:")} ${widget.product.availabilityWindow}${widget.product.isTimeAvailable ? '' : " (${_tr('Outside Hours')})"}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: widget.product.isTimeAvailable
+                        ? CustomerPalette.primaryDark
+                        : Colors.amber.shade900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }

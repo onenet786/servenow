@@ -4267,6 +4267,21 @@ function appendProductRow(tbody, product) {
         const stockQuantity = product.stock_quantity || 0;
         const isAvailable = product.is_available;
 
+        let availabilityBadge = '';
+        if (isAvailable && product.availability_window) {
+            const liveActive = product.is_time_available !== false;
+            const badgeColor = liveActive ? '#0284c7' : '#d97706';
+            const badgeBg = liveActive ? '#e0f2fe' : '#fef3c7';
+            const icon = liveActive ? 'fa-clock' : 'fa-hourglass-half';
+            const liveStatus = liveActive ? 'Open' : 'Outside Hours';
+            availabilityBadge = `
+                <div style="margin-top: 4px;">
+                    <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: ${badgeBg}; color: ${badgeColor}; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                        <i class="fas ${icon}"></i> ${escapeHtml(product.availability_window)} (${liveStatus})
+                    </span>
+                </div>`;
+        }
+
         const row = document.createElement('tr');
         row.className = 'product-child-row';
         row.innerHTML = `
@@ -4276,7 +4291,10 @@ function appendProductRow(tbody, product) {
             <td>${escapeHtml(categoryName)}</td>
             <td>${escapeHtml(storeName)}</td>
             <td>${stockQuantity}</td>
-            <td><span class="status-${isAvailable ? 'active' : 'inactive'}">${isAvailable ? 'Available' : 'Unavailable'}</span></td>
+            <td>
+                <span class="status-${isAvailable ? 'active' : 'inactive'}">${isAvailable ? 'Available' : 'Unavailable'}</span>
+                ${availabilityBadge}
+            </td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-small btn-edit" onclick="editProduct(${productId})">
@@ -10181,6 +10199,10 @@ async function showAddProductModal() {
             if (profitValueEl) profitValueEl.value = '';
             if (manualCostEl) manualCostEl.checked = false;
             if (manualVariantCostEl) manualVariantCostEl.checked = false;
+            const availFromEl = document.getElementById('productAvailableFrom');
+            const availToEl = document.getElementById('productAvailableTo');
+            if (availFromEl) availFromEl.value = '';
+            if (availToEl) availToEl.value = '';
             recalcProductCost();
             updateVariantCostInputsReadonly();
         } catch (e) {}
@@ -10208,6 +10230,13 @@ async function showAddProductModal() {
         showError('Error', 'Failed to load form data');
     }
 }
+
+window.applyTimePreset = function(from, to) {
+    const fromEl = document.getElementById('productAvailableFrom');
+    const toEl = document.getElementById('productAvailableTo');
+    if (fromEl) fromEl.value = from || '';
+    if (toEl) toEl.value = to || '';
+};
 
 async function saveProduct() {
     // Permission check
@@ -10286,6 +10315,10 @@ async function saveProduct() {
     productData.cost_price = finalCostVal;
     productData.manual_cost_override = isManualCostMode();
     productData.manual_variant_cost_override = useSizePrices ? isManualVariantCostMode() : false;
+    const rawAvailFrom = String(formData.get('available_from') || '').trim();
+    const rawAvailTo = String(formData.get('available_to') || '').trim();
+    productData.available_from = rawAvailFrom ? rawAvailFrom : null;
+    productData.available_to = rawAvailTo ? rawAvailTo : null;
     const storeTerm = AppState.productStoreTermsById[String(storeId)] || '';
     const enforcedStoreDiscount = getStoreDiscountOverride(storeId);
     const hasDiscountTerm = isDiscountPaymentTerm(storeTerm);
@@ -10534,6 +10567,10 @@ async function editProduct(productId) {
         if (p.category_id && categorySelect) categorySelect.value = p.category_id;
         if (p.unit_id && unitSelect) unitSelect.value = p.unit_id;
         if (p.size_id && sizeSelect) sizeSelect.value = p.size_id;
+        const availFromEl = document.getElementById('productAvailableFrom');
+        const availToEl = document.getElementById('productAvailableTo');
+        if (availFromEl) availFromEl.value = p.available_from ? String(p.available_from).slice(0, 5) : '';
+        if (availToEl) availToEl.value = p.available_to ? String(p.available_to).slice(0, 5) : '';
         try {
             const hasVariants = !!p.has_variant_pricing;
             const shouldUseVariants = hasVariants;

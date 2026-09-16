@@ -1,4 +1,4 @@
-﻿let currentTransactions = [];
+let currentTransactions = [];
 let currentPaymentVouchers = [];
 let currentReceiptVouchers = [];
 let currentRiderCash = [];
@@ -1574,8 +1574,17 @@ async function loadSettlementDueStores() {
         }
 
         const dueStores = (data.stores || [])
-            .filter((store) => Number(store.pending_settlement || 0) > 0)
-            .sort((a, b) => Number(b.pending_settlement || 0) - Number(a.pending_settlement || 0));
+            .filter((store) => Number(store.pending_settlement || 0) > 0.005 || Number(store.current_settlement_balance || 0) > 0.005)
+            .sort((a, b) => {
+                const aVal = Math.max(Number(a.pending_settlement || 0), Number(a.current_settlement_balance || 0));
+                const bVal = Math.max(Number(b.pending_settlement || 0), Number(b.current_settlement_balance || 0));
+                return bVal - aVal;
+            });
+
+        const badge = document.querySelector('.settlement-badge-pill');
+        if (badge) {
+            badge.textContent = `${dueStores.length} Stores Due`;
+        }
 
         if (!dueStores.length) {
             container.innerHTML = '<span style="color:#64748b;">No stores with pending settlement</span>';
@@ -1586,19 +1595,22 @@ async function loadSettlementDueStores() {
             const creatableBalance = Number(store.current_settlement_balance || 0);
             const openSettlementAmount = Number(store.open_settlement_amount || 0);
             const canCreateSettlement = creatableBalance > 0.005;
+            const displayAmount = Math.max(Number(store.pending_settlement || 0), creatableBalance);
             const helperText = canCreateSettlement
                 ? `Ready to create: Rs ${creatableBalance.toFixed(2)}`
                 : openSettlementAmount > 0
                     ? `Existing pending/approved settlement: Rs ${openSettlementAmount.toFixed(2)}`
                     : 'No new unlinked items available';
             return `
-            <label class="settlement-due-store-option" title="${escapeHtml(`${store.name || ''} - ${helperText}`)}">
-                <input type="checkbox" class="settlement-due-store-checkbox" value="${store.id}" ${canCreateSettlement ? '' : 'disabled'}>
-                <span class="settlement-due-store-name">${escapeHtml(store.name || '-')}</span>
-                <span class="settlement-due-store-amount">
-                    Rs ${Number(store.pending_settlement || 0).toFixed(2)}
-                    <small style="display:block;color:#64748b;font-weight:400;">${escapeHtml(helperText)}</small>
-                </span>
+            <label class="settlement-due-store-option ${canCreateSettlement ? 'is-creatable' : 'is-disabled'}" title="${escapeHtml(`${store.name || ''} - ${helperText}`)}">
+                <div class="settlement-card-top">
+                    <input type="checkbox" class="settlement-due-store-checkbox" value="${store.id}" ${canCreateSettlement ? '' : 'disabled'}>
+                    <span class="settlement-due-store-name" title="${escapeHtml(store.name || '')}"><i class="fas fa-store"></i> ${escapeHtml(store.name || '-')}</span>
+                </div>
+                <div class="settlement-card-bottom">
+                    <span class="settlement-due-store-amount">Rs ${displayAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    <small class="settlement-due-helper" style="display:block;color:#64748b;font-weight:400;">${escapeHtml(helperText)}</small>
+                </div>
             </label>
         `}).join('');
 
@@ -5391,6 +5403,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const exportRiderReportBtn = document.getElementById('exportRiderReportBtn');
     if (exportRiderReportBtn) exportRiderReportBtn.addEventListener('click', exportRiderReport);
 
+    const exportRiderStatementPdfBtn = document.getElementById('exportRiderStatementPdfBtn');
+    if (exportRiderStatementPdfBtn) exportRiderStatementPdfBtn.addEventListener('click', downloadSelectedRiderStatementPDF);
+
+    const riderCashDownloadPdfBtn = document.getElementById('riderCashDownloadPdfBtn');
+    if (riderCashDownloadPdfBtn) riderCashDownloadPdfBtn.addEventListener('click', promptDownloadRiderStatementPDF);
+
     const exportStoreReportBtn = document.getElementById('exportStoreReportBtn');
     if (exportStoreReportBtn) exportStoreReportBtn.addEventListener('click', exportStoreReport);
 
@@ -5676,6 +5694,13 @@ function displayRiderReports(riders) {
     if (!tbody) return;
     tbody.innerHTML = '';
 
+    if (!riders || riders.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = '<td colspan="10" style="text-align: center; color: #64748b; padding: 16px;">No rider report records found for the selected period</td>';
+        tbody.appendChild(emptyRow);
+        return;
+    }
+
     riders.forEach(r => {
         const feesEarned = parseFloat(r.total_fees || 0);
         const cashCollection = parseFloat(r.cash_collection || 0);
@@ -5684,15 +5709,20 @@ function displayRiderReports(riders) {
 
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${r.first_name} ${r.last_name}</td>
-            <td>${r.email}<br>${r.phone || '-'}</td>
+            <td><strong>${r.first_name} ${r.last_name}</strong></td>
+            <td>${r.email}<br><small style="color: #64748b;">${r.phone || '-'}</small></td>
             <td>${r.total_assigned}</td>
             <td>${r.total_delivered}</td>
             <td>${r.total_cancelled}</td>
             <td>Rs  ${feesEarned.toFixed(2)}</td>
             <td>Rs  ${cashCollection.toFixed(2)}</td>
             <td>Rs  ${cashSubmission.toFixed(2)}</td>
-            <td style="font-weight: bold; color: ${pendingCash > 0 ? 'red' : (pendingCash < 0 ? 'blue' : 'green')}">Rs  ${pendingCash.toFixed(2)}</td>
+            <td style="font-weight: bold; color: ${pendingCash > 0 ? '#dc2626' : (pendingCash < 0 ? '#2563eb' : '#16a34a')}">Rs  ${pendingCash.toFixed(2)}</td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="generateRiderStatementPDFById(${r.id})" style="padding: 4px 8px; font-size: 11px; white-space: nowrap; border-radius: 4px;">
+                    <i class="fas fa-file-pdf"></i> Statement PDF
+                </button>
+            </td>
         `;
         tbody.appendChild(row);
     });
@@ -6476,6 +6506,716 @@ doc.save(`Order_Wise_Detail_Summary_${fromDate}_to_${toDate}.pdf`);
 if (typeof window !== 'undefined') {
     window.generateFinancialReport = generateFinancialReport;
     window.loadFinancialReports = loadFinancialReports;
+    window.generateRiderStatementPDFById = generateRiderStatementPDFById;
+    window.renderRiderStatementPDF = renderRiderStatementPDF;
+    window.downloadSelectedRiderStatementPDF = downloadSelectedRiderStatementPDF;
+    window.promptDownloadRiderStatementPDF = promptDownloadRiderStatementPDF;
+    window.closeRiderStatementModal = closeRiderStatementModal;
+    window.confirmGenerateRiderStatementFromModal = confirmGenerateRiderStatementFromModal;
+}
+
+/**
+ * Render Comprehensive Audit-Grade Rider Activity & Cash Movement Statement PDF
+ * Covering Shift Opening Float Advance, COD Collections, Store Disbursements,
+ * Fuel Expenses, and Final Shift Closing Cash Submission with Verification Signatures.
+ */
+function renderRiderStatementPDF(statement) {
+    if (!statement || !statement.rider) {
+        if (typeof showWarning === 'function') showWarning('Error', 'Invalid rider statement data');
+        else alert('Invalid rider statement data');
+        return;
+    }
+
+    if (!window.jspdf) {
+        alert('PDF generator library not loaded. Please refresh the page.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4'); // A4 Portrait (210mm x 297mm)
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const contentWidth = pageWidth - (margin * 2);
+
+    const rider = statement.rider || {};
+    const period = statement.period || {};
+    const summary = statement.summary || {};
+    const movements = statement.movements || [];
+    const orders = statement.orders || [];
+    const fuelHistory = statement.fuelHistory || [];
+
+    // Corporate Color Palette
+    const primaryColor = [26, 54, 93]; // Deep Navy (#1A365D)
+    const primaryDark = [15, 23, 42]; // Slate 900
+    const borderGray = [226, 232, 240];
+    const bgLight = [248, 250, 252];
+
+    // 1. Corporate Header Banner
+    doc.setFillColor(...primaryColor);
+    doc.rect(margin, 12, contentWidth, 22, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ServeNow Logistics & Financial Services', margin + 6, 20);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('RIDER COMPREHENSIVE SHIFT & CASH AUDIT STATEMENT', margin + 6, 26);
+    doc.setFontSize(7.5);
+    doc.text('End-to-End Activity, Cash Inflows, Float Advance, Store Disbursements & Shift Day-Closing', margin + 6, 31);
+
+    // Right Side of Banner
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`STATEMENT REF: STM-R-${rider.id}-${Date.now().toString().slice(-6)}`, pageWidth - margin - 6, 20, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    const genDate = new Date(statement.generated_at || Date.now()).toLocaleString();
+    doc.text(`Generated: ${genDate}`, pageWidth - margin - 6, 26, { align: 'right' });
+    doc.text(`Status: ${summary.is_balanced ? 'VERIFIED BALANCED' : 'VARIANCE FLAGGED'}`, pageWidth - margin - 6, 31, { align: 'right' });
+
+    // 2. Rider Profile & Statement Period Information Box
+    let startY = 38;
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderGray);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, startY, contentWidth, 26, 2, 2, 'FD');
+
+    doc.setTextColor(...primaryDark);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RIDER INFORMATION', margin + 6, startY + 6);
+    doc.text('AUDIT PERIOD & WALLET ASSETS', margin + 96, startY + 6);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    // Left column
+    doc.text('Rider Name: ', margin + 6, startY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.name || 'N/A'} (ID: #${rider.id})`, margin + 28, startY + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Phone / Email: ', margin + 6, startY + 17);
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.phone || '-'}  |  ${rider.email || '-'}`, margin + 28, startY + 17);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Vehicle / Status: ', margin + 6, startY + 22);
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.vehicle_type || 'Motorcycle'}  |  Status: ${String(rider.status || 'Active').toUpperCase()}`, margin + 28, startY + 22);
+
+    // Right column
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Audit Period: ', margin + 96, startY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text(`${period.label || 'All Dates'}`, margin + 124, startY + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('CNIC / License: ', margin + 96, startY + 17);
+    doc.setTextColor(...primaryDark);
+    doc.text(`${rider.id_card_num || 'N/A'}  /  ${rider.license_number || 'N/A'}`, margin + 124, startY + 17);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('Wallet Balance: ', margin + 96, startY + 22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 64, 175);
+    doc.text(`Rs ${parseFloat(rider.wallet_balance || 0).toFixed(2)}`, margin + 124, startY + 22);
+
+    // 3. Shift Financial Summary Table (Executive KPI Breakdown)
+    startY = 68;
+    const formatCurrency = (v) => `Rs ${parseFloat(v || 0).toFixed(2)}`;
+
+    const kpiHead = [['SHIFT CASH RECONCILIATION SUMMARY', 'AMOUNT (PKR)', 'OPERATIONAL METRIC', 'COUNT / VALUE']];
+    const kpiBody = [
+        ['Shift Opening Float / Advance Taken (Cash In)', formatCurrency(summary.advance_taken), 'Total Orders Assigned', `${summary.total_orders || 0}`],
+        ['Customer COD Cash Collected (Cash In)', formatCurrency(summary.cash_collected), 'Orders Delivered (Completed)', `${summary.delivered_count || 0}`],
+        ['Office Settlement / Other Cash Inflow', formatCurrency(summary.settlement_received), 'Orders Cancelled / Returned', `${summary.cancelled_count || 0}`],
+        ['TOTAL SHIFT CASH INFLOW (A)', formatCurrency(summary.total_inflow), 'Delivery Fees Earned by Rider', formatCurrency(summary.delivery_fees_earned)],
+        ['Vendor Purchases / Paid to Stores (Cash Out)', formatCurrency(summary.store_payments), 'Fuel Cost Reimbursed / Logged', formatCurrency(summary.fuel_payments)],
+        ['TOTAL CASH DISBURSEMENTS (B)', formatCurrency(summary.total_disbursements), 'Total In-Shift Disbursements', formatCurrency(summary.total_disbursements)],
+        ['NET EXPECTED CASH TO SUBMIT (A - B)', formatCurrency(summary.expected_closing_cash), 'Shift Closing Status', summary.is_balanced ? 'VERIFIED BALANCED' : 'VARIANCE FLAGGED'],
+        ['CLOSING CASH PHYSICALLY SUBMITTED', formatCurrency(summary.cash_submitted), 'Pending In-Hand Cash', formatCurrency(summary.pending_cash_in_hand)],
+        ['CASH VARIANCE (Submitted - Expected)', formatCurrency(summary.cash_variance), 'Shift Audit Result', summary.is_balanced ? '0.00 DIFFERENCE (OK)' : (summary.cash_variance < 0 ? 'SHORTAGE DETECTED' : 'SURPLUS DETECTED')]
+    ];
+
+    doc.autoTable({
+        startY: startY,
+        head: kpiHead,
+        body: kpiBody,
+        theme: 'grid',
+        styles: { fontSize: 7.5, cellPadding: 2, textColor: [30, 41, 59] },
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+        columnStyles: {
+            0: { fontStyle: 'normal', cellWidth: 70 },
+            1: { fontStyle: 'bold', halign: 'right', cellWidth: 28 },
+            2: { fontStyle: 'normal', cellWidth: 56 },
+            3: { fontStyle: 'bold', halign: 'right', cellWidth: 28 }
+        },
+        didParseCell: function(data) {
+            if (data.row.index === 3 || data.row.index === 5) {
+                data.cell.styles.fillColor = [241, 245, 249];
+                data.cell.styles.fontStyle = 'bold';
+            }
+            if (data.row.index === 6) {
+                data.cell.styles.fillColor = [238, 242, 255];
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = [30, 58, 138];
+            }
+            if (data.row.index === 7) {
+                data.cell.styles.fillColor = [240, 253, 244];
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = [22, 101, 52];
+            }
+            if (data.row.index === 8) {
+                const varVal = parseFloat(summary.cash_variance || 0);
+                data.cell.styles.fillColor = varVal < -0.01 ? [254, 242, 242] : (varVal > 0.01 ? [254, 243, 199] : [240, 253, 244]);
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.textColor = varVal < -0.01 ? [185, 28, 28] : (varVal > 0.01 ? [180, 83, 9] : [22, 101, 52]);
+            }
+        }
+    });
+
+    let currentY = doc.lastAutoTable.finalY + 8;
+
+    // Helper to render Section Title Bars
+    const renderSectionHeader = (title, subtitle) => {
+        if (currentY + 20 > pageHeight) {
+            doc.addPage();
+            currentY = 16;
+        }
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, currentY, contentWidth, 7, 'F');
+        doc.setFontSize(8.2);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryDark);
+        doc.text(title, margin + 4, currentY + 4.8);
+        if (subtitle) {
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 116, 139);
+            doc.text(subtitle, pageWidth - margin - 4, currentY + 4.8, { align: 'right' });
+        }
+        currentY += 9;
+    };
+
+    // 4. Section 1: Chronological Cash Movement Audit Trail Table
+    renderSectionHeader(
+        '1. CHRONOLOGICAL CASH MOVEMENT AUDIT TRAIL (Advance Taken to Closing Cash Handover)',
+        'Float Inflows, Store Outflows, Running Cash Balance'
+    );
+
+    const movementTypeLabels = {
+        'advance': 'Shift Advance Float',
+        'cash_collection': 'Order COD Collection',
+        'store_payment': 'Store Cash Purchase',
+        'fuel_payment': 'Fuel Allowance',
+        'cash_submission': 'Closing Cash Submission',
+        'settlement': 'Settlement Inflow',
+        'adjustment': 'Balance Adjustment'
+    };
+
+    const movementRows = movements.length > 0 ? movements.map(m => {
+        const mDate = m.movement_date ? new Date(m.movement_date).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+        const typeLabel = movementTypeLabels[m.movement_type] || m.movement_type || '-';
+        const amt = parseFloat(m.amount || 0);
+        const inflowStr = m.is_inflow ? `+ Rs ${amt.toFixed(2)}` : '-';
+        const outflowStr = m.is_outflow ? `- Rs ${amt.toFixed(2)}` : '-';
+        const runBalStr = `Rs ${parseFloat(m.running_balance || 0).toFixed(2)}`;
+        const refStr = m.movement_number || (m.reference_type ? `${m.reference_type} #${m.reference_id || ''}` : '-');
+        const descStr = (m.description || m.notes || '-').substring(0, 42);
+
+        return [
+            m.index || '',
+            mDate,
+            refStr,
+            typeLabel,
+            descStr,
+            inflowStr,
+            outflowStr,
+            runBalStr,
+            String(m.status || 'approved').toUpperCase()
+        ];
+    }) : [[
+        '-', 'No cash movement records found for this period', '', '', '', '-', '-', '-', '-'
+    ]];
+
+    doc.autoTable({
+        startY: currentY,
+        head: [['#', 'Date & Time', 'Movement / Ref #', 'Type', 'Description / Related Entity', 'Inflow (+)', 'Outflow (-)', 'Running Balance', 'Status']],
+        body: movementRows,
+        foot: movements.length > 0 ? [[
+            'TOTAL',
+            `${movements.length} Record(s)`,
+            '',
+            '',
+            'Net Movement Closing Position',
+            `+ Rs ${summary.total_inflow.toFixed(2)}`,
+            `- Rs ${summary.total_disbursements.toFixed(2)}`,
+            `Rs ${(summary.total_inflow - summary.total_disbursements).toFixed(2)}`,
+            summary.is_balanced ? 'VERIFIED' : 'VARIANCE'
+        ]] : undefined,
+        theme: 'grid',
+        styles: { fontSize: 6.8, cellPadding: 1.8, textColor: [30, 41, 59] },
+        headStyles: { fillColor: [47, 79, 117], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
+        footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 7.2 },
+        columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            1: { cellWidth: 26 },
+            2: { cellWidth: 22 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 41 },
+            5: { cellWidth: 16, halign: 'right', textColor: [22, 101, 52] },
+            6: { cellWidth: 16, halign: 'right', textColor: [185, 28, 28] },
+            7: { cellWidth: 16, halign: 'right', fontStyle: 'bold' },
+            8: { cellWidth: 12, halign: 'center', fontSize: 6 }
+        }
+    });
+
+    currentY = doc.lastAutoTable.finalY + 8;
+
+    // 5. Section 2: Order Deliveries & Operations Activity Breakdown Table
+    renderSectionHeader(
+        '2. ORDER DELIVERIES & SHIFT OPERATIONAL BREAKDOWN',
+        'Assigned Orders, Bill Value, Customer COD & Store Payments'
+    );
+
+    let totalOrderBill = 0;
+    let totalOrderCod = 0;
+    let totalOrderStorePay = 0;
+    let totalOrderFees = 0;
+
+    const orderRows = orders.length > 0 ? orders.map(o => {
+        const oDate = o.created_at ? new Date(o.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
+        const billAmt = parseFloat(o.total_amount || 0);
+        const codAmt = parseFloat(o.cash_collected || 0);
+        const storePaid = parseFloat(o.paid_to_stores || 0);
+        const fee = parseFloat(o.delivery_fee || 0);
+
+        totalOrderBill += billAmt;
+        totalOrderCod += codAmt;
+        totalOrderStorePay += storePaid;
+        totalOrderFees += fee;
+
+        const customerInfo = `${(o.customer_name || '-').substring(0, 16)}${o.customer_phone ? `\n${o.customer_phone}` : ''}`;
+        const storeInfo = (o.store_names || '-').substring(0, 24);
+        const payMethod = `${(o.payment_method || 'Cash').toUpperCase()} / ${(o.payment_status || 'paid').toUpperCase()}`;
+
+        return [
+            o.order_number || `#${o.id}`,
+            oDate,
+            customerInfo,
+            storeInfo,
+            (o.status || '-').toUpperCase(),
+            payMethod,
+            `Rs ${billAmt.toFixed(2)}`,
+            `Rs ${codAmt.toFixed(2)}`,
+            `Rs ${storePaid.toFixed(2)}`,
+            `Rs ${fee.toFixed(2)}`
+        ];
+    }) : [[
+        '-', 'No orders assigned during this statement period', '', '', '', '', '-', '-', '-', '-'
+    ]];
+
+    doc.autoTable({
+        startY: currentY,
+        head: [['Order #', 'Date/Time', 'Customer & Phone', 'Store(s)', 'Status', 'Payment Method', 'Bill Total', 'COD Cash', 'Store Paid', 'Rider Fee']],
+        body: orderRows,
+        foot: orders.length > 0 ? [[
+            'TOTALS',
+            `${orders.length} Order(s)`,
+            '',
+            '',
+            `Delivered: ${summary.delivered_count || 0}`,
+            '',
+            `Rs ${totalOrderBill.toFixed(2)}`,
+            `Rs ${totalOrderCod.toFixed(2)}`,
+            `Rs ${totalOrderStorePay.toFixed(2)}`,
+            `Rs ${totalOrderFees.toFixed(2)}`
+        ]] : undefined,
+        theme: 'grid',
+        styles: { fontSize: 6.8, cellPadding: 1.8, textColor: [30, 41, 59] },
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
+        footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 7.2 },
+        columnStyles: {
+            0: { cellWidth: 18, fontStyle: 'bold' },
+            1: { cellWidth: 20 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 26 },
+            4: { cellWidth: 16, halign: 'center' },
+            5: { cellWidth: 21 },
+            6: { cellWidth: 14, halign: 'right' },
+            7: { cellWidth: 14, halign: 'right', fontStyle: 'bold', textColor: [22, 101, 52] },
+            8: { cellWidth: 14, halign: 'right', textColor: [185, 28, 28] },
+            9: { cellWidth: 14, halign: 'right', fontStyle: 'bold' }
+        }
+    });
+
+    currentY = doc.lastAutoTable.finalY + 8;
+
+    // 6. Section 3: Fuel Logs (if applicable)
+    if (fuelHistory && fuelHistory.length > 0) {
+        renderSectionHeader(
+            '3. RIDER FUEL & TRAVEL EXPENSE ENTRIES',
+            'Odometer Readings, Petrol Rate & Authorized Fuel Costs'
+        );
+
+        let totFuelKm = 0;
+        let totFuelCost = 0;
+
+        const fuelRows = fuelHistory.map(f => {
+            const fDate = f.entry_date ? new Date(f.entry_date).toLocaleDateString() : '-';
+            const km = parseFloat(f.distance || (f.end_meter && f.start_meter ? f.end_meter - f.start_meter : 0));
+            const cost = parseFloat(f.fuel_cost || 0);
+            totFuelKm += km;
+            totFuelCost += cost;
+
+            return [
+                fDate,
+                f.start_meter || '-',
+                f.end_meter || '-',
+                `${km.toFixed(1)} km`,
+                f.petrol_rate ? `Rs ${parseFloat(f.petrol_rate).toFixed(2)}` : '-',
+                `Rs ${cost.toFixed(2)}`,
+                f.notes || '-'
+            ];
+        });
+
+        doc.autoTable({
+            startY: currentY,
+            head: [['Date', 'Start Meter', 'End Meter', 'Distance', 'Rate / Liter', 'Fuel Cost', 'Notes']],
+            body: fuelRows,
+            foot: [[
+                'TOTAL',
+                '',
+                '',
+                `${totFuelKm.toFixed(1)} km`,
+                '',
+                `Rs ${totFuelCost.toFixed(2)}`,
+                ''
+            ]],
+            theme: 'grid',
+            styles: { fontSize: 7, cellPadding: 2, textColor: [30, 41, 59] },
+            headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold', fontSize: 7.5 },
+            columnStyles: {
+                0: { cellWidth: 22 },
+                1: { cellWidth: 22 },
+                2: { cellWidth: 22 },
+                3: { cellWidth: 24, halign: 'right' },
+                4: { cellWidth: 24, halign: 'right' },
+                5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+                6: { cellWidth: 44 }
+            }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 8;
+    }
+
+    // 7. Section 4: Formal Closing & Verification Signatures Block
+    if (currentY + 42 > pageHeight) {
+        doc.addPage();
+        currentY = 16;
+    }
+
+    renderSectionHeader(
+        '4. SHIFT DAY-CLOSING CERTIFICATION & SIGN-OFF',
+        'Physical Cash Handover Audit & Legal Declaration'
+    );
+
+    const sigBoxY = currentY;
+    const boxWidth = (contentWidth - 6) / 2;
+    const boxHeight = 32;
+
+    // Box 1: Rider Declaration
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderGray);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, sigBoxY, boxWidth, boxHeight, 2, 2, 'FD');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text('RIDER DECLARATION & HANDOVER', margin + 4, sigBoxY + 6);
+
+    doc.setFontSize(6.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('I hereby certify that all cash collections, float advances, store payments,', margin + 4, sigBoxY + 11);
+    doc.text('and the final cash submission stated above are true, complete and verified.', margin + 4, sigBoxY + 15);
+
+    doc.setDrawColor(148, 163, 184);
+    doc.line(margin + 4, sigBoxY + 27, margin + boxWidth - 30, sigBoxY + 27);
+    doc.line(margin + boxWidth - 26, sigBoxY + 27, margin + boxWidth - 4, sigBoxY + 27);
+
+    doc.setFontSize(6.5);
+    doc.text('Rider Signature', margin + 4, sigBoxY + 30);
+    doc.text('Date', margin + boxWidth - 26, sigBoxY + 30);
+
+    // Box 2: Finance / Cashier Verification
+    const box2X = margin + boxWidth + 6;
+    doc.setFillColor(...bgLight);
+    doc.setDrawColor(...borderGray);
+    doc.roundedRect(box2X, sigBoxY, boxWidth, boxHeight, 2, 2, 'FD');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryDark);
+    doc.text('CASHIER / FINANCE AUDIT VERIFICATION', box2X + 4, sigBoxY + 6);
+
+    doc.setFontSize(6.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    const subAmtStr = `Rs ${parseFloat(summary.cash_submitted || 0).toFixed(2)}`;
+    doc.text(`Physically received closing cash of ${subAmtStr}. System reconciliation:`, box2X + 4, sigBoxY + 11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(summary.is_balanced ? 22 : 185, summary.is_balanced ? 101 : 28, summary.is_balanced ? 52 : 28);
+    doc.text(`Status: [ ${summary.is_balanced ? 'X' : ' '} ] BALANCED (0.00)     [ ${!summary.is_balanced ? 'X' : ' '} ] VARIANCE: Rs ${parseFloat(summary.cash_variance || 0).toFixed(2)}`, box2X + 4, sigBoxY + 15);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.setDrawColor(148, 163, 184);
+    doc.line(box2X + 4, sigBoxY + 27, box2X + boxWidth - 30, sigBoxY + 27);
+    doc.line(box2X + boxWidth - 26, sigBoxY + 27, box2X + boxWidth - 4, sigBoxY + 27);
+
+    doc.setFontSize(6.5);
+    doc.text('Authorized Finance Officer Stamp / Signature', box2X + 4, sigBoxY + 30);
+    doc.text('Date', box2X + boxWidth - 26, sigBoxY + 30);
+
+    // 8. Add Document Footers on All Pages (Page X of Y + Confidential Audit Stamp)
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184);
+        doc.setDrawColor(...borderGray);
+        doc.setLineWidth(0.2);
+        doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
+
+        doc.text(
+            'ServeNow Financial Audit System  •  Confidential Rider Statement  •  Official Operational Record',
+            margin,
+            pageHeight - 6
+        );
+        doc.text(
+            `Page ${i} of ${pageCount}`,
+            pageWidth - margin,
+            pageHeight - 6,
+            { align: 'right' }
+        );
+    }
+
+    // Save File
+    const safeRiderName = (rider.name || 'Rider').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeDate = (period.start_date || new Date().toISOString().split('T')[0]);
+    const fileName = `Rider_Audit_Statement_${safeRiderName}_${safeDate}.pdf`;
+    doc.save(fileName);
+}
+
+/**
+ * Fetch data and trigger PDF Statement download for a specific rider
+ */
+async function generateRiderStatementPDFById(riderId, startDate, endDate) {
+    try {
+        if (!riderId || riderId === 'all') {
+            if (typeof showWarning === 'function') {
+                showWarning('Select Rider', 'Please select a specific rider to generate the statement.');
+            } else {
+                alert('Please select a specific rider to generate the statement.');
+            }
+            return;
+        }
+
+        const sDate = startDate !== undefined ? startDate : (document.getElementById('riderReportStartDate')?.value || '');
+        const eDate = endDate !== undefined ? endDate : (document.getElementById('riderReportEndDate')?.value || '');
+
+        const params = new URLSearchParams();
+        params.append('rider_id', riderId);
+        if (sDate) params.append('start_date', sDate);
+        if (eDate) params.append('end_date', eDate);
+
+        if (typeof showInfo === 'function') {
+            showInfo('Generating Statement', 'Fetching rider activities and cash movements...');
+        }
+
+        const response = await fetch(`${API_BASE}/api/financial/reports/rider-statement?${params.toString()}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+        });
+
+        const data = await response.json();
+        if (!data.success || !data.statement) {
+            throw new Error(data.message || data.error || 'Failed to fetch rider statement data');
+        }
+
+        renderRiderStatementPDF(data.statement);
+
+        if (typeof showSuccess === 'function') {
+            showSuccess('Statement Ready', 'Rider PDF Statement has been generated and downloaded.');
+        }
+    } catch (error) {
+        console.error('Error generating rider statement PDF:', error);
+        if (typeof showError === 'function') {
+            showError('Statement Error', error.message || 'Failed to generate rider statement PDF');
+        } else {
+            alert('Error generating PDF statement: ' + error.message);
+        }
+    }
+}
+
+/**
+ * Triggered from Rider Reports tab "Download PDF Statement" button
+ */
+function downloadSelectedRiderStatementPDF() {
+    const riderSelect = document.getElementById('riderReportSelect');
+    const riderId = riderSelect ? riderSelect.value : 'all';
+
+    if (riderId && riderId !== 'all') {
+        generateRiderStatementPDFById(riderId);
+        return;
+    }
+
+    if (Array.isArray(lastRiderData) && lastRiderData.length === 1) {
+        generateRiderStatementPDFById(lastRiderData[0].id);
+        return;
+    }
+
+    // If 'all' is selected or no specific rider chosen, open prompt modal
+    promptDownloadRiderStatementPDF();
+}
+
+/**
+ * Modal prompt allowing user to select a rider & date range for Statement PDF
+ */
+async function promptDownloadRiderStatementPDF() {
+    let riders = Array.isArray(window.currentRiders) && window.currentRiders.length > 0
+        ? window.currentRiders
+        : (Array.isArray(window.AppState?.riders) && window.AppState.riders.length > 0
+            ? window.AppState.riders
+            : []);
+
+    if (!riders.length && typeof loadRiders === 'function') {
+        try {
+            await loadRiders();
+            riders = window.currentRiders || [];
+        } catch (_) {}
+    }
+
+    if (!riders.length && Array.isArray(lastRiderData) && lastRiderData.length > 0) {
+        riders = lastRiderData;
+    }
+
+    if (!riders.length) {
+        try {
+            const resp = await fetch(`${API_BASE}/api/riders`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+            });
+            const d = await resp.json();
+            riders = d.riders || d || [];
+        } catch (_) {}
+    }
+
+    let modal = document.getElementById('riderStatementPromptModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'riderStatementPromptModal';
+        modal.className = 'modal';
+        modal.style.display = 'none';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); overflow: hidden; padding: 0;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a, #0f172a); color: white; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-file-pdf" style="color: #60a5fa;"></i> Download Rider PDF Statement
+                    </h3>
+                    <span class="close" onclick="closeRiderStatementModal()" style="color: white; font-size: 24px; cursor: pointer; line-height: 1;">&times;</span>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <p style="margin: 0 0 16px 0; color: #475569; font-size: 0.88rem; line-height: 1.4;">
+                        Generate an audit-grade PDF statement with shift activities, order COD collections, store vendor cash payments, float advance taken, and closing cash submission.
+                    </p>
+                    <div class="form-group" style="margin-bottom: 14px;">
+                        <label style="font-weight: 600; font-size: 0.85rem; color: #1e293b; display: block; margin-bottom: 6px;">Select Rider *</label>
+                        <select id="statementPromptRiderSelect" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 12px; margin-bottom: 14px;">
+                        <div style="flex: 1;">
+                            <label style="font-weight: 600; font-size: 0.85rem; color: #1e293b; display: block; margin-bottom: 6px;">From Date</label>
+                            <input type="date" id="statementPromptStartDate" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-weight: 600; font-size: 0.85rem; color: #1e293b; display: block; margin-bottom: 6px;">To Date</label>
+                            <input type="date" id="statementPromptEndDate" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="background: #f8fafc; padding: 12px 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-secondary" onclick="closeRiderStatementModal()" style="padding: 8px 16px; border-radius: 6px;">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="statementPromptGenerateBtn" onclick="confirmGenerateRiderStatementFromModal()" style="padding: 8px 16px; border-radius: 6px; background: #1e3a8a; border-color: #1e3a8a;">
+                        <i class="fas fa-file-pdf"></i> Generate PDF
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    const select = document.getElementById('statementPromptRiderSelect');
+    if (select) {
+        select.innerHTML = '';
+        if (!riders || riders.length === 0) {
+            select.innerHTML = '<option value="">No riders found</option>';
+        } else {
+            riders.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = `${r.first_name || ''} ${r.last_name || ''}`.trim() + ` (ID: #${r.id})`;
+                select.appendChild(opt);
+            });
+            // Default to riderReportSelect if chosen
+            const curVal = document.getElementById('riderReportSelect')?.value;
+            if (curVal && curVal !== 'all') {
+                select.value = curVal;
+            }
+        }
+    }
+
+    const rStart = document.getElementById('riderReportStartDate')?.value;
+    const rEnd = document.getElementById('riderReportEndDate')?.value;
+    const promptStart = document.getElementById('statementPromptStartDate');
+    const promptEnd = document.getElementById('statementPromptEndDate');
+    if (promptStart && rStart) promptStart.value = rStart;
+    if (promptEnd && rEnd) promptEnd.value = rEnd;
+
+    modal.style.display = 'block';
+}
+
+function closeRiderStatementModal() {
+    const modal = document.getElementById('riderStatementPromptModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function confirmGenerateRiderStatementFromModal() {
+    const riderSelect = document.getElementById('statementPromptRiderSelect');
+    const riderId = riderSelect ? riderSelect.value : null;
+    if (!riderId) {
+        if (typeof showWarning === 'function') showWarning('Select Rider', 'Please select a rider from the dropdown');
+        else alert('Please select a rider from the dropdown');
+        return;
+    }
+    const startDate = document.getElementById('statementPromptStartDate')?.value || '';
+    const endDate = document.getElementById('statementPromptEndDate')?.value || '';
+    closeRiderStatementModal();
+    generateRiderStatementPDFById(riderId, startDate, endDate);
 }
 
 

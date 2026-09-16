@@ -1183,7 +1183,8 @@ footer {
     color: #a0aec0;
 }
 
-.btn-primary {
+.login-form .btn-primary,
+.register-form .btn-primary {
     background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
@@ -1199,13 +1200,15 @@ footer {
     margin-top: 1rem;
 }
 
-.btn-primary:hover {
+.login-form .btn-primary:hover,
+.register-form .btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
     background: linear-gradient(45deg, #764ba2 0%, #667eea 100%);
 }
 
-.btn-primary:active {
+.login-form .btn-primary:active,
+.register-form .btn-primary:active {
     transform: translateY(0);
 }
 
@@ -2445,7 +2448,8 @@ footer p {
         font-size: 0.8rem;
     }
 
-    .btn-primary {
+    .login-form .btn-primary,
+    .register-form .btn-primary {
         padding: 0.5rem 1.2rem;
         font-size: 0.85rem;
         margin-top: 0.3rem;

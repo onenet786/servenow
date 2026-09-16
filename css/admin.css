@@ -4257,179 +4257,658 @@ textarea:focus {
   padding: 0.5rem 0.5rem;
 }
 
+/* ==========================================================================
+   Store Settlement Modal - Enterprise FinTech Redesign
+   ========================================================================== */
+
 #storeSettlementModal .store-settlement-modal-content {
-  width: min(1020px, calc(100vw - 1.25rem));
-  max-width: 1020px;
-  height: min(96vh, 860px);
-  max-height: calc(100vh - 0.75rem);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  width: min(1080px, calc(100vw - 1.5rem)) !important;
+  max-width: 1080px !important;
+  height: min(94vh, 880px) !important;
+  max-height: calc(100vh - 1rem) !important;
+  border-radius: 18px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(15, 23, 42, 0.08) !important;
+  background: #ffffff !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
-#storeSettlementModal .modal-header {
-  flex-shrink: 0;
-  padding-bottom: 0.65rem;
+#storeSettlementModal .modal-header.settlement-modal-header {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+  color: #ffffff !important;
+  padding: 1.15rem 1.75rem !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 18px 18px 0 0 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+}
+
+.settlement-header-left {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.9rem !important;
+}
+
+.settlement-header-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.2rem !important;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35) !important;
+  flex-shrink: 0 !important;
+}
+
+.settlement-modal-header h2 {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  margin: 0 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.settlement-header-subtitle {
+  margin: 0.15rem 0 0 0 !important;
+  font-size: 0.8rem !important;
+  color: #94a3b8 !important;
+  font-weight: 400 !important;
+}
+
+.settlement-close-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #cbd5e1 !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  font-size: 1.25rem !important;
+  line-height: 1 !important;
+  transition: all 0.2s ease !important;
+}
+
+.settlement-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  transform: scale(1.05) !important;
 }
 
 #storeSettlementForm {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  min-height: 0;
-  overflow: auto;
-  padding-right: 0.15rem;
-}
-
-#storeSettlementForm .form-group {
-  margin-bottom: 0;
-}
-
-#storeSettlementForm label {
-  margin-bottom: 0.25rem;
-  font-size: 0.82rem;
-}
-
-#storeSettlementForm input,
-#storeSettlementForm select {
-  min-height: 34px;
-  padding: 0.4rem 0.6rem;
+  padding: 1.25rem 1.75rem 0.5rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  background: #ffffff !important;
 }
 
 .store-settlement-form-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
-  gap: 0.55rem 0.75rem;
-  align-items: end;
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) !important;
+  gap: 0.85rem 1rem !important;
+  align-items: end !important;
 }
 
-.store-settlement-due-stores-group,
-.store-settlement-auto-row,
-.store-settlement-items-container {
-  flex-shrink: 0;
-}
-
-.settlement-due-stores-panel {
-  border: 1px solid #dbe4f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 0.4rem;
-  min-height: 295px;
-}
-
-.settlement-due-stores-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
-  gap: 0.15rem;
-  max-height: 275px;
-  overflow: auto;
-}
-
-.settlement-due-store-option,
-.settlement-scope-option {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0;
-}
-
-.settlement-due-store-option {
-  min-height: 18px;
-  padding: 0.12rem 0.2rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #fff;
-  font-size: 0.64rem;
-}
-
-.settlement-due-store-option input,
-.settlement-scope-option input {
-  width: auto;
-  margin: 0;
-}
-
-.settlement-due-store-option input {
-  inline-size: 12px !important;
-  block-size: 12px !important;
-  min-width: 12px !important;
-  min-height: 12px !important;
-  flex: 0 0 12px;
-  transform: scale(0.7);
-}
-
-.settlement-due-store-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.58rem;
-}
-
-.settlement-due-store-amount {
-  color: #b45309;
-  font-weight: 700;
-  white-space: nowrap;
-  font-size: 0.62rem;
-}
-
-.settlement-period-mode {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.settlement-period-mode > label:first-child {
-  flex-basis: 100%;
-}
-
-.settlement-multi-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.7rem;
-  margin-bottom: 0.35rem;
-  font-size: 0.82rem;
-}
-
-.store-settlement-items-container {
-  padding: 0.55rem !important;
+#storeSettlementForm .form-group {
   margin-bottom: 0 !important;
 }
 
-.store-settlement-items-container h4 {
-  margin: 0 0 0.45rem;
-  font-size: 0.95rem;
+#storeSettlementForm label {
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  margin-bottom: 0.35rem !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+}
+
+#storeSettlementForm label i {
+  color: #6366f1;
+  font-size: 0.85rem;
+}
+
+#storeSettlementForm input[type="text"],
+#storeSettlementForm input[type="number"],
+#storeSettlementForm input[type="date"],
+#storeSettlementForm select {
+  min-height: 42px !important;
+  padding: 0.55rem 0.85rem !important;
+  border-radius: 10px !important;
+  border: 1.5px solid #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+#storeSettlementForm input:focus,
+#storeSettlementForm select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+  outline: none !important;
+}
+
+/* Net Amount Currency Input */
+.settlement-input-prefix-wrap {
+  position: relative !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.settlement-currency-badge {
+  position: absolute !important;
+  left: 10px !important;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  border: 1px solid #e2e8f0 !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+#storeSettlementForm .settlement-input-prefix-wrap input[type="number"],
+#storeSettlementForm .settlement-input-prefix-wrap input {
+  padding-left: 68px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+/* Settlement Scope Segmented Switch */
+.settlement-segmented-control {
+  display: inline-flex !important;
+  background: #f1f5f9 !important;
+  padding: 3px !important;
+  border-radius: 10px !important;
+  border: 1px solid #e2e8f0 !important;
+  width: 100% !important;
+  min-height: 42px !important;
+  box-sizing: border-box !important;
+  gap: 3px !important;
+}
+
+.settlement-segmented-control .settlement-scope-option {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0.4rem 0.6rem !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  text-transform: none !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.settlement-segmented-control .settlement-scope-option input {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.settlement-segmented-control .settlement-scope-option:has(input:checked) {
+  background: #ffffff !important;
+  color: #4f46e5 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
+}
+
+.settlement-segmented-control .settlement-scope-option span {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+}
+
+/* Stores With Pending Amount Section */
+.store-settlement-due-stores-group {
+  flex-shrink: 0 !important;
+}
+
+.settlement-due-header-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 0.5rem !important;
+  flex-wrap: wrap !important;
+  gap: 0.5rem !important;
+}
+
+.settlement-section-title {
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+}
+
+.settlement-badge-pill {
+  background: #e0e7ff !important;
+  color: #4338ca !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  padding: 2px 8px !important;
+  border-radius: 12px !important;
+  text-transform: none !important;
+}
+
+.settlement-multi-controls {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+}
+
+.settlement-toggle-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 20px !important;
+  padding: 4px 10px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  text-transform: none !important;
+  margin: 0 !important;
+}
+
+.settlement-toggle-pill:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+}
+
+.settlement-toggle-pill input {
+  accent-color: #6366f1 !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  width: 15px !important;
+  height: 15px !important;
+}
+
+.settlement-due-stores-panel {
+  background: #f8fafc !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  padding: 0.85rem !important;
+  min-height: 160px !important;
+}
+
+.settlement-due-stores-list {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)) !important;
+  gap: 0.65rem !important;
+  max-height: 220px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 0.35rem !important;
+}
+
+/* Custom Sleek Scrollbar */
+.settlement-due-stores-list::-webkit-scrollbar,
+.store-settlement-items-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.settlement-due-stores-list::-webkit-scrollbar-track,
+.store-settlement-items-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+.settlement-due-stores-list::-webkit-scrollbar-thumb,
+.store-settlement-items-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.settlement-due-stores-list::-webkit-scrollbar-thumb:hover,
+.store-settlement-items-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Store Cards in Due List */
+.settlement-due-store-option {
+  min-height: 66px !important;
+  padding: 0.65rem 0.85rem !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 0.35rem !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  position: relative !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  margin: 0 !important;
+}
+
+.settlement-due-store-option:hover {
+  border-color: #6366f1 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08) !important;
+}
+
+.settlement-due-store-option:has(.settlement-due-store-checkbox:checked) {
+  background: #eef2ff !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 1px #6366f1, 0 4px 12px rgba(99, 102, 241, 0.12) !important;
+}
+
+.settlement-due-store-option.is-disabled {
+  opacity: 0.6 !important;
+  background: #f8fafc !important;
+  cursor: not-allowed !important;
+  border-style: dashed !important;
+}
+
+.settlement-card-top {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  min-width: 0 !important;
+}
+
+.settlement-card-top input.settlement-due-store-checkbox {
+  width: 16px !important;
+  height: 16px !important;
+  accent-color: #6366f1 !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  transform: none !important;
+}
+
+.settlement-due-store-name {
+  font-size: 0.86rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.settlement-card-bottom {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.1rem !important;
+  padding-left: 1.5rem !important;
+}
+
+.settlement-due-store-amount {
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  color: #059669 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.settlement-due-helper {
+  font-size: 0.72rem !important;
+  color: #64748b !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Auto Calculate Card */
+.store-settlement-auto-row {
+  flex-shrink: 0 !important;
+}
+
+.settlement-auto-calc-card {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.85rem !important;
+  background: #f8fafc !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 0.75rem 1rem !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  margin: 0 !important;
+  text-transform: none !important;
+}
+
+.settlement-auto-calc-card:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.settlement-auto-calc-card input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #10b981 !important;
+  cursor: pointer !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.auto-calc-title {
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.auto-calc-tag {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+  border: 1px solid #a7f3d0 !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+}
+
+.auto-calc-desc {
+  margin: 0.15rem 0 0 !important;
+  font-size: 0.76rem !important;
+  color: #64748b !important;
+  font-weight: 400 !important;
+}
+
+/* Unsettled Items Breakdown */
+.store-settlement-items-container {
+  background: #ffffff !important;
+  border: 1.5px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 1rem !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+  margin-bottom: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.settlement-unsettled-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.unsettled-title-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.unsettled-title-wrap h4 {
+  margin: 0 !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
 }
 
 .store-settlement-items-scroll {
-  max-height: 210px;
-  overflow: auto;
+  max-height: 220px !important;
+  overflow: auto !important;
 }
 
-.store-settlement-items-scroll table th,
-.store-settlement-items-scroll table td {
-  padding: 0.35rem 0.45rem;
+.settlement-unsettled-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  font-size: 0.86rem !important;
 }
 
-#storeSettlementForm .form-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  margin-top: 0.2rem;
-  padding-top: 0.55rem;
-  background: linear-gradient(180deg, rgba(255,255,255,0.82), #fff 36%);
+.settlement-unsettled-table th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 0.74rem !important;
+  letter-spacing: 0.03em !important;
+  padding: 0.6rem 0.75rem !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.settlement-unsettled-table td {
+  padding: 0.6rem 0.75rem !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+.settlement-unsettled-table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+.settlement-unsettled-table tfoot td {
+  padding: 0.65rem 0.75rem !important;
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+.settlement-summary-payable-row td {
+  background: #ecfdf5 !important;
+  border-top: 2px solid #10b981 !important;
+  color: #065f46 !important;
+}
+
+/* Form Actions / Footer */
+#storeSettlementForm .form-actions.settlement-form-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 1rem 1.75rem !important;
+  background: #ffffff !important;
+  border-top: 1px solid #e2e8f0 !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+  margin: 0.5rem -1.75rem -0.5rem !important;
+}
+
+#storeSettlementForm .settlement-btn-cancel,
+#storeSettlementForm .settlement-btn-submit {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 10px !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.025em !important;
+  text-transform: uppercase !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  vertical-align: middle !important;
+  align-self: center !important;
+  cursor: pointer !important;
+}
+
+#storeSettlementForm .settlement-btn-cancel {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #475569 !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.2s ease !important;
+}
+
+#storeSettlementForm .settlement-btn-cancel:hover {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+#storeSettlementForm .settlement-btn-submit {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border: 1.5px solid transparent !important;
+  color: #ffffff !important;
+  padding-left: 1.75rem !important;
+  padding-right: 1.75rem !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+#storeSettlementForm .settlement-btn-submit:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45) !important;
+  transform: translateY(-1px) !important;
 }
 
 @media (max-width: 860px) {
   .store-settlement-form-grid {
-    grid-template-columns: repeat(2, minmax(160px, 1fr));
+    grid-template-columns: repeat(2, minmax(160px, 1fr)) !important;
   }
 }
 
 @media (max-width: 620px) {
   .store-settlement-form-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+  .settlement-header-subtitle {
+    display: none !important;
   }
 }
 
