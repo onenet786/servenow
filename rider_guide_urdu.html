@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سروناؤ — رائیڈر ورک فلو کی مکمل گائیڈ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm 12mm 15mm 12mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+      line-height: 2.2;
+      color: #263238;
+      background: #ffffff;
+      margin: 0;
+      padding: 0;
+      font-size: 13.5px;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 10px 20px;
+    }
+
+    /* Header Banner */
+    .header-banner {
+      background: linear-gradient(135deg, #E65100 0%, #BF360C 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+      border-radius: 14px;
+      margin-bottom: 25px;
+      box-shadow: 0 4px 15px rgba(230, 81, 0, 0.25);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title h1 {
+      margin: 0 0 6px 0;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1.8;
+    }
+
+    .header-title p {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.92;
+      line-height: 1.8;
+    }
+
+    .badge-pill {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    /* Process Flow Diagram */
+    .flow-card {
+      background: #FFF8E1;
+      border: 1.5px solid #FFE082;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 25px;
+    }
+
+    .flow-card h2 {
+      margin: 0 0 12px 0;
+      font-size: 17px;
+      color: #E65100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .flow-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      text-align: center;
+    }
+
+    .flow-step-box {
+      background: #ffffff;
+      border: 1px solid #FFCC80;
+      border-radius: 8px;
+      padding: 10px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #BF360C;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+
+    .flow-step-num {
+      background: #E65100;
+      color: #ffffff;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    /* Section Cards */
+    .phase-card {
+      background: #ffffff;
+      border: 1px solid #E0E0E0;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+      page-break-inside: avoid;
+    }
+
+    .phase-header {
+      background: #FAFAFA;
+      border-bottom: 1px solid #EAEAEA;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .phase-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: #D84315;
+    }
+
+    .step-badge {
+      background: #FF5722;
+      color: #ffffff;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+
+    .phase-body {
+      padding: 16px 20px;
+    }
+
+    .phase-body ul {
+      margin: 0 0 10px 0;
+      padding-right: 22px;
+    }
+
+    .phase-body li {
+      margin-bottom: 6px;
+    }
+
+    .highlight-box {
+      background: #FBE9E7;
+      border-right: 4px solid #FF5722;
+      padding: 10px 14px;
+      border-radius: 6px 0 0 6px;
+      margin: 12px 0 6px 0;
+      font-size: 12.5px;
+    }
+
+    /* Formula Box */
+    .formula-box {
+      background: linear-gradient(to left, #FFF3E0, #FFE0B2);
+      border: 1.5px dashed #FF9800;
+      border-radius: 10px;
+      padding: 14px 18px;
+      text-align: center;
+      margin: 14px 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: #E65100;
+      direction: rtl;
+    }
+
+    /* Custom Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 12.5px;
+    }
+
+    table th {
+      background: #ECEFF1;
+      color: #37474F;
+      padding: 9px 12px;
+      border: 1px solid #CFD8DC;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    table td {
+      padding: 8px 12px;
+      border: 1px solid #E0E0E0;
+      text-align: right;
+    }
+
+    table tr:nth-child(even) {
+      background: #FAFAFA;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: #78909C;
+      font-size: 11.5px;
+      margin-top: 30px;
+      padding-top: 15px;
+      border-top: 1px solid #E0E0E0;
+    }
+
+    .tag-cod {
+      background: #E8F5E9;
+      color: #2E7D32;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .tag-prepaid {
+      background: #E3F2FD;
+      color: #1565C0;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header Banner -->
+    <div class="header-banner">
+      <div class="header-title">
+        <h1>سروناؤ (ServeNow) — رائیڈر ورک فلو کی مکمل گائیڈ</h1>
+        <p>رائیڈر کی بھرتی سے لے کر روزانہ شفٹ کے اختتام اور کیش جمع کروانے تک کا مکمل ضابطہ</p>
+      </div>
+      <div class="badge-pill">ورژن 1.0 (سرکاری دستاویز)</div>
+    </div>
+
+    <!-- Process Flow Summary Card -->
+    <div class="flow-card">
+      <h2>مرحلہ وار ورک فلو کا خلاصہ (Lifecycle Overview)</h2>
+      <div class="flow-steps-grid">
+        <div class="flow-step-box">
+          <div class="flow-step-num">1</div>
+          <div>اکاؤنٹ کی تیاری</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">2</div>
+          <div>ایڈوانس فلوٹ و پیٹرول</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">3</div>
+          <div>آن لائن و GPS ٹریکنگ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">4</div>
+          <div>آرڈر وصولی و ڈسپیچ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">5</div>
+          <div>ریسٹورنٹ سے پک اپ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">6</div>
+          <div>کسٹمر کو ڈلیوری</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">7</div>
+          <div>کیش وصولی (COD)</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">8</div>
+          <div>کیش ڈراپ و ڈے کلوز</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 1: Onboarding -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 1: رائیڈر کا اکاؤنٹ اور سسٹم رجسٹریشن (مرحلہ 0)</span>
+        </div>
+        <div class="step-badge">ایڈمن پینل</div>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>ایڈمن کے ذریعے اکاؤنٹ بنانا:</strong> رائیڈر خود براہ راست ایپ سے سائن اپ نہیں کر سکتا۔ آپریشنز ایڈمن تمام تصدیق کے بعد رائیڈر کا اکاؤنٹ تیار کرتا ہے۔</li>
+          <li><strong>لازمی معلومات:</strong> پورا نام، ای میل، موبائل فون نمبر، گاڑی کی قسم (موٹرسائیکل، کار وغیرہ)، ڈرائیونگ لائسنس نمبر، اور پاس ورڈ۔</li>
+          <li><strong>شناختی دستاویزات (KYC):</strong> کمپیوٹرائزڈ شناختی کارڈ (CNIC) نمبر، کارڈ کی فرنٹ/بیک تصویر، اور رائیڈر کی پروفائل تصویر۔</li>
+          <li><strong>ڈیجیٹل والیٹ کا آغاز:</strong> اکاؤنٹ بنتے ہی سسٹم رائیڈر کے لیے ایک ڈیجیٹل والیٹ (Wallets Table) خودکار طور پر شروع کر دیتا ہے جس کا ابتدائی بیلنس <code>0.00 روپے</code> ہوتا ہے۔</li>
+          <li><strong>ابتدائی حیثیت:</strong> رائیڈر کا اکاؤنٹ <code>Active</code> ہوتا ہے مگر ڈیوٹی <code>Offline</code> رہتی ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 2: Shift Start -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 2: ڈیوٹی کا آغاز، لاگ ان اور کیش فلوٹ (Shift Start)</span>
+        </div>
+        <div class="step-badge">رائیڈر ایپ</div>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>ایپ لاگ ان:</strong> رائیڈر اپنے رجسٹرڈ ای میل اور پاس ورڈ کے ذریعے رائیڈر ایپ میں لاگ ان ہوتا ہے۔ لاگ ان ہوتے ہی سیکیورٹی ٹوکن جاری ہوتا ہے اور ڈیش بورڈ کھل جاتا ہے۔</li>
+          <li><strong>آفس کیش فلوٹ (ایڈوانس کیش):</strong> کھلے پیسوں (Change) اور راستے کے فوری اخراجات کے لیے آفس رائیڈر کو ابتدائی کیش دیتا ہے۔ یہ رقم رائیڈر کے <em>Cash in Hand</em> (ذاتی تحویل میں کیش) میں درج ہو جاتی ہے۔</li>
+          <li><strong>پیٹرول میٹر کی ریڈنگ درج کرنا:</strong> شفٹ شروع کرتے وقت بائیک کے سپیڈومیٹر کی موجودہ ریڈنگ (مثلاً 12,450 کلومیٹر) اور پیٹرول کا ریٹ ایپ میں محفوظ کیا جاتا ہے۔</li>
+          <li><strong>ڈیوٹی آن لائن کرنا:</strong> رائیڈر ایپ میں <strong>Online</strong> کا بٹن دباتا ہے جس سے بیک گراؤنڈ لوکیشن سروس شروع ہو جاتی ہے اور ایڈمن کے لائیو ریڈار میپ پر رائیڈر کی لوکیشن نظر آنا شروع ہو جاتی ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 3: Order Dispatch -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 3: نیا آرڈر اسائن ہونا اور ڈسپیچ (Dispatch Pipeline)</span>
+        </div>
+        <div class="step-badge">آرڈر وصولی</div>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>آرڈر تفویض:</strong> جب ریسٹورنٹ یا اسٹور کھانا تیار کر لیتا ہے تو ڈسپیچر یا آٹو انجن قریبی آن لائن رائیڈر کو آرڈر اسائن کرتا ہے۔</li>
+          <li><strong>اطلاع و گھنٹی:</strong> رائیڈر کے موبائل پر تیز نوٹیفکیشن اور گھنٹی بجتی ہے اور آرڈر <strong>Active Deliveries</strong> ٹیب میں شامل ہو جاتا ہے۔</li>
+          <li><strong>آرڈر کی تفصیلات:</strong> کارڈ پر ریسٹورنٹ کا نام، ریسٹورنٹ کا پتہ، کسٹمر کا پتہ، کھانے کی اشیاء، اور بل کی رقم واضع طور پر نظر آتی ہے۔</li>
+          <li><strong>پیمنٹ کی نوعیت:</strong> کارڈ پر واضع لکھا ہوتا ہے کہ یہ <strong>Cash on Delivery (کیش)</strong> ہے یا <strong>Prepaid (آن لائن ادا شدہ)</strong> ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Phase 4: Store Pickup -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 4: ریسٹورنٹ پہنچنا اور کھانا پک اپ کرنا (Store Pickup)</span>
+        </div>
+        <div class="step-badge">ریسٹورنٹ مرحلہ</div>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>راستہ نیویگیشن:</strong> رائیڈر <em>Navigate to Store</em> کا بٹن دبا کر گوگل میپس کے ذریعے ریسٹورنٹ کا سیدھا راستہ دیکھتا ہے۔</li>
+          <li><strong>فوری رابطہ:</strong> ایپ میں ریسٹورنٹ کو فوری فون کال یا واٹس ایپ کرنے کے بٹن موجود ہوتے ہیں۔</li>
+          <li><strong>کاؤنٹر کیش ادائیگی (اگر مطلوب ہو):</strong> اگر ریسٹورنٹ کیش پر کام کرتا ہے تو رائیڈر اپنے پاس موجود کیش میں سے کھانے کی قیمت ریسٹورنٹ کو ادا کرتا ہے۔ یہ ادائیگی سسٹم میں <code>store_payment</code> کے طور پر درج ہو جاتی ہے اور رائیڈر کی کیش ذمہ داری اتنی کم ہو جاتی ہے۔</li>
+          <li><strong>کھانے کی تصدیق و پک اپ:</strong> رائیڈر آرڈر نمبر اور اشیاء چیک کرتا ہے اور <strong>Pick Up / Out for Delivery</strong> کا بٹن دباتا ہے۔ کسٹمر کو فوری میسج مل جاتا ہے کہ کھانا ریسٹورنٹ سے روانہ ہو چکا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 5: Customer Delivery -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 5: کسٹمر کی طرف سفر اور ڈلیوری (Customer Hand-off)</span>
+        </div>
+        <div class="step-badge">کسٹمر مرحلہ</div>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>لائیو ٹریکنگ:</strong> سفر کے دوران رائیڈر کی لائیو لوکیشن کسٹمر اور ایڈمن کی اسکرین پر حرکت کرتی ہوئی نظر آتی ہے اور کسٹمر کو پہنچنے کا متوقع وقت ملتا رہتا ہے۔</li>
+          <li><strong>دروازے پر دستک:</strong> کسٹمر کے پتے پر پہنچ کر رائیڈر ایپ سے کسٹمر کو کال یا ایس ایم ایس کر کے آرڈر وصول کرنے کی اطلاع دیتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 6: Payment Collection -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 6: رقم کی وصولی اور آرڈر کی تکمیل (Payment & Delivery)</span>
+        </div>
+        <div class="step-badge">پیمنٹ کا طریقہ</div>
+      </div>
+      <div class="phase-body">
+        <table>
+          <thead>
+            <tr>
+              <th>پیمنٹ کا طریقہ</th>
+              <th>کسٹمر کی ادائیگی</th>
+              <th>رائیڈر کا عمل</th>
+              <th>سسٹم میں حیثیت</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag-cod">Cash on Delivery (COD)</span></td>
+              <td>کھانے اور ڈلیوری فیس کا پورا کیش رائیڈر کو دیتا ہے۔</td>
+              <td>کیش گن کر جیب میں محفوظ رکھے گا۔ جیب میں کیش بڑھ جائے گا۔</td>
+              <td>رائیڈر ایپ میں پیمنٹ کو <code>Paid</code> مارک کرے گا۔</td>
+            </tr>
+            <tr>
+              <td><span class="tag-prepaid">آن لائن کارڈ یا والیٹ</span></td>
+              <td>پہلے سے ہی مکمل رقم ادا کر چکا ہوتا ہے۔</td>
+              <td>کسٹمر سے <strong>0 روپے</strong> لے گا۔ صرف کھانا ہینڈ اوور کرے گا۔</td>
+              <td>سسٹم میں پہلے سے ہی <code>Paid</code> ہوتا ہے۔</td>
+            </tr>
+          </tbody>
+        </table>
+        <ul>
+          <li><strong>ڈلیوری مارک کرنا:</strong> کھانا حوالے کرنے کے بعد رائیڈر <strong>Mark Delivered</strong> کا بٹن دباتا ہے۔</li>
+          <li><strong>رائیڈر کا کمیشن:</strong> اس آرڈر کی ڈلیوری فیس فوری طور پر رائیڈر کی کل کمائی (Earnings) میں جمع ہو جاتی ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 7: Cash in Hand Formula -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 7: رائیڈر کی جیب کے کیش کا روزانہ فارمولا (Cash in Hand)</span>
+        </div>
+        <div class="step-badge">مالیاتی حساب</div>
+      </div>
+      <div class="phase-body">
+        <p>سروناؤ میں رائیڈر کے پاس موجود فزیکل کیش کا درست حساب رکھنے کے لیے درج ذیل معیاری فارمولا استعمال ہوتا ہے:</p>
+        <div class="formula-box">
+          جیب میں موجود کیش = (آفس سے ملا ایڈوانس فلوٹ + کسٹمر سے وصول COD کیش) — (ریسٹورنٹ کو دی گئی رقم + پیٹرول خرچ + آفس میں جمع کیش)
+        </div>
+        <div class="highlight-box">
+          <strong>اہم وضاحت:</strong> ڈیجیٹل والیٹ رائیڈر کی ڈلیوری فیس کی کمائی کو ظاہر کرتا ہے، جبکہ "کیش ان ہینڈ" وہ اصل نوٹ ہیں جو کسٹمرز سے وصول ہو کر رائیڈر کی جیب میں جمع ہوئے ہیں۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 8: Day Closing -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <div class="phase-title">
+          <span>مرحلہ 8: شفٹ کا اختتام، کیش ڈراپ اور ڈے کلوز (Day Closing)</span>
+        </div>
+        <div class="step-badge">آخری مرحلہ</div>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>آخری میٹر ریڈنگ:</strong> شفٹ کے اختتام پر رائیڈر بائیک کا آخری میٹر نمبر درج کرتا ہے جس سے کل طے شدہ کلومیٹر اور پیٹرول کی کھپت کا درست حساب بن جاتا ہے۔</li>
+          <li><strong>آفس میں کیش جمع کروانا (Cash Drop):</strong> رائیڈر آفس کیشیئر کو اپنی جیب کا کل نیٹ کیش گن کر جمع کرواتا ہے۔ کیشیئر منظوری دیتا ہے جس سے رائیڈر کی کیش ذمہ داری <code>0.00 روپے</code> ہو جاتی ہے۔</li>
+          <li><strong>ڈے کلوز (Day Close) بٹن:</strong> پورے دن کا حساب کتاب خودکار سمری بن کر <code>rider_day_closings</code> میں ہمیشہ کے لیے محفوظ اور لاک ہو جاتا ہے۔</li>
+          <li><strong>ڈیوٹی آف لائن:</strong> رائیڈر ایپ میں سوئچ آف کر کے <strong>Offline</strong> ہو جاتا ہے۔ بیک گراؤنڈ جی پی ایس بند ہو جاتا ہے اور رائیڈر بحفاظت گھر جا سکتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      سروناؤ پاکستان (ServeNow Pakistan) — رائیڈر فلیٹ مینجمنٹ و لاجسٹکس مینوئل | جملہ حقوق محفوظ ہیں © 2026
+    </div>
+
+  </div>
+
+</body>
+</html>

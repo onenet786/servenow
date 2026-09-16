@@ -3,7 +3,6 @@
 > **Document Version:** 1.0.0  
 > **Zaban:** True Roman Urdu (Asaan aur Saaf Rozmarra Alfaz)  
 > **Kiske Liye Hai:** Riders, Fleet Managers, Dispatchers, aur Developers  
-> **English Version:** [RIDER_WORKFLOW_GUIDE_EN.md](file:///d:/GIT-HUB/servenow/RIDER_WORKFLOW_GUIDE_EN.md)  
 > **System Scope:** Rider Mobile App, Admin Dashboard, Dispatch Engine, aur Financial Ledger
 
 ---
