@@ -747,27 +747,7 @@ class _StoreScreenState extends State<StoreScreen> {
   }) {
     final variants = product.sizeVariants;
     final hasVariants = variants.isNotEmpty;
-
-    // Price calculation
-    double minPrice = product.effectivePrice;
-    double maxPrice = product.effectivePrice;
-    if (hasVariants) {
-      minPrice = variants
-          .map((v) => v.effectivePrice)
-          .reduce((a, b) => a < b ? a : b);
-      maxPrice = variants
-          .map((v) => v.effectivePrice)
-          .reduce((a, b) => a > b ? a : b);
-    }
-
-    final displayPrice = product.effectivePrice;
-    final displayOriginalPrice = product.originalPrice ?? product.price;
     final offerBadge = (product.offerBadge ?? '').trim();
-    final isBxgyOffer = product.isBxgyOffer;
-    final hasPromo =
-        !isBxgyOffer &&
-        displayPrice >= 0 &&
-        displayPrice + 0.001 < displayOriginalPrice;
 
     void openDetail() {
       Navigator.of(context).push(
@@ -872,48 +852,7 @@ class _StoreScreenState extends State<StoreScreen> {
                             color: CustomerPalette.textDark,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        if (hasVariants && minPrice != maxPrice)
-                          Text(
-                            'PKR ${minPrice.toStringAsFixed(0)} - ${maxPrice.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              color: CustomerPalette.primaryDark,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                            ),
-                          )
-                        else if (hasPromo)
-                          Row(
-                            children: [
-                              Text(
-                                'PKR ${displayOriginalPrice.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                  decoration: TextDecoration.lineThrough,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'PKR ${displayPrice.toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  color: Colors.red[700],
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          Text(
-                            'PKR ${displayPrice.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              color: CustomerPalette.primaryDark,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
                             if (hasVariants)
@@ -1118,49 +1057,7 @@ class _StoreScreenState extends State<StoreScreen> {
                       color: CustomerPalette.textDark,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  if (hasVariants && minPrice != maxPrice)
-                    Text(
-                      'PKR ${minPrice.toStringAsFixed(0)}+',
-                      style: const TextStyle(
-                        color: CustomerPalette.primaryDark,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    )
-                  else if (hasPromo)
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 4,
-                      children: [
-                        Text(
-                          'PKR ${displayOriginalPrice.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 9,
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                        Text(
-                          'PKR ${displayPrice.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            color: Colors.red[700],
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Text(
-                      'PKR ${displayPrice.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        color: CustomerPalette.primaryDark,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     height: 28,
