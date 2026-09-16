@@ -16,7 +16,13 @@ import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
 import 'admin_rider_day_transactions_screen.dart';
 import 'customer_tile_demo_screen.dart';
+import 'customer_dashboard_test_screen.dart';
+import 'manage_stores_screen.dart';
+import 'manage_riders_screen.dart';
 import 'offer_campaigns_screen.dart';
+import 'rider_dashboard_screen.dart';
+import 'store_balances_screen.dart';
+import 'store_owner_dashboard_screen.dart';
 
 class _LiveRiderTrackerPayload {
   const _LiveRiderTrackerPayload({
@@ -124,6 +130,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   String _selectedActivityType = 'orders';
   bool _isUrdu = false;
   bool _showStandbyRiders = false;
+  int _selectedAdminTab = 0;
 
   Future<void> _loadLanguagePreference() async {
     final isUrdu = await CustomerLanguage.loadIsUrdu();
@@ -3019,20 +3026,705 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (showInlineQuickMenu) _buildAdminMiniActions(context),
-        if (showInlineQuickMenu) const SizedBox(height: 18),
-        _buildOverviewSummaryGrid(isWide: isWide, isMedium: isMedium),
-        if (_canViewRestrictedFinancialReports(authProvider.user?.email)) ...[
-          const SizedBox(height: 18),
-          _buildDailySalesSummaryPanel(),
-        ],
-        if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
-          const SizedBox(height: 18),
-          _buildSoftPanel(child: _buildLiveRiderTrackerSection()),
-        ],
-        const SizedBox(height: 18),
-        _buildRecentActivityPanel(),
+        _buildRoleSwitcherRibbon(context),
+        _buildHeroHeader(),
+        const SizedBox(height: 12),
+        _buildHeroLiveRadarCard(),
+        const SizedBox(height: 14),
+        _buildHeroFleetOversightGrid(context),
+        const SizedBox(height: 20),
+        _buildAdminSegmentedTabs(
+          authProvider,
+          isWide: isWide,
+          isMedium: isMedium,
+        ),
       ],
+    );
+  }
+
+  Widget _buildRoleSwitcherRibbon(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF2E7DC)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF7A4A28).withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildRoleItem(
+              icon: Icons.person_rounded,
+              label: 'Customer',
+              isActive: false,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CustomerDashboardTestScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: _buildRoleItem(
+              icon: Icons.storefront_rounded,
+              label: 'Store Owner',
+              isActive: false,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const StoreOwnerDashboardScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: _buildRoleItem(
+              icon: Icons.two_wheeler_rounded,
+              label: 'Rider',
+              isActive: false,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RiderDashboardScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: _buildRoleItem(
+              icon: Icons.shield_outlined,
+              label: 'Mobile Admin',
+              isActive: true,
+              onTap: () {},
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleItem({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    if (isActive) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE06A2E),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFE06A2E).withValues(alpha: 0.35),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xFF4A4036), size: 20),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF4A4036),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Text(
+            'SERVENOW.PK MOBILE ADMIN',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF8C705F),
+              letterSpacing: 0.8,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Live Radar & Fleet Oversight',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF261D17),
+              letterSpacing: -0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroLiveRadarCard() {
+    final allRiders = _liveRiderLocations;
+    final hasSelectedRider =
+        _selectedLiveRiderId != null &&
+        allRiders.any(
+          (rider) => _trackingKeyForRider(rider) == _selectedLiveRiderId,
+        );
+    final riders = hasSelectedRider
+        ? allRiders
+              .where(
+                (rider) => _trackingKeyForRider(rider) == _selectedLiveRiderId,
+              )
+              .toList(growable: false)
+        : allRiders;
+
+    return Container(
+      height: 230,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: FlutterMap(
+                key: ValueKey(
+                  'hero-radar-flutter-map-${_selectedLiveRiderId ?? 'all'}-${riders.length}',
+                ),
+                mapController: _liveRiderMapController,
+                options: MapOptions(
+                  initialCenter: _defaultTrackerCenter,
+                  initialZoom: 12.0,
+                  interactionOptions: const InteractionOptions(
+                    flags:
+                        InteractiveFlag.drag |
+                        InteractiveFlag.pinchZoom |
+                        InteractiveFlag.doubleTapZoom,
+                  ),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.onenetsol.servenow',
+                    maxZoom: 19,
+                  ),
+                  Container(
+                    color: const Color(0xFF1E293B).withValues(alpha: 0.78),
+                  ),
+                  MarkerLayer(
+                    markers: riders.isNotEmpty
+                        ? riders.map((rider) {
+                            final trackingKey = _trackingKeyForRider(rider);
+                            final pt =
+                                _displayPointForRider(rider) ??
+                                _resolveRiderStartPoint(rider) ??
+                                _defaultTrackerCenter;
+                            return Marker(
+                              point: pt,
+                              width: 64,
+                              height: 64,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedLiveRiderId = trackingKey;
+                                  });
+                                  _showLiveRiderDetails(rider);
+                                },
+                                child: _buildGlowingRadarPin(
+                                  label: _riderDisplayName(rider),
+                                ),
+                              ),
+                            );
+                          }).toList()
+                        : [
+                            Marker(
+                              point: _defaultTrackerCenter,
+                              width: 64,
+                              height: 64,
+                              child: _buildGlowingRadarPin(
+                                label: 'Lahore Fleet Active',
+                              ),
+                            ),
+                          ],
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 12,
+              left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xCC0F172A),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFF38BDF8).withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF38BDF8),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Live Radar: Lahore Fleet (flutter_map)',
+                      style: TextStyle(
+                        color: Color(0xFF38BDF8),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 10,
+              right: 10,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildMapPillAction(
+                    icon: Icons.my_location_rounded,
+                    label: 'Lahore',
+                    onTap: () {
+                      _liveRiderMapController.move(_defaultTrackerCenter, 12.0);
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _buildMapPillAction(
+                    icon: Icons.open_in_full_rounded,
+                    label: 'Full Tracker',
+                    onTap: () {
+                      _openFullScreenLiveRiderTracker(riders);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlowingRadarPin({required String label}) {
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFE06A2E).withValues(alpha: 0.28),
+            ),
+          ),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFE06A2E).withValues(alpha: 0.55),
+            ),
+          ),
+          Container(
+            width: 26,
+            height: 26,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFFE06A2E),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFFE06A2E),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.two_wheeler_rounded,
+              color: Colors.white,
+              size: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapPillAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xCC0F172A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white70, size: 14),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroFleetOversightGrid(BuildContext context) {
+    final activeStoresCount = _recentStoresList.isNotEmpty
+        ? _recentStoresList.length
+        : 18;
+    final onlineRidersCount = _liveRiderLocations.isNotEmpty
+        ? _liveRiderLocations.length
+        : 12;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildMockupActionCard(
+                icon: Icons.storefront_rounded,
+                iconColor: const Color(0xFFE06A2E),
+                title: 'Manage Stores',
+                subtitle: '$activeStoresCount Active',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ManageStoresScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMockupActionCard(
+                icon: Icons.two_wheeler_rounded,
+                iconColor: const Color(0xFF0D9488),
+                title: 'Manage Riders',
+                subtitle: '$onlineRidersCount Online',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ManageRidersScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMockupActionCard(
+                icon: Icons.local_offer_rounded,
+                iconColor: const Color(0xFFD97706),
+                title: 'Offer Campaigns',
+                subtitle: 'BXGY & Discounts',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const OfferCampaignsScreen(isAdmin: true),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildMockupActionCard(
+                icon: Icons.receipt_long_rounded,
+                iconColor: const Color(0xFFDB2777),
+                title: 'Store Balances',
+                subtitle: 'Settlements',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StoreBalancesScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMockupActionCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEFE4D6)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7A4A28).withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: iconColor, size: 28),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1E1B18),
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminSegmentedTabs(
+    AuthProvider authProvider, {
+    required bool isWide,
+    required bool isMedium,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFF0E5D8)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildAdminTabButton(
+                  index: 0,
+                  label: 'Orders & Dispatch',
+                  icon: Icons.local_shipping_outlined,
+                ),
+              ),
+              Expanded(
+                child: _buildAdminTabButton(
+                  index: 1,
+                  label: 'Daily Sales & Closing',
+                  icon: Icons.payments_outlined,
+                ),
+              ),
+              Expanded(
+                child: _buildAdminTabButton(
+                  index: 2,
+                  label: 'Admin Tools',
+                  icon: Icons.tune_rounded,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (_selectedAdminTab == 0) ...[
+          _buildRecentActivityPanel(),
+        ] else if (_selectedAdminTab == 1) ...[
+          if (_canViewRestrictedFinancialReports(authProvider.user?.email))
+            _buildDailySalesSummaryPanel()
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Center(
+                child: Text(
+                  'Financial report access restricted.',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+        ] else ...[
+          _buildOverviewSummaryGrid(isWide: isWide, isMedium: isMedium),
+          const SizedBox(height: 16),
+          _buildAdminMiniActions(context),
+          if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
+            const SizedBox(height: 16),
+            _buildSoftPanel(child: _buildLiveRiderTrackerSection()),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAdminTabButton({
+    required int index,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedAdminTab == index;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedAdminTab = index;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE06A2E) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? Colors.white : const Color(0xFF4A4036),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

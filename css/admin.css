@@ -3209,6 +3209,72 @@ textarea:focus {
   margin-bottom: 0.25rem;
 }
 
+/* Product Add/Edit Modal Modern Layout */
+#addProductModal .modal-content {
+  width: min(1120px, calc(100vw - 2rem)) !important;
+  max-width: 1120px !important;
+  max-height: 90vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  border-radius: 16px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important;
+  padding: 0 !important;
+}
+
+#addProductModal .modal-header {
+  flex-shrink: 0 !important;
+  background: linear-gradient(135deg, #4f46e5, #6366f1) !important;
+  color: #fff !important;
+  padding: 0.85rem 1.4rem !important;
+  border-radius: 16px 16px 0 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin: 0 !important;
+}
+
+#addProductModal .modal-header h3 {
+  color: #ffffff !important;
+  margin: 0 !important;
+  font-size: 1.2rem !important;
+  font-weight: 700 !important;
+}
+
+#addProductModal .modal-header .close {
+  color: #ffffff !important;
+  font-size: 1.75rem !important;
+  opacity: 0.9 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+}
+
+#addProductModal .modal-header .close:hover {
+  opacity: 1 !important;
+  color: #ffffff !important;
+}
+
+#addProductModal .modal-body {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  max-height: calc(90vh - 135px) !important;
+  padding: 1.1rem 1.4rem !important;
+  background: #ffffff !important;
+}
+
+#addProductModal .modal-footer {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  padding: 0.8rem 1.4rem !important;
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+  border-radius: 0 0 16px 16px !important;
+}
+
 .modal-footer {
   padding: 1.5rem 2rem;
   border-top: 1px solid var(--border-color);

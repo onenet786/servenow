@@ -4060,12 +4060,19 @@
 
     <!-- Add Product Modal -->
     <div id="addProductModal" class="modal">
-      <div class="modal-content" style="max-width: 98%; width: 1140px; max-height: 92vh; display: flex; flex-direction: column;">
-        <div class="modal-header" style="padding-bottom: 0.6rem; margin-bottom: 0.6rem;">
-          <h3>Add New Product</h3>
-          <span class="close" data-modal="addProductModal">&times;</span>
+      <div class="modal-content" style="max-width: 96%; width: 1120px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+        
+        <!-- Modal Header with vibrant gradient and crisp white title + close button -->
+        <div class="modal-header" style="padding: 0.85rem 1.4rem; margin: 0; background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; border-radius: 16px 16px 0 0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.15);">
+          <h3 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: #ffffff !important; display: flex; align-items: center; gap: 0.55rem; letter-spacing: -0.2px;">
+            <i class="fas fa-box-open" style="color: #c7d2fe;"></i>
+            <span id="addProductModalTitle">Add New Product</span>
+          </h3>
+          <span class="close" data-modal="addProductModal" style="color: #ffffff !important; font-size: 1.75rem; line-height: 1; opacity: 0.9; cursor: pointer; padding: 0 4px; transition: opacity 0.15s, transform 0.15s;" onmouseover="this.style.opacity='1'; this.style.transform='scale(1.15)';" onmouseout="this.style.opacity='0.9'; this.style.transform='scale(1)';">&times;</span>
         </div>
-        <div class="modal-body" style="padding: 0;">
+
+        <!-- Modal Body with dedicated scroll container -->
+        <div class="modal-body" style="flex: 1 1 auto; overflow-y: auto; padding: 1.1rem 1.4rem; max-height: calc(90vh - 135px); background: #ffffff;">
           <form id="addProductForm">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.65rem;">
               <div class="form-group">
@@ -4110,7 +4117,7 @@
               </div>
 
               <!-- Single Measure Section -->
-              <div id="productSingleMeasureSection" style="grid-column: span 4; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.65rem;">
+              <div id="productSingleMeasureSection" style="grid-column: span 2; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.65rem;">
                 <div id="productSingleMeasureSelectorsRow" style="display: contents;">
                   <div class="form-group">
                     <label for="productUnit">Unit:</label>
@@ -4212,9 +4219,10 @@
                 <input type="file" id="productImageFile" name="image_file" accept="image/*" style="width: 100%;" />
                 <img id="productImagePreview" src="" alt="Preview" style="max-height: 48px; border-radius: 6px; display: none; margin-top: 0.5rem;" />
               </div>
+
               <!-- Time-Based Availability Section -->
               <div id="productTimeAvailabilitySection" style="grid-column: span 4; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.85rem; margin: 0.15rem 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem; flex-wrap: wrap; gap: 4px;">
                   <label style="display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: #0f172a; font-size: 0.86rem; margin-bottom: 0;">
                     <i class="fas fa-clock" style="color: #4f46e5;"></i>
                     <span>Shift / Time-Based Availability (e.g. Breakfast 7am-12pm, Evening 4pm-7pm)</span>
@@ -4223,29 +4231,29 @@
                 </div>
                 <div style="display: grid; grid-template-columns: 140px 140px 1fr; gap: 0.75rem; align-items: flex-end;">
                   <div class="form-group" style="margin-bottom: 0;">
-                    <label for="productAvailableFrom" style="font-size: 0.78rem; font-weight: 600; color: #334155; margin-bottom: 0.2rem;">Available From:</label>
+                    <label for="productAvailableFrom" style="font-size: 0.78rem; font-weight: 600; color: #334155; margin-bottom: 0.2rem; display: block;">Available From:</label>
                     <input type="time" id="productAvailableFrom" name="available_from" style="width: 100%; padding: 0.38rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;" />
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
-                    <label for="productAvailableTo" style="font-size: 0.78rem; font-weight: 600; color: #334155; margin-bottom: 0.2rem;">Available To:</label>
+                    <label for="productAvailableTo" style="font-size: 0.78rem; font-weight: 600; color: #334155; margin-bottom: 0.2rem; display: block;">Available To:</label>
                     <input type="time" id="productAvailableTo" name="available_to" style="width: 100%; padding: 0.38rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem;" />
                   </div>
                   <div style="display: flex; flex-direction: column; gap: 0.2rem;">
                     <span style="font-size: 0.75rem; font-weight: 600; color: #475569;">Quick Presets:</span>
                     <div style="display: flex; flex-wrap: wrap; gap: 0.35rem;">
-                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('07:00', '12:00')" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('07:00', '12:00')" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; border-radius: 4px; padding: 3px 8px; font-size: 0.74rem; cursor: pointer; font-weight: 600;">
                         <i class="fas fa-sun"></i> Breakfast (7am-12pm)
                       </button>
-                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('12:00', '16:00')" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('12:00', '16:00')" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 4px; padding: 3px 8px; font-size: 0.74rem; cursor: pointer; font-weight: 600;">
                         <i class="fas fa-utensils"></i> Lunch (12pm-4pm)
                       </button>
-                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('16:00', '19:00')" style="background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('16:00', '19:00')" style="background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; border-radius: 4px; padding: 3px 8px; font-size: 0.74rem; cursor: pointer; font-weight: 600;">
                         <i class="fas fa-mug-hot"></i> Evening (4pm-7pm)
                       </button>
-                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('19:00', '23:59')" style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('19:00', '23:59')" style="background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 4px; padding: 3px 8px; font-size: 0.74rem; cursor: pointer; font-weight: 600;">
                         <i class="fas fa-moon"></i> Dinner (7pm-12am)
                       </button>
-                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('', '')" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 7px; font-size: 0.72rem; cursor: pointer;">
+                      <button type="button" class="btn btn-tiny" onclick="applyTimePreset('', '')" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 8px; font-size: 0.74rem; cursor: pointer; font-weight: 600;">
                         <i class="fas fa-infinity"></i> All Day (24/7)
                       </button>
                     </div>
@@ -4253,20 +4261,23 @@
                 </div>
               </div>
 
-              <div class="form-group" style="grid-column: span 3;">
+              <!-- Description Field (Full 4 columns) -->
+              <div class="form-group" style="grid-column: span 4; margin-bottom: 0;">
                 <label for="productDescription">Description:</label>
-                <textarea id="productDescription" name="description" rows="2" style="width: 100%;"></textarea>
-              </div>
-              <div class="form-group" style="grid-column: span 1; display: flex; align-items: flex-end; justify-content: flex-end; gap: 0.6rem;">
-                <button type="button" class="btn btn-secondary" data-modal="addProductModal" style="padding: 0.55rem 1rem;">
-                  <i class="fas fa-ban"></i> Cancel
-                </button>
-                <button type="button" class="btn btn-primary" id="saveProductBtn" style="padding: 0.55rem 1rem;">
-                  <i class="fas fa-check"></i> Save Product
-                </button>
+                <textarea id="productDescription" name="description" rows="2" style="width: 100%; resize: vertical;"></textarea>
               </div>
             </div>
           </form>
+        </div>
+
+        <!-- Sticky Modal Footer: ALWAYS visible at bottom -->
+        <div class="modal-footer" style="padding: 0.8rem 1.4rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; border-radius: 0 0 16px 16px; flex-shrink: 0;">
+          <button type="button" class="btn btn-secondary" data-modal="addProductModal" style="padding: 0.55rem 1.25rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <i class="fas fa-ban"></i> Cancel
+          </button>
+          <button type="button" class="btn btn-primary" id="saveProductBtn" style="padding: 0.55rem 1.4rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.25);">
+            <i class="fas fa-check"></i> Save Product
+          </button>
         </div>
 
       </div>

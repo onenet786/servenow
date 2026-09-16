@@ -539,7 +539,7 @@
     .phone-device {
       width: 410px;
       height: 820px;
-      background: var(--mob-bg);
+      background: #FAF6F0;
       border-radius: 46px;
       border: 8px solid #1e293b;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
@@ -547,6 +547,169 @@
       flex-direction: column;
       overflow: hidden;
       position: relative;
+    }
+
+    .role-ribbon-bar {
+      display: flex;
+      background: white;
+      border-radius: 14px;
+      padding: 4px;
+      margin: 10px 14px 6px 14px;
+      border: 1px solid #EFE4D6;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .role-tab-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 2px;
+      border: none;
+      background: transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: #4A4036;
+      transition: all 0.15s ease;
+    }
+
+    .role-tab-btn i {
+      font-size: 15px;
+    }
+
+    .role-tab-btn.active {
+      background: #E06A2E;
+      color: white;
+      font-weight: 800;
+      box-shadow: 0 3px 8px rgba(224, 106, 46, 0.35);
+    }
+
+    .radar-card-container {
+      background: #1E293B;
+      border-radius: 20px;
+      height: 215px;
+      position: relative;
+      overflow: hidden;
+      margin: 8px 14px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+    }
+
+    .radar-map-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, #273549 0%, #172033 100%);
+      opacity: 0.95;
+    }
+
+    .radar-grid-lines {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(56, 189, 248, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, 0.07) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .radar-pulse-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px solid rgba(224, 106, 46, 0.4);
+      animation: radarPulse 3s infinite linear;
+    }
+
+    @keyframes radarPulse {
+      0% { width: 30px; height: 30px; opacity: 1; }
+      100% { width: 180px; height: 180px; opacity: 0; }
+    }
+
+    .radar-marker-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 28px;
+      height: 28px;
+      background: #E06A2E;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 13px;
+      box-shadow: 0 0 15px #E06A2E;
+      z-index: 5;
+    }
+
+    .radar-badge-pill {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 14px;
+      padding: 4px 10px;
+      color: #38BDF8;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 10;
+    }
+
+    .radar-badge-dot {
+      width: 6px;
+      height: 6px;
+      background: #38BDF8;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #38BDF8;
+    }
+
+    .quick-cards-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 6px 14px 12px 14px;
+    }
+
+    .quick-action-card {
+      background: white;
+      border: 1px solid #EFE4D6;
+      border-radius: 16px;
+      padding: 13px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 10px rgba(122, 74, 40, 0.04);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .quick-action-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .quick-card-icon {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+
+    .quick-card-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #1E1B18;
+    }
+
+    .quick-card-sub {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #64748B;
+      margin-top: 2px;
     }
 
     /* ================= 3. RIGHT LOGIC INSPECTOR ================= */
@@ -1061,38 +1224,307 @@
     <!-- ================= 2. FLUTTER MOBILE APP (servenow.pk) ================= -->
     <div class="mobile-app-wrapper" id="mobile-app-wrapper">
       <div class="phone-device">
-        <div style="background: #1e293b; height: 22px; width: 140px; margin: 0 auto; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;"></div>
+        <!-- Speaker / Camera Notch -->
+        <div style="background: #1e293b; height: 20px; width: 130px; margin: 0 auto; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; z-index: 20;"></div>
         
-        <!-- Mobile Header with CustomerPalette -->
-        <div style="background: #ffffff; padding: 12px 16px; border-bottom: 1px solid var(--mob-border); display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-size: 10px; color: var(--mob-text-muted);"><i class="fas fa-map-marker-alt" style="color: var(--mob-primary);"></i> Gulberg III, Lahore</div>
-            <div style="font-size: 14px; font-weight: 800; color: var(--mob-text-dark);">ServeNow.pk</div>
-          </div>
-          <button style="background: var(--mob-bg); border: 1px solid var(--mob-border); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; color: var(--mob-primary); cursor: pointer;" onclick="triggerToast('Urdu Translation Toggled (CustomerLanguage.dart)')">
-            اردو
+        <!-- Top Role Switcher Ribbon (Exact from User Mockup) -->
+        <div class="role-ribbon-bar">
+          <button class="role-tab-btn" id="role-btn-customer" onclick="switchMobileRole('customer')">
+            <i class="fas fa-user"></i>
+            <span>Customer</span>
+          </button>
+          <button class="role-tab-btn" id="role-btn-store" onclick="switchMobileRole('store')">
+            <i class="fas fa-store"></i>
+            <span>Store Owner</span>
+          </button>
+          <button class="role-tab-btn" id="role-btn-rider" onclick="switchMobileRole('rider')">
+            <i class="fas fa-motorcycle"></i>
+            <span>Rider</span>
+          </button>
+          <button class="role-tab-btn active" id="role-btn-admin" onclick="switchMobileRole('admin')">
+            <i class="fas fa-shield-alt"></i>
+            <span>Mobile Admin</span>
           </button>
         </div>
 
-        <!-- Mobile Scroll Content -->
-        <div style="padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1;">
+        <!-- ================= ROLE VIEW 1: MOBILE ADMIN (EXACT USER MOCKUP) ================= -->
+        <div id="mob-screen-admin" style="display: flex; flex-direction: column; flex: 1; overflow-y: auto;">
+          <!-- Header (SERVENOW.PK MOBILE ADMIN / Live Radar & Fleet Oversight) -->
+          <div style="padding: 2px 16px 6px 16px;">
+            <div style="font-size: 11px; font-weight: 800; color: #8C705F; letter-spacing: 0.8px; text-transform: uppercase;">
+              SERVENOW.PK MOBILE ADMIN
+            </div>
+            <h2 style="font-size: 21px; font-weight: 900; color: #231F1C; letter-spacing: -0.3px; margin-top: 2px;">
+              Live Radar &amp; Fleet Oversight
+            </h2>
+          </div>
+
+          <!-- Hero Live Radar Card -->
+          <div class="radar-card-container">
+            <div class="radar-map-bg"></div>
+            <div class="radar-grid-lines"></div>
+            <div class="radar-pulse-ring"></div>
+            <div class="radar-marker-dot">
+              <i class="fas fa-motorcycle"></i>
+            </div>
+            <div class="radar-badge-pill">
+              <div class="radar-badge-dot"></div>
+              <span>Live Radar: Lahore Fleet (flutter_map)</span>
+            </div>
+            <div style="position: absolute; bottom: 10px; right: 12px; display: flex; gap: 6px; z-index: 10;">
+              <span style="background: rgba(15,23,42,0.85); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 3px 8px; font-size: 10px; color: white; font-weight: 600;">
+                <i class="fas fa-crosshairs"></i> Lahore
+              </span>
+              <span style="background: rgba(15,23,42,0.85); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 3px 8px; font-size: 10px; color: white; font-weight: 600;">
+                <i class="fas fa-expand-arrows-alt"></i> Full
+              </span>
+            </div>
+          </div>
+
+          <!-- 2x2 Quick Action Cards Grid (Exact from Mockup) -->
+          <div class="quick-cards-2x2">
+            <!-- 1. Manage Stores -->
+            <div class="quick-action-card" onclick="triggerToast('Opened ManageStoresScreen (18 Active Stores)')">
+              <div class="quick-card-icon" style="color: #E06A2E;">
+                <i class="fas fa-store"></i>
+              </div>
+              <div class="quick-card-title">Manage Stores</div>
+              <div class="quick-card-sub">18 Active</div>
+            </div>
+
+            <!-- 2. Manage Riders -->
+            <div class="quick-action-card" onclick="triggerToast('Opened ManageRidersScreen (12 Online Riders)')">
+              <div class="quick-card-icon" style="color: #0D9488;">
+                <i class="fas fa-motorcycle"></i>
+              </div>
+              <div class="quick-card-title">Manage Riders</div>
+              <div class="quick-card-sub">12 Online</div>
+            </div>
+
+            <!-- 3. Offer Campaigns -->
+            <div class="quick-action-card" onclick="triggerToast('Opened OfferCampaignsScreen (BXGY & Discounts)')">
+              <div class="quick-card-icon" style="color: #D97706;">
+                <i class="fas fa-tags"></i>
+              </div>
+              <div class="quick-card-title">Offer Campaigns</div>
+              <div class="quick-card-sub">BXGY &amp; Discounts</div>
+            </div>
+
+            <!-- 4. Store Balances -->
+            <div class="quick-action-card" onclick="triggerToast('Opened StoreBalancesScreen (Settlements & Due)')">
+              <div class="quick-card-icon" style="color: #DB2777;">
+                <i class="fas fa-file-invoice-dollar"></i>
+              </div>
+              <div class="quick-card-title">Store Balances</div>
+              <div class="quick-card-sub">Settlements</div>
+            </div>
+          </div>
+
+          <!-- Preserved Operations Bottom Section -->
+          <div style="margin: 0 14px 14px 14px; background: white; border-radius: 16px; border: 1px solid #EFE4D6; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 13px; font-weight: 800; color: #1E1B18;">Live Dispatch Orders</span>
+              <span style="font-size: 11px; font-weight: 700; color: #E06A2E; background: #FFF4EA; padding: 2px 8px; border-radius: 6px;">3 Active</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="background: #F8FAFC; border-radius: 10px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 12px; font-weight: 800; color: #0F172A;">Order #5658 • Gourmet Foods</div>
+                  <div style="font-size: 10.5px; color: #64748B;">Rider: Ali Raza • Status: Out for Delivery</div>
+                </div>
+                <span style="font-size: 11.5px; font-weight: 800; color: #16A34A;">PKR 850</span>
+              </div>
+              <div style="background: #F8FAFC; border-radius: 10px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 12px; font-weight: 800; color: #0F172A;">Order #5659 • KFC Gulberg</div>
+                  <div style="font-size: 10.5px; color: #64748B;">Rider: Hamza Tariq • Status: Ready</div>
+                </div>
+                <span style="font-size: 11.5px; font-weight: 800; color: #16A34A;">PKR 1,450</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= ROLE VIEW 2: RIDER DAILY CASH FLOW ================= -->
+        <div id="mob-screen-rider" style="display: none; flex-direction: column; flex: 1; overflow-y: auto;">
+          <!-- Rider Header & Date Navigator -->
+          <div style="padding: 2px 16px 8px 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 11px; font-weight: 800; color: #0D9488; letter-spacing: 0.8px; text-transform: uppercase;">
+                  SERVENOW.PK RIDER
+                </div>
+                <h2 style="font-size: 20px; font-weight: 900; color: #1E293B;">Daily Cash Flow</h2>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 4px 8px;">
+                <i class="fas fa-chevron-left" style="font-size: 11px; cursor: pointer;"></i>
+                <span style="font-size: 11px; font-weight: 700; color: #1E293B;"><i class="fas fa-calendar-day" style="color: #E06A2E;"></i> Today</span>
+                <i class="fas fa-chevron-right" style="font-size: 11px; color: #CBD5E1;"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hero Net Cash In Pocket Card -->
+          <div style="margin: 0 14px 10px 14px; background: linear-gradient(135deg, #0F766E, #115E59); border-radius: 20px; padding: 18px; color: white; box-shadow: 0 10px 24px rgba(15, 118, 110, 0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800;">
+                <i class="fas fa-wallet"></i> Net Cash In Pocket
+              </div>
+              <span style="background: rgba(20, 184, 166, 0.3); border: 1px solid rgba(255,255,255,0.3); padding: 3px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 700;">
+                ● Shift Active
+              </span>
+            </div>
+            <div style="font-size: 32px; font-weight: 900; margin: 10px 0 4px 0; letter-spacing: -0.5px;">
+              PKR 1,450
+            </div>
+            <div style="font-size: 10.5px; opacity: 0.9; line-height: 1.3;">
+              Float (+2,000) + COD (+3,450) - Store (-2,200) - Fuel (-300) - Returned (-1,500)
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 14px;">
+              <button style="flex: 1; background: white; color: #0F766E; border: none; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer;" onclick="triggerToast('Submission Modal: Return Cash to Admin logged')">
+                <i class="fas fa-check-circle"></i> Return Cash to Admin
+              </button>
+              <button style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 8px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer;" onclick="triggerToast('Day Slip PDF Generated')">
+                <i class="fas fa-file-invoice"></i> Day Slip
+              </button>
+            </div>
+          </div>
+
+          <!-- 5-Point Cash Flow Breakdown Grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 14px 10px 14px;">
+            <!-- Float Advance -->
+            <div style="background: white; border: 1px solid #E2E8F0; border-radius: 14px; padding: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <i class="fas fa-hand-holding-usd" style="color: #16A34A; font-size: 15px;"></i>
+                <span style="background: #DCFCE7; color: #16A34A; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 4px;">+ INFLOW</span>
+              </div>
+              <div style="font-size: 11px; font-weight: 700; color: #475569; margin-top: 6px;">Shift Advance</div>
+              <div style="font-size: 15px; font-weight: 900; color: #16A34A;">+ PKR 2,000</div>
+              <div style="font-size: 9.5px; color: #94A3B8;">Office float taken</div>
+            </div>
+
+            <!-- Customer COD -->
+            <div style="background: white; border: 1px solid #E2E8F0; border-radius: 14px; padding: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <i class="fas fa-coins" style="color: #0284C7; font-size: 15px;"></i>
+                <span style="background: #E0F2FE; color: #0284C7; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 4px;">+ INFLOW</span>
+              </div>
+              <div style="font-size: 11px; font-weight: 700; color: #475569; margin-top: 6px;">Customer COD</div>
+              <div style="font-size: 15px; font-weight: 900; color: #0284C7;">+ PKR 3,450</div>
+              <div style="font-size: 9.5px; color: #94A3B8;">Cash collected</div>
+            </div>
+
+            <!-- Paid at Stores -->
+            <div style="background: white; border: 1px solid #E2E8F0; border-radius: 14px; padding: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <i class="fas fa-store" style="color: #EA580C; font-size: 15px;"></i>
+                <span style="background: #FFEDD5; color: #EA580C; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 4px;">- OUTFLOW</span>
+              </div>
+              <div style="font-size: 11px; font-weight: 700; color: #475569; margin-top: 6px;">Paid at Stores</div>
+              <div style="font-size: 15px; font-weight: 900; color: #EA580C;">- PKR 2,200</div>
+              <div style="font-size: 9.5px; color: #94A3B8;">Food pickup cash</div>
+            </div>
+
+            <!-- Fuel Expenses -->
+            <div style="background: white; border: 1px solid #E2E8F0; border-radius: 14px; padding: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <i class="fas fa-gas-pump" style="color: #D97706; font-size: 15px;"></i>
+                <span style="background: #FEF3C7; color: #D97706; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 4px;">- OUTFLOW</span>
+              </div>
+              <div style="font-size: 11px; font-weight: 700; color: #475569; margin-top: 6px;">Fuel &amp; Travel</div>
+              <div style="font-size: 15px; font-weight: 900; color: #D97706;">- PKR 300</div>
+              <div style="font-size: 9.5px; color: #94A3B8;">Petrol allowance</div>
+            </div>
+          </div>
+
+          <!-- Returned / Submitted to Admin -->
+          <div style="margin: 0 14px 10px 14px; background: white; border: 1px solid #E2E8F0; border-radius: 14px; padding: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: #EDE9FE; display: flex; align-items: center; justify-content: center; color: #7C3AED;">
+                <i class="fas fa-check-double"></i>
+              </div>
+              <div>
+                <div style="font-size: 12px; font-weight: 800; color: #1E293B;">Returned to Admin</div>
+                <div style="font-size: 10px; color: #64748B;">Shift cash submitted to office</div>
+              </div>
+            </div>
+            <div style="font-size: 15px; font-weight: 900; color: #7C3AED;">- PKR 1,500</div>
+          </div>
+
+          <!-- Shift Movements Timeline -->
+          <div style="margin: 0 14px 14px 14px; background: white; border-radius: 16px; border: 1px solid #E2E8F0; padding: 12px;">
+            <div style="font-size: 13px; font-weight: 800; color: #1E293B; margin-bottom: 8px;">
+              Shift Movements Timeline
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11.5px;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #F1F5F9; padding-bottom: 6px;">
+                <div>
+                  <div style="font-weight: 700;">Shift Advance from Nazir Admin</div>
+                  <div style="font-size: 10px; color: #94A3B8;">09:15 AM • Float</div>
+                </div>
+                <span style="color: #16A34A; font-weight: 800;">+ PKR 2,000</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #F1F5F9; padding-bottom: 6px;">
+                <div>
+                  <div style="font-weight: 700;">Store Paid • KFC Gulberg (Order #1042)</div>
+                  <div style="font-size: 10px; color: #94A3B8;">11:30 AM • Pickup payment</div>
+                </div>
+                <span style="color: #EA580C; font-weight: 800;">- PKR 1,200</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #F1F5F9; padding-bottom: 6px;">
+                <div>
+                  <div style="font-weight: 700;">COD Collected • Order #1042</div>
+                  <div style="font-size: 10px; color: #94A3B8;">12:15 PM • Delivered</div>
+                </div>
+                <span style="color: #16A34A; font-weight: 800;">+ PKR 1,850</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <div>
+                  <div style="font-weight: 700;">Cash Submitted to Admin Desk</div>
+                  <div style="font-size: 10px; color: #94A3B8;">04:45 PM • Mid-shift deposit</div>
+                </div>
+                <span style="color: #7C3AED; font-weight: 800;">- PKR 1,500</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= ROLE VIEW 3: CUSTOMER ================= -->
+        <div id="mob-screen-customer" style="display: none; flex-direction: column; flex: 1; overflow-y: auto; padding: 14px; gap: 12px;">
           <div style="background: linear-gradient(135deg, #E06A2E, #9E4318); color: white; padding: 14px; border-radius: 12px;">
             <div style="font-size: 10px; font-weight: 800; background: #F2B134; color: #2F221A; width: fit-content; padding: 2px 6px; border-radius: 4px;">SPECIAL DEAL</div>
             <h4 style="font-size: 14px; margin-top: 4px;">Halwa Puri By Faisalabad Bakery</h4>
-            <p style="font-size: 11px; opacity: 0.9;">Fresh Breakfast & Sweets delivered in 25 mins</p>
+            <p style="font-size: 11px; opacity: 0.9;">Fresh Breakfast &amp; Sweets delivered in 25 mins</p>
           </div>
-
-          <div style="background: white; border: 1px solid var(--mob-border); border-radius: 12px; padding: 12px;">
+          <div style="background: white; border: 1px solid #EFE4D6; border-radius: 12px; padding: 12px;">
             <div style="font-size: 13px; font-weight: 800;">Special Halwa Puri Thali</div>
-            <div style="font-size: 11px; color: var(--mob-secondary); font-weight: 600;">2 Puris, Chana, Halwa, Achar</div>
+            <div style="font-size: 11px; color: #147D7E; font-weight: 600;">2 Puris, Chana, Halwa, Achar</div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
-              <span style="font-size: 14px; font-weight: 800; color: var(--mob-primary);">PKR 200.00</span>
-              <button style="background: var(--mob-primary); color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;" onclick="executeSimulatedMobileOrder()">
+              <span style="font-size: 14px; font-weight: 800; color: #E06A2E;">PKR 200.00</span>
+              <button style="background: #E06A2E; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;" onclick="triggerToast('Order placed successfully')">
                 + Order Now
               </button>
             </div>
           </div>
         </div>
+
+        <!-- ================= ROLE VIEW 4: STORE OWNER ================= -->
+        <div id="mob-screen-store" style="display: none; flex-direction: column; flex: 1; overflow-y: auto; padding: 14px; gap: 12px;">
+          <div style="background: white; border: 1px solid #EFE4D6; border-radius: 14px; padding: 14px;">
+            <div style="font-size: 11px; font-weight: 700; color: #64748B;">Halwa Puri By Faisalabad Bakery</div>
+            <div style="font-size: 18px; font-weight: 900; color: #1E293B; margin-top: 2px;">Kitchen Live Orders (4)</div>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="background: #FFF4EA; border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 12px; font-weight: 800; color: #E06A2E;">Order #5659 • 2 items</div>
+                  <div style="font-size: 10.5px; color: #7A4A28;">Preparing in kitchen</div>
+                </div>
+                <button style="background: #E06A2E; color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700;" onclick="triggerToast('Order marked Ready for Rider')">Mark Ready</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -1158,6 +1590,37 @@ FROM orders WHERE DATE(created_at) = CURDATE();
       setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
+    function switchMobileRole(role) {
+      ['customer', 'store', 'rider', 'admin'].forEach(r => {
+        const btn = document.getElementById('role-btn-' + r);
+        const screen = document.getElementById('mob-screen-' + r);
+        if (btn) btn.classList.toggle('active', r === role);
+        if (screen) screen.style.display = r === role ? 'flex' : 'none';
+      });
+
+      const purp = document.getElementById('ins-purp-text');
+      const risk = document.getElementById('ins-risk-text');
+      const code = document.getElementById('ins-code-text');
+
+      if (role === 'admin') {
+        purp.innerText = "Mobile Admin (Flutter App): Live Radar Card & Fleet Oversight replicating the high-density operations view. Includes 2x2 action cards for Stores, Riders, Offer Campaigns, and Balances, plus segmented tabs for Live Dispatch and Day Closing.";
+        risk.innerText = "Without mobile admin oversight, supervisors on the move cannot reassign stalled rider batches or review day financial closing on-the-go.";
+        code.innerText = "// mobile_app/lib/screens/admin_dashboard_screen.dart\n_buildRoleSwitcherRibbon();\n_buildHeroLiveRadarCard();\n_buildHeroFleetOversightGrid();\n_buildAdminSegmentedTabs();";
+      } else if (role === 'rider') {
+        purp.innerText = "Rider Daily Cash Flow Ledger: Real-time tracking of Shift Advance (Float), Paid at Stores, Customer COD Collected, Fuel/Travel Expenses, Cash Returned/Submitted to Admin, and Net Cash In Pocket.";
+        risk.innerText = "Without transparent daily shift cash flow tracking, riders and admins experience cash reconciliation disputes at end-of-day closing.";
+        code.innerText = "// mobile_app/lib/screens/rider_dashboard_screen.dart\nfinal netCash = advance + customerCod - storePaid - fuel - returned;\n_buildCashFlowHeader();\n_buildNetCashInPocketCard();\n_buildCashFlowGrid();";
+      } else if (role === 'store') {
+        purp.innerText = "Store Owner Kitchen Display: Real-time order preparation queue with auto-accept, dispatch preparation timer, and mark-ready button.";
+        risk.innerText = "If stores fail to update cooking status, riders wait idly at stores causing platform delivery SLA penalties.";
+        code.innerText = "// mobile_app/lib/screens/store_owner_dashboard_screen.dart\nawait ApiService.updateOrderStatus(orderId, 'ready_for_pickup');";
+      } else {
+        purp.innerText = "Customer Mobile App: Discovery, browsing restaurants like Faisalabad Bakery, food cart customization, and live order placement.";
+        risk.innerText = "Without single-store cart validation and stock enforcement, customers could place multi-merchant conflicting orders.";
+        code.innerText = "// mobile_app/lib/screens/customer_dashboard_test_screen.dart\nawait ApiService.createOrder({ store_id: 1, items: [...] });";
+      }
+    }
+
     function switchViewMode(mode) {
       document.getElementById('btn-show-web').classList.toggle('active', mode === 'web');
       document.getElementById('btn-show-mob').classList.toggle('active', mode === 'mobile');
@@ -1168,9 +1631,7 @@ FROM orders WHERE DATE(created_at) = CURDATE();
       if (mode === 'web') {
         openAdminTab('dashboard');
       } else {
-        document.getElementById('ins-purp-text').innerText = "Customer mobile order placement on servenow.pk with CustomerPalette styling and Urdu localization.";
-        document.getElementById('ins-risk-text').innerText = "Without client-side stock and single-store guard, multiple store items will collide and delivery fleet will fail.";
-        document.getElementById('ins-code-text').innerText = "// mobile_app/lib/screens/checkout_screen.dart\nawait ApiService.createOrder({ store_id: 1, items: [...] });";
+        switchMobileRole('admin');
       }
     }
 

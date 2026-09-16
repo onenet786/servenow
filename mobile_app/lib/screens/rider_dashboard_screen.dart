@@ -37,6 +37,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   String _selectedStatsPeriod = 'daily';
   Map<String, dynamic>? _walletStats;
   bool _isLoadingStats = false;
+  DateTime _selectedCashFlowDate = DateTime.now();
+  bool _isLoadingCashFlow = false;
+  Map<String, dynamic>? _cashFlowData;
   bool _isNotificationRefreshRunning = false;
   int _selectedTabIndex = 0;
   late AnimationController _blinkController;
@@ -395,6 +398,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         _getCurrentLocation(),
         _loadWalletBalance(token),
         _loadWalletStats(token, 'daily'),
+        _loadCashFlowDataForDate(_selectedCashFlowDate),
       ]);
     } catch (e) {
       _logger.e('Error loading rider data: $e');
@@ -402,6 +406,52 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _loadCashFlowDataForDate(DateTime date) async {
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (token == null) return;
+    setState(() {
+      _isLoadingCashFlow = true;
+      _selectedCashFlowDate = date;
+    });
+    try {
+      final dateStr = _dateOnly(date);
+      final data = await ApiService.getRiderFinancialHistory(
+        token,
+        from: dateStr,
+        to: dateStr,
+      );
+      if (!mounted) return;
+      setState(() {
+        _cashFlowData = data;
+      });
+    } catch (e) {
+      _logger.w('Error loading rider cash flow for $date: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingCashFlow = false);
+      }
+    }
+  }
+
+  void _changeCashFlowDate(int dayOffset) {
+    final newDate = _selectedCashFlowDate.add(Duration(days: dayOffset));
+    _loadCashFlowDataForDate(newDate);
+  }
+
+  Future<void> _pickCashFlowDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate:
+          _selectedCashFlowDate.isAfter(now) ? now : _selectedCashFlowDate,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+    );
+    if (picked != null) {
+      _loadCashFlowDataForDate(picked);
     }
   }
 
@@ -2541,114 +2591,142 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   }
 
   Widget _buildWalletTab() {
+    final summary =
+        (_cashFlowData?['summary'] as Map<String, dynamic>?) ?? {};
+    final ledgerSummary =
+        (_cashFlowData?['ledger_summary'] as Map<String, dynamic>?) ?? {};
+    final movements = (_cashFlowData?['movements'] as List?) ?? const [];
+    final orderLedger = (_cashFlowData?['order_ledger'] as List?) ?? const [];
+    final dayClosing = (_cashFlowData?['day_closing'] as Map<String, dynamic>?);
+
+    // 1. Shift Advance (Float from Admin at shift start)
+    double officeAdvance = 0.0;
+    for (final raw in movements) {
+      final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+      final type = (m['movement_type'] ?? '').toString().toLowerCase();
+      if (type == 'advance') {
+        officeAdvance += _parseDouble(m['amount']);
+      }
+    }
+    if (officeAdvance == 0) {
+      officeAdvance = _parseDouble(summary['office_advance']);
+    }
+
+    // 2. Customer COD Collected
+    double codCollected = _parseDouble(
+      ledgerSummary['cash_in_customer'] ??
+          summary['cash_in_customer'] ??
+          summary['cash_collection'],
+    );
+    if (codCollected == 0) {
+      for (final raw in movements) {
+        final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+        if ((m['movement_type'] ?? '').toString().toLowerCase() ==
+            'cash_collection') {
+          codCollected += _parseDouble(m['amount']);
+        }
+      }
+    }
+
+    // 3. Paid at Stores
+    double paidAtStores = _parseDouble(
+      ledgerSummary['cash_out_store_paid'] ??
+          summary['cash_out_store_paid'] ??
+          summary['store_payment'],
+    );
+    if (paidAtStores == 0) {
+      for (final raw in movements) {
+        final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+        if ((m['movement_type'] ?? '').toString().toLowerCase() ==
+            'store_payment') {
+          paidAtStores += _parseDouble(m['amount']);
+        }
+      }
+    }
+
+    // 4. Fuel & Shift Expenses
+    double fuelExpenses = _parseDouble(summary['fuel_payment']);
+    if (fuelExpenses == 0) {
+      for (final raw in movements) {
+        final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+        if ((m['movement_type'] ?? '').toString().toLowerCase() ==
+            'fuel_payment') {
+          fuelExpenses += _parseDouble(m['amount']);
+        }
+      }
+    }
+
+    // 5. Cash Returned / Submitted to Admin
+    double returnedToAdmin = 0.0;
+    for (final raw in movements) {
+      final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+      final type = (m['movement_type'] ?? '').toString().toLowerCase();
+      if (type == 'cash_submission') {
+        returnedToAdmin += _parseDouble(m['amount']);
+      }
+    }
+
+    // Net Running Cash In Hand (In-Pocket Balance)
+    final cashInHand =
+        officeAdvance +
+        codCollected -
+        paidAtStores -
+        fuelExpenses -
+        returnedToAdmin;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDay = DateTime(
+      _selectedCashFlowDate.year,
+      _selectedCashFlowDate.month,
+      _selectedCashFlowDate.day,
+    );
+    final canGoForward = selectedDay.isBefore(today);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Container(
+          _buildWalletBalanceCard(),
+          const SizedBox(height: 20),
+          _buildDailyCashFlowHeader(canGoForward),
+          const SizedBox(height: 12),
+          if (_isLoadingCashFlow)
+            Container(
+              height: 180,
+              width: double.infinity,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  colors: [Colors.green.shade600, Colors.teal.shade600],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
               ),
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Wallet Balance',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.account_balance_wallet,
-                            color: Colors.white.withValues(alpha: 0.8),
-                            size: 28,
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.refresh,
-                              color: Colors.white,
-                            ),
-                            onPressed: () async {
-                              final token = Provider.of<AuthProvider>(
-                                context,
-                                listen: false,
-                              ).token;
-                              if (token != null) {
-                                await _loadWalletBalance(token);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Wallet updated'),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            iconSize: 20,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'PKR ${_walletBalance.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.info_outline,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Tap refresh to update balance',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              child: const Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+            _buildHeroCashInHandCard(
+              officeAdvance: officeAdvance,
+              codCollected: codCollected,
+              paidAtStores: paidAtStores,
+              fuelExpenses: fuelExpenses,
+              returnedToAdmin: returnedToAdmin,
+              cashInHand: cashInHand,
+              dayClosing: dayClosing,
             ),
-          ),
+            const SizedBox(height: 16),
+            _buildCashFlowBreakdownGrid(
+              officeAdvance: officeAdvance,
+              codCollected: codCollected,
+              paidAtStores: paidAtStores,
+              fuelExpenses: fuelExpenses,
+              returnedToAdmin: returnedToAdmin,
+            ),
+            const SizedBox(height: 16),
+            _buildCashFlowMovementsTimeline(movements),
+            if (orderLedger.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildOrdersDeliveredCashSummary(orderLedger),
+            ],
+          ],
           const SizedBox(height: 24),
           const Text(
             'Financial Statistics',
@@ -2669,158 +2747,988 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 child: Center(child: Text('No stats available')),
               ),
             ),
-          const SizedBox(height: 24),
-          _walletBalance == 0
-              ? Card(
-                  color: Color(0xFFFFF3E0),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info, color: Color(0xFFEF6C00)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'No earnings yet',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Complete deliveries and mark payments as received to earn',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : const SizedBox.shrink(),
-          const SizedBox(height: 24),
-          const Text(
-            'Wallet Information',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildWalletInfoRow('Account Type', 'Rider Wallet'),
-                  const Divider(),
-                  _buildWalletInfoRow('Status', 'Active'),
-                  const Divider(),
-                  _buildWalletInfoRow(
-                    'Balance',
-                    'PKR ${_walletBalance.toStringAsFixed(2)}',
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'How it works',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHowItWorksItem(
-                    '1',
-                    'Complete Deliveries',
-                    'Accept and complete delivery orders',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildHowItWorksItem(
-                    '2',
-                    'Mark Payment Received',
-                    'Confirm when customer pays you',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildHowItWorksItem(
-                    '3',
-                    'Wallet Updated',
-                    'Amount instantly credited to your wallet',
-                  ),
-                ],
-              ),
-            ),
-          ),
           const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  Widget _buildWalletInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildWalletBalanceCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: const LinearGradient(
+            colors: [Color(0xFFE06A2E), Color(0xFFC2410C)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFE06A2E).withValues(alpha: 0.35),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Rider Digital Wallet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70,
+                  ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      onPressed: () async {
+                        final token = Provider.of<AuthProvider>(
+                          context,
+                          listen: false,
+                        ).token;
+                        if (token != null) {
+                          await _loadWalletBalance(token);
+                          await _loadCashFlowDataForDate(
+                            _selectedCashFlowDate,
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Wallet & Cash Flow refreshed'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      iconSize: 22,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'PKR ${_walletBalance.toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 5,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.verified_user, color: Colors.white, size: 14),
+                  SizedBox(width: 6),
+                  Text(
+                    'Active Earning Account',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyCashFlowHeader(bool canGoForward) {
+    final dateLabel = _friendlyCashFlowDateLabel(_selectedCashFlowDate);
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE0F2FE),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.account_balance_wallet_rounded,
+            color: Color(0xFF0284C7),
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Daily Cash Flow & Shift',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              Text(
+                'Advance, Store Paid & In-Pocket Cash',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Date Switcher Controls
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: () => _changeCashFlowDate(-1),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Icon(
+                  Icons.chevron_left_rounded,
+                  size: 20,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: _pickCashFlowDate,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 14,
+                      color: Color(0xFFE06A2E),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      dateLabel,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: canGoForward ? () => _changeCashFlowDate(1) : null,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: canGoForward ? Colors.white : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: canGoForward
+                        ? const Color(0xFFE2E8F0)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: canGoForward
+                      ? const Color(0xFF334155)
+                      : Colors.grey.shade400,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _friendlyCashFlowDateLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final target = DateTime(date.year, date.month, date.day);
+    if (target == today) return 'Today';
+    if (target == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    return _dateOnly(date);
+  }
+
+  Widget _buildHeroCashInHandCard({
+    required double officeAdvance,
+    required double codCollected,
+    required double paidAtStores,
+    required double fuelExpenses,
+    required double returnedToAdmin,
+    required double cashInHand,
+    required Map<String, dynamic>? dayClosing,
+  }) {
+    final isClosed = dayClosing != null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F766E), Color(0xFF115E59)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F766E).withValues(alpha: 0.28),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(
+                    Icons.account_balance_wallet_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Net Cash In Pocket',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isClosed
+                      ? const Color(0xFF064E3B)
+                      : const Color(0xFF14B8A6).withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isClosed
+                            ? const Color(0xFF34D399)
+                            : const Color(0xFF5EEAD4),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      isClosed ? 'Shift Closed' : 'Shift Active',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Text(
-            label,
+            'PKR ${cashInHand.toStringAsFixed(0)}',
             style: const TextStyle(
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.5,
             ),
           ),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text(
+            'Advance (+${officeAdvance.toInt()}) + COD (+${codCollected.toInt()}) - Store (-${paidAtStores.toInt()}) - Fuel (-${fuelExpenses.toInt()}) - Returned (-${returnedToAdmin.toInt()})',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _showSubmitCashToAdminDialog(cashInHand),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF0F766E),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  icon: const Icon(
+                    Icons.assignment_turned_in_rounded,
+                    size: 16,
+                  ),
+                  label: const Text(
+                    'Return Cash to Admin',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: () => _openRiderFinancialHistoryForDate(
+                  _selectedCashFlowDate,
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.18),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 12,
+                  ),
+                ),
+                icon: const Icon(Icons.receipt_long_rounded, size: 16),
+                label: const Text(
+                  'Day Slip',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildHowItWorksItem(String number, String title, String description) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildCashFlowBreakdownGrid({
+    required double officeAdvance,
+    required double codCollected,
+    required double paidAtStores,
+    required double fuelExpenses,
+    required double returnedToAdmin,
+  }) {
+    return Column(
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: Color(0xFFFFE0B2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: TextStyle(
-                color: Color(0xFFEF6C00),
-                fontWeight: FontWeight.bold,
+        Row(
+          children: [
+            Expanded(
+              child: _buildCashFlowMetricTile(
+                title: 'Shift Advance (Float)',
+                amount: officeAdvance,
+                isPositive: true,
+                badgeLabel: '+ INFLOW',
+                icon: Icons.account_balance_wallet_outlined,
+                accentColor: const Color(0xFF16A34A),
+                description: 'Cash taken from office',
               ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildCashFlowMetricTile(
+                title: 'Customer COD',
+                amount: codCollected,
+                isPositive: true,
+                badgeLabel: '+ INFLOW',
+                icon: Icons.payments_outlined,
+                accentColor: const Color(0xFF0284C7),
+                description: 'Delivered orders cash',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildCashFlowMetricTile(
+                title: 'Paid at Stores',
+                amount: paidAtStores,
+                isPositive: false,
+                badgeLabel: '- OUTFLOW',
+                icon: Icons.storefront_outlined,
+                accentColor: const Color(0xFFEA580C),
+                description: 'Cash paid for food pickup',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildCashFlowMetricTile(
+                title: 'Fuel & Expenses',
+                amount: fuelExpenses,
+                isPositive: false,
+                badgeLabel: '- OUTFLOW',
+                icon: Icons.local_gas_station_outlined,
+                accentColor: const Color(0xFFD97706),
+                description: 'Petrol & travel costs',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildCashFlowMetricTile(
+          title: 'Returned / Submitted to Admin',
+          amount: returnedToAdmin,
+          isPositive: false,
+          badgeLabel: '- DEPOSIT',
+          icon: Icons.assignment_turned_in_outlined,
+          accentColor: const Color(0xFF7C3AED),
+          description: 'Cash handed over or deposited back to office',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCashFlowMetricTile({
+    required String title,
+    required double amount,
+    required bool isPositive,
+    required String badgeLabel,
+    required IconData icon,
+    required Color accentColor,
+    required String description,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 18),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  badgeLabel,
+                  style: TextStyle(
+                    color: accentColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF334155),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${isPositive ? '+' : '-'} PKR ${amount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            description,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF94A3B8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCashFlowMovementsTimeline(List<dynamic> movements) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Shift Movements Timeline',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${movements.length} events',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (movements.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Text(
+                  'No cash movements logged for this shift yet.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: movements.length,
+              separatorBuilder: (context, index) => const Divider(height: 16),
+              itemBuilder: (context, index) {
+                final raw = movements[index];
+                final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+                final type = (m['movement_type'] ?? '')
+                    .toString()
+                    .toLowerCase();
+                final amount = _parseDouble(m['amount']);
+                final description = (m['description'] ?? '').toString();
+                final timeStr = (m['movement_at'] ??
+                        m['created_at'] ??
+                        m['movement_date'] ??
+                        '')
+                    .toString();
+                final status = (m['status'] ?? '').toString().toUpperCase();
+
+                Color badgeColor = const Color(0xFF0284C7);
+                String typeLabel = 'Cash Collection';
+                bool isAdd = true;
+                if (type == 'advance') {
+                  badgeColor = const Color(0xFF16A34A);
+                  typeLabel = 'Shift Advance';
+                  isAdd = true;
+                } else if (type == 'store_payment') {
+                  badgeColor = const Color(0xFFEA580C);
+                  typeLabel = 'Store Payment';
+                  isAdd = false;
+                } else if (type == 'fuel_payment') {
+                  badgeColor = const Color(0xFFD97706);
+                  typeLabel = 'Fuel Expense';
+                  isAdd = false;
+                } else if (type == 'cash_submission') {
+                  badgeColor = const Color(0xFF7C3AED);
+                  typeLabel = 'Cash Returned to Admin';
+                  isAdd = false;
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isAdd
+                            ? Icons.arrow_downward_rounded
+                            : Icons.arrow_upward_rounded,
+                        color: badgeColor,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                typeLabel,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              Text(
+                                '${isAdd ? '+' : '-'} PKR ${amount.toStringAsFixed(0)}',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isAdd
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFFDC2626),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            description.isNotEmpty
+                                ? description
+                                : 'Shift ledger entry',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Text(
+                                timeStr.length >= 16
+                                    ? timeStr.substring(0, 16)
+                                    : timeStr,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                              if (status.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    status,
+                                    style: const TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrdersDeliveredCashSummary(List<dynamic> orderLedger) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Delivered Orders Breakdown',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              Text(
+                '${orderLedger.length} Orders',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFE06A2E),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: orderLedger.length,
+            separatorBuilder: (context, index) => const Divider(height: 14),
+            itemBuilder: (context, index) {
+              final o = (orderLedger[index] as Map?)?.cast<String, dynamic>() ??
+                  {};
+              final orderNumber = o['order_number'] ?? '#${o['order_id']}';
+              final collected = _parseDouble(o['customer_cash_collected']);
+              final paidStore = _parseDouble(o['rider_store_paid']);
+              final netEffect = _parseDouble(o['expected_rider_cash_effect']);
+
+              return Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(
+                      orderNumber.toString(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'COD: PKR ${collected.toStringAsFixed(0)} | Store Paid: PKR ${paidStore.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${netEffect >= 0 ? '+' : ''}PKR ${netEffect.toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: netEffect >= 0
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSubmitCashToAdminDialog(double currentCashInHand) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: const [
+              Icon(
+                Icons.assignment_turned_in_rounded,
+                color: Color(0xFF0F766E),
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Submit Cash to Admin',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDFA),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFCCFBF1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Cash Currently in Pocket:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F766E),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'PKR ${currentCashInHand.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF115E59),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Shift Submission Instructions:\n'
+                '1. Hand over collected cash to your dispatch manager or cashier.\n'
+                '2. Admin will record a "Receipt Voucher" / verify in Rider Day Transactions.\n'
+                '3. Once verified, your cash in hand updates automatically.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  color: Color(0xFF475569),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Close'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _openRiderFinancialHistoryForDate(_selectedCashFlowDate);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F766E),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('View Full Statement'),
+            ),
+          ],
+        );
+      },
     );
   }
 
