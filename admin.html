@@ -3133,28 +3133,138 @@
         </div>
 
         <div id="store-payment-term-reports" class="tab-content">
-          <h2>Store Payment Term Report</h2>
-          <div class="filter-controls">
-            <button class="btn btn-primary" id="refreshStorePaymentTermReportBtn">
-              <i class="fas fa-sync"></i> Refresh Report
-            </button>
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+            <div>
+              <h2 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-file-invoice-dollar" style="color: #4f46e5;"></i>
+                Credit Stores &amp; Payment Term Reports
+              </h2>
+              <p style="margin: 0.25rem 0 0 0; font-size: 0.88rem; color: #64748b;">
+                Complete ledger of Credit Stores sorted alphabetically (A &rarr; Z) with order-wise settlement tracking.
+              </p>
+            </div>
+            <!-- Sub-tab switcher -->
+            <div class="financial-subnav-pills" style="display: flex; gap: 0.5rem; background: #f1f5f9; padding: 4px; border-radius: 8px;">
+              <button type="button" id="tabBtnCreditStoresLedger" class="btn btn-sm btn-primary active-subtab" onclick="switchCreditStoreSubTab('ledger')" style="font-weight: 600; padding: 0.4rem 0.9rem; border-radius: 6px;">
+                <i class="fas fa-store"></i> Credit Stores Ledger (A &rarr; Z)
+              </button>
+              <button type="button" id="tabBtnPaymentTermGroups" class="btn btn-sm btn-secondary" onclick="switchCreditStoreSubTab('groups')" style="font-weight: 600; padding: 0.4rem 0.9rem; border-radius: 6px;">
+                <i class="fas fa-layer-group"></i> All Payment Term Groups
+              </button>
+            </div>
           </div>
 
-          <div class="table-container" style="margin-top: 1rem">
-            <table id="storePaymentTermGroupsTable">
-              <thead>
-                <tr>
-                  <th>Payment Term Group</th>
-                  <th>Payment Term</th>
-                  <th>Store Name</th>
-                  <th>Email / Phone</th>
-                  <th>Payable Amount</th>
-                </tr>
-              </thead>
-              <tbody id="storePaymentTermGroupsTableBody">
-                <!-- Store payment-term group data will be loaded here -->
-              </tbody>
-            </table>
+          <!-- SUB-VIEW 1: Credit Stores Ledger (A -> Z) -->
+          <div id="creditStoresLedgerView">
+            <!-- KPI Summary Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+              <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em;">Credit Stores</div>
+                <div id="kpiCreditStoreCount" style="font-size: 1.5rem; font-weight: 800; color: #1e293b; margin-top: 0.25rem;">0</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Sorted Ascending (A &rarr; Z)</div>
+              </div>
+              <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em;">Delivered Orders</div>
+                <div id="kpiCreditOrdersCount" style="font-size: 1.5rem; font-weight: 800; color: #0284c7; margin-top: 0.25rem;">0</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">All credit stores orders</div>
+              </div>
+              <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em;">Total Payable</div>
+                <div id="kpiCreditTotalPayable" style="font-size: 1.5rem; font-weight: 800; color: #d97706; margin-top: 0.25rem;">Rs 0.00</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Store earnings liability</div>
+              </div>
+              <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em;">Total Settled (Paid)</div>
+                <div id="kpiCreditTotalPaid" style="font-size: 1.5rem; font-weight: 800; color: #16a34a; margin-top: 0.25rem;">Rs 0.00</div>
+                <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Completed settlements</div>
+              </div>
+              <div style="background: white; border: 1px solid #fecaca; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); background-color: #fff1f2;">
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #e11d48; letter-spacing: 0.05em;">Outstanding Balance</div>
+                <div id="kpiCreditPendingBalance" style="font-size: 1.5rem; font-weight: 800; color: #e11d48; margin-top: 0.25rem;">Rs 0.00</div>
+                <div id="kpiCreditDueStoresCount" style="font-size: 0.72rem; color: #f43f5e; margin-top: 2px;">0 stores with balance due</div>
+              </div>
+            </div>
+
+            <!-- Filters & Actions Toolbar -->
+            <div class="filter-controls" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; background: #ffffff; padding: 0.85rem 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 1rem;">
+              <div style="flex: 1; min-width: 220px; position: relative;">
+                <i class="fas fa-search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem;"></i>
+                <input type="text" id="creditStoreSearchInput" placeholder="Search credit store by name, phone, email..." style="width: 100%; padding: 0.45rem 0.6rem 0.45rem 2.2rem; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;" oninput="filterCreditStoresLedgerTable()">
+              </div>
+              <div style="min-width: 160px;">
+                <select id="creditStoreTermFilter" class="form-control" style="font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 6px;" onchange="filterCreditStoresLedgerTable()">
+                  <option value="">All Payment Terms</option>
+                  <option value="credit">Credit (Standard)</option>
+                  <option value="discount">Credit with Discount</option>
+                </select>
+              </div>
+              <div style="min-width: 160px;">
+                <select id="creditStoreBalanceFilter" class="form-control" style="font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 6px;" onchange="filterCreditStoresLedgerTable()">
+                  <option value="">All Balances</option>
+                  <option value="due">Has Due Balance (&gt; 0)</option>
+                  <option value="settled">Fully Settled (Rs 0)</option>
+                </select>
+              </div>
+              <button class="btn btn-secondary" onclick="loadCreditStoresHistory()" style="font-size: 0.85rem; padding: 0.45rem 0.85rem;">
+                <i class="fas fa-sync"></i> Refresh
+              </button>
+              <button class="btn btn-secondary" onclick="exportCreditStoresLedgerCSV()" style="font-size: 0.85rem; padding: 0.45rem 0.85rem;">
+                <i class="fas fa-file-csv"></i> Export CSV
+              </button>
+            </div>
+
+            <!-- Stores Table (Ascending A-Z) -->
+            <div class="table-container" style="background: white; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
+              <table id="creditStoresLedgerTable" style="width: 100%; border-collapse: collapse;">
+                <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                  <tr>
+                    <th style="padding: 0.75rem 0.6rem; text-align: center; width: 40px; font-size: 0.75rem;">#</th>
+                    <th style="padding: 0.75rem; text-align: left; font-size: 0.78rem;">Store Name (A &rarr; Z)</th>
+                    <th style="padding: 0.75rem; text-align: left; font-size: 0.78rem;">Payment Term</th>
+                    <th style="padding: 0.75rem; text-align: left; font-size: 0.78rem;">Contact Info</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.78rem;">Delivered Orders</th>
+                    <th style="padding: 0.75rem; text-align: right; font-size: 0.78rem;">Gross Sales</th>
+                    <th style="padding: 0.75rem; text-align: right; font-size: 0.78rem;">Amount To Pay</th>
+                    <th style="padding: 0.75rem; text-align: right; font-size: 0.78rem;">Total Paid</th>
+                    <th style="padding: 0.75rem; text-align: right; font-size: 0.78rem;">Pending Balance</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.78rem;">Last Settlement</th>
+                    <th style="padding: 0.75rem; text-align: center; font-size: 0.78rem; width: 140px;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="creditStoresLedgerTableBody">
+                  <tr>
+                    <td colspan="11" style="text-align: center; padding: 2rem; color: #94a3b8;">
+                      <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading credit stores ledger...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 2: All Payment Term Groups (Legacy Group Overview) -->
+          <div id="paymentTermGroupsView" style="display: none;">
+            <div class="filter-controls" style="margin-bottom: 1rem;">
+              <button class="btn btn-primary" id="refreshStorePaymentTermReportBtn" onclick="loadStorePaymentTermReport()">
+                <i class="fas fa-sync"></i> Refresh Groups Report
+              </button>
+            </div>
+            <div class="table-container">
+              <table id="storePaymentTermGroupsTable">
+                <thead>
+                  <tr>
+                    <th>Payment Term Group</th>
+                    <th>Payment Term</th>
+                    <th>Store Name</th>
+                    <th>Email / Phone</th>
+                    <th>Payable Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="storePaymentTermGroupsTableBody">
+                  <!-- Store payment-term group data will be loaded here -->
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -5060,8 +5170,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="js/notifications.js?v=4" defer></script>
     <script src="js/financial_helpers.js" defer></script>
-    <script src="js/financial.js?v=19" defer></script>
-    <script src="js/admin.js?v=46" defer></script>
+    <script src="js/financial.js?v=20" defer></script>
+    <script src="js/admin.js?v=47" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
@@ -5768,6 +5878,142 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Credit Store Order-Wise History Modal -->
+    <div id="creditStoreHistoryModal" class="modal persistent-modal" style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); overflow-y: auto; padding: 1.5rem 1rem;">
+      <div class="modal-content" style="background: #ffffff; border-radius: 12px; max-width: 1250px; margin: 0 auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid #cbd5e1; overflow: hidden; display: flex; flex-direction: column; max-height: 92vh;">
+        <!-- Modal Header -->
+        <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white; padding: 1.1rem 1.5rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; border-bottom: 1px solid #334155;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+              <h2 id="creditModalStoreName" style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #ffffff;">Store Name</h2>
+              <span id="creditModalStoreTermBadge" style="background: #3b82f6; color: white; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600;">Credit</span>
+              <span id="creditModalActiveBadge" style="background: #10b981; color: white; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;">Active</span>
+            </div>
+            <div style="margin-top: 0.35rem; font-size: 0.85rem; color: #94a3b8; display: flex; gap: 1.25rem; flex-wrap: wrap;">
+              <span id="creditModalStorePhone"><i class="fas fa-phone-alt"></i> -</span>
+              <span id="creditModalStoreEmail"><i class="fas fa-envelope"></i> -</span>
+              <span id="creditModalStoreAddress"><i class="fas fa-map-marker-alt"></i> -</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="exportCreditStoreOrdersCSV()" style="background: rgba(255,255,255,0.1); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.2);">
+              <i class="fas fa-file-csv"></i> Export Orders CSV
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="printCreditStoreStatement()" style="background: rgba(255,255,255,0.1); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.2);">
+              <i class="fas fa-print"></i> Print Statement
+            </button>
+            <button type="button" onclick="closeCreditStoreHistoryModal()" style="background: none; border: none; font-size: 1.6rem; color: #94a3b8; cursor: pointer; padding: 0 0.5rem; line-height: 1;" title="Close Modal">&times;</button>
+          </div>
+        </div>
+
+        <!-- Modal KPI Ribbon -->
+        <div style="background: #f8fafc; padding: 0.85rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.85rem;">
+          <div style="background: white; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Delivered Orders</div>
+            <div id="creditModalOrdersCount" style="font-size: 1.3rem; font-weight: 800; color: #1e293b;">0</div>
+          </div>
+          <div style="background: white; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Gross Sales Total</div>
+            <div id="creditModalGrossSales" style="font-size: 1.3rem; font-weight: 800; color: #0284c7;">Rs 0.00</div>
+          </div>
+          <div style="background: white; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Store Payable</div>
+            <div id="creditModalTotalPayable" style="font-size: 1.3rem; font-weight: 800; color: #d97706;">Rs 0.00</div>
+          </div>
+          <div style="background: white; padding: 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <div style="font-size: 0.72rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Paid (Settled)</div>
+            <div id="creditModalTotalPaid" style="font-size: 1.3rem; font-weight: 800; color: #16a34a;">Rs 0.00</div>
+          </div>
+          <div style="background: #fff1f2; padding: 0.75rem; border-radius: 8px; border: 1px solid #fecaca;">
+            <div style="font-size: 0.72rem; color: #e11d48; font-weight: 700; text-transform: uppercase;">Pending Balance Due</div>
+            <div id="creditModalPendingBalance" style="font-size: 1.3rem; font-weight: 800; color: #e11d48;">Rs 0.00</div>
+          </div>
+        </div>
+
+        <!-- In-Modal Navigation & Filter Toolbar -->
+        <div style="padding: 0.75rem 1.5rem; background: white; border-bottom: 1px solid #e2e8f0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem;">
+          <!-- Tabs within modal -->
+          <div style="display: flex; gap: 0.5rem; background: #f1f5f9; padding: 3px; border-radius: 6px;">
+            <button type="button" id="modalSubTabOrdersBtn" class="btn btn-sm btn-primary" onclick="switchModalSubTab('orders')" style="font-size: 0.8rem; font-weight: 600; padding: 0.35rem 0.8rem; border-radius: 5px;">
+              <i class="fas fa-receipt"></i> Order-Wise Ledger (<span id="creditModalOrdersTabBadge">0</span>)
+            </button>
+            <button type="button" id="modalSubTabSettlementsBtn" class="btn btn-sm btn-secondary" onclick="switchModalSubTab('settlements')" style="font-size: 0.8rem; font-weight: 600; padding: 0.35rem 0.8rem; border-radius: 5px;">
+              <i class="fas fa-file-invoice-dollar"></i> Settlement Vouchers (<span id="creditModalSettlementsTabBadge">0</span>)
+            </button>
+          </div>
+
+          <!-- Order Filters -->
+          <div id="modalOrderFilters" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <input type="text" id="modalOrderSearchInput" placeholder="Search order #, customer, item..." style="font-size: 0.82rem; padding: 0.35rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; min-width: 210px;" oninput="filterModalOrdersTable()">
+            <select id="modalOrderStatusFilter" style="font-size: 0.82rem; padding: 0.35rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px;" onchange="filterModalOrdersTable()">
+              <option value="">All Payment Status</option>
+              <option value="paid">Paid Orders Only</option>
+              <option value="unpaid">Unpaid / Due Orders Only</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Modal Body (Scrollable) -->
+        <div style="overflow-y: auto; flex: 1; padding: 1.25rem 1.5rem; background: #f8fafc;">
+          <!-- Sub-panel 1: Order-Wise Table -->
+          <div id="modalOrdersContainer">
+            <div class="table-container" style="background: white; border-radius: 8px; border: 1px solid #e2e8f0; overflow-x: auto;">
+              <table id="creditStoreOrdersTable" style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                <thead style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                  <tr>
+                    <th style="padding: 0.65rem 0.5rem; text-align: center; width: 35px;">#</th>
+                    <th style="padding: 0.65rem; text-align: left; width: 110px;">Order #</th>
+                    <th style="padding: 0.65rem; text-align: left; width: 135px;">Order Date &amp; Time</th>
+                    <th style="padding: 0.65rem; text-align: left; width: 150px;">Customer</th>
+                    <th style="padding: 0.65rem; text-align: left;">Items Summary</th>
+                    <th style="padding: 0.65rem; text-align: right; width: 95px;">Order Gross</th>
+                    <th style="padding: 0.65rem; text-align: right; width: 110px;">Amount to Pay</th>
+                    <th style="padding: 0.65rem; text-align: center; width: 105px;">Payment Status</th>
+                    <th style="padding: 0.65rem; text-align: left; width: 230px;">Paid Details / Settlement Info</th>
+                  </tr>
+                </thead>
+                <tbody id="creditStoreOrdersTableBody">
+                  <!-- Orders injected here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Sub-panel 2: Settlement Vouchers Table -->
+          <div id="modalSettlementsContainer" style="display: none;">
+            <div class="table-container" style="background: white; border-radius: 8px; border: 1px solid #e2e8f0; overflow-x: auto;">
+              <table id="creditStoreSettlementsTable" style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                <thead style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                  <tr>
+                    <th style="padding: 0.65rem; text-align: left;">Settlement #</th>
+                    <th style="padding: 0.65rem; text-align: left;">Settlement Date</th>
+                    <th style="padding: 0.65rem; text-align: left;">Period Covered</th>
+                    <th style="padding: 0.65rem; text-align: right;">Orders Amount</th>
+                    <th style="padding: 0.65rem; text-align: right;">Commissions</th>
+                    <th style="padding: 0.65rem; text-align: right;">Net Amount Paid</th>
+                    <th style="padding: 0.65rem; text-align: center;">Payment Method</th>
+                    <th style="padding: 0.65rem; text-align: center;">Status</th>
+                    <th style="padding: 0.65rem; text-align: left;">Paid Details &amp; Notes</th>
+                  </tr>
+                </thead>
+                <tbody id="creditStoreSettlementsTableBody">
+                  <!-- Settlements injected here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div style="padding: 0.85rem 1.5rem; background: white; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+          <div id="modalOrderSummaryFooter" style="font-size: 0.82rem; color: #64748b;">
+            Showing <strong id="modalOrdersVisibleCount">0</strong> orders
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="closeCreditStoreHistoryModal()">Close</button>
+        </div>
       </div>
     </div>
 

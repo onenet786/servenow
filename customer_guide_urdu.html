@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سروناؤ — کسٹمر ورک فلو کی مکمل گائیڈ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 12mm 14mm 12mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+      line-height: 2.2;
+      color: #263238;
+      background: #ffffff;
+      margin: 0;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 10px 18px;
+    }
+
+    /* Header Banner - Emerald Teal */
+    .header-banner {
+      background: linear-gradient(135deg, #00796B 0%, #004D40 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+      border-radius: 14px;
+      margin-bottom: 22px;
+      box-shadow: 0 4px 15px rgba(0, 121, 107, 0.25);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title h1 {
+      margin: 0 0 6px 0;
+      font-size: 23px;
+      font-weight: 700;
+      line-height: 1.8;
+    }
+
+    .header-title p {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.92;
+      line-height: 1.8;
+    }
+
+    .badge-pill {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    /* Process Flow Diagram */
+    .flow-card {
+      background: #E0F2F1;
+      border: 1.5px solid #80CBC4;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 22px;
+    }
+
+    .flow-card h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #004D40;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .flow-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 9px;
+      text-align: center;
+    }
+
+    .flow-step-box {
+      background: #ffffff;
+      border: 1px solid #B2DFDB;
+      border-radius: 8px;
+      padding: 9px 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #004D40;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+
+    .flow-step-num {
+      background: #00796B;
+      color: #ffffff;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    /* Section Cards */
+    .phase-card {
+      background: #ffffff;
+      border: 1px solid #CFD8DC;
+      border-radius: 12px;
+      margin-bottom: 18px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+      page-break-inside: avoid;
+    }
+
+    .phase-header {
+      background: #F4FBF7;
+      border-bottom: 1px solid #E0F2F1;
+      padding: 11px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .phase-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #00695C;
+    }
+
+    .step-badge {
+      background: #00897B;
+      color: #ffffff;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .phase-body {
+      padding: 15px 18px;
+    }
+
+    .phase-body ul {
+      margin: 0 0 10px 0;
+      padding-right: 20px;
+    }
+
+    .phase-body li {
+      margin-bottom: 5px;
+    }
+
+    .highlight-box {
+      background: #E8F5E9;
+      border-right: 4px solid #00897B;
+      padding: 10px 14px;
+      border-radius: 6px 0 0 6px;
+      margin: 10px 0;
+      font-size: 12px;
+      line-height: 2.1;
+    }
+
+    .info-box {
+      background: #E0F7FA;
+      border-right: 4px solid #00ACC1;
+      padding: 10px 14px;
+      border-radius: 6px 0 0 6px;
+      margin: 10px 0;
+      font-size: 12px;
+      line-height: 2.1;
+    }
+
+    /* Formula Box */
+    .formula-box {
+      background: linear-gradient(to left, #E0F2F1, #B2DFDB);
+      border: 1.5px dashed #00796B;
+      border-radius: 10px;
+      padding: 12px 16px;
+      text-align: center;
+      margin: 12px 0;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #004D40;
+      direction: rtl;
+    }
+
+    /* Custom Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 11px 0;
+      font-size: 12px;
+    }
+
+    table th {
+      background: #E0F2F1;
+      color: #004D40;
+      padding: 8px 12px;
+      border: 1px solid #B2DFDB;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    table td {
+      padding: 7px 12px;
+      border: 1px solid #E0E0E0;
+      text-align: right;
+    }
+
+    table tr:nth-child(even) {
+      background: #FAFAFA;
+    }
+
+    .tag-cod {
+      background: #E8F5E9;
+      color: #2E7D32;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .tag-wallet {
+      background: #E0F7FA;
+      color: #006064;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: #546E7A;
+      font-size: 11.5px;
+      margin-top: 25px;
+      padding-top: 14px;
+      border-top: 1px solid #CFD8DC;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header Banner -->
+    <div class="header-banner">
+      <div class="header-title">
+        <h1>سروناؤ (ServeNow) — کسٹمر ورک فلو کی مکمل گائیڈ</h1>
+        <p>ایپ انسٹالیشن، لائیو اسٹور سرچ، آرڈر بُکنگ، لائیو ٹریکنگ اور محفوظ ڈیلیوری وصولی کا ضابطہ</p>
+      </div>
+      <div class="badge-pill">ورژن 1.0 (صارفین کی رہنمائی)</div>
+    </div>
+
+    <!-- Process Flow Summary Card -->
+    <div class="flow-card">
+      <h2>کسٹمر کا مکمل لائف سائیکل (Customer Journey Overview)</h2>
+      <div class="flow-steps-grid">
+        <div class="flow-step-box">
+          <div class="flow-step-num">1</div>
+          <div>اکاؤنٹ و لاگ ان</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">2</div>
+          <div>لوکیشن و ایڈریس</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">3</div>
+          <div>دکان اور مینو تلاش</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">4</div>
+          <div>سائز اور وقت کا انتخاب</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">5</div>
+          <div>اسمارٹ کارٹ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">6</div>
+          <div>چیک آؤٹ و ادائیگی</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">7</div>
+          <div>تیاری و ڈسپیچ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">8</div>
+          <div>لائیو رائیڈر ٹریکنگ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">9</div>
+          <div>پارسل کی وصولی</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">10</div>
+          <div>ریٹنگ و سپورٹ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 1 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 1: اکاؤنٹ بنانا اور موبائل نمبر تصدیق (Registration & OTP)</h3>
+        <span class="step-badge">مرحلہ 1</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>ایپ انسٹالیشن:</strong> گوگل پلے اسٹور، ایپل ایپ اسٹور یا براہ راست ویب براؤزر کے ذریعے سروناؤ پورٹل کھولیں۔</li>
+          <li><strong>بنیادی کوائف:</strong> نام، فعال موبائل نمبر اور پاس ورڈ درج کریں۔</li>
+          <li><strong>او ٹی پی (OTP) ویریفکیشن:</strong> صارف کے موبائل نمبر پر 4 یا 6 ہندسوں کا سیکیورٹی کوڈ موصول ہوتا ہے، جس سے فون نمبر کی فوری تصدیق ہوتی ہے۔</li>
+        </ul>
+        <div class="highlight-box">
+          💡 <strong>سیکیورٹی اصول:</strong> ایک تصدیق شدہ موبائل نمبر کے ساتھ سروناؤ کا کسٹمر والیٹ خودکار طریقے سے منسلک ہو جاتا ہے جس میں ریفنڈز اور بونس کیش جمع ہوتے ہیں۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 2: خودکار جی پی ایس لوکیشن اور ایڈریس بک (Location & Address)</h3>
+        <span class="step-badge">مرحلہ 2</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>لائیو جی پی ایس ڈیٹیکشن:</strong> ایپ اوپن کرتے ہی صارف کی موجودہ پوزیشن نقشے پر ظاہر ہو جاتی ہے۔</li>
+          <li><strong>محفوظ ایڈریسز:</strong> صارف گھر (Home)، دفتر (Office) یا دیگر مقامات کے پتے محفوظ کر سکتا ہے تاکہ بار بار ایڈریس درج نہ کرنا پڑے۔</li>
+          <li><strong>ڈیلیوری رینج چیک:</strong> سسٹم خودکار طریقے سے چیک کرتا ہے کہ آیا منتخب لوکیشن سروس ایریا میں شامل ہے یا نہیں۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 3: قریبی اسٹورز اور مینو کی تلاش (Store Discovery)</h3>
+        <span class="step-badge">مرحلہ 3</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>فاصلے کی بنیاد پر لسٹنگ:</strong> کسٹمر کو سب سے قریبی اور کھلی ہوئی (Open) دکانیں پہلے دکھائی جاتی ہیں۔</li>
+          <li><strong>کیٹیگریز فلٹر:</strong> بیکری، گروسری، فاسٹ فوڈ، میڈیسن اور جنرل آئٹمز کی الگ کیٹیگریز دستیاب ہیں۔</li>
+          <li><strong>سرچ بار:</strong> ڈش، پراڈکٹ یا مخصوص برانڈ کو نام سے فوری تلاش کیا جا سکتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Phase 4 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 4: سائز، یونٹ اور شفٹ کی بنیاد پر دستیابی (Sizes & Shift Availability)</h3>
+        <span class="step-badge">مرحلہ 4</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>سائز اور وزن کا انتخاب:</strong> لارج، میڈیم، سمال، 1 کلو گرام، یا درجن کی بنیاد پر واضح انتخاب اور قیمتیں۔</li>
+          <li><strong>شفٹ دستیابی ونڈو:</strong> ایسے آئٹمز جو صرف مخصوص اوقات میں تیار ہوتے ہیں (مثلاً صرف ناشتہ یا صرف ڈنر)، وہ غیر متعلقہ اوقات میں خودکار طور پر غیر فعال (Unavailable) رہتے ہیں۔</li>
+          <li><strong>اسپیشل ہدایات:</strong> کسٹمر ڈش کے لیے مخصوص نوٹ (مثلاً کم مرچ، ایکسٹرا سوس) درج کر سکتا ہے۔</li>
+        </ul>
+        <div class="info-box">
+          🕒 <strong>شفٹ کی دستیابی کا قانون:</strong> اگر کوئی آئٹم صبح 8:00 سے 11:00 بجے تک دستیاب ہے تو سسٹم شام کے وقت اس کے آرڈر کو کارٹ میں شامل کرنے سے روک دے گا۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 5 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 5: اسمارٹ کارٹ اور ڈلیوری فیس کا فارمولا (Smart Cart & Fees)</h3>
+        <span class="step-badge">مرحلہ 5</span>
+      </div>
+      <div class="phase-body">
+        <p>کارٹ میں اشیاء شامل کرنے کے بعد خودکار طریقے سے بل، ٹیکس اور فاصلاتی فیس تیار ہوتی ہے:</p>
+        <div class="formula-box">
+          کل قابلِ ادائیگی رقم = آئٹمز کی قیمت + پیکنگ چارجز + فاصلے کی بنیاد پر ڈلیوری فیس - ڈسکاؤنٹ واؤچر
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>فیس کی مد</th>
+              <th>حساب کا طریقہ</th>
+              <th>وضاحت</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>بیس ڈلیوری فیس</td>
+              <td>پہلے 2 یا 3 کلومیٹر تک فکس رقم</td>
+              <td>کم از کم سفری چارج</td>
+            </tr>
+            <tr>
+              <td>اضافی کلومیٹر فیس</td>
+              <td>فی کلومیٹر مقررہ چارج</td>
+              <td>فاصلہ بڑھنے پر خودکار اضافہ</td>
+            </tr>
+            <tr>
+              <td>کم از کم آرڈر (MOV)</td>
+              <td>اسٹور کی مقرر کردہ حد</td>
+              <td>حد سے کم آرڈر پر چھوٹی سروس فیس</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Phase 6 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 6: چیک آؤٹ اور ادائیگی کے طریقے (Checkout & Payment Modes)</h3>
+        <span class="step-badge">مرحلہ 6</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>کیش آن ڈلیوری (<span class="tag-cod">COD</span>):</strong> کسٹمر سامان دہلیز پر وصول کرتے وقت رائیڈر کو نقد رقم ادا کرے گا۔</li>
+          <li><strong>سروناؤ والیٹ (<span class="tag-wallet">Wallet</span>):</strong> اگر کسٹمر کے اکاؤنٹ میں بیلنس موجود ہے تو ایک کلک پر فوری کٹوتی ہو جاتی ہے اور کیش دینے کی ضرورت نہیں رہتی۔</li>
+          <li><strong>مخلوط ادائیگی (Split Payment):</strong> والیٹ کا موجودہ بیلنس کٹنے کے بعد بقیہ رقم کیش آن ڈلیوری میں تبدیل ہو جاتی ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 7 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 7: آرڈر کی قبولیت اور کچن میں تیاری (Store Acceptance & Prep)</h3>
+        <span class="step-badge">مرحلہ 7</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>اسٹور الرٹ:</strong> جیسے ہی کسٹمر آرڈر پلیس کرتا ہے، دکان دار کی اسکرین پر الرٹ سائرن بجتا ہے۔</li>
+          <li><strong>اسٹیٹس اپ ڈیٹ:</strong> کسٹمر کو ایپ میں مسلسل پتہ چلتا رہتا ہے:
+            <em>Pending (منتظر) &rarr; Confirmed (منظور شدہ) &rarr; Preparing (زیرِ تیاری) &rarr; Ready for Pickup (تیار)</em>
+          </li>
+          <li><strong>تخمینی وقت (ETA):</strong> تیاری اور پہنچنے کا متوقع وقت لائیو اسکرین پر الٹی گنتی (Countdown) میں نظر آتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Phase 8 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 8: رائیڈر کی تفویض اور لائیو نقشہ ٹریکنگ (Live GPS Tracking)</h3>
+        <span class="step-badge">مرحلہ 8</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>قریبی رائیڈر کا انتخاب:</strong> سروناؤ کا خودکار ڈسپیچ سسٹم نزدیک ترین دستیاب رائیڈر کو تفویض کرتا ہے۔</li>
+          <li><strong>رائیڈر کی شناخت:</strong> رائیڈر کا نام، تصویر، بائیک نمبر اور فون نمبر کسٹمر کی اسکرین پر ظاہر ہو جاتے ہیں۔</li>
+          <li><strong>لائیو جی پی ایس پن:</strong> کسٹمر رائیڈر کو نقشے پر اپنی طرف حرکت کرتے ہوئے براہ راست دیکھ سکتا ہے۔</li>
+        </ul>
+        <div class="highlight-box">
+          📞 <strong>براہِ راست کال کی سہولت:</strong> ایڈریس یا لوکیشن میں کسی ابہام کی صورت میں کسٹمر یا رائیڈر ایک دوسرے سے براہ راست ایپ کے ذریعے رابطہ کر سکتے ہیں۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 9 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 9: دہلیز پر پارسل کی وصولی اور نقد ادائیگی (Doorstep Handover)</h3>
+        <span class="step-badge">مرحلہ 9</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>پیکنگ کا معائنہ:</strong> کسٹمر سیل بند شاپر یا باکس کا معائنہ کر کے آرڈر وصول کرتا ہے۔</li>
+          <li><strong>کیش ادائیگی:</strong> اگر آرڈر سی او ڈی (<span class="tag-cod">COD</span>) ہے تو رائیڈر کو عین مقررہ رقم ادا کریں اور بقیہ بقایا واپس لیں۔</li>
+          <li><strong>ڈیجیٹل رسید:</strong> آرڈر مکمل ہوتے ہی کسٹمر کے فون پر الیکٹرانک رسید اور نوٹیفکیشن موصول ہو جاتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 10 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 10: منسوخی، والیٹ ریفنڈ اور ریٹنگ فیڈ بیک (Refunds & Ratings)</h3>
+        <span class="step-badge">مرحلہ 10</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>آرڈر کی منسوخی:</strong> جب تک دکان دار آرڈر منظور نہ کرے، کسٹمر بلا معاوضہ آرڈر کینسل کر سکتا ہے۔</li>
+          <li><strong>فوری ریفنڈ:</strong> کسی فنی خرابی یا عدم دستیابی پر پری پیڈ رقم فوری طور پر کسٹمر کے سروناؤ والیٹ میں واپس جمع ہو جاتی ہے۔</li>
+          <li><strong>اسٹار ریٹنگ (1 تا 5 اسٹار):</strong> کسٹمر کھانے کے ذائقے اور رائیڈر کے اخلاق و رفتار پر آزادانہ رائے دے سکتا ہے۔</li>
+        </ul>
+        <div class="info-box">
+          🛡️ <strong>کسٹمر ہیلپ ڈیسک:</strong> کسی بھی شکایت کی صورت میں ایپ کے 'Help & Support' سیکشن سے ایڈمن سپورٹ سے لائیو واٹس ایپ یا ٹکٹ کے ذریعے رابطہ کیا جا سکتا ہے۔
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      سروناؤ (ServeNow) ٹیکنالوجی پلیٹ فارم — کسٹمر مکمل ورک فلو مینوئل — تمام حقوق محفوظ ہیں © 2026
+    </div>
+
+  </div>
+
+</body>
+</html>

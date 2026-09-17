@@ -7825,4 +7825,306 @@ router.post('/banks', [
     }
 });
 
+// Detailed Credit Store Ledger & Order-Wise History Endpoints (Ascending by Store Name)
+router.get('/reports/credit-stores-history', async (req, res) => {
+    try {
+        const payableSql = getStorePayableSqlExpression('s2');
+
+        const [stores] = await req.db.execute(
+            `SELECT 
+                s.id AS store_id,
+                s.name AS store_name,
+                s.email,
+                s.phone,
+                s.address,
+                s.payment_term,
+                s.is_active,
+                COALESCE(orders_data.total_orders, 0) AS total_orders,
+                COALESCE(orders_data.delivered_orders, 0) AS delivered_orders,
+                COALESCE(orders_data.gross_sales, 0) AS gross_sales,
+                COALESCE(orders_data.total_payable, 0) AS total_payable,
+                COALESCE(paid_data.total_paid, 0) AS total_paid,
+                GREATEST(0, COALESCE(orders_data.total_payable, 0) - COALESCE(paid_data.total_paid, 0)) AS pending_balance,
+                last_settlement.last_settlement_date,
+                last_settlement.last_settlement_number,
+                last_settlement.last_settlement_status
+            FROM stores s
+            LEFT JOIN (
+                SELECT
+                    COALESCE(oi.store_id, p.store_id) AS store_id,
+                    COUNT(DISTINCT o.id) AS total_orders,
+                    COUNT(DISTINCT CASE WHEN o.status = 'delivered' THEN o.id END) AS delivered_orders,
+                    ROUND(SUM(CASE WHEN o.status = 'delivered' THEN oi.price * oi.quantity ELSE 0 END), 2) AS gross_sales,
+                    ROUND(SUM(CASE WHEN o.status = 'delivered' THEN ${payableSql} ELSE 0 END), 2) AS total_payable
+                FROM order_items oi
+                JOIN orders o ON oi.order_id = o.id
+                JOIN products p ON oi.product_id = p.id
+                JOIN stores s2 ON s2.id = COALESCE(oi.store_id, p.store_id)
+                GROUP BY COALESCE(oi.store_id, p.store_id)
+            ) orders_data ON orders_data.store_id = s.id
+            LEFT JOIN (
+                SELECT 
+                    store_id, 
+                    ROUND(SUM(net_amount), 2) AS total_paid
+                FROM store_settlements
+                WHERE status = 'paid'
+                GROUP BY store_id
+            ) paid_data ON paid_data.store_id = s.id
+            LEFT JOIN (
+                SELECT 
+                    ss.store_id,
+                    ss.settlement_date AS last_settlement_date,
+                    ss.settlement_number AS last_settlement_number,
+                    ss.status AS last_settlement_status
+                FROM store_settlements ss
+                INNER JOIN (
+                    SELECT store_id, MAX(id) AS max_id
+                    FROM store_settlements
+                    GROUP BY store_id
+                ) latest ON ss.id = latest.max_id
+            ) last_settlement ON last_settlement.store_id = s.id
+            WHERE LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT IN ('cash only', 'cash with discount')
+               OR LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%'
+            ORDER BY s.name ASC`
+        );
+
+        // Calculate summary
+        const summary = {
+            total_stores: stores.length,
+            total_delivered_orders: 0,
+            total_gross_sales: 0,
+            total_payable: 0,
+            total_paid: 0,
+            total_pending_balance: 0,
+            stores_with_balance: 0
+        };
+
+        const formattedStores = stores.map((s) => {
+            const payable = Number(Number(s.total_payable || 0).toFixed(2));
+            const paid = Number(Number(s.total_paid || 0).toFixed(2));
+            const pending = Number((payable - paid).toFixed(2));
+            const pendingBalance = Math.max(0, pending);
+            const gross = Number(Number(s.gross_sales || 0).toFixed(2));
+            const ordersCount = parseInt(s.delivered_orders || s.total_orders || 0, 10);
+
+            summary.total_delivered_orders += ordersCount;
+            summary.total_gross_sales += gross;
+            summary.total_payable += payable;
+            summary.total_paid += paid;
+            summary.total_pending_balance += pendingBalance;
+            if (pendingBalance > 0.01) summary.stores_with_balance += 1;
+
+            return {
+                store_id: s.store_id,
+                store_name: s.store_name,
+                email: s.email || '-',
+                phone: s.phone || '-',
+                address: s.address || '-',
+                payment_term: s.payment_term || 'Credit',
+                is_active: Boolean(s.is_active),
+                total_orders: parseInt(s.total_orders || 0, 10),
+                delivered_orders: ordersCount,
+                gross_sales: gross,
+                total_payable: payable,
+                total_paid: paid,
+                pending_balance: pendingBalance,
+                last_settlement_date: s.last_settlement_date || null,
+                last_settlement_number: s.last_settlement_number || null,
+                last_settlement_status: s.last_settlement_status || null
+            };
+        });
+
+        // Round summary numbers
+        summary.total_gross_sales = Number(summary.total_gross_sales.toFixed(2));
+        summary.total_payable = Number(summary.total_payable.toFixed(2));
+        summary.total_paid = Number(summary.total_paid.toFixed(2));
+        summary.total_pending_balance = Number(summary.total_pending_balance.toFixed(2));
+
+        res.json({
+            success: true,
+            summary,
+            stores: formattedStores
+        });
+    } catch (error) {
+        console.error('Error in /reports/credit-stores-history:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+router.get('/reports/credit-stores-history/:storeId', async (req, res) => {
+    try {
+        const { storeId } = req.params;
+        const payableSql = getStorePayableSqlExpression('s');
+
+        // 1. Fetch store info
+        const [storeRows] = await req.db.execute(
+            `SELECT id, name, email, phone, address, payment_term, is_active, 
+                    store_discount_percent, store_discount_apply_all_products
+             FROM stores WHERE id = ?`,
+            [storeId]
+        );
+
+        if (!storeRows.length) {
+            return res.status(404).json({ success: false, message: 'Store not found' });
+        }
+        const store = storeRows[0];
+
+        // 2. Fetch order items and orders
+        const [orderRows] = await req.db.execute(
+            `SELECT 
+                o.id AS order_id,
+                o.order_number,
+                o.created_at AS order_date,
+                o.status AS order_status,
+                o.payment_method AS customer_payment_method,
+                o.payment_status AS customer_payment_status,
+                CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS customer_name,
+                u.phone AS customer_phone,
+                o.delivery_address,
+                oi.id AS order_item_id,
+                oi.quantity,
+                oi.price AS unit_price,
+                oi.cost_price,
+                oi.settlement_id,
+                p.name AS product_name,
+                (oi.quantity * oi.price) AS item_gross,
+                ${payableSql} AS item_payable,
+                ss.settlement_number,
+                ss.settlement_date,
+                ss.paid_at AS settlement_paid_at,
+                ss.payment_method AS settlement_payment_method,
+                ss.net_amount AS settlement_net_amount,
+                ss.notes AS settlement_notes,
+                ss.status AS settlement_status,
+                CONCAT(COALESCE(pb.first_name, ''), ' ', COALESCE(pb.last_name, '')) AS paid_by_name
+             FROM order_items oi
+             JOIN orders o ON o.id = oi.order_id
+             JOIN products p ON p.id = oi.product_id
+             JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
+             LEFT JOIN users u ON u.id = o.user_id
+             LEFT JOIN store_settlements ss ON ss.id = oi.settlement_id
+             LEFT JOIN users pb ON pb.id = ss.paid_by
+             WHERE COALESCE(oi.store_id, p.store_id) = ?
+               AND o.status = 'delivered'
+             ORDER BY o.created_at DESC, o.id DESC, oi.id ASC`,
+            [storeId]
+        );
+
+        // Group by order
+        const ordersMap = new Map();
+        for (const row of orderRows) {
+            const oid = row.order_id;
+            if (!ordersMap.has(oid)) {
+                ordersMap.set(oid, {
+                    order_id: row.order_id,
+                    order_number: row.order_number,
+                    order_date: row.order_date,
+                    order_status: row.order_status,
+                    customer_payment_method: row.customer_payment_method,
+                    customer_payment_status: row.customer_payment_status,
+                    customer_name: (row.customer_name || '').trim() || 'Customer',
+                    customer_phone: row.customer_phone || '-',
+                    delivery_address: row.delivery_address || '-',
+                    items: [],
+                    gross_amount: 0,
+                    amount_to_pay: 0,
+                    commission_or_discount: 0,
+                    is_paid: false,
+                    settlement_status: null,
+                    settlement_id: null,
+                    paid_details: null
+                });
+            }
+
+            const order = ordersMap.get(oid);
+            const itemGross = Number(row.item_gross || 0);
+            const itemPayable = Number(row.item_payable || 0);
+
+            order.gross_amount += itemGross;
+            order.amount_to_pay += itemPayable;
+            order.items.push({
+                item_id: row.order_item_id,
+                product_name: row.product_name,
+                quantity: row.quantity,
+                unit_price: Number(row.unit_price || 0),
+                item_gross: itemGross,
+                item_payable: itemPayable,
+                settlement_id: row.settlement_id
+            });
+
+            // Settlement check
+            if (row.settlement_id) {
+                order.settlement_id = row.settlement_id;
+                order.settlement_status = row.settlement_status;
+                if (row.settlement_status === 'paid') {
+                    order.is_paid = true;
+                    order.paid_details = {
+                        settlement_id: row.settlement_id,
+                        settlement_number: row.settlement_number || `SS-${row.settlement_id}`,
+                        settlement_date: row.settlement_date,
+                        paid_at: row.settlement_paid_at || row.settlement_date,
+                        payment_method: row.settlement_payment_method || 'Bank Transfer',
+                        paid_amount: Number(row.settlement_net_amount || 0),
+                        notes: row.settlement_notes || '-',
+                        paid_by: (row.paid_by_name || '').trim() || 'Finance Admin'
+                    };
+                }
+            }
+        }
+
+        const ordersList = Array.from(ordersMap.values()).map(o => {
+            o.gross_amount = Number(o.gross_amount.toFixed(2));
+            o.amount_to_pay = Number(o.amount_to_pay.toFixed(2));
+            o.commission_or_discount = Number(Math.max(0, o.gross_amount - o.amount_to_pay).toFixed(2));
+            o.items_summary = o.items.map(i => `${i.product_name} (x${i.quantity})`).join(', ');
+            return o;
+        });
+
+        // 3. Fetch all settlement vouchers for this store
+        const [settlements] = await req.db.execute(
+            `SELECT ss.*, 
+                    CONCAT(COALESCE(ab.first_name, ''), ' ', COALESCE(ab.last_name, '')) AS approved_by_name,
+                    CONCAT(COALESCE(pb.first_name, ''), ' ', COALESCE(pb.last_name, '')) AS paid_by_name
+             FROM store_settlements ss
+             LEFT JOIN users ab ON ab.id = ss.approved_by
+             LEFT JOIN users pb ON pb.id = ss.paid_by
+             WHERE ss.store_id = ?
+             ORDER BY ss.settlement_date DESC, ss.id DESC`,
+            [storeId]
+        );
+
+        // Store summary
+        const totalPayable = ordersList.reduce((sum, o) => sum + o.amount_to_pay, 0);
+        const totalPaid = settlements
+            .filter(s => s.status === 'paid')
+            .reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
+        const pendingBalance = Math.max(0, totalPayable - totalPaid);
+
+        res.json({
+            success: true,
+            store: {
+                ...store,
+                email: store.email || '-',
+                phone: store.phone || '-',
+                address: store.address || '-',
+                payment_term: store.payment_term || 'Credit'
+            },
+            summary: {
+                total_orders: ordersList.length,
+                paid_orders: ordersList.filter(o => o.is_paid).length,
+                unpaid_orders: ordersList.filter(o => !o.is_paid).length,
+                gross_sales: Number(ordersList.reduce((sum, o) => sum + o.gross_amount, 0).toFixed(2)),
+                total_payable: Number(totalPayable.toFixed(2)),
+                total_paid: Number(totalPaid.toFixed(2)),
+                pending_balance: Number(pendingBalance.toFixed(2))
+            },
+            orders: ordersList,
+            settlements
+        });
+    } catch (error) {
+        console.error('Error in /reports/credit-stores-history/:storeId:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;

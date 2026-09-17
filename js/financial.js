@@ -7218,10 +7218,783 @@ function confirmGenerateRiderStatementFromModal() {
     generateRiderStatementPDFById(riderId, startDate, endDate);
 }
 
+// ============================================================================
+// CREDIT STORES MASTER LEDGER & ORDER-WISE HISTORY MODULE (Ascending by Name)
+// ============================================================================
 
+window.currentCreditStores = [];
+window.currentCreditStoreOrders = [];
+window.currentCreditStoreSettlements = [];
+window.currentCreditStoreInfo = null;
 
+function formatCreditRupees(val) {
+    const num = Number(val || 0);
+    return 'Rs ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
+function escapeCreditHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
+function formatCreditDateTime(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateStr);
+        return d.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        }) + ', ' + d.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (e) {
+        return String(dateStr);
+    }
+}
 
+function switchCreditStoreSubTab(subTab) {
+    const ledgerView = document.getElementById('creditStoresLedgerView');
+    const groupsView = document.getElementById('paymentTermGroupsView');
+    const btnLedger = document.getElementById('tabBtnCreditStoresLedger');
+    const btnGroups = document.getElementById('tabBtnPaymentTermGroups');
 
+    if (subTab === 'ledger') {
+        if (ledgerView) ledgerView.style.display = 'block';
+        if (groupsView) groupsView.style.display = 'none';
+        if (btnLedger) {
+            btnLedger.className = 'btn btn-sm btn-primary active-subtab';
+            btnLedger.style.background = '';
+        }
+        if (btnGroups) {
+            btnGroups.className = 'btn btn-sm btn-secondary';
+        }
+        if (!window.currentCreditStores || window.currentCreditStores.length === 0) {
+            loadCreditStoresHistory();
+        }
+    } else {
+        if (ledgerView) ledgerView.style.display = 'none';
+        if (groupsView) groupsView.style.display = 'block';
+        if (btnLedger) {
+            btnLedger.className = 'btn btn-sm btn-secondary';
+        }
+        if (btnGroups) {
+            btnGroups.className = 'btn btn-sm btn-primary active-subtab';
+        }
+        if (typeof loadStorePaymentTermReport === 'function') {
+            loadStorePaymentTermReport();
+        }
+    }
+}
 
+async function loadCreditStoresHistory() {
+    const tbody = document.getElementById('creditStoresLedgerTableBody');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" style="text-align: center; padding: 2.5rem; color: #64748b;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; color: #4f46e5; margin-bottom: 0.5rem; display: block;"></i>
+                    Loading Credit Stores Ledger (A &rarr; Z)...
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/financial/reports/credit-stores-history`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+            }
+        });
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load credit stores history');
+        }
+
+        window.currentCreditStores = data.stores || [];
+        const summary = data.summary || {};
+
+        // Update KPI Ribbon
+        const kpiCount = document.getElementById('kpiCreditStoreCount');
+        const kpiOrders = document.getElementById('kpiCreditOrdersCount');
+        const kpiPayable = document.getElementById('kpiCreditTotalPayable');
+        const kpiPaid = document.getElementById('kpiCreditTotalPaid');
+        const kpiPending = document.getElementById('kpiCreditPendingBalance');
+        const kpiDueCount = document.getElementById('kpiCreditDueStoresCount');
+
+        if (kpiCount) kpiCount.innerText = summary.total_stores || 0;
+        if (kpiOrders) kpiOrders.innerText = (summary.total_delivered_orders || 0).toLocaleString();
+        if (kpiPayable) kpiPayable.innerText = formatCreditRupees(summary.total_payable || 0);
+        if (kpiPaid) kpiPaid.innerText = formatCreditRupees(summary.total_paid || 0);
+        if (kpiPending) kpiPending.innerText = formatCreditRupees(summary.total_pending_balance || 0);
+        if (kpiDueCount) kpiDueCount.innerText = `${summary.stores_with_balance || 0} stores with balance due`;
+
+        renderCreditStoresLedgerTable(window.currentCreditStores);
+    } catch (error) {
+        console.error('Error in loadCreditStoresHistory:', error);
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="11" style="text-align: center; padding: 2rem; color: #e11d48;">
+                        <i class="fas fa-exclamation-circle" style="margin-right: 6px;"></i>
+                        Failed to load credit stores: ${escapeCreditHtml(error.message)}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+function renderCreditStoresLedgerTable(stores) {
+    const tbody = document.getElementById('creditStoresLedgerTableBody');
+    if (!tbody) return;
+
+    if (!Array.isArray(stores) || stores.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+                    <i class="fas fa-store-slash" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block;"></i>
+                    No credit stores found matching the filter criteria.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = '';
+    stores.forEach((s, idx) => {
+        const hasDue = Number(s.pending_balance || 0) > 0.01;
+        const balanceColor = hasDue ? '#e11d48' : '#16a34a';
+        const balanceBadgeBg = hasDue ? '#ffe4e6' : '#dcfce7';
+        const balanceBorder = hasDue ? '#fecaca' : '#bbf7d0';
+
+        let lastSettlementText = '<span style="color:#94a3b8;">None</span>';
+        if (s.last_settlement_number) {
+            const dateDisplay = s.last_settlement_date ? new Date(s.last_settlement_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '';
+            lastSettlementText = `<div style="font-size:0.75rem;"><strong style="color:#2563eb;">${escapeCreditHtml(s.last_settlement_number)}</strong><br><span style="color:#64748b;">${dateDisplay} (${escapeCreditHtml(s.last_settlement_status || 'paid')})</span></div>`;
+        }
+
+        const isDiscount = String(s.payment_term || '').toLowerCase().includes('discount');
+        const termBadgeClass = isDiscount ? 'background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe;' : 'background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;';
+
+        html += `
+            <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+                <td style="padding: 0.75rem 0.6rem; text-align: center; color: #64748b; font-size: 0.75rem;">${idx + 1}</td>
+                <td style="padding: 0.75rem; font-weight: 700; color: #1e293b; font-size: 0.85rem; cursor: pointer;" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-store" style="color: #6366f1; font-size: 0.85rem;"></i>
+                        <span style="color: #1e293b; text-decoration: underline dotted #cbd5e1;">${escapeCreditHtml(s.store_name)}</span>
+                        ${s.is_active ? '<span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;" title="Active"></span>' : '<span style="width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; display: inline-block;" title="Inactive"></span>'}
+                    </div>
+                    <div style="font-size: 0.72rem; color: #94a3b8; font-weight: 400; margin-top: 2px;">
+                        ${escapeCreditHtml(s.address || 'Address not listed')}
+                    </div>
+                </td>
+                <td style="padding: 0.75rem;">
+                    <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; ${termBadgeClass}">
+                        ${escapeCreditHtml(s.payment_term || 'Credit')}
+                    </span>
+                </td>
+                <td style="padding: 0.75rem; font-size: 0.78rem; color: #475569;">
+                    <div><i class="fas fa-phone-alt" style="color: #94a3b8; width: 14px;"></i> ${escapeCreditHtml(s.phone)}</div>
+                    <div><i class="fas fa-envelope" style="color: #94a3b8; width: 14px;"></i> ${escapeCreditHtml(s.email)}</div>
+                </td>
+                <td style="padding: 0.75rem; text-align: center; font-weight: 700; color: #0284c7; font-size: 0.85rem;">
+                    ${s.delivered_orders || 0}
+                </td>
+                <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #334155; font-size: 0.82rem;">
+                    ${formatCreditRupees(s.gross_sales)}
+                </td>
+                <td style="padding: 0.75rem; text-align: right; font-weight: 700; color: #d97706; font-size: 0.85rem;">
+                    ${formatCreditRupees(s.total_payable)}
+                </td>
+                <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #16a34a; font-size: 0.82rem;">
+                    ${formatCreditRupees(s.total_paid)}
+                </td>
+                <td style="padding: 0.75rem; text-align: right;">
+                    <span style="display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.82rem; background: ${balanceBadgeBg}; color: ${balanceColor}; border: 1px solid ${balanceBorder};">
+                        ${formatCreditRupees(s.pending_balance)}
+                    </span>
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    ${lastSettlementText}
+                </td>
+                <td style="padding: 0.75rem; text-align: center;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')" style="font-size: 0.75rem; padding: 0.35rem 0.7rem; border-radius: 6px; white-space: nowrap; font-weight: 600;">
+                        <i class="fas fa-receipt"></i> Order History
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function filterCreditStoresLedgerTable() {
+    if (!window.currentCreditStores) return;
+
+    const searchInput = (document.getElementById('creditStoreSearchInput')?.value || '').toLowerCase().trim();
+    const termFilter = (document.getElementById('creditStoreTermFilter')?.value || '').toLowerCase();
+    const balanceFilter = (document.getElementById('creditStoreBalanceFilter')?.value || '').toLowerCase();
+
+    const filtered = window.currentCreditStores.filter(s => {
+        // Search filter
+        if (searchInput) {
+            const name = String(s.store_name || '').toLowerCase();
+            const phone = String(s.phone || '').toLowerCase();
+            const email = String(s.email || '').toLowerCase();
+            const addr = String(s.address || '').toLowerCase();
+            if (!name.includes(searchInput) && !phone.includes(searchInput) && !email.includes(searchInput) && !addr.includes(searchInput)) {
+                return false;
+            }
+        }
+
+        // Term filter
+        if (termFilter) {
+            const term = String(s.payment_term || '').toLowerCase();
+            if (termFilter === 'discount' && !term.includes('discount')) return false;
+            if (termFilter === 'credit' && term.includes('discount')) return false;
+        }
+
+        // Balance filter
+        if (balanceFilter) {
+            const bal = Number(s.pending_balance || 0);
+            if (balanceFilter === 'due' && bal <= 0.01) return false;
+            if (balanceFilter === 'settled' && bal > 0.01) return false;
+        }
+
+        return true;
+    });
+
+    renderCreditStoresLedgerTable(filtered);
+}
+
+function exportCreditStoresLedgerCSV() {
+    if (!window.currentCreditStores || window.currentCreditStores.length === 0) {
+        alert('No credit stores data available to export.');
+        return;
+    }
+
+    const headers = [
+        'Store ID',
+        'Store Name (A-Z)',
+        'Payment Term',
+        'Phone',
+        'Email',
+        'Address',
+        'Delivered Orders',
+        'Gross Sales (PKR)',
+        'Total Payable (PKR)',
+        'Total Paid (PKR)',
+        'Pending Balance (PKR)',
+        'Last Settlement Number',
+        'Last Settlement Date'
+    ];
+
+    const rows = window.currentCreditStores.map(s => [
+        s.store_id,
+        `"${String(s.store_name || '').replace(/"/g, '""')}"`,
+        `"${String(s.payment_term || '').replace(/"/g, '""')}"`,
+        `"${String(s.phone || '').replace(/"/g, '""')}"`,
+        `"${String(s.email || '').replace(/"/g, '""')}"`,
+        `"${String(s.address || '').replace(/"/g, '""')}"`,
+        s.delivered_orders || 0,
+        Number(s.gross_sales || 0).toFixed(2),
+        Number(s.total_payable || 0).toFixed(2),
+        Number(s.total_paid || 0).toFixed(2),
+        Number(s.pending_balance || 0).toFixed(2),
+        `"${String(s.last_settlement_number || '').replace(/"/g, '""')}"`,
+        `"${String(s.last_settlement_date || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `credit_stores_ledger_A_to_Z_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// ----------------------------------------------------------------------------
+// ORDER-WISE HISTORY MODAL IMPLEMENTATION
+// ----------------------------------------------------------------------------
+
+async function openCreditStoreOrderHistory(storeId, storeName) {
+    const modal = document.getElementById('creditStoreHistoryModal');
+    if (!modal) return;
+
+    // Reset & show loading state
+    modal.style.display = 'block';
+    const storeNameElem = document.getElementById('creditModalStoreName');
+    if (storeNameElem) storeNameElem.innerText = storeName || 'Credit Store Details';
+
+    const ordersTbody = document.getElementById('creditStoreOrdersTableBody');
+    if (ordersTbody) {
+        ordersTbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 3rem; color: #64748b;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 1.8rem; color: #4f46e5; margin-bottom: 0.8rem; display: block;"></i>
+                    Fetching complete order-wise history and settlement details...
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/financial/reports/credit-stores-history/${storeId}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
+            }
+        });
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to fetch store history');
+        }
+
+        window.currentCreditStoreInfo = data.store;
+        window.currentCreditStoreOrders = data.orders || [];
+        window.currentCreditStoreSettlements = data.settlements || [];
+
+        // Fill store metadata in header
+        if (storeNameElem) storeNameElem.innerText = data.store.name;
+        const termBadge = document.getElementById('creditModalStoreTermBadge');
+        if (termBadge) termBadge.innerText = data.store.payment_term || 'Credit';
+
+        const phoneElem = document.getElementById('creditModalStorePhone');
+        if (phoneElem) phoneElem.innerHTML = `<i class="fas fa-phone-alt"></i> ${escapeCreditHtml(data.store.phone || '-')}`;
+        const emailElem = document.getElementById('creditModalStoreEmail');
+        if (emailElem) emailElem.innerHTML = `<i class="fas fa-envelope"></i> ${escapeCreditHtml(data.store.email || '-')}`;
+        const addrElem = document.getElementById('creditModalStoreAddress');
+        if (addrElem) addrElem.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${escapeCreditHtml(data.store.address || '-')}`;
+
+        // Fill KPI Ribbon
+        const sum = data.summary || {};
+        const kpiOrders = document.getElementById('creditModalOrdersCount');
+        const kpiGross = document.getElementById('creditModalGrossSales');
+        const kpiPayable = document.getElementById('creditModalTotalPayable');
+        const kpiPaid = document.getElementById('creditModalTotalPaid');
+        const kpiPending = document.getElementById('creditModalPendingBalance');
+
+        if (kpiOrders) kpiOrders.innerText = (sum.total_orders || 0).toLocaleString();
+        if (kpiGross) kpiGross.innerText = formatCreditRupees(sum.gross_sales);
+        if (kpiPayable) kpiPayable.innerText = formatCreditRupees(sum.total_payable);
+        if (kpiPaid) kpiPaid.innerText = formatCreditRupees(sum.total_paid);
+        if (kpiPending) kpiPending.innerText = formatCreditRupees(sum.pending_balance);
+
+        // Tab count badges
+        const ordersTabBadge = document.getElementById('creditModalOrdersTabBadge');
+        if (ordersTabBadge) ordersTabBadge.innerText = window.currentCreditStoreOrders.length;
+        const settlementsTabBadge = document.getElementById('creditModalSettlementsTabBadge');
+        if (settlementsTabBadge) settlementsTabBadge.innerText = window.currentCreditStoreSettlements.length;
+
+        // Reset filter inputs
+        const searchInput = document.getElementById('modalOrderSearchInput');
+        if (searchInput) searchInput.value = '';
+        const statusFilter = document.getElementById('modalOrderStatusFilter');
+        if (statusFilter) statusFilter.value = '';
+
+        // Switch to Orders subtab by default
+        switchModalSubTab('orders');
+        renderModalOrdersTable(window.currentCreditStoreOrders);
+        renderModalSettlementsTable(window.currentCreditStoreSettlements);
+    } catch (error) {
+        console.error('Error in openCreditStoreOrderHistory:', error);
+        if (ordersTbody) {
+            ordersTbody.innerHTML = `
+                <tr>
+                    <td colspan="9" style="text-align: center; padding: 2.5rem; color: #e11d48;">
+                        <i class="fas fa-exclamation-circle" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block;"></i>
+                        Failed to load order history: ${escapeCreditHtml(error.message)}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+function renderModalOrdersTable(orders) {
+    const tbody = document.getElementById('creditStoreOrdersTableBody');
+    const footerCount = document.getElementById('modalOrdersVisibleCount');
+    if (footerCount) footerCount.innerText = orders ? orders.length : 0;
+    if (!tbody) return;
+
+    if (!Array.isArray(orders) || orders.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 3rem; color: #94a3b8;">
+                    <i class="fas fa-receipt" style="font-size: 1.8rem; margin-bottom: 0.5rem; display: block;"></i>
+                    No orders found for this credit store matching the current criteria.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = '';
+    orders.forEach((o, idx) => {
+        let statusBadge = '';
+        let paidDetailsHtml = '';
+
+        if (o.is_paid && o.paid_details) {
+            statusBadge = `
+                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-weight: 700; font-size: 0.72rem; background: #dcfce7; color: #15803d; border: 1px solid #86efac;">
+                    <i class="fas fa-check-circle"></i> PAID
+                </span>
+            `;
+            const paidMethodClean = String(o.paid_details.payment_method || 'bank_transfer').replace(/_/g, ' ');
+            paidDetailsHtml = `
+                <div style="font-size: 0.76rem; line-height: 1.35; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 6px 8px;">
+                    <div><span style="color:#64748b;">Voucher:</span> <strong style="font-family: monospace; color: #166534;">${escapeCreditHtml(o.paid_details.settlement_number)}</strong></div>
+                    <div><span style="color:#64748b;">Paid Date:</span> <strong>${formatCreditDateTime(o.paid_details.paid_at || o.paid_details.settlement_date)}</strong></div>
+                    <div><span style="color:#64748b;">Method:</span> <strong style="text-transform: capitalize;">${escapeCreditHtml(paidMethodClean)}</strong></div>
+                    ${o.paid_details.notes && o.paid_details.notes !== '-' ? `<div><span style="color:#64748b;">Notes:</span> ${escapeCreditHtml(o.paid_details.notes)}</div>` : ''}
+                </div>
+            `;
+        } else {
+            statusBadge = `
+                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-weight: 700; font-size: 0.72rem; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">
+                    <i class="fas fa-clock"></i> UNPAID / DUE
+                </span>
+            `;
+            paidDetailsHtml = `
+                <div style="font-size: 0.76rem; color: #b45309; background: #fffbeb; border: 1px dashed #fcd34d; border-radius: 6px; padding: 6px 8px;">
+                    <i class="fas fa-hourglass-half" style="margin-right: 4px;"></i>
+                    Pending Settlement (Will be paid in next payout run)
+                </div>
+            `;
+        }
+
+        html += `
+            <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s ease;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
+                <td style="padding: 0.65rem 0.5rem; text-align: center; color: #64748b; font-size: 0.75rem;">${idx + 1}</td>
+                <td style="padding: 0.65rem; font-weight: 700; color: #1e293b; white-space: nowrap;">
+                    <div style="font-family: monospace; color: #2563eb; font-size: 0.85rem;">
+                        #${escapeCreditHtml(o.order_number)}
+                    </div>
+                </td>
+                <td style="padding: 0.65rem; color: #475569; font-size: 0.76rem; white-space: nowrap;">
+                    ${formatCreditDateTime(o.order_date)}
+                </td>
+                <td style="padding: 0.65rem; font-size: 0.78rem;">
+                    <div style="font-weight: 600; color: #1e293b;">${escapeCreditHtml(o.customer_name)}</div>
+                    <div style="font-size: 0.72rem; color: #64748b;"><i class="fas fa-phone-alt"></i> ${escapeCreditHtml(o.customer_phone)}</div>
+                </td>
+                <td style="padding: 0.65rem; font-size: 0.78rem; color: #334155; max-width: 250px;">
+                    <div style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${escapeCreditHtml(o.items_summary)}">
+                        ${escapeCreditHtml(o.items_summary || '-')}
+                    </div>
+                </td>
+                <td style="padding: 0.65rem; text-align: right; font-weight: 600; color: #475569;">
+                    ${formatCreditRupees(o.gross_amount)}
+                </td>
+                <td style="padding: 0.65rem; text-align: right; font-weight: 800; color: #d97706; font-size: 0.86rem;">
+                    ${formatCreditRupees(o.amount_to_pay)}
+                </td>
+                <td style="padding: 0.65rem; text-align: center;">
+                    ${statusBadge}
+                </td>
+                <td style="padding: 0.65rem;">
+                    ${paidDetailsHtml}
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function renderModalSettlementsTable(settlements) {
+    const tbody = document.getElementById('creditStoreSettlementsTableBody');
+    if (!tbody) return;
+
+    if (!Array.isArray(settlements) || settlements.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+                    <i class="fas fa-file-invoice" style="font-size: 1.8rem; margin-bottom: 0.5rem; display: block;"></i>
+                    No settlement vouchers have been generated for this store yet.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let html = '';
+    settlements.forEach((s) => {
+        const isPaid = s.status === 'paid';
+        const statusBadge = isPaid
+            ? '<span style="background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:2px 8px; border-radius:999px; font-weight:700; font-size:0.72rem;">PAID</span>'
+            : `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:999px; font-weight:700; font-size:0.72rem;">${String(s.status || 'PENDING').toUpperCase()}</span>`;
+
+        const periodStr = (s.period_from && s.period_to)
+            ? `${new Date(s.period_from).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - ${new Date(s.period_to).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+            : 'All Unsettled History';
+
+        const methodClean = String(s.payment_method || 'bank_transfer').replace(/_/g, ' ');
+
+        html += `
+            <tr style="border-bottom: 1px solid #e2e8f0; font-size: 0.8rem;">
+                <td style="padding: 0.65rem; font-weight: 700; font-family: monospace; color: #2563eb;">
+                    ${escapeCreditHtml(s.settlement_number)}
+                </td>
+                <td style="padding: 0.65rem; color: #475569;">
+                    ${s.settlement_date ? new Date(s.settlement_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                </td>
+                <td style="padding: 0.65rem; color: #64748b; font-size: 0.75rem;">
+                    ${escapeCreditHtml(periodStr)}
+                </td>
+                <td style="padding: 0.65rem; text-align: right; color: #475569;">
+                    ${formatCreditRupees(s.total_orders_amount)}
+                </td>
+                <td style="padding: 0.65rem; text-align: right; color: #64748b;">
+                    ${formatCreditRupees(Number(s.commissions || 0) + Number(s.deductions || 0))}
+                </td>
+                <td style="padding: 0.65rem; text-align: right; font-weight: 800; color: #16a34a; font-size: 0.86rem;">
+                    ${formatCreditRupees(s.net_amount)}
+                </td>
+                <td style="padding: 0.65rem; text-align: center; text-transform: capitalize; color: #334155;">
+                    ${escapeCreditHtml(methodClean)}
+                </td>
+                <td style="padding: 0.65rem; text-align: center;">
+                    ${statusBadge}
+                </td>
+                <td style="padding: 0.65rem; font-size: 0.75rem; color: #64748b;">
+                    ${s.paid_at ? `<div>Paid: ${formatCreditDateTime(s.paid_at)}</div>` : ''}
+                    ${s.notes ? `<div>Note: ${escapeCreditHtml(s.notes)}</div>` : ''}
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function filterModalOrdersTable() {
+    if (!window.currentCreditStoreOrders) return;
+
+    const searchInput = (document.getElementById('modalOrderSearchInput')?.value || '').toLowerCase().trim();
+    const statusFilter = (document.getElementById('modalOrderStatusFilter')?.value || '').toLowerCase();
+
+    const filtered = window.currentCreditStoreOrders.filter(o => {
+        // Search
+        if (searchInput) {
+            const orderNum = String(o.order_number || '').toLowerCase();
+            const customer = String(o.customer_name || '').toLowerCase();
+            const phone = String(o.customer_phone || '').toLowerCase();
+            const items = String(o.items_summary || '').toLowerCase();
+            const voucher = o.paid_details ? String(o.paid_details.settlement_number || '').toLowerCase() : '';
+
+            if (!orderNum.includes(searchInput) && !customer.includes(searchInput) && !phone.includes(searchInput) && !items.includes(searchInput) && !voucher.includes(searchInput)) {
+                return false;
+            }
+        }
+
+        // Status
+        if (statusFilter === 'paid' && !o.is_paid) return false;
+        if (statusFilter === 'unpaid' && o.is_paid) return false;
+
+        return true;
+    });
+
+    renderModalOrdersTable(filtered);
+}
+
+function switchModalSubTab(tab) {
+    const ordersContainer = document.getElementById('modalOrdersContainer');
+    const settlementsContainer = document.getElementById('modalSettlementsContainer');
+    const filters = document.getElementById('modalOrderFilters');
+    const btnOrders = document.getElementById('modalSubTabOrdersBtn');
+    const btnSettlements = document.getElementById('modalSubTabSettlementsBtn');
+
+    if (tab === 'orders') {
+        if (ordersContainer) ordersContainer.style.display = 'block';
+        if (settlementsContainer) settlementsContainer.style.display = 'none';
+        if (filters) filters.style.display = 'flex';
+        if (btnOrders) {
+            btnOrders.className = 'btn btn-sm btn-primary';
+        }
+        if (btnSettlements) {
+            btnSettlements.className = 'btn btn-sm btn-secondary';
+        }
+    } else {
+        if (ordersContainer) ordersContainer.style.display = 'none';
+        if (settlementsContainer) settlementsContainer.style.display = 'block';
+        if (filters) filters.style.display = 'none';
+        if (btnOrders) {
+            btnOrders.className = 'btn btn-sm btn-secondary';
+        }
+        if (btnSettlements) {
+            btnSettlements.className = 'btn btn-sm btn-primary';
+        }
+    }
+}
+
+function closeCreditStoreHistoryModal() {
+    const modal = document.getElementById('creditStoreHistoryModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function exportCreditStoreOrdersCSV() {
+    if (!window.currentCreditStoreOrders || window.currentCreditStoreOrders.length === 0) {
+        alert('No orders available to export for this store.');
+        return;
+    }
+
+    const storeName = window.currentCreditStoreInfo?.name || 'Store';
+    const headers = [
+        'Order Number',
+        'Order Date',
+        'Customer Name',
+        'Customer Phone',
+        'Items Summary',
+        'Order Gross (PKR)',
+        'Amount to Pay (PKR)',
+        'Payment Status',
+        'Settlement Voucher',
+        'Paid Date',
+        'Payment Method',
+        'Settlement Notes'
+    ];
+
+    const rows = window.currentCreditStoreOrders.map(o => [
+        `"${String(o.order_number || '').replace(/"/g, '""')}"`,
+        `"${String(o.order_date || '').replace(/"/g, '""')}"`,
+        `"${String(o.customer_name || '').replace(/"/g, '""')}"`,
+        `"${String(o.customer_phone || '').replace(/"/g, '""')}"`,
+        `"${String(o.items_summary || '').replace(/"/g, '""')}"`,
+        Number(o.gross_amount || 0).toFixed(2),
+        Number(o.amount_to_pay || 0).toFixed(2),
+        o.is_paid ? 'PAID' : 'UNPAID',
+        o.paid_details ? `"${String(o.paid_details.settlement_number || '').replace(/"/g, '""')}"` : '""',
+        o.paid_details ? `"${String(o.paid_details.paid_at || o.paid_details.settlement_date || '').replace(/"/g, '""')}"` : '""',
+        o.paid_details ? `"${String(o.paid_details.payment_method || '').replace(/"/g, '""')}"` : '""',
+        o.paid_details ? `"${String(o.paid_details.notes || '').replace(/"/g, '""')}"` : '""'
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const safeName = storeName.replace(/[^a-zA-Z0-9]/g, '_');
+    link.setAttribute('download', `credit_orders_${safeName}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function printCreditStoreStatement() {
+    if (!window.currentCreditStoreInfo) {
+        alert('Store information is not loaded.');
+        return;
+    }
+
+    const store = window.currentCreditStoreInfo;
+    const orders = window.currentCreditStoreOrders || [];
+    const totalPayable = orders.reduce((sum, o) => sum + o.amount_to_pay, 0);
+    const paidOrders = orders.filter(o => o.is_paid);
+    const totalPaid = orders.filter(o => o.is_paid).reduce((sum, o) => sum + o.amount_to_pay, 0);
+    const pendingBalance = Math.max(0, totalPayable - totalPaid);
+
+    let rowsHtml = '';
+    orders.forEach((o, i) => {
+        const paidText = o.is_paid && o.paid_details
+            ? `PAID (${o.paid_details.settlement_number} - ${o.paid_details.paid_at ? new Date(o.paid_details.paid_at).toLocaleDateString('en-GB') : ''})`
+            : 'UNPAID (Pending Settlement)';
+        rowsHtml += `
+            <tr>
+                <td style="border:1px solid #ddd; padding:6px; text-align:center;">${i + 1}</td>
+                <td style="border:1px solid #ddd; padding:6px; font-family:monospace; font-weight:bold;">#${escapeCreditHtml(o.order_number)}</td>
+                <td style="border:1px solid #ddd; padding:6px;">${o.order_date ? new Date(o.order_date).toLocaleDateString('en-GB') : '-'}</td>
+                <td style="border:1px solid #ddd; padding:6px;">${escapeCreditHtml(o.customer_name)}</td>
+                <td style="border:1px solid #ddd; padding:6px; font-size:11px;">${escapeCreditHtml(o.items_summary)}</td>
+                <td style="border:1px solid #ddd; padding:6px; text-align:right;">Rs ${o.gross_amount.toFixed(2)}</td>
+                <td style="border:1px solid #ddd; padding:6px; text-align:right; font-weight:bold;">Rs ${o.amount_to_pay.toFixed(2)}</td>
+                <td style="border:1px solid #ddd; padding:6px; font-size:11px; font-weight:bold; color:${o.is_paid ? 'green' : '#d97706'};">${paidText}</td>
+            </tr>
+        `;
+    });
+
+    const printWin = window.open('', '', 'width=900,height=700');
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Credit Store Statement - ${escapeCreditHtml(store.name)}</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #1e293b; }
+                h1, h2, h3 { margin: 0; }
+                .header { border-bottom: 2px solid #334155; padding-bottom: 12px; margin-bottom: 16px; }
+                .kpi-row { display: flex; gap: 15px; margin-bottom: 20px; }
+                .kpi { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; text-align: center; }
+                .kpi-title { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: bold; }
+                .kpi-val { font-size: 18px; font-weight: 800; margin-top: 4px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+                th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+                @media print { button { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>ServeNow &bull; Credit Store Statement</h1>
+                <h2 style="color: #4f46e5; margin-top: 4px;">${escapeCreditHtml(store.name)}</h2>
+                <div style="font-size: 13px; color: #475569; margin-top: 4px;">
+                    Payment Term: <strong>${escapeCreditHtml(store.payment_term)}</strong> | Phone: ${escapeCreditHtml(store.phone)} | Date: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </div>
+            </div>
+
+            <div class="kpi-row">
+                <div class="kpi">
+                    <div class="kpi-title">Total Orders</div>
+                    <div class="kpi-val">${orders.length}</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-title">Total Store Payable</div>
+                    <div class="kpi-val" style="color: #d97706;">Rs ${totalPayable.toFixed(2)}</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-title">Total Paid (Settled)</div>
+                    <div class="kpi-val" style="color: #16a34a;">Rs ${totalPaid.toFixed(2)}</div>
+                </div>
+                <div class="kpi" style="border-color: #fecaca; background: #fff1f2;">
+                    <div class="kpi-title" style="color: #e11d48;">Balance Due</div>
+                    <div class="kpi-val" style="color: #e11d48;">Rs ${pendingBalance.toFixed(2)}</div>
+                </div>
+            </div>
+
+            <h3>Order-Wise History &amp; Payment Details</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:30px; text-align:center;">#</th>
+                        <th style="width:90px;">Order #</th>
+                        <th style="width:85px;">Date</th>
+                        <th style="width:120px;">Customer</th>
+                        <th>Items</th>
+                        <th style="width:80px; text-align:right;">Gross</th>
+                        <th style="width:95px; text-align:right;">Amount to Pay</th>
+                        <th style="width:180px;">Payment Status &amp; Voucher</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            <script>window.onload = function() { window.print(); }<\/script>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+}

@@ -2830,6 +2830,7 @@ function switchTab(tabName) {
             if (typeof loadStoreReports === 'function') loadStoreReports();
             break;
         case 'store-payment-term-reports':
+            if (typeof loadCreditStoresHistory === 'function') loadCreditStoresHistory();
             if (typeof loadStorePaymentTermReport === 'function') loadStorePaymentTermReport();
             break;
         case 'settings':

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سروناؤ — اسٹور اونر / ریسٹورنٹ ورک فلو کی مکمل گائیڈ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 12mm 14mm 12mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+      line-height: 2.2;
+      color: #1A237E;
+      background: #ffffff;
+      margin: 0;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 10px 18px;
+    }
+
+    /* Header Banner - Royal Indigo */
+    .header-banner {
+      background: linear-gradient(135deg, #1E88E5 0%, #0D47A1 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+      border-radius: 14px;
+      margin-bottom: 22px;
+      box-shadow: 0 4px 15px rgba(21, 101, 192, 0.25);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title h1 {
+      margin: 0 0 6px 0;
+      font-size: 23px;
+      font-weight: 700;
+      line-height: 1.8;
+    }
+
+    .header-title p {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.92;
+      line-height: 1.8;
+    }
+
+    .badge-pill {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    /* Process Flow Diagram */
+    .flow-card {
+      background: #E8EAF6;
+      border: 1.5px solid #9FA8DA;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 22px;
+    }
+
+    .flow-card h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #1A237E;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .flow-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 9px;
+      text-align: center;
+    }
+
+    .flow-step-box {
+      background: #ffffff;
+      border: 1px solid #C5CAE9;
+      border-radius: 8px;
+      padding: 9px 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #1A237E;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+
+    .flow-step-num {
+      background: #1976D2;
+      color: #ffffff;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    /* Section Cards */
+    .phase-card {
+      background: #ffffff;
+      border: 1px solid #CFD8DC;
+      border-radius: 12px;
+      margin-bottom: 18px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+      page-break-inside: avoid;
+    }
+
+    .phase-header {
+      background: #F5F7FB;
+      border-bottom: 1px solid #E8EAF6;
+      padding: 11px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .phase-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #1565C0;
+    }
+
+    .step-badge {
+      background: #1976D2;
+      color: #ffffff;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .phase-body {
+      padding: 15px 18px;
+      color: #263238;
+    }
+
+    .phase-body ul {
+      margin: 0 0 10px 0;
+      padding-right: 20px;
+    }
+
+    .phase-body li {
+      margin-bottom: 5px;
+    }
+
+    .highlight-box {
+      background: #E3F2FD;
+      border-right: 4px solid #1976D2;
+      padding: 10px 14px;
+      border-radius: 6px 0 0 6px;
+      margin: 10px 0;
+      font-size: 12px;
+      line-height: 2.1;
+    }
+
+    .alert-box {
+      background: #FFF3E0;
+      border-right: 4px solid #FF9800;
+      padding: 10px 14px;
+      border-radius: 6px 0 0 6px;
+      margin: 10px 0;
+      font-size: 12px;
+      line-height: 2.1;
+    }
+
+    /* Formula Box */
+    .formula-box {
+      background: linear-gradient(to left, #E8EAF6, #C5CAE9);
+      border: 1.5px dashed #3F51B5;
+      border-radius: 10px;
+      padding: 12px 16px;
+      text-align: center;
+      margin: 12px 0;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #1A237E;
+      direction: rtl;
+    }
+
+    /* Custom Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 11px 0;
+      font-size: 12px;
+    }
+
+    table th {
+      background: #E8EAF6;
+      color: #1A237E;
+      padding: 8px 12px;
+      border: 1px solid #C5CAE9;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    table td {
+      padding: 7px 12px;
+      border: 1px solid #E0E0E0;
+      text-align: right;
+    }
+
+    table tr:nth-child(even) {
+      background: #FAFAFA;
+    }
+
+    .tag-active {
+      background: #E8F5E9;
+      color: #2E7D32;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .tag-inactive {
+      background: #FFEBEE;
+      color: #C62828;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: #546E7A;
+      font-size: 11.5px;
+      margin-top: 25px;
+      padding-top: 14px;
+      border-top: 1px solid #CFD8DC;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header Banner -->
+    <div class="header-banner">
+      <div class="header-title">
+        <h1>سروناؤ (ServeNow) — اسٹور اونر و مرچنٹ ورک فلو گائیڈ</h1>
+        <p>دکان کی رجسٹریشن، مینو و کیٹلاگ کی تشکیل، آرڈر پروسیسنگ، کچن منیجمنٹ اور مالیاتی حساب کتاب</p>
+      </div>
+      <div class="badge-pill">ورژن 1.0 (مرچنٹ پارٹنر مینوئل)</div>
+    </div>
+
+    <!-- Process Flow Summary Card -->
+    <div class="flow-card">
+      <h2>اسٹور اونر کا مکمل ورک فلو (Merchant Lifecycle Overview)</h2>
+      <div class="flow-steps-grid">
+        <div class="flow-step-box">
+          <div class="flow-step-num">1</div>
+          <div>رجسٹریشن و پروفائل</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">2</div>
+          <div>کیٹیگریز و یونٹس</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">3</div>
+          <div>پراڈکٹس اور سائزز</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">4</div>
+          <div>شفٹ کی دستیابی</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">5</div>
+          <div>آرڈر الرٹ و قبولیت</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">6</div>
+          <div>کچن تیاری و پیکنگ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">7</div>
+          <div>رائیڈر ہینڈ اوور</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">8</div>
+          <div>سیلز و کمیشن فارمولا</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">9</div>
+          <div>کاؤنٹر کیش سیٹلمنٹ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">10</div>
+          <div>والیٹ اور بینک ٹرانسفر</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 1 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 1: آن بورڈنگ، اسٹور پروفائل اور اوقاتِ کار (Store Profile & Hours)</h3>
+        <span class="step-badge">مرحلہ 1</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>مرچنٹ رجسٹریشن:</strong> دکان کا نام، مالک کا نام، رابطہ نمبر اور درست جی پی ایس کوآرڈینیٹس درج کریں۔</li>
+          <li><strong>دکان کے کھلنے اور بند ہونے کے اوقات:</strong> روزانہ کھلنے اور بند ہونے کا شیڈول سیٹ کریں۔ بند ہونے پر اسٹور خودکار طور پر بند (Closed) ظاہر ہوگا۔</li>
+          <li><strong>ایڈمن تصدیق (KYC):</strong> قانونی شناخت اور برانچ معائنے کے بعد ایڈمن کی طرف سے اسٹور لائیو کر دیا جاتا ہے۔</li>
+        </ul>
+        <div class="highlight-box">
+          ⏱️ <strong>بزی موڈ (Busy Mode):</strong> کچن میں بے پناہ رش کی صورت میں اسٹور اونر عارضی طور پر دکان کو 30 منٹ کے لیے "Busy" کر سکتا ہے تاکہ نئے آرڈرز کا دباؤ کم ہو۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 2: کیٹیگریز اور پیمائشی اکائیاں (Categories, Units & Sizes)</h3>
+        <span class="step-badge">مرحلہ 2</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>کیٹیگریز کا قیام:</strong> کھانوں کی درجہ بندی (مثلاً: برگرز، پیزا، مشروبات، چائنیز، مٹھائیاں)۔</li>
+          <li><strong>یونٹس (Units):</strong> پلیٹ (Plate)، کلوگرام (Kg)، لیٹر (Litre)، عدد (Piece)، یا ڈبہ (Box) کا انتخاب۔</li>
+          <li><strong>سائزز (Sizes):</strong> ہر آئٹم کے سائزز مثلاً Small, Medium, Large, Family Pack مقرر کریں۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 3: پراڈکٹ کیٹلاگ اور اسٹاک کنٹرول (Catalog & Inventory)</h3>
+        <span class="step-badge">مرحلہ 3</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>آئٹم کا اندراج:</strong> نام، دلکش تصویر، اجزاء کی تفصیل اور قیمت درج کریں۔</li>
+          <li><strong>ایڈ آنز (Add-ons / Variants):</strong> اضافی پنیر، سوس، یا فرائز جیسی ترجیحات قیمت کے اضافے کے ساتھ شامل کریں۔</li>
+          <li><strong>اسٹاک ٹوگل (In-Stock / Out-of-Stock):</strong> اگر کوئی آئٹم ختم ہو جائے تو ایک کلک پر اسے فوری طور پر بند کر دیں تاکہ کسٹمر آرڈر نہ کر سکے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Phase 4 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 4: شفٹ اور مخصوص اوقات میں دستیابی (Shift Time Windows)</h3>
+        <span class="step-badge">مرحلہ 4</span>
+      </div>
+      <div class="phase-body">
+        <p>سروناؤ کا جدید ٹائم فریم سسٹم آپ کو مخصوص اوقات کے لیے اشیاء مقرر کرنے کی سہولت دیتا ہے:</p>
+        <table>
+          <thead>
+            <tr>
+              <th>کھانے کی قسم</th>
+              <th>دستیابی کی ونڈو</th>
+              <th>سسٹم کا ردِعمل</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ناشتہ (Breakfast)</td>
+              <td>صبح 07:00 سے صبح 11:30 تک</td>
+              <td>11:30 کے بعد خودکار طور پر غیر دستیاب ہو جائے گا</td>
+            </tr>
+            <tr>
+              <td>دوپہر کا کھانا (Lunch)</td>
+              <td>دوپہر 12:30 سے شام 04:30 تک</td>
+              <td>مقررہ وقت پر مینو میں ظاہر ہوگا</td>
+            </tr>
+            <tr>
+              <td>شام اور ڈنر (Dinner)</td>
+              <td>شام 07:00 سے رات 01:00 بجے تک</td>
+              <td>صرف ڈنر شفٹ کے صارفین کو نظر آئے گا</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="highlight-box">
+          ✨ <strong>فائدہ:</strong> گاہک وہ چیز کبھی آرڈر نہیں کر سکے گا جو اس وقت کچن میں تیار نہ ہو رہی ہو، جس سے آرڈر منسوخی کا خدشہ صفر ہو جاتا ہے۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 5 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 5: نیا آرڈر موصول ہونا اور منظوری (Order Sound Alert & Accept)</h3>
+        <span class="step-badge">مرحلہ 5</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>لاؤڈ سائرن رنگنگ:</strong> جیسے ہی گاہک آرڈر کرے گا، اسٹور ٹیبلیٹ یا موبائل پر مسلسل تیز آواز میں گھنٹی بجے گی۔</li>
+          <li><strong>آرڈر کی تفصیلات کا جائزہ:</strong> اشیاء، مقدار، خصوصی نوٹس اور متوقع تیاری کا وقت چیک کریں۔</li>
+          <li><strong>منظوری (Accept Order):</strong> اسٹور اونر آرڈر کو قبول کرتا ہے اور کچن کا کام شروع ہو جاتا ہے۔</li>
+        </ul>
+        <div class="alert-box">
+          ⚠️ <strong>رد کرنے کی پالیسی:</strong> آرڈر کو بلا وجہ مسترد کرنے پر اسٹور کی رینکنگ اور ریٹنگ متاثر ہوتی ہے۔ مسترد کرنے کی صورت میں ٹھوس وجہ لکھنا لازمی ہے۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 6 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 6: کچن تیاری اور پیکنگ (Kitchen Prep & Order Ready)</h3>
+        <span class="step-badge">مرحلہ 6</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>اسٹیٹس چینج:</strong> جیسے ہی کھانا بننا شروع ہو، بٹن دبا کر اسٹیٹس <em>Preparing</em> کریں۔</li>
+          <li><strong>محفوظ پیکنگ:</strong> کھانا لیک پروف اور گرمی برقرار رکھنے والے بیگز میں پیک کریں۔</li>
+          <li><strong>مارک ریڈی (Mark Ready for Pickup):</strong> جب پارسل مکمل تیار ہو جائے تو 'Ready' کا بٹن دبائیں۔ اس سے رائیڈر کو اطلاع پہنچ جاتی ہے کہ وہ کاؤنٹر سے پارسل وصول کر لے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 7 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 7: رائیڈر کی آمد اور کاؤنٹر ہینڈ اوور (Rider Counter Handover)</h3>
+        <span class="step-badge">مرحلہ 7</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>رائیڈر کی شناخت:</strong> رائیڈر کا نام اور آرڈر آئی ڈی (Order ID) کاؤنٹر پر میچ کریں۔</li>
+          <li><strong>اشیاء کی تصدیق:</strong> شاپر پر آرڈر سلپ لگائیں تاکہ رائیڈر غلط پارسل نہ اٹھا لے۔</li>
+          <li><strong>ڈیجیٹل ہینڈ اوور:</strong> رائیڈر اپنی ایپ پر "Picked Up" کی تصدیق کرتا ہے، جس سے ذمہ داری رائیڈر پر منتقل ہو جاتی ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Phase 8 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 8: سیلز، پلیٹ فارم کمیشن اور خالص منافع (Financial Formula)</h3>
+        <span class="step-badge">مرحلہ 8</span>
+      </div>
+      <div class="phase-body">
+        <p>سروناؤ کا اکاؤنٹنگ سسٹم شفاف اور خودکار ہے۔ ہر مکمل ہونے والے آرڈر پر درج ذیل فارمولا لاگو ہوتا ہے:</p>
+        <div class="formula-box">
+          اسٹور کا خالص منافع = آئٹمز کا مجموعی بل - پلیٹ فارم کمیشن فیصد (مثلاً 10%) - جی ایس ٹی ٹیکس (اگر لاگو ہو)
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>حساب کی مد</th>
+              <th>مثالی رقم</th>
+              <th>کیفیت</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>کھانے کا کل بل (Gross Food Value)</td>
+              <td>روپے 2,000</td>
+              <td>گاہک کی خریدی گئی اشیاء کی قیمت</td>
+            </tr>
+            <tr>
+              <td>پلیٹ فارم کمیشن (Platform Fee @ 10%)</td>
+              <td>روپے 200</td>
+              <td>سروناؤ ٹیکنالوجی و ڈسپیچ چارجز</td>
+            </tr>
+            <tr>
+              <td>اسٹور والیٹ میں کریڈٹ (Net Store Earnings)</td>
+              <td>روپے 1,800</td>
+              <td>فوری طور پر مرچنٹ والیٹ میں جمع</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Phase 9 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 9: کاؤنٹر کیش اور سیٹلمنٹ کی وضاحت (Cash Handling Protocol)</h3>
+        <span class="step-badge">مرحلہ 9</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>پری پیڈ یا کسٹمر والیٹ آرڈر:</strong> کسٹمر نے آن لائن رقم ادا کر دی ہے؛ رائیڈر دکان دار کو کیش نہیں دے گا بلکہ دکان دار کے پورٹل والیٹ میں رقم از خود محفوظ ہو جائے گی۔</li>
+          <li><strong>کیش آن ڈلیوری (<span class="tag-active">COD</span>):</strong> اگر رائیڈر کے پاس ایڈوانس فلوٹ موجود ہے تو وہ دکان دار کو کاؤنٹر پر ہی فوڈ کی قیمت ادا کر دیتا ہے، ورنہ رائیڈر کسٹمر سے رقم وصول کر کے سروناؤ کے مرکزی اکاؤنٹ میں جمع کرواتا ہے جہاں سے دکان دار کو ادائیگی ہوتی ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 10 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 10: والیٹ سے رقم نکلوانا اور بینک ٹرانسفر (Wallet Payouts)</h3>
+        <span class="step-badge">مرحلہ 10</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>لائیو بیلنس مانیٹرنگ:</strong> اسٹور اونر اپنے موبائل یا ویب پینل پر ہمہ وقت قابلِ استعمال بیلنس دیکھ سکتا ہے۔</li>
+          <li><strong>رقم نکلوانے کی درخواست (Withdrawal Request):</strong> ایزی پیسہ، جاز کیش، یا بینک اکاؤنٹ منتخب کر کے رقم کی منتقلی کی درخواست بھیجیں۔</li>
+          <li><strong>ایڈمن کی فوری منظوری:</strong> روزانہ یا ہفتہ وار مقررہ شیڈول کے تحت رقم براہِ راست مرچنٹ کے بینک کھاتے میں ٹرانسفر کر دی جاتی ہے۔</li>
+        </ul>
+        <div class="highlight-box">
+          📊 <strong>روزانہ کی سیلز سمری:</strong> روزانہ رات 12 بجے اسٹور کو کل آرڈرز، فروخت ہونے والے کھانوں کی تعداد اور کل خالص منافع کی خودکار ڈیجیٹل رپورٹ موصول ہوتی ہے۔
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      سروناؤ (ServeNow) ٹیکنالوجی پلیٹ فارم — مرچنٹ و اسٹور اونر ورک فلو مینوئل — تمام حقوق محفوظ ہیں © 2026
+    </div>
+
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سروناؤ — ایڈمن و ڈسپیچ کنٹرول روم ورک فلو کی مکمل گائیڈ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 12mm 14mm 12mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Noto Nastaliq Urdu', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+      line-height: 2.2;
+      color: #311B92;
+      background: #ffffff;
+      margin: 0;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 10px 18px;
+    }
+
+    /* Header Banner - Deep Purple Burgundy */
+    .header-banner {
+      background: linear-gradient(135deg, #6A1B9A 0%, #4A148C 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+      border-radius: 14px;
+      margin-bottom: 22px;
+      box-shadow: 0 4px 15px rgba(106, 27, 154, 0.25);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title h1 {
+      margin: 0 0 6px 0;
+      font-size: 23px;
+      font-weight: 700;
+      line-height: 1.8;
+    }
+
+    .header-title p {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.92;
+      line-height: 1.8;
+    }
+
+    .badge-pill {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    /* Process Flow Diagram */
+    .flow-card {
+      background: #F3E5F5;
+      border: 1.5px solid #CE93D8;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 22px;
+    }
+
+    .flow-card h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #4A148C;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .flow-steps-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 9px;
+      text-align: center;
+    }
+
+    .flow-step-box {
+      background: #ffffff;
+      border: 1px solid #E1BEE7;
+      border-radius: 8px;
+      padding: 9px 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #4A148C;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+
+    .flow-step-num {
+      background: #7B1FA2;
+      color: #ffffff;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    /* Section Cards */
+    .phase-card {
+      background: #ffffff;
+      border: 1px solid #CFD8DC;
+      border-radius: 12px;
+      margin-bottom: 18px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+      page-break-inside: avoid;
+    }
+
+    .phase-header {
+      background: #FAF7FB;
+      border-bottom: 1px solid #F3E5F5;
+      padding: 11px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .phase-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      font-size: 15.5px;
+      font-weight: 700;
+      color: #6A1B9A;
+    }
+
+    .step-badge {
+      background: #7B1FA2;
+      color: #ffffff;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .phase-body {
+      padding: 15px 18px;
+      color: #263238;
+    }
+
+    .phase-body ul {
+      margin: 0 0 10px 0;
+      padding-right: 20px;
+    }
+
+    .phase-body li {
+      margin-bottom: 5px;
+    }
+
+    .highlight-box {
+      background: #F3E5F5;
+      border-right: 4px solid #8E24AA;
+      padding: 10px 14px;
+      border-radius: 6px 0 0 6px;
+      margin: 10px 0;
+      font-size: 12px;
+      line-height: 2.1;
+    }
+
+    .audit-box {
+      background: #FFEBEE;
+      border-right: 4px solid #C62828;
+      padding: 10px 14px;
+      border-radius: 6px 0 0 6px;
+      margin: 10px 0;
+      font-size: 12px;
+      line-height: 2.1;
+    }
+
+    /* Formula Box */
+    .formula-box {
+      background: linear-gradient(to left, #F3E5F5, #E1BEE7);
+      border: 1.5px dashed #8E24AA;
+      border-radius: 10px;
+      padding: 12px 16px;
+      text-align: center;
+      margin: 12px 0;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #4A148C;
+      direction: rtl;
+    }
+
+    /* Custom Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 11px 0;
+      font-size: 12px;
+    }
+
+    table th {
+      background: #F3E5F5;
+      color: #4A148C;
+      padding: 8px 12px;
+      border: 1px solid #CE93D8;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    table td {
+      padding: 7px 12px;
+      border: 1px solid #E0E0E0;
+      text-align: right;
+    }
+
+    table tr:nth-child(even) {
+      background: #FAFAFA;
+    }
+
+    .tag-admin {
+      background: #EDE7F6;
+      color: #4527A0;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .tag-audit {
+      background: #FFEBEE;
+      color: #B71C1C;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: #546E7A;
+      font-size: 11.5px;
+      margin-top: 25px;
+      padding-top: 14px;
+      border-top: 1px solid #CFD8DC;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header Banner -->
+    <div class="header-banner">
+      <div class="header-title">
+        <h1>سروناؤ (ServeNow) — ایڈمن و ڈسپیچ کنٹرول روم مکمل گائیڈ</h1>
+        <p>پلیٹ فارم سپرویژن، لائیو بیڑہ (Fleet Radar)، فلوٹ مینجمنٹ، آڈٹ و مالیاتی ڈائیگنوسٹکس کا ضابطہ</p>
+      </div>
+      <div class="badge-pill">ورژن 1.0 (مرکزی ایڈمن مینوئل)</div>
+    </div>
+
+    <!-- Process Flow Summary Card -->
+    <div class="flow-card">
+      <h2>ایڈمن و کنٹرول روم لائف سائیکل (Admin & Dispatcher Overview)</h2>
+      <div class="flow-steps-grid">
+        <div class="flow-step-box">
+          <div class="flow-step-num">1</div>
+          <div>سسٹم کنٹرول و زونز</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">2</div>
+          <div>اسٹورز کی منظوری</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">3</div>
+          <div>رائیڈرز تصدیق و بیڑہ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">4</div>
+          <div>لائیو جی پی ایس ریڈار</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">5</div>
+          <div>آرڈر ہنگامی مداخلت</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">6</div>
+          <div>ایڈوانس فلوٹ اجرا</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">7</div>
+          <div>کیش ڈراپ ریکوری</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">8</div>
+          <div>اسٹور سیٹلمنٹ پی آؤٹ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">9</div>
+          <div>ڈائیگنوسٹکس و آڈٹ</div>
+        </div>
+        <div class="flow-step-box">
+          <div class="flow-step-num">10</div>
+          <div>پرفارمنس اینالیٹکس</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 1 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 1: سسٹم ماسٹر کنٹرول اور زونز کی ترتیب (System Settings & Zones)</h3>
+        <span class="step-badge">مرحلہ 1</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>جغرافیائی زونز (Geo-fencing):</strong> شہر اور مخصوص سیکٹرز کی حدود قائم کریں جہاں سروناؤ سروسز فعال ہیں۔</li>
+          <li><strong>بنیادی ڈلیوری چارجز کے اصول:</strong> بیس کلومیٹر، فی کلومیٹر ریٹ، اور بارش یا رات کی سرچ پرائسنگ سیٹ کریں۔</li>
+          <li><strong>کمیشن شرح:</strong> جنرل ریٹ یا مخصوص برانڈز کے لیے اسپیشل کمیشن سلیب مقرر کریں۔</li>
+        </ul>
+        <div class="highlight-box">
+          ⚙️ <strong>گلوبل کنٹرول:</strong> ایڈمن کسی بھی ہنگامی صورتحال (خراب موسم یا فنی خرابی) میں ایک کلک پر پورے سسٹم کا آرڈرنگ سسٹم عارضی طور پر روک سکتا ہے۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 2: مرچنٹس کی منظوری و تصدیق (Store Onboarding & KYC)</h3>
+        <span class="step-badge">مرحلہ 2</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>دستاویزات کی جانچ:</strong> شناختی کارڈ، دکان کا کرایہ نامہ، فوڈ اتھارٹی لائسنس اور بینک اکاؤنٹ چیک کریں۔</li>
+          <li><strong>مینو کی تصدیق:</strong> قیمتوں، تصویروں اور کیٹیگریز کے معیار کو یقینی بنائیں۔</li>
+          <li><strong>اکاؤنٹ ایکٹیویشن:</strong> تصدیق کے بعد دکان دار کو لائیو کیا جاتا ہے اور وہ صارفین کو ایپ پر نظر آنے لگتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 3: رائیڈر بھرتی اور فلوٹ سیکیورٹی لمٹ (Rider Fleet Approval)</h3>
+        <span class="step-badge">مرحلہ 3</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>قانونی ویریفکیشن:</strong> رائیڈر کا قومی شناختی کارڈ، موٹر سائیکل کے کاغذات اور ڈرائیونگ لائسنس اپ لوڈ کروائیں۔</li>
+          <li><strong>سیکیورٹی ڈپازٹ اور کریڈٹ لمٹ:</strong> رائیڈر کے لیے کیش ان ہینڈ کی زیادہ سے زیادہ حد (مثلاً 10,000 تا 15,000 روپے) مقرر کریں جس کے بعد کیش جمع کروانا لازمی ہوتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Phase 4 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 4: لائیو جی پی ایس ریڈار اور ڈسپیچ کنٹرول (Live Fleet Radar & Dispatch)</h3>
+        <span class="step-badge">مرحلہ 4</span>
+      </div>
+      <div class="phase-body">
+        <p>ایڈمن پینل پر پورے شہر کا لائیو سیٹلائٹ نقشہ ظاہر ہوتا ہے جس میں رائیڈرز کی حالت واضح ہوتی ہے:</p>
+        <table>
+          <thead>
+            <tr>
+              <th>رائیڈر کی حالت</th>
+              <th>رنگ کوڈ</th>
+              <th>سسٹم ایکشن</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>فارغ / دستیاب (Idle / Available)</td>
+              <td>سبز (Green)</td>
+              <td>نئے آنے والے آرڈرز کے لیے تیار</td>
+            </tr>
+            <tr>
+              <td>آرڈر لے جانے میں مصروف (On Delivery)</td>
+              <td>نیلا (Blue)</td>
+              <td>کسٹمر یا اسٹور کی طرف گامزن</td>
+            </tr>
+            <tr>
+              <td>آف لائن / شفٹ ختم (Offline)</td>
+              <td>سرمئی (Grey)</td>
+              <td>سسٹم اس رائیڈر کو کوئی آرڈر نہیں بھیجے گا</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="highlight-box">
+          🎯 <strong>خودکار بنام دستی ڈسپیچ (Auto vs Manual Dispatch):</strong> سسٹم خودکار طور پر قریبی ترین رائیڈر کو آرڈر دیتا ہے، تاہم ڈسپیچر کسی بھی وقت دستی طور پر کسی دوسرے رائیڈر کو تفویض کر سکتا ہے۔
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 5 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 5: ہنگامی آرڈر مانیٹرنگ اور کینسلشن (Exception Handling)</h3>
+        <span class="step-badge">مرحلہ 5</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>تاخیر کے الرٹس (Delay Sirens):</strong> اگر کوئی ریسٹورنٹ 20 منٹ سے زائد وقت لے یا رائیڈر ایک ہی جگہ ساکت رہے تو ڈسپیچر کو الرٹ ملتا ہے۔</li>
+          <li><strong>پنکچر یا حادثے کا پروٹوکول:</strong> اگر راستے میں رائیڈر کی موٹرسائیکل خراب ہو جائے تو ایڈمن فورا آرڈر دوسرے متبادل رائیڈر کو منتقل (Reassign) کرتا ہے۔</li>
+          <li><strong>ایڈمن کینسلشن و جرمانہ:</strong> غیر سنجیدہ رویے پر کسٹمر یا رائیڈر کو وارننگ یا جرمانہ عائد کیا جا سکتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 6 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 6: رائیڈر ایڈوانس فلوٹ اور پیٹرول الاؤنس (Float & Fuel Advances)</h3>
+        <span class="step-badge">مرحلہ 6</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>صبح کا فلوٹ (Morning Cash Float):</strong> رائیڈر کو مارکیٹ سے سودا خریدنے اور کھلے پیسے واپس کرنے کے لیے ایڈوانس رقم جاری کرنا۔</li>
+          <li><strong>پیٹرول الاؤنس (Fuel Allowance):</strong> طے شدہ کلومیٹر پالیسی کے تحت رائیڈر کے اکاؤنٹ میں فیول کی رقم منتقل کرنا اور ریکارڈ محفوظ رکھنا۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 7 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 7: کیش ڈراپ ریکوری اور منظوری (Cash Drop / CRV Verification)</h3>
+        <span class="step-badge">مرحلہ 7</span>
+      </div>
+      <div class="phase-body">
+        <p>رائیڈرز دن بھر کیش آن ڈلیوری کے تحت بھاری رقوم اکٹھی کرتے ہیں۔ ایڈمن کیش کنٹرول درج ذیل فارمولے پر چلتا ہے:</p>
+        <div class="formula-box">
+          رائیڈر کیش بیلنس = کل اکٹھا کردہ کیش - ادا کردہ کاؤنٹر ادائیگیاں - منظور شدہ کیش ڈراپ رسیدیں
+        </div>
+        <ul>
+          <li><strong>کیش ڈراپ رسید (CRV):</strong> رائیڈر جب کیشیئر کو رقم جمع کرواتا ہے تو رسید نمبر درج کرتا ہے۔</li>
+          <li><strong>ایڈمن منظوری:</strong> ایڈمن تصدیق کے بعد بٹن دبا کر کیش ڈراپ منظور کرتا ہے جس سے رائیڈر کے اکاؤنٹ کا بوجھ ختم ہو جاتا ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Phase 8 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 8: اسٹور سیٹلمنٹ سائیکلز اور بینک پے آؤٹس (Store Payout Cycles)</h3>
+        <span class="step-badge">مرحلہ 8</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>سیٹلمنٹ سائیکل:</strong> ہفتہ وار یا پندرہ روزہ بنیاد پر دکان داروں کے قابلِ ادائیگی بیلنس کی توثیق۔</li>
+          <li><strong>بینک ٹرانسفر فائل:</strong> ایڈمن پینل سے خودکار IBAN ٹرانسفر فائل ڈاؤن لوڈ کر کے رقوم بینک کے ذریعے بھیجی جاتی ہیں۔</li>
+          <li><strong>رسید کا اجرا:</strong> ادائیگی کے فوری بعد مرچنٹ کو ٹیکس اور کمیشن کی باقاعدہ انوائس ای میل کی جاتی ہے۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Phase 9 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 9: سسٹم ڈائیگنوسٹکس اور مالیاتی آڈٹ (Diagnostics & Integrity Audits)</h3>
+        <span class="step-badge">مرحلہ 9</span>
+      </div>
+      <div class="phase-body">
+        <div class="audit-box">
+          🚨 <strong>سسٹم ہیلتھ مانیٹر (System Health & Integrity Checks):</strong>
+          ایڈمن پینل کا ڈائیگنوسٹکس ٹول ڈیٹا بیس میں روزانہ خودکار تجزیہ چلاتا ہے تاکہ مالیاتی بدعنوانی یا حساب کے بگاڑ کو روکا جا سکے:
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ڈائیگنوسٹک چیک</th>
+              <th>خطرے کی قسم</th>
+              <th>ایڈمن کا فوری اصلاحی اقدام</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>منفی والیٹ بیلنس (Negative Wallets)</td>
+              <td>ہائی رسک (Error)</td>
+              <td>غیر مجاز کیش کٹوتیوں کی جانچ کریں اور درست لیجر بیلنس بحال کریں۔</td>
+            </tr>
+            <tr>
+              <td>مسنگ ٹرانزیکشن ریفرنس (Missing Reference)</td>
+              <td>وارننگ (Warning)</td>
+              <td>یتیم ٹرانزیکشن کی متعلقہ رائیڈر، کسٹمر یا آرڈر آئی ڈی سے لنکنک درست کریں۔</td>
+            </tr>
+            <tr>
+              <td>غیر منصفانہ ریٹنگز (Fraudulent Reviews)</td>
+              <td>کوالٹی الرٹ</td>
+              <td>جعلی یا بدنیتی پر مبنی تبصروں کو ختم کریں۔</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Phase 10 -->
+    <div class="phase-card">
+      <div class="phase-header">
+        <h3 class="phase-title">مرحلہ 10: بزنس اینالیٹکس، پرفارمنس اور کسٹمر کیئر (Analytics & Support)</h3>
+        <span class="step-badge">مرحلہ 10</span>
+      </div>
+      <div class="phase-body">
+        <ul>
+          <li><strong>روزانہ جی ایم وی (Gross Merchandise Value):</strong> شہر بھر میں ہونے والی کل فروخت کا گرافیکل جائزہ۔</li>
+          <li><strong>بہترین اور سست ترین اسٹورز کی نشاندہی:</strong> کون سا اسٹور سب سے زیادہ بک رہا ہے اور کس کی ڈلیوری دیر سے ہوتی ہے۔</li>
+          <li><strong>رائیڈر کی کارکردگی:</strong> فی گھنٹہ مکمل کیے گئے آرڈرز اور کسٹمرز کی طرف سے دی گئی اوسط ریٹنگ۔</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      سروناؤ (ServeNow) ٹیکنالوجی پلیٹ فارم — مرکزی ایڈمن و ڈسپیچ کنٹرول روم ورک فلو مینوئل — تمام حقوق محفوظ ہیں © 2026
+    </div>
+
+  </div>
+
+</body>
+</html>
