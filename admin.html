@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="css/style.css?v=5" />
-    <link rel="stylesheet" href="css/admin.css?v=41" />
+    <link rel="stylesheet" href="css/admin.css?v=42" />
     <link rel="stylesheet" href="css/aginv-theme.css?v=8" />
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -3155,7 +3155,7 @@
           </div>
 
           <!-- SUB-VIEW 1: Credit Stores Ledger (A -> Z) -->
-          <div id="creditStoresLedgerView">
+          <div id="creditStoresLedgerView" style="width: 100%; max-width: 100%; overflow-x: hidden;">
             <!-- KPI Summary Cards -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
               <div style="background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -3214,9 +3214,9 @@
             </div>
 
             <!-- Stores Table (Ascending A-Z) -->
-            <div class="table-container" style="background: white; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden;">
-              <table id="creditStoresLedgerTable" style="width: 100%; border-collapse: collapse;">
-                <thead style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+            <div class="credit-stores-ledger-container">
+              <table id="creditStoresLedgerTable">
+                <thead>
                   <tr>
                     <th style="padding: 0.75rem 0.6rem; text-align: center; width: 40px; font-size: 0.75rem;">#</th>
                     <th style="padding: 0.75rem; text-align: left; font-size: 0.78rem;">Store Name (A &rarr; Z)</th>
@@ -5960,9 +5960,9 @@
         <div style="overflow-y: auto; flex: 1; padding: 1.25rem 1.5rem; background: #f8fafc;">
           <!-- Sub-panel 1: Order-Wise Table -->
           <div id="modalOrdersContainer">
-            <div class="table-container" style="background: white; border-radius: 8px; border: 1px solid #e2e8f0; overflow-x: auto;">
-              <table id="creditStoreOrdersTable" style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
-                <thead style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+            <div class="modal-table-scroll">
+              <table id="creditStoreOrdersTable">
+                <thead>
                   <tr>
                     <th style="padding: 0.65rem 0.5rem; text-align: center; width: 35px;">#</th>
                     <th style="padding: 0.65rem; text-align: left; width: 110px;">Order #</th>
@@ -5984,9 +5984,9 @@
 
           <!-- Sub-panel 2: Settlement Vouchers Table -->
           <div id="modalSettlementsContainer" style="display: none;">
-            <div class="table-container" style="background: white; border-radius: 8px; border: 1px solid #e2e8f0; overflow-x: auto;">
-              <table id="creditStoreSettlementsTable" style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
-                <thead style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+            <div class="modal-table-scroll">
+              <table id="creditStoreSettlementsTable">
+                <thead>
                   <tr>
                     <th style="padding: 0.65rem; text-align: left;">Settlement #</th>
                     <th style="padding: 0.65rem; text-align: left;">Settlement Date</th>

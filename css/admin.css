@@ -5732,3 +5732,104 @@ textarea:focus {
 .report-detail-table tr:hover {
     background: #f8fafc;
 }
+
+/* Credit Stores Master Ledger Table & Modal Scroll Styling */
+.credit-stores-ledger-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    max-height: min(65vh, calc(100vh - 290px)) !important;
+    -webkit-overflow-scrolling: touch !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    margin-top: 0.5rem !important;
+    position: relative !important;
+}
+
+.credit-stores-ledger-container table {
+    width: 100% !important;
+    min-width: 1220px !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    margin: 0 !important;
+}
+
+.credit-stores-ledger-container thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    background: #f8fafc !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    padding: 0.75rem 0.65rem !important;
+    white-space: nowrap !important;
+}
+
+.credit-stores-ledger-container tbody td {
+    padding: 0.75rem 0.65rem !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+
+/* Custom Sleek Scrollbars for Credit Stores Ledger & Modal */
+.credit-stores-ledger-container::-webkit-scrollbar,
+.modal-table-scroll::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+}
+
+.credit-stores-ledger-container::-webkit-scrollbar-track,
+.modal-table-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9 !important;
+    border-radius: 6px !important;
+}
+
+.credit-stores-ledger-container::-webkit-scrollbar-thumb,
+.modal-table-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1 !important;
+    border-radius: 6px !important;
+    border: 2px solid #f1f5f9 !important;
+}
+
+.credit-stores-ledger-container::-webkit-scrollbar-thumb:hover,
+.modal-table-scroll::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8 !important;
+}
+
+/* Modal Table Horizontal Scroll Container */
+.modal-table-scroll {
+    width: 100% !important;
+    overflow-x: auto !important;
+    background: #ffffff !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    margin-top: 0 !important;
+    padding: 0 !important;
+}
+
+.modal-table-scroll table {
+    width: 100% !important;
+    min-width: 1100px !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    margin: 0 !important;
+}
+
+.modal-table-scroll thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    background: #f1f5f9 !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    padding: 0.65rem 0.6rem !important;
+    white-space: nowrap !important;
+}
+
+.modal-table-scroll tbody td {
+    padding: 0.65rem 0.6rem !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+
