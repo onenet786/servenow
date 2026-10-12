@@ -320,48 +320,50 @@ textarea:focus,
 }
 
 /* Sales-by-payment report styling */
-#salesByPaymentReportSection .aginv-report-group-row td {
-  background: rgba(102, 126, 234, 0.12);
-  font-weight: 800;
+#salesByPaymentReportSection .aginv-report-group-row td,
+#salesByPaymentSimpleReportSection .aginv-report-group-row td {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
   text-transform: uppercase;
+  font-size: 0.74rem !important;
+  letter-spacing: 0.04em;
+  padding: 0.45rem 0.5rem !important;
 }
 
 #salesByPaymentReportSection .aginv-report-subgroup-row td {
-  background: rgba(102, 126, 234, 0.08);
-  font-weight: 700;
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  font-size: 0.74rem !important;
+  padding: 0.35rem 0.5rem !important;
 }
 
-#salesByPaymentReportSection .aginv-report-subtotal-row td {
-  background: #eef2ff;
-  font-weight: 700;
+#salesByPaymentReportSection .aginv-report-subtotal-row td,
+#salesByPaymentSimpleReportSection .aginv-report-subtotal-row td {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  border-top: 1px solid #cbd5e1 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
 }
 
-#salesByPaymentReportSection .aginv-report-total-row td {
-  background: #f8fafc;
-  font-weight: 800;
-}
-
-#salesByPaymentReportSection .aginv-report-grand-row td {
-  background: #e2e8f0;
-  font-weight: 800;
-  border-top: 2px solid #94a3b8;
-}
-
-#salesByPaymentSimpleReportSection .aginv-report-group-row td {
-  background: rgba(16, 185, 129, 0.16);
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
+#salesByPaymentReportSection .aginv-report-total-row td,
 #salesByPaymentSimpleReportSection .aginv-report-total-row td {
-  background: #ecfdf5;
-  font-weight: 800;
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  border-top: 2px solid #94a3b8 !important;
+  border-bottom: 2px solid #94a3b8 !important;
 }
 
+#salesByPaymentReportSection .aginv-report-grand-row td,
 #salesByPaymentSimpleReportSection .aginv-report-grand-row td {
-  background: #d1fae5;
-  font-weight: 800;
-  border-top: 2px solid #86efac;
+  background: #0f172a !important;
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  border-top: 4px solid #38bdf8 !important;
+  border-bottom: 4px solid #38bdf8 !important;
 }
 
 /* Store Sale-wise report styling */
@@ -378,8 +380,8 @@ textarea:focus,
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   overflow: hidden;
-  table-layout: fixed;
-  min-width: 1280px;
+  table-layout: auto;
+  min-width: 1440px;
   width: 100%;
 }
 
@@ -389,12 +391,12 @@ textarea:focus,
   border-right: 1px solid rgba(255, 255, 255, 0.18);
   border-bottom: 3px solid #334155;
   font-size: 0.72rem;
-  line-height: 1.15;
-  padding: 0.45rem 0.28rem;
+  line-height: 1.2;
+  padding: 0.5rem 0.4rem;
   text-align: center;
-  white-space: normal;
-  word-break: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap !important;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 #storeSalesTable td {
@@ -402,24 +404,25 @@ textarea:focus,
   border-bottom: 1px solid #e2e8f0;
   font-size: 0.76rem;
   line-height: 1.25;
-  padding: 0.42rem 0.3rem;
-  overflow-wrap: anywhere;
+  padding: 0.45rem 0.4rem;
+  overflow-wrap: normal;
   word-break: normal;
-  white-space: normal;
+  white-space: nowrap;
   vertical-align: middle;
 }
 
 #storeSalesTable th:nth-child(1),
 #storeSalesTable td:nth-child(1) {
-  width: 14%;
+  min-width: 160px;
   text-align: left;
+  white-space: normal;
 }
 
 #storeSalesTable th:nth-child(2),
 #storeSalesTable td:nth-child(2),
 #storeSalesTable th:nth-child(13),
 #storeSalesTable td:nth-child(13) {
-  width: 5%;
+  min-width: 70px;
   text-align: center;
 }
 
@@ -435,7 +438,7 @@ textarea:focus,
 #storeSalesTable td:nth-child(7),
 #storeSalesTable th:nth-child(12),
 #storeSalesTable td:nth-child(12) {
-  width: 7%;
+  min-width: 95px;
   text-align: right;
 }
 
@@ -447,8 +450,8 @@ textarea:focus,
 #storeSalesTable td:nth-child(10),
 #storeSalesTable th:nth-child(11),
 #storeSalesTable td:nth-child(11) {
-  width: 8.5%;
-  text-align: center;
+  min-width: 110px;
+  text-align: right;
 }
 
 #storeSalesTable th:last-child,
@@ -1071,26 +1074,153 @@ textarea:focus,
   border-color: #4ade80 !important;
 }
 
-/* Order-Wise Sales Report styling - identical format & styling to Store Sale-wise */
-#orderWiseSalesReportSection .table-container {
+/* ==========================================================================
+   UNIFIED REPORT TABLES FORMATTING (MATCHING ORDER-WISE SALES REPORT)
+   ========================================================================== */
+
+#orderWiseSalesReportSection .table-container,
+#salesReportSection .table-container,
+#manualSalesReportSection .table-container,
+#storeProductSalesReportSection .table-container,
+#combinedProductSalesReportSection .table-container,
+#salesWithDeliveryReportSection .table-container,
+#salesByPaymentReportSection .table-container,
+#salesByPaymentSimpleReportSection .table-container,
+#customerDetailsReportSection .table-container,
+#storeReportSection .table-container,
+#categoryReportSection .table-container,
+#breakdownReportSection .table-container,
+#productDetailReportSection .table-container,
+#rider-reports .table-container,
+#store-reports .table-container,
+#store-payment-term-reports .table-container,
+#creditStoresLedgerView .credit-stores-ledger-container,
+.aginv-report-table-wrap {
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   overflow-x: auto;
   overflow-y: visible;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+  margin-bottom: 1.25rem;
+}
+
+#orderWiseSalesTable,
+#storeSalesTable,
+#manualSalesTable,
+#storeProductSalesTable,
+#combinedProductSalesTable,
+#salesWithDeliveryTable,
+#salesByPaymentTable,
+#salesByPaymentSimpleTable,
+#customerDetailsReportTable,
+#storeInventoryTable,
+#categoryInventoryTable,
+#storeCategoryBreakdownTable,
+#productDetailInventoryTable,
+#riderReportsTable,
+#storeReportsTable,
+#creditStoresLedgerTable,
+#storePaymentTermGroupsTable,
+#orderReportsTable,
+.aginv-report-table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  width: 100% !important;
+  min-width: 900px;
+  background: #ffffff;
+  table-layout: auto !important;
+}
+
+#storeInventoryTable,
+#categoryInventoryTable {
+  min-width: 650px !important;
 }
 
 #orderWiseSalesTable {
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  overflow: hidden;
-  table-layout: fixed;
-  min-width: 1280px;
-  width: 100%;
+  min-width: 1520px !important;
+  width: 100% !important;
 }
 
-#orderWiseSalesTable th {
+#storeSalesTable {
+  min-width: 1440px !important;
+  width: 100% !important;
+}
+
+#manualSalesTable {
+  min-width: 1350px !important;
+  width: 100% !important;
+}
+
+#storeProductSalesTable {
+  min-width: 1100px !important;
+  width: 100% !important;
+}
+
+#combinedProductSalesTable {
+  min-width: 1050px !important;
+  width: 100% !important;
+}
+
+#salesWithDeliveryTable {
+  min-width: 1250px !important;
+  width: 100% !important;
+}
+
+#salesByPaymentTable,
+#salesByPaymentSimpleTable {
+  min-width: 1200px !important;
+  width: 100% !important;
+}
+
+#customerDetailsReportTable {
+  min-width: 1560px !important;
+  width: 100% !important;
+}
+
+#riderReportsTable {
+  min-width: 1150px !important;
+  width: 100% !important;
+}
+
+#storeReportsTable {
+  min-width: 1250px !important;
+  width: 100% !important;
+}
+
+#creditStoresLedgerTable {
+  min-width: 1380px !important;
+  width: 100% !important;
+}
+
+#storePaymentTermGroupsTable {
+  min-width: 1000px !important;
+  width: 100% !important;
+}
+
+#orderWiseSalesTable th,
+#storeSalesTable th,
+#manualSalesTable th,
+#storeProductSalesTable th,
+#combinedProductSalesTable th,
+#salesWithDeliveryTable th,
+#salesByPaymentTable th,
+#salesByPaymentSimpleTable th,
+#customerDetailsReportTable th,
+#storeInventoryTable th,
+#categoryInventoryTable th,
+#storeCategoryBreakdownTable th,
+#productDetailInventoryTable th,
+#riderReportsTable th,
+#storeReportsTable th,
+#creditStoresLedgerTable th,
+#storePaymentTermGroupsTable th,
+#orderReportsTable th,
+.aginv-report-table th,
+.aginv-report-table thead th {
   background: #0f172a !important;
   color: #ffffff !important;
   border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
@@ -1098,109 +1228,276 @@ textarea:focus,
   border-top: none !important;
   border-left: none !important;
   font-size: 0.72rem !important;
-  line-height: 1.15 !important;
-  padding: 0.45rem 0.28rem !important;
+  line-height: 1.25 !important;
+  font-weight: 700 !important;
+  padding: 0.5rem 0.45rem !important;
   text-align: center;
-  white-space: normal;
-  word-break: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
   text-transform: none !important;
   letter-spacing: normal !important;
 }
 
-#orderWiseSalesTable td {
+#orderWiseSalesTable td,
+#storeSalesTable td,
+#manualSalesTable td,
+#storeProductSalesTable td,
+#combinedProductSalesTable td,
+#salesWithDeliveryTable td,
+#salesByPaymentTable td,
+#salesByPaymentSimpleTable td,
+#customerDetailsReportTable td,
+#storeInventoryTable td,
+#categoryInventoryTable td,
+#storeCategoryBreakdownTable td,
+#productDetailInventoryTable td,
+#riderReportsTable td,
+#storeReportsTable td,
+#creditStoresLedgerTable td,
+#storePaymentTermGroupsTable td,
+#orderReportsTable td,
+.aginv-report-table td,
+.aginv-report-table tbody td {
   border-right: 1px solid #e2e8f0 !important;
   border-bottom: 1px solid #e2e8f0 !important;
   border-top: none !important;
   border-left: none !important;
   font-size: 0.76rem !important;
-  line-height: 1.25 !important;
-  padding: 0.42rem 0.3rem !important;
-  overflow-wrap: anywhere;
-  word-break: normal;
-  white-space: normal;
+  line-height: 1.3 !important;
+  padding: 0.45rem 0.45rem !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  white-space: nowrap;
   vertical-align: middle;
 }
 
+#orderWiseSalesTable th:last-child,
+#orderWiseSalesTable td:last-child,
+#storeSalesTable th:last-child,
+#storeSalesTable td:last-child,
+#manualSalesTable th:last-child,
+#manualSalesTable td:last-child,
+#storeProductSalesTable th:last-child,
+#storeProductSalesTable td:last-child,
+#combinedProductSalesTable th:last-child,
+#combinedProductSalesTable td:last-child,
+#salesWithDeliveryTable th:last-child,
+#salesWithDeliveryTable td:last-child,
+#salesByPaymentTable th:last-child,
+#salesByPaymentTable td:last-child,
+#salesByPaymentSimpleTable th:last-child,
+#salesByPaymentSimpleTable td:last-child,
+#customerDetailsReportTable th:last-child,
+#customerDetailsReportTable td:last-child,
+#storeInventoryTable th:last-child,
+#storeInventoryTable td:last-child,
+#categoryInventoryTable th:last-child,
+#categoryInventoryTable td:last-child,
+#storeCategoryBreakdownTable th:last-child,
+#storeCategoryBreakdownTable td:last-child,
+#productDetailInventoryTable th:last-child,
+#productDetailInventoryTable td:last-child,
+#riderReportsTable th:last-child,
+#riderReportsTable td:last-child,
+#storeReportsTable th:last-child,
+#storeReportsTable td:last-child,
+#creditStoresLedgerTable th:last-child,
+#creditStoresLedgerTable td:last-child,
+#storePaymentTermGroupsTable th:last-child,
+#storePaymentTermGroupsTable td:last-child,
+#orderReportsTable th:last-child,
+#orderReportsTable td:last-child,
+.aginv-report-table th:last-child,
+.aginv-report-table td:last-child {
+  border-right: none !important;
+}
+
+#orderWiseSalesTable tbody tr:last-child td,
+#storeSalesTable tbody tr:last-child td,
+#manualSalesTable tbody tr:last-child td,
+#storeProductSalesTable tbody tr:last-child td,
+#combinedProductSalesTable tbody tr:last-child td,
+#salesWithDeliveryTable tbody tr:last-child td,
+#salesByPaymentTable tbody tr:last-child td,
+#salesByPaymentSimpleTable tbody tr:last-child td,
+#customerDetailsReportTable tbody tr:last-child td,
+#storeInventoryTable tbody tr:last-child td,
+#categoryInventoryTable tbody tr:last-child td,
+#storeCategoryBreakdownTable tbody tr:last-child td,
+#productDetailInventoryTable tbody tr:last-child td,
+#riderReportsTable tbody tr:last-child td,
+#storeReportsTable tbody tr:last-child td,
+#creditStoresLedgerTable tbody tr:last-child td,
+#storePaymentTermGroupsTable tbody tr:last-child td,
+#orderReportsTable tbody tr:last-child td,
+.aginv-report-table tbody tr:last-child td {
+  border-bottom: 3px solid #334155 !important;
+}
+
+#orderWiseSalesTable tbody tr:hover td,
+#storeSalesTable tbody tr:hover td,
+#manualSalesTable tbody tr:hover td,
+#storeProductSalesTable tbody tr:hover td,
+#combinedProductSalesTable tbody tr:hover td,
+#salesWithDeliveryTable tbody tr:hover td,
+#salesByPaymentTable tbody tr:hover td,
+#salesByPaymentSimpleTable tbody tr:hover td,
+#customerDetailsReportTable tbody tr:hover td,
+#storeInventoryTable tbody tr:hover td,
+#categoryInventoryTable tbody tr:hover td,
+#storeCategoryBreakdownTable tbody tr:hover td,
+#productDetailInventoryTable tbody tr:hover td,
+#riderReportsTable tbody tr:hover td,
+#storeReportsTable tbody tr:hover td,
+#creditStoresLedgerTable tbody tr:hover td,
+#storePaymentTermGroupsTable tbody tr:hover td,
+#orderReportsTable tbody tr:hover td,
+.aginv-report-table tbody tr:hover td {
+  background-color: #f8fafc !important;
+}
+
+/* Grand Total Footer Row across all reports */
+#orderWiseSalesFooter tr td,
+#storeSalesTable tfoot tr td,
+#manualSalesFooter tr td,
+#storeProductSalesFooter tr td,
+#combinedProductSalesFooter tr td,
+#salesWithDeliveryFooter tr td,
+#salesByPaymentFooter tr td,
+#salesByPaymentSimpleFooter tr td,
+#customerDetailsReportFooter tr td,
+#riderReportsTable tfoot tr td,
+#storeReportsTable tfoot tr td,
+.aginv-report-table tfoot tr td,
+.aginv-report-grand-row td {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  border-top: 4px solid #38bdf8 !important;
+  border-bottom: 4px solid #38bdf8 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+  font-size: 0.76rem !important;
+  padding: 0.45rem 0.32rem !important;
+}
+
+#orderWiseSalesFooter tr td:last-child,
+#storeSalesTable tfoot tr td:last-child,
+#manualSalesFooter tr td:last-child,
+#storeProductSalesFooter tr td:last-child,
+#combinedProductSalesFooter tr td:last-child,
+#salesWithDeliveryFooter tr td:last-child,
+#salesByPaymentFooter tr td:last-child,
+#salesByPaymentSimpleFooter tr td:last-child,
+#customerDetailsReportFooter tr td:last-child,
+#riderReportsTable tfoot tr td:last-child,
+#storeReportsTable tfoot tr td:last-child,
+.aginv-report-table tfoot tr td:last-child,
+.aginv-report-grand-row td:last-child {
+  border-right: none !important;
+}
+
+/* Specific column widths for Order-Wise Sales Report */
 #orderWiseSalesTable th:nth-child(1),
 #orderWiseSalesTable td:nth-child(1) {
-  width: 3%;
+  width: 38px;
+  min-width: 38px;
+  max-width: 44px;
   text-align: center;
+  padding: 0.45rem 0.2rem !important;
 }
 
 #orderWiseSalesTable th:nth-child(2),
 #orderWiseSalesTable td:nth-child(2) {
-  width: 7%;
+  min-width: 150px;
   text-align: center;
+  white-space: nowrap !important;
 }
 
 #orderWiseSalesTable th:nth-child(3),
 #orderWiseSalesTable td:nth-child(3) {
-  width: 9%;
+  min-width: 160px;
   text-align: center;
+  white-space: nowrap !important;
 }
 
 #orderWiseSalesTable th:nth-child(4),
 #orderWiseSalesTable td:nth-child(4) {
-  width: 14%;
+  min-width: 170px;
+  max-width: 260px;
   text-align: left;
+  white-space: normal !important;
 }
 
 #orderWiseSalesTable th:nth-child(5),
 #orderWiseSalesTable td:nth-child(5) {
-  width: 10%;
+  min-width: 150px;
+  max-width: 240px;
   text-align: left;
+  white-space: normal !important;
 }
 
 #orderWiseSalesTable th:nth-child(6),
-#orderWiseSalesTable td:nth-child(6),
+#orderWiseSalesTable td:nth-child(6) {
+  min-width: 140px;
+  text-align: center;
+  white-space: nowrap !important;
+}
+
 #orderWiseSalesTable th:nth-child(7),
 #orderWiseSalesTable td:nth-child(7) {
-  width: 7%;
+  min-width: 140px;
   text-align: center;
+  white-space: nowrap !important;
 }
 
 #orderWiseSalesTable th:nth-child(8),
 #orderWiseSalesTable td:nth-child(8) {
-  width: 5%;
+  min-width: 65px;
   text-align: right;
+  white-space: nowrap !important;
 }
 
 #orderWiseSalesTable th:nth-child(9),
-#orderWiseSalesTable td:nth-child(9),
-#orderWiseSalesTable th:nth-child(11),
-#orderWiseSalesTable td:nth-child(11),
-#orderWiseSalesTable th:nth-child(13),
-#orderWiseSalesTable td:nth-child(13) {
-  width: 8%;
+#orderWiseSalesTable td:nth-child(9) {
+  min-width: 115px;
   text-align: right;
+  white-space: nowrap !important;
 }
 
 #orderWiseSalesTable th:nth-child(10),
-#orderWiseSalesTable td:nth-child(10),
-#orderWiseSalesTable th:nth-child(14),
-#orderWiseSalesTable td:nth-child(14) {
-  width: 6%;
+#orderWiseSalesTable td:nth-child(10) {
+  min-width: 120px;
   text-align: right;
+  white-space: nowrap !important;
+}
+
+#orderWiseSalesTable th:nth-child(11),
+#orderWiseSalesTable td:nth-child(11) {
+  min-width: 115px;
+  text-align: right;
+  white-space: nowrap !important;
 }
 
 #orderWiseSalesTable th:nth-child(12),
 #orderWiseSalesTable td:nth-child(12) {
-  width: 7%;
+  min-width: 115px;
   text-align: right;
+  white-space: nowrap !important;
 }
 
-#orderWiseSalesTable th:last-child,
-#orderWiseSalesTable td:last-child {
-  border-right: none !important;
+#orderWiseSalesTable th:nth-child(13),
+#orderWiseSalesTable td:nth-child(13) {
+  min-width: 110px;
+  text-align: right;
+  white-space: nowrap !important;
 }
 
-#orderWiseSalesTable tbody tr:last-child td {
-  border-bottom: 3px solid #334155;
-}
-
-#orderWiseSalesTable tbody tr.store-sales-summary-row:hover td {
-  filter: brightness(0.98);
+#orderWiseSalesTable th:nth-child(14),
+#orderWiseSalesTable td:nth-child(14) {
+  min-width: 85px;
+  text-align: right;
+  white-space: nowrap !important;
 }
 
 #orderWiseSalesReportSection .store-sales-detail-row > td {
@@ -1251,17 +1548,6 @@ textarea:focus,
   white-space: normal;
   overflow-wrap: break-word;
   word-break: normal;
-}
-
-#orderWiseSalesFooter tr td,
-#orderWiseSalesReportSection .aginv-report-grand-row td {
-  background: #0f172a !important;
-  color: #ffffff !important;
-  font-weight: 900 !important;
-  border-top: 4px solid #38bdf8 !important;
-  border-bottom: 4px solid #38bdf8 !important;
-  font-size: 0.76rem !important;
-  padding: 0.45rem 0.3rem !important;
 }
 
 /* Report Section Card */
@@ -1569,4 +1855,411 @@ textarea:focus,
   background: #f5f3ff;
   color: #6d28d9;
   border: 1px solid #ddd6fe;
+}
+
+/* ==========================================================================
+   SALE REPORTS: SUB-REPORTS NAVIGATION & TOP-RIGHT BRIEF SUMMARY WIDGET
+   ========================================================================== */
+.dropdown-submenu {
+  position: relative;
+}
+
+.dropdown-submenu .submenu-arrow {
+  margin-left: auto;
+  font-size: 0.68rem;
+  opacity: 0.65;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.dropdown-submenu:hover .submenu-arrow {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.dropdown-submenu .dropdown-sub-menu {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  background: var(--sidebar-submenu-bg, #0f172a);
+  min-width: 250px;
+  border-radius: 10px;
+  border: 1px solid var(--sidebar-border, rgba(255, 255, 255, 0.12));
+  padding: 0.5rem;
+  margin-left: 0.4rem;
+  z-index: 120;
+  box-shadow: 6px 6px 26px rgba(0, 0, 0, 0.45);
+  list-style: none;
+}
+
+.dropdown-submenu:hover .dropdown-sub-menu,
+.dropdown-submenu.open .dropdown-sub-menu {
+  display: block;
+  animation: slideInRight 0.18s ease;
+}
+
+.dropdown-sub-menu li {
+  margin: 2px 0;
+}
+
+.dropdown-sub-menu li a {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 0.48rem 0.85rem !important;
+  font-size: 0.82rem !important;
+  color: var(--sidebar-link, rgba(255, 255, 255, 0.8)) !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+  text-decoration: none !important;
+}
+
+.dropdown-sub-menu li a i {
+  width: 15px;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.dropdown-sub-menu li a:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  transform: translateX(2px) !important;
+}
+
+.dropdown-sub-menu li a.active {
+  background: #4f46e5 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.35);
+}
+
+.dropdown-sub-menu li a.active i {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .dropdown-submenu .dropdown-sub-menu {
+    position: static;
+    left: auto;
+    top: auto;
+    box-shadow: none;
+    border: none;
+    padding-left: 1.25rem;
+    margin-left: 0;
+    background: transparent;
+  }
+}
+
+/* Sale Reports Header Layout */
+.sale-reports-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+  padding: 1.15rem 1.4rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -4px rgba(15, 23, 42, 0.06);
+}
+
+.sale-reports-header-main {
+  flex: 1 1 480px;
+  min-width: 290px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.sale-reports-title-area {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sale-reports-title-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.28);
+  flex-shrink: 0;
+}
+
+.sale-reports-breadcrumbs {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+.sale-reports-heading {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.sale-reports-subheading {
+  font-size: 0.84rem;
+  color: #64748b;
+  margin: 3px 0 0 0;
+  font-weight: 500;
+}
+
+/* Sub-reports pills bar */
+.sale-subreports-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sale-subreports-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sale-subreports-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 5px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.sale-subreport-pill {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  font-size: 0.81rem;
+  font-weight: 600;
+  padding: 0.42rem 0.85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sale-subreport-pill i {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.sale-subreport-pill:hover {
+  background: #ffffff;
+  color: #1e293b;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.sale-subreport-pill.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #4338ca;
+  box-shadow: 0 4px 10px rgba(79, 70, 229, 0.32);
+}
+
+.sale-subreport-pill.active i {
+  opacity: 1;
+}
+
+/* Right Top Side: Brief Summary Card */
+.sale-reports-top-summary-box {
+  flex: 1 1 540px;
+  min-width: 320px;
+  max-width: 650px;
+  align-self: flex-start;
+  display: flex;
+  container-type: inline-size;
+  container-name: top-summary;
+}
+
+.top-summary-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 0.75rem 0.95rem 0.85rem;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.top-summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3.5px;
+  background: linear-gradient(90deg, #4f46e5, #06b6d4, #10b981);
+}
+
+.top-summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.top-summary-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.top-summary-title i {
+  color: #4f46e5;
+  font-size: 0.85rem;
+}
+
+.top-summary-period-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 2.5px 9px;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  letter-spacing: 0.01em;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-summary-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.top-summary-metric {
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  padding: 0.45rem 0.5rem;
+  transition: all 0.15s ease;
+  min-width: 0;
+}
+
+.top-summary-metric:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.top-summary-metric .metric-label {
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-summary-metric .metric-label i {
+  font-size: 0.7rem;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.top-summary-metric .metric-val {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.top-summary-metric .metric-val.text-primary {
+  color: #4f46e5 !important;
+}
+
+.top-summary-metric .metric-val.text-success {
+  color: #10b981 !important;
+}
+
+.top-summary-metric .metric-sub {
+  font-size: 0.67rem;
+  color: #94a3b8;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+@container top-summary (max-width: 440px) {
+  .top-summary-metrics-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+  }
+}
+
+@media (max-width: 992px) {
+  .sale-reports-header-bar {
+    flex-direction: column;
+  }
+  .sale-reports-top-summary-box {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 580px) {
+  .top-summary-metrics-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

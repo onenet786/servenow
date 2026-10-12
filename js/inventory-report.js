@@ -18,22 +18,22 @@ let expandedOrderIds = new Set();
 
 const inventoryReportOptions = {
     inventory: [
-        { value: "order-wise-sales", label: "Order-Wise Sales Report (Daily / Weekly / Monthly / Custom)" },
-        { value: "store", label: "Store-wise Inventory" },
-        { value: "category", label: "Category-wise Inventory" },
-        { value: "breakdown", label: "Store-wise Category Breakdown" },
-        { value: "product-detail", label: "Product Cost/Sale Detail" },
+        { value: "order-wise-sales", label: "Order-Wise Sales Report (Daily / Weekly / Monthly / Custom)", shortLabel: "Order-Wise Sales", icon: "fa-calendar-check" },
+        { value: "store", label: "Store-wise Inventory", shortLabel: "Store Inventory", icon: "fa-warehouse" },
+        { value: "category", label: "Category-wise Inventory", shortLabel: "Category Inventory", icon: "fa-tags" },
+        { value: "breakdown", label: "Store-wise Category Breakdown", shortLabel: "Category Breakdown", icon: "fa-layer-group" },
+        { value: "product-detail", label: "Product Cost/Sale Detail", shortLabel: "Product Detail", icon: "fa-file-invoice" },
     ],
     sales: [
-        { value: "order-wise-sales", label: "Order-Wise Sales Report (Daily / Weekly / Monthly / Custom)" },
-        { value: "sales", label: "Store Sale-wise" },
-        { value: "manual-sales", label: "Manual Order Product Sales" },
-        { value: "store-product-sales", label: "Store Product Sales" },
-        { value: "combined-product-sales", label: "Combined Product Sales" },
-        { value: "sales-with-delivery", label: "Sales With Delivery Charges" },
-        { value: "sales-by-payment", label: "Cash/Credit Sales With Delivery" },
-        { value: "sales-by-payment-simple", label: "Cash/Credit Sales With Delivery (By Type)" },
-        { value: "customer-details", label: "Customer Details by Store/Product" },
+        { value: "order-wise-sales", label: "Order-Wise Sales Report (Daily / Weekly / Monthly / Custom)", shortLabel: "Order-Wise Sales", icon: "fa-calendar-check" },
+        { value: "sales", label: "Store Sale-wise", shortLabel: "Store Sale-wise", icon: "fa-store" },
+        { value: "manual-sales", label: "Manual Order Product Sales", shortLabel: "Manual Order Sales", icon: "fa-edit" },
+        { value: "store-product-sales", label: "Store Product Sales", shortLabel: "Store Product Sales", icon: "fa-box-open" },
+        { value: "combined-product-sales", label: "Combined Product Sales", shortLabel: "Combined Product Sales", icon: "fa-boxes" },
+        { value: "sales-with-delivery", label: "Sales With Delivery Charges", shortLabel: "Sales with Delivery", icon: "fa-truck" },
+        { value: "sales-by-payment", label: "Cash/Credit Sales With Delivery", shortLabel: "Cash/Credit Sales", icon: "fa-money-bill-wave" },
+        { value: "sales-by-payment-simple", label: "Cash/Credit Sales With Delivery (By Type)", shortLabel: "Cash/Credit (By Type)", icon: "fa-wallet" },
+        { value: "customer-details", label: "Customer Details by Store/Product", shortLabel: "Customer Details", icon: "fa-users" },
     ],
 };
 
@@ -42,6 +42,17 @@ function inventoryMoney(value) {
     if (!Number.isFinite(n)) return "PKR 0.00";
     return `PKR ${n.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+function inventoryBriefMoney(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "PKR 0";
+    const abs = Math.abs(n);
+    if (abs >= 10000000) {
+        return `PKR ${(n / 1000000).toFixed(2)}M`;
+    }
+    return `PKR ${Math.round(n).toLocaleString("en-PK")}`;
+}
+window.inventoryBriefMoney = inventoryBriefMoney;
 
 function inventoryNumber(value) {
     const n = Number(value);
@@ -106,13 +117,62 @@ function getInventoryReportOptionsForScope(scope) {
         : inventoryReportOptions.inventory;
 }
 
+function syncSubreportNavStates(activeValue) {
+    document.querySelectorAll(".sale-subreport-pill").forEach((pill) => {
+        if (pill.getAttribute("data-subreport") === activeValue) {
+            pill.classList.add("active");
+        } else {
+            pill.classList.remove("active");
+        }
+    });
+
+    document.querySelectorAll(".sale-subreport-link").forEach((link) => {
+        if (link.getAttribute("data-subreport") === activeValue) {
+            link.classList.add("active");
+        } else {
+            link.classList.remove("active");
+        }
+    });
+}
+
+function renderSubreportPills(activeValue) {
+    const bar = document.getElementById("saleSubreportsBar");
+    if (!bar) return;
+
+    const options = getInventoryReportOptionsForScope(currentInventoryReportScope);
+    bar.innerHTML = options
+        .map((opt) => {
+            const isActive = opt.value === activeValue;
+            return `
+                <button type="button" 
+                        class="sale-subreport-pill ${isActive ? "active" : ""}" 
+                        data-subreport="${opt.value}"
+                        onclick="switchInventoryReport('${opt.value}')">
+                    <i class="fas ${opt.icon || "fa-file-alt"}"></i>
+                    <span>${opt.shortLabel || opt.label}</span>
+                </button>
+            `;
+        })
+        .join("");
+
+    syncSubreportNavStates(activeValue);
+}
+
 function applyInventoryReportScope() {
     const reportSelect = document.getElementById("inventoryReportSelect");
     if (!reportSelect) return;
 
     const heading = document.getElementById("inventoryReportHeading");
-    if (heading) {
-        heading.textContent = currentInventoryReportScope === "sales" ? "Order-Wise Sales Report" : "Inventory & Sales Reports";
+    const subheading = document.getElementById("inventoryReportSubheading");
+    const scopeBreadcrumb = document.getElementById("inventoryReportScopeBreadcrumb");
+    const iconEl = document.getElementById("inventoryReportHeaderIcon");
+
+    const isSales = currentInventoryReportScope === "sales";
+    if (scopeBreadcrumb) {
+        scopeBreadcrumb.textContent = isSales ? "Sale Reports" : "Inventory Reports";
+    }
+    if (iconEl) {
+        iconEl.innerHTML = isSales ? '<i class="fas fa-coins"></i>' : '<i class="fas fa-boxes"></i>';
     }
 
     const options = getInventoryReportOptionsForScope(currentInventoryReportScope);
@@ -122,12 +182,25 @@ function applyInventoryReportScope() {
         .join("");
 
     const hasCurrent = options.some((option) => option.value === currentValue);
-    reportSelect.value = hasCurrent ? currentValue : "order-wise-sales";
+    const activeValue = hasCurrent ? currentValue : "order-wise-sales";
+    reportSelect.value = activeValue;
+
+    renderSubreportPills(activeValue);
+
+    const activeOption = options.find((opt) => opt.value === activeValue);
+    if (heading && activeOption) {
+        heading.textContent = isSales ? (activeOption.shortLabel || activeOption.label) : "Inventory & Sales Reports";
+    }
+    if (subheading && activeOption) {
+        subheading.textContent = activeOption.label;
+    }
 
     const summaryCards = document.getElementById("inventorySummaryCards");
     if (summaryCards) {
-        summaryCards.style.display = (reportSelect.value === "order-wise-sales" || currentInventoryReportScope === "sales") ? "none" : "";
+        summaryCards.style.display = "none";
     }
+
+    updateBriefReportSummary(activeValue);
 }
 
 function setInventoryReportScope(scope) {
@@ -136,6 +209,304 @@ function setInventoryReportScope(scope) {
 }
 
 window.setInventoryReportScope = setInventoryReportScope;
+
+function switchSaleSubReport(subReportKey, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    if (typeof switchTab === "function") {
+        switchTab("sale-reports");
+    }
+    setInventoryReportScope("sales");
+    const reportSelect = document.getElementById("inventoryReportSelect");
+    if (reportSelect) {
+        reportSelect.value = subReportKey;
+    }
+    switchInventoryReport(subReportKey);
+}
+window.switchSaleSubReport = switchSaleSubReport;
+
+function updateBriefReportSummary(reportType, incomingData) {
+    const activeType = reportType || (document.getElementById("inventoryReportSelect") || {}).value || "order-wise-sales";
+
+    const periodBadge = document.getElementById("srSummaryPeriodBadge");
+    if (periodBadge) {
+        const startEl = document.getElementById("inventoryStartDate");
+        const endEl = document.getElementById("inventoryEndDate");
+        const s = startEl?.value || "";
+        const e = endEl?.value || "";
+        const labels = {
+            today: "Daily (Today)",
+            yesterday: "Yesterday",
+            "this-week": "Weekly (This Week)",
+            "last-7-days": "Last 7 Days",
+            "this-month": "Monthly (This Month)",
+            "last-30-days": "Last 30 Days",
+            custom: `Custom (${s || "-"} → ${e || "-"})`,
+        };
+        periodBadge.textContent = labels[currentOrderWisePeriod] || `Custom (${s} → ${e})`;
+    }
+
+    const setM = (num, label, val, sub, colorClass = "", fullVal = null) => {
+        const lEl = document.getElementById(`srMetric${num}Label`);
+        const vEl = document.getElementById(`srMetric${num}Value`);
+        const sEl = document.getElementById(`srMetric${num}Sub`);
+        if (lEl) lEl.innerHTML = label;
+        if (vEl) {
+            vEl.innerHTML = val;
+            vEl.className = `metric-val ${colorClass}`.trim();
+            const rawVal = fullVal != null ? String(fullVal) : (typeof val === "string" ? val.replace(/<[^>]*>/g, "") : String(val));
+            vEl.setAttribute("title", rawVal);
+        }
+        if (sEl) {
+            sEl.innerHTML = sub;
+            const rawSub = typeof sub === "string" ? sub.replace(/<[^>]*>/g, "") : String(sub);
+            sEl.setAttribute("title", rawSub);
+        }
+    };
+
+    if (currentInventoryReportScope === "inventory" && activeType !== "order-wise-sales") {
+        const summary = (incomingData?.summary || currentInventoryData?.summary) || {};
+        const stores = summary.total_stores ?? "-";
+        const activeStores = summary.active_stores ?? "-";
+        const products = summary.total_products ?? "-";
+        const categories = summary.total_categories ?? "-";
+        const stock = summary.total_stock != null ? inventoryNumber(summary.total_stock) : "-";
+        const val = summary.total_inventory_value != null ? inventoryBriefMoney(summary.total_inventory_value) : "-";
+        const fullVal = summary.total_inventory_value != null ? inventoryMoney(summary.total_inventory_value) : "-";
+
+        setM(1, '<i class="fas fa-warehouse"></i> Stores', inventoryNumber(stores), `Active: ${activeStores}`);
+        setM(2, '<i class="fas fa-boxes"></i> Catalog', inventoryNumber(products), `${categories} categories`);
+        setM(3, '<i class="fas fa-cubes"></i> Total Stock', stock, "Stock units", "text-primary");
+        setM(4, '<i class="fas fa-vault"></i> Inv. Value', val, "Total valuation", "text-success", fullVal);
+        return;
+    }
+
+    switch (activeType) {
+        case "order-wise-sales": {
+            const data = incomingData || currentOrderWiseSalesData;
+            const summary = data?.summary || {};
+            const orders = summary.total_orders != null ? inventoryNumber(summary.total_orders) : "-";
+            const items = summary.total_items_sold != null ? `${inventoryNumber(summary.total_items_sold)} items sold` : "-";
+            const salesNum = summary.grand_total_revenue != null ? summary.grand_total_revenue : summary.total_product_sales;
+            const sales = salesNum != null ? inventoryBriefMoney(salesNum) : "-";
+            const salesFull = salesNum != null ? inventoryMoney(salesNum) : "-";
+            const profitNum = summary.total_profit;
+            const profit = profitNum != null ? inventoryBriefMoney(profitNum) : "-";
+            const profitFull = profitNum != null ? inventoryMoney(profitNum) : "-";
+            const margin = summary.profit_margin != null ? `${Number(summary.profit_margin || 0).toFixed(1)}%` : "-";
+            const deliveryNum = summary.total_delivery_fees;
+            const delivery = deliveryNum != null ? inventoryBriefMoney(deliveryNum) : "-";
+            const deliveryFull = deliveryNum != null ? inventoryMoney(deliveryNum) : "-";
+            const avg = summary.avg_order_value != null ? `Avg: ${inventoryBriefMoney(summary.avg_order_value)}` : "-";
+
+            setM(1, '<i class="fas fa-shopping-bag"></i> Orders', orders, items);
+            setM(2, '<i class="fas fa-coins"></i> Total Sales', sales, avg, "text-primary", salesFull);
+            setM(3, '<i class="fas fa-chart-line"></i> Net Profit', profit, `Margin: ${margin}`, "text-success", profitFull);
+            setM(4, '<i class="fas fa-truck"></i> Delivery Fees', delivery, "Delivery fee", "", deliveryFull);
+            break;
+        }
+
+        case "sales": {
+            const rows = (incomingData?.store_sales) || currentStoreSalesRows || [];
+            let totalOrders = 0;
+            let totalSales = 0;
+            let totalProfit = 0;
+            let totalDelivery = 0;
+            rows.forEach((s) => {
+                totalOrders += Number(s.total_orders || 0) || 0;
+                totalSales += Number(s.total_sales || 0) || 0;
+                totalProfit += Number(s.total_profit || 0) || 0;
+                totalDelivery += Number(s.delivery_fee || s.total_delivery_charges || 0) || 0;
+            });
+            const margin = totalSales > 0 ? `${((totalProfit / totalSales) * 100).toFixed(1)}%` : "0.0%";
+
+            setM(1, '<i class="fas fa-store"></i> Stores', inventoryNumber(rows.length), `${inventoryNumber(totalOrders)} orders`);
+            setM(2, '<i class="fas fa-coins"></i> Total Sales', inventoryBriefMoney(totalSales), "Gross sales", "text-primary", inventoryMoney(totalSales));
+            setM(3, '<i class="fas fa-chart-line"></i> Profit', inventoryBriefMoney(totalProfit), `Margin: ${margin}`, "text-success", inventoryMoney(totalProfit));
+            setM(4, '<i class="fas fa-truck"></i> Delivery', inventoryBriefMoney(totalDelivery), "Delivery fee", "", inventoryMoney(totalDelivery));
+            break;
+        }
+
+        case "manual-sales": {
+            const rows = (incomingData?.manual_product_sales) || currentManualSalesRows || [];
+            const seenOrders = new Set();
+            let netSales = 0;
+            let profit = 0;
+            let delivery = 0;
+            let totalQty = 0;
+            rows.forEach((item) => {
+                netSales += Number(item.net_sales || 0) || 0;
+                profit += Number(item.estimated_profit || 0) || 0;
+                totalQty += Number(item.total_quantity || 0) || 0;
+                const orderKey = String(item.order_id || item.order_number || "");
+                if (orderKey && !seenOrders.has(orderKey)) {
+                    seenOrders.add(orderKey);
+                    delivery += resolveManualDeliveryFee(item);
+                }
+            });
+            const margin = netSales > 0 ? `${((profit / netSales) * 100).toFixed(1)}%` : "0.0%";
+
+            setM(1, '<i class="fas fa-edit"></i> Orders', inventoryNumber(seenOrders.size), `${inventoryNumber(rows.length)} items sold`);
+            setM(2, '<i class="fas fa-coins"></i> Net Sales', inventoryBriefMoney(netSales), `${inventoryNumber(totalQty)} units`, "text-primary", inventoryMoney(netSales));
+            setM(3, '<i class="fas fa-chart-line"></i> Profit', inventoryBriefMoney(profit), `Margin: ${margin}`, "text-success", inventoryMoney(profit));
+            setM(4, '<i class="fas fa-truck"></i> Delivery', inventoryBriefMoney(delivery), "Delivery fee", "", inventoryMoney(delivery));
+            break;
+        }
+
+        case "store-product-sales": {
+            const rows = (incomingData?.store_product_sales) || currentStoreProductSalesRows || [];
+            const seenOrders = new Set();
+            let netSales = 0;
+            let profit = 0;
+            let delivery = 0;
+            let totalQty = 0;
+            rows.forEach((item) => {
+                netSales += Number(item.net_sales || 0) || 0;
+                profit += Number(item.estimated_profit || 0) || 0;
+                totalQty += Number(item.total_quantity || 0) || 0;
+                const orderKey = String(item.order_id || item.order_number || "");
+                if (orderKey && !seenOrders.has(orderKey)) {
+                    seenOrders.add(orderKey);
+                    delivery += Number(item.delivery_fee || 0) || 0;
+                }
+            });
+            const margin = netSales > 0 ? `${((profit / netSales) * 100).toFixed(1)}%` : "0.0%";
+
+            setM(1, '<i class="fas fa-box-open"></i> Orders', inventoryNumber(seenOrders.size), `${inventoryNumber(rows.length)} items sold`);
+            setM(2, '<i class="fas fa-coins"></i> Net Sales', inventoryBriefMoney(netSales), `${inventoryNumber(totalQty)} units`, "text-primary", inventoryMoney(netSales));
+            setM(3, '<i class="fas fa-chart-line"></i> Profit', inventoryBriefMoney(profit), `Margin: ${margin}`, "text-success", inventoryMoney(profit));
+            setM(4, '<i class="fas fa-truck"></i> Delivery', inventoryBriefMoney(delivery), "Delivery fee", "", inventoryMoney(delivery));
+            break;
+        }
+
+        case "combined-product-sales": {
+            const rows = (incomingData?.combined_product_sales) || currentCombinedProductSalesRows || [];
+            const seenOrders = new Set();
+            let netSales = 0;
+            let profit = 0;
+            let delivery = 0;
+            let totalQty = 0;
+            rows.forEach((item) => {
+                netSales += Number(item.net_sales || 0) || 0;
+                profit += Number(item.estimated_profit || 0) || 0;
+                totalQty += Number(item.total_quantity || 0) || 0;
+                const orderKey = String(item.order_id || item.order_number || "");
+                if (orderKey && !seenOrders.has(orderKey)) {
+                    seenOrders.add(orderKey);
+                    delivery += Number(item.delivery_fee || 0) || 0;
+                }
+            });
+            const margin = netSales > 0 ? `${((profit / netSales) * 100).toFixed(1)}%` : "0.0%";
+
+            setM(1, '<i class="fas fa-boxes"></i> Orders', inventoryNumber(seenOrders.size), `${inventoryNumber(rows.length)} items sold`);
+            setM(2, '<i class="fas fa-coins"></i> Net Sales', inventoryBriefMoney(netSales), `${inventoryNumber(totalQty)} units`, "text-primary", inventoryMoney(netSales));
+            setM(3, '<i class="fas fa-chart-line"></i> Profit', inventoryBriefMoney(profit), `Margin: ${margin}`, "text-success", inventoryMoney(profit));
+            setM(4, '<i class="fas fa-truck"></i> Delivery', inventoryBriefMoney(delivery), "Delivery fee", "", inventoryMoney(delivery));
+            break;
+        }
+
+        case "sales-with-delivery": {
+            const rows = (incomingData?.sales_with_delivery) || currentSalesWithDeliveryRows || [];
+            let netSales = 0;
+            let profit = 0;
+            let delivery = 0;
+            let totalWithDelivery = 0;
+            let totalQty = 0;
+            rows.forEach((item) => {
+                netSales += Number(item.net_sales || 0) || 0;
+                profit += Number(item.estimated_profit || 0) || 0;
+                delivery += Number(item.delivery_charges || 0) || 0;
+                totalWithDelivery += Number(item.total_with_delivery || 0) || 0;
+                totalQty += Number(item.total_quantity || 0) || 0;
+            });
+            const margin = netSales > 0 ? `${((profit / netSales) * 100).toFixed(1)}%` : "0.0%";
+
+            setM(1, '<i class="fas fa-truck-loading"></i> Orders', inventoryNumber(rows.length), `${inventoryNumber(totalQty)} items`);
+            setM(2, '<i class="fas fa-coins"></i> Net Sales', inventoryBriefMoney(netSales), "Product sales", "text-primary", inventoryMoney(netSales));
+            setM(3, '<i class="fas fa-chart-line"></i> Profit', inventoryBriefMoney(profit), `Margin: ${margin}`, "text-success", inventoryMoney(profit));
+            setM(4, '<i class="fas fa-truck"></i> Total w/ Del', inventoryBriefMoney(totalWithDelivery), `Fee: ${inventoryBriefMoney(delivery)}`, "", inventoryMoney(totalWithDelivery));
+            break;
+        }
+
+        case "sales-by-payment":
+        case "sales-by-payment-simple": {
+            const rows = (incomingData?.sales_by_payment) || currentSalesByPaymentRows || [];
+            let netSales = 0;
+            let profit = 0;
+            let delivery = 0;
+            let totalWithDelivery = 0;
+            rows.forEach((item) => {
+                netSales += Number(item.sale_price || item.net_sales || 0) || 0;
+                profit += Number(item.profit || item.estimated_profit || 0) || 0;
+                delivery += Number(item.delivery_fee || item.delivery_charges || 0) || 0;
+                totalWithDelivery += Number(item.total_with_delivery || item.order_total || 0) || 0;
+            });
+            const margin = netSales > 0 ? `${((profit / netSales) * 100).toFixed(1)}%` : "0.0%";
+
+            setM(1, '<i class="fas fa-money-bill-wave"></i> Orders', inventoryNumber(rows.length), "Cash & Credit");
+            setM(2, '<i class="fas fa-coins"></i> Net Sales', inventoryBriefMoney(netSales), "Sales value", "text-primary", inventoryMoney(netSales));
+            setM(3, '<i class="fas fa-chart-line"></i> Profit', inventoryBriefMoney(profit), `Margin: ${margin}`, "text-success", inventoryMoney(profit));
+            setM(4, '<i class="fas fa-truck"></i> Total w/ Del', inventoryBriefMoney(totalWithDelivery), `Fee: ${inventoryBriefMoney(delivery)}`, "", inventoryMoney(totalWithDelivery));
+            break;
+        }
+
+        case "customer-details": {
+            const reportView = incomingData?.report_view || getSelectedCustomerDetailsReportMode();
+            if (reportView === "customer-summary") {
+                const rows = (incomingData?.customer_summary) || currentCustomerSummaryRows || [];
+                let totalOrders = 0;
+                let totalAmount = 0;
+                let totalDelivery = 0;
+                rows.forEach((c) => {
+                    totalOrders += Number(c.total_orders || 0) || 0;
+                    totalAmount += Number(c.total_order_amount || 0) || 0;
+                    totalDelivery += Number(c.delivery_fee || 0) || 0;
+                });
+                setM(1, '<i class="fas fa-users"></i> Customers', inventoryNumber(rows.length), "Active in period");
+                setM(2, '<i class="fas fa-shopping-cart"></i> Orders', inventoryNumber(totalOrders), "Total customer orders", "text-primary");
+                setM(3, '<i class="fas fa-coins"></i> Total Amount', inventoryBriefMoney(totalAmount), "Period turnover", "text-success", inventoryMoney(totalAmount));
+                setM(4, '<i class="fas fa-truck"></i> Delivery Fee', inventoryBriefMoney(totalDelivery), "Customer delivery", "", inventoryMoney(totalDelivery));
+            } else if (reportView === "order-summary") {
+                const rows = (incomingData?.customer_order_summary) || currentCustomerOrderSummaryRows || [];
+                const seenCustomers = new Set();
+                let totalAmount = 0;
+                let totalDelivery = 0;
+                rows.forEach((o) => {
+                    if (o.customer_name || o.customer_id) seenCustomers.add(o.customer_name || o.customer_id);
+                    totalAmount += Number(o.order_total || 0) || 0;
+                    totalDelivery += Number(o.delivery_fee || 0) || 0;
+                });
+                setM(1, '<i class="fas fa-users"></i> Customers', inventoryNumber(seenCustomers.size), "Unique customers");
+                setM(2, '<i class="fas fa-shopping-bag"></i> Orders', inventoryNumber(rows.length), "Orders in period", "text-primary");
+                setM(3, '<i class="fas fa-coins"></i> Total Orders', inventoryBriefMoney(totalAmount), "Gross revenue", "text-success", inventoryMoney(totalAmount));
+                setM(4, '<i class="fas fa-truck"></i> Delivery Fee', inventoryBriefMoney(totalDelivery), "Delivery fees", "", inventoryMoney(totalDelivery));
+            } else {
+                const rows = (incomingData?.customer_details) || currentCustomerDetailsRows || [];
+                const seenCustomers = new Set();
+                const seenOrders = new Set();
+                let totalAmount = 0;
+                let totalQty = 0;
+                rows.forEach((item) => {
+                    if (item.customer_name || item.customer_id) seenCustomers.add(item.customer_name || item.customer_id);
+                    if (item.order_id || item.order_number) seenOrders.add(item.order_id || item.order_number);
+                    totalAmount += Number(item.line_total || 0) || 0;
+                    totalQty += Number(item.total_quantity || 0) || 0;
+                });
+                setM(1, '<i class="fas fa-users"></i> Customers', inventoryNumber(seenCustomers.size), `${inventoryNumber(seenOrders.size)} orders`);
+                setM(2, '<i class="fas fa-coins"></i> Purchases', inventoryBriefMoney(totalAmount), "Line items sum", "text-primary", inventoryMoney(totalAmount));
+                setM(3, '<i class="fas fa-cubes"></i> Total Units', inventoryNumber(totalQty), "Products purchased", "text-success");
+                setM(4, '<i class="fas fa-list"></i> Rows', inventoryNumber(rows.length), "Product detail rows");
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+window.updateBriefReportSummary = updateBriefReportSummary;
 
 function inventoryMonetaryType(value) {
     const t = String(value || "").trim().toLowerCase();
@@ -576,22 +947,34 @@ async function ensureInventoryStoresLoaded() {
 function displayInventoryReport(data) {
     const summary = data.summary || {};
 
-    document.getElementById("inventoryTotalStoresCount").textContent = inventoryNumber(summary.total_stores || 0);
-    document.getElementById("inventoryTotalCategoriesCount").textContent = inventoryNumber(summary.total_categories || 0);
-    document.getElementById("inventoryTotalProductsCount").textContent = inventoryNumber(summary.total_products || 0);
-    document.getElementById("inventoryTotalStockCount").textContent = inventoryNumber(summary.total_stock || 0);
-    document.getElementById("inventoryTotalValue").textContent = inventoryMoney(summary.total_inventory_value || 0);
+    const totalStoresEl = document.getElementById("inventoryTotalStoresCount");
+    if (totalStoresEl) totalStoresEl.textContent = inventoryNumber(summary.total_stores || 0);
+    const totalCatEl = document.getElementById("inventoryTotalCategoriesCount");
+    if (totalCatEl) totalCatEl.textContent = inventoryNumber(summary.total_categories || 0);
+    const totalProdEl = document.getElementById("inventoryTotalProductsCount");
+    if (totalProdEl) totalProdEl.textContent = inventoryNumber(summary.total_products || 0);
+    const totalStockEl = document.getElementById("inventoryTotalStockCount");
+    if (totalStockEl) totalStockEl.textContent = inventoryNumber(summary.total_stock || 0);
+    const totalValEl = document.getElementById("inventoryTotalValue");
+    if (totalValEl) totalValEl.textContent = inventoryMoney(summary.total_inventory_value || 0);
 
     const activeStores = (data.store_wise || []).filter((s) => s.is_active === true || s.is_active === 1 || s.is_active === "1").length;
     const inactiveStores = (data.store_wise || []).length - activeStores;
-    document.getElementById("inventoryActiveStoresCount").textContent = inventoryNumber(activeStores);
-    document.getElementById("inventoryInactiveStoresCount").textContent = inventoryNumber(inactiveStores);
+    summary.active_stores = activeStores;
+    summary.inactive_stores = inactiveStores;
+
+    const actEl = document.getElementById("inventoryActiveStoresCount");
+    if (actEl) actEl.textContent = inventoryNumber(activeStores);
+    const inactEl = document.getElementById("inventoryInactiveStoresCount");
+    if (inactEl) inactEl.textContent = inventoryNumber(inactiveStores);
 
     populateInventoryStoreFilter(data.stores || [], data.selected_store_id);
     displayStoreWiseInventory(data.store_wise || []);
     displayCategoryWiseInventory(data.category_wise || []);
     displayStoreCategoryBreakdown(data.store_category_breakdown || []);
     displayProductDetailInventory(data.products || []);
+
+    updateBriefReportSummary("store", data);
 }
 
 function displayStoreWiseInventory(stores) {
@@ -642,11 +1025,11 @@ function displayStoreCategoryBreakdown(breakdown) {
         if ((item.product_count || 0) <= 0 && (item.stock_quantity || 0) <= 0) return;
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${item.store_name}</td>
-            <td>${item.category_name || "-"}</td>
-            <td>${inventoryNumber(item.product_count)}</td>
-            <td>${inventoryNumber(item.stock_quantity)}</td>
-            <td>${inventoryMoney(item.inventory_value)}</td>
+            <td style="text-align: left; font-weight: 500; color: #1e293b;">${inventoryEscapeHtml(item.store_name)}</td>
+            <td style="text-align: left; color: #64748b;">${inventoryEscapeHtml(item.category_name || "-")}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.product_count)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.stock_quantity)}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.inventory_value)}</td>
         `;
         tbody.appendChild(row);
     });
@@ -663,17 +1046,17 @@ function displayProductDetailInventory(products) {
             : '<span class="status-inactive">Inactive</span>';
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${p.store_name}</td>
-            <td>${p.category_name}</td>
-            <td>${p.product_name}</td>
-            <td>${p.variant_label || "-"}</td>
-            <td>${inventoryNumber(p.stock_quantity)}</td>
-            <td>${inventoryMoney(p.cost_price)}</td>
-            <td>${inventoryMoney(p.sale_price)}</td>
-            <td>${inventoryFinancialRule(p.financial_mode)}</td>
-            <td>${inventoryMonetaryType(p.financial_type)}</td>
-            <td>${inventoryMonetaryValue(p.financial_type, p.financial_value)}</td>
-            <td>${statusBadge}</td>
+            <td style="text-align: left; font-weight: 500; color: #1e293b;">${inventoryEscapeHtml(p.store_name)}</td>
+            <td style="text-align: left; color: #64748b;">${inventoryEscapeHtml(p.category_name)}</td>
+            <td style="text-align: left; font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(p.product_name)}</td>
+            <td style="text-align: left; color: #64748b;">${inventoryEscapeHtml(p.variant_label || "-")}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(p.stock_quantity)}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(p.cost_price)}</td>
+            <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(p.sale_price)}</td>
+            <td style="text-align: center;">${inventoryFinancialRule(p.financial_mode)}</td>
+            <td style="text-align: center;">${inventoryMonetaryType(p.financial_type)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMonetaryValue(p.financial_type, p.financial_value)}</td>
+            <td style="text-align: center;">${statusBadge}</td>
         `;
         tbody.appendChild(row);
     });
@@ -806,22 +1189,24 @@ function addStoreSaleTotals(totals, store) {
 
 function renderStoreSaleTotalsRow(label, totals, className) {
     const average = totals.totalOrders > 0 ? totals.totalSales / totals.totalOrders : 0;
+    const isGrand = className && className.includes("aginv-report-grand-row");
+    const weight = isGrand ? "900" : "700";
     const typeCells = storeSaleTypeOrder.map((key) => {
         const metric = totals[key];
-        return `<td>${metric.orders || metric.sales ? `${inventoryNumber(metric.orders)} / ${inventoryMoney(metric.sales)}` : "-"}</td>`;
+        return `<td style="text-align: right; font-weight: ${weight};">${metric.orders || metric.sales ? `${inventoryNumber(metric.orders)} / ${inventoryMoney(metric.sales)}` : "-"}</td>`;
     }).join("");
     return `
         <tr class="${className}">
-            <td>${inventoryEscapeHtml(label)}</td>
-            <td>${inventoryNumber(totals.totalOrders)}</td>
-            <td>${inventoryMoney(totals.totalSales)}</td>
-            <td>${inventoryMoney(totals.totalDiscount)}</td>
-            <td>${inventoryMoney(totals.totalProfit)}</td>
-            <td>${inventoryMoney(totals.delivery)}</td>
-            <td>${inventoryMoney(totals.totalWithDelivery)}</td>
+            <td style="font-weight: 800;">${inventoryEscapeHtml(label)}</td>
+            <td style="text-align: right; font-weight: ${weight};">${inventoryNumber(totals.totalOrders)}</td>
+            <td style="text-align: right; font-weight: ${weight};">${inventoryMoney(totals.totalSales)}</td>
+            <td style="text-align: right; font-weight: ${weight};">${inventoryMoney(totals.totalDiscount)}</td>
+            <td style="text-align: right; font-weight: ${weight}; color: ${isGrand ? '#ffffff' : '#10b981'};">${inventoryMoney(totals.totalProfit)}</td>
+            <td style="text-align: right; font-weight: ${weight}; color: ${isGrand ? '#ffffff' : '#d97706'};">${inventoryMoney(totals.delivery)}</td>
+            <td style="text-align: right; font-weight: ${weight};">${inventoryMoney(totals.totalWithDelivery)}</td>
             ${typeCells}
-            <td>${inventoryMoney(average)}</td>
-            <td>${inventoryNumber(totals.uniqueCustomers)}</td>
+            <td style="text-align: right; font-weight: ${weight};">${inventoryMoney(average)}</td>
+            <td style="text-align: right; font-weight: ${weight};">${inventoryNumber(totals.uniqueCustomers)}</td>
         </tr>
     `;
 }
@@ -848,6 +1233,7 @@ function displayStoreSalesReport(data) {
         const row = document.createElement("tr");
         row.innerHTML = `<td colspan="13" style="text-align:center;">No store sales found for the selected date range.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("sales", data);
         return;
     }
 
@@ -895,23 +1281,23 @@ function displayStoreSalesReport(data) {
             row.title = "Click to show order details";
             row.innerHTML = `
                 <td>
-                    <span style="display:inline-flex; align-items:center; gap:0.4rem;">
-                        <i class="fas ${isExpanded ? "fa-chevron-down" : "fa-chevron-right"}" aria-hidden="true"></i>
+                    <span style="display:inline-flex; align-items:center; gap:0.4rem; font-weight:600; color:#0f172a;">
+                        <i class="fas ${isExpanded ? "fa-chevron-down" : "fa-chevron-right"}" aria-hidden="true" style="color: #64748b; font-size: 0.72rem;"></i>
                         ${inventoryEscapeHtml(store.store_name)}
                     </span>
                 </td>
-                <td>${inventoryNumber(store.total_orders)}</td>
-                <td>${inventoryMoney(store.total_sales_net)}</td>
-                <td>${inventoryMoney(store.total_discount)}</td>
-                <td>${inventoryMoney(store.estimated_profit)}</td>
-                <td>${inventoryMoney(storeDelivery)}</td>
-                <td>${inventoryMoney(storeTotalWithDelivery)}</td>
-                <td>${renderStoreSaleTypeCell(store, "cash")}</td>
-                <td>${renderStoreSaleTypeCell(store, "cash_discount")}</td>
-                <td>${renderStoreSaleTypeCell(store, "credit")}</td>
-                <td>${renderStoreSaleTypeCell(store, "credit_discount")}</td>
-                <td>${inventoryMoney(store.average_order_value)}</td>
-                <td>${inventoryNumber(store.unique_customers)}</td>
+                <td style="text-align: right; font-weight: 600;">${inventoryNumber(store.total_orders)}</td>
+                <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(store.total_sales_net)}</td>
+                <td style="text-align: right; color: #64748b;">${inventoryMoney(store.total_discount)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${Number(store.estimated_profit || 0) >= 0 ? '#10b981' : '#ef4444'};">${inventoryMoney(store.estimated_profit)}</td>
+                <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(storeDelivery)}</td>
+                <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(storeTotalWithDelivery)}</td>
+                <td style="text-align: right;">${renderStoreSaleTypeCell(store, "cash")}</td>
+                <td style="text-align: right;">${renderStoreSaleTypeCell(store, "cash_discount")}</td>
+                <td style="text-align: right;">${renderStoreSaleTypeCell(store, "credit")}</td>
+                <td style="text-align: right;">${renderStoreSaleTypeCell(store, "credit_discount")}</td>
+                <td style="text-align: right; font-weight: 600;">${inventoryMoney(store.average_order_value)}</td>
+                <td style="text-align: right;">${inventoryNumber(store.unique_customers)}</td>
             `;
             row.addEventListener("click", () => {
                 expandedStoreSalesStoreId = isExpanded ? null : storeId;
@@ -948,6 +1334,7 @@ function displayStoreSalesReport(data) {
     }
 
     tbody.insertAdjacentHTML("beforeend", renderStoreSaleTotalsRow("Grand Total", grandTotals, "aginv-report-grand-row"));
+    updateBriefReportSummary("sales", data);
 }
 
 function renderStoreSalesOrdersDetail(store) {
@@ -972,24 +1359,31 @@ function renderStoreSalesOrdersDetail(store) {
         credit_discount: { orders: 0, sales: 0, discount: 0, profit: 0, delivery: 0, total: 0 },
     });
 
-    const orderRows = orders.map((order) => `
+    const orderRows = orders.map((order) => {
+        const profit = Number(order.estimated_profit || 0);
+        const profitColor = profit >= 0 ? "#10b981" : "#ef4444";
+        return `
         <tr>
-            <td>${inventoryEscapeHtml(order.order_number || "-")}</td>
-            <td>${inventoryDateTime(order.sold_at)}</td>
-            <td>${storeSaleTypeLabel(order.sale_type || order.store_payment_term)}</td>
-            <td>${inventoryTitleCase(order.order_status || "-")}</td>
-            <td>${inventoryTitleCase(order.payment_method || "-")} / ${inventoryTitleCase(order.payment_status || "-")}</td>
-            <td>${inventoryEscapeHtml(order.customer_name || "-")}${order.customer_phone ? `<br><small>${inventoryEscapeHtml(order.customer_phone)}</small>` : ""}</td>
-            <td>${inventoryNumber(order.total_quantity)}</td>
-            <td>${inventoryMoney(order.total_cost)}</td>
-            <td>${inventoryMoney(order.gross_sales)}</td>
-            <td>${inventoryMoney(order.total_discount)}</td>
-            <td>${inventoryMoney(order.net_sales)}</td>
-            <td>${inventoryMoney(order.estimated_profit)}</td>
-            <td>${inventoryMoney(order.delivery_fee)}</td>
-            <td>${inventoryMoney(order.order_total)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(order.order_number || "-")}</td>
+            <td style="text-align: center; color: #475569;">${inventoryDateTime(order.sold_at)}</td>
+            <td style="text-align: center;">${storeSaleTypeLabel(order.sale_type || order.store_payment_term)}</td>
+            <td style="text-align: center;">${inventoryTitleCase(order.order_status || "-")}</td>
+            <td style="text-align: center;">${inventoryTitleCase(order.payment_method || "-")} / ${inventoryTitleCase(order.payment_status || "-")}</td>
+            <td style="text-align: left;">
+                <div style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(order.customer_name || "-")}</div>
+                ${order.customer_phone ? `<div style="font-size: 0.72rem; color: #64748b;"><i class="fas fa-phone-alt" style="font-size: 0.65rem;"></i> ${inventoryEscapeHtml(order.customer_phone)}</div>` : ""}
+            </td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(order.total_quantity)}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(order.total_cost)}</td>
+            <td style="text-align: right;">${inventoryMoney(order.gross_sales)}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(order.total_discount)}</td>
+            <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(order.net_sales)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${profitColor};">${inventoryMoney(order.estimated_profit)}</td>
+            <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(order.delivery_fee)}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(order.order_total)}</td>
         </tr>
-    `).join("");
+    `;
+    }).join("");
 
     const totalDetailDelivery = Object.values(totals).reduce((sum, t) => sum + (t.delivery || 0), 0);
 
@@ -1006,23 +1400,23 @@ function renderStoreSalesOrdersDetail(store) {
                 </div>
             </div>
             <div class="table-container store-sales-detail-scroll" style="margin:0; box-shadow:none; border:1px solid #e2e8f0;">
-                <table>
+                <table style="border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; width: 100%; min-width: 960px;">
                     <thead>
-                        <tr>
-                            <th>Order Number</th>
-                            <th>Date/Time</th>
-                            <th>Sale Type</th>
-                            <th>Status</th>
-                            <th>Payment</th>
-                            <th>Customer</th>
-                            <th>Qty</th>
-                            <th>Cost</th>
-                            <th>Gross Sale</th>
-                            <th>Discount</th>
-                            <th>Net Sale</th>
-                            <th>Profit</th>
-                            <th>Delivery Charges</th>
-                            <th>Order Total</th>
+                        <tr style="background: #0f172a; color: #ffffff;">
+                            <th style="background: #0f172a; color: #ffffff; text-align: center; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Order Number</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: center; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Date/Time</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: center; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Sale Type</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: center; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Status</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: center; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Payment</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: left; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Customer</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Qty</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Cost</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Gross Sale</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Discount</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Net Sale</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Profit</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem; border-right: 1px solid rgba(255,255,255,0.18);">Delivery Charges</th>
+                            <th style="background: #0f172a; color: #ffffff; text-align: right; font-size: 0.72rem; padding: 0.45rem 0.35rem;">Order Total</th>
                         </tr>
                     </thead>
                     <tbody>${orderRows}</tbody>
@@ -1043,8 +1437,9 @@ function displayManualOrderSalesReport(data) {
     currentManualSalesRows = rows;
     if (!rows.length) {
         const row = document.createElement("tr");
-        row.innerHTML = `<td colspan="14" style="text-align:center;">No manual-order product sales found for the selected scope.</td>`;
+        row.innerHTML = `<td colspan="14" style="text-align:center; padding: 2rem 1rem; color: #64748b;">No manual-order product sales found for the selected scope.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("manual-sales", data);
         return;
     }
 
@@ -1053,21 +1448,22 @@ function displayManualOrderSalesReport(data) {
         row.dataset.orderItemId = String(item.order_item_id || "");
         row.style.cursor = "pointer";
         row.title = "Double-click to edit sale price and cost price";
+        const profitColor = (item.estimated_profit || 0) >= 0 ? "#10b981" : "#ef4444";
         row.innerHTML = `
-            <td>${item.store_name}</td>
-            <td>${item.category_name || "-"}</td>
-            <td>${item.product_name}</td>
-            <td>${item.order_number || item.order_numbers || "-"}</td>
-            <td>${inventoryTitleCase(item.order_status || "-")}</td>
-            <td>${inventoryMoney(item.cost_price ?? item.average_cost_price)}</td>
-            <td>${inventoryMoney(item.sale_price ?? item.average_sale_price)}</td>
-            <td>${inventoryNumber(item.total_quantity)}</td>
-            <td>${inventoryMoney(item.total_cost)}</td>
-            <td>${inventoryMoney(item.gross_sales)}</td>
-            <td>${inventoryMoney(item.net_sales)}</td>
-            <td>${inventoryMoney(item.estimated_profit)}</td>
-            <td>${inventoryMoney(resolveManualDeliveryFee(item))}</td>
-            <td>${inventoryMoney(item.order_total)}</td>
+            <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_name)}</td>
+            <td style="text-align: left; color: #64748b;">${inventoryEscapeHtml(item.category_name || "-")}</td>
+            <td style="text-align: left; font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.product_name)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || item.order_numbers || "-")}</td>
+            <td style="text-align: center;">${getOrderWiseStatusBadge(item.order_status || "-")}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(item.cost_price ?? item.average_cost_price)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.sale_price ?? item.average_sale_price)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.total_quantity)}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(item.total_cost)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.gross_sales)}</td>
+            <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.net_sales)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${profitColor};">${inventoryMoney(item.estimated_profit)}</td>
+            <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(resolveManualDeliveryFee(item))}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.order_total)}</td>
         `;
         row.addEventListener("dblclick", () => {
             openManualSalesEditModal(item.order_item_id);
@@ -1105,20 +1501,21 @@ function displayManualOrderSalesReport(data) {
         });
 
         footer.innerHTML = `
-            <tr style="background:#f8fafc; font-weight:700; border-top:2px solid #cbd5e1;">
-                <td colspan="5">Totals</td>
-                <td>${inventoryMoney(totals.costPrice)}</td>
-                <td>${inventoryMoney(totals.salePrice)}</td>
-                <td>${inventoryNumber(totals.qty)}</td>
-                <td>${inventoryMoney(totals.totalCost)}</td>
-                <td>${inventoryMoney(totals.grossSales)}</td>
-                <td>${inventoryMoney(totals.netSales)}</td>
-                <td>${inventoryMoney(totals.profit)}</td>
-                <td>${inventoryMoney(totals.deliveryFee)}</td>
-                <td>${inventoryMoney(totals.orderTotal)}</td>
+            <tr class="aginv-report-grand-row">
+                <td colspan="5" style="text-align: right; font-weight: 900;">Grand Total (${inventoryNumber(rows.length)} items):</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.costPrice)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.salePrice)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.qty)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.totalCost)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.grossSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.netSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.profit)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.deliveryFee)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.orderTotal)}</td>
             </tr>
         `;
     }
+    updateBriefReportSummary("manual-sales", data);
 }
 
 function displayStoreProductSalesReport(data) {
@@ -1132,8 +1529,9 @@ function displayStoreProductSalesReport(data) {
     currentStoreProductSalesRows = rows;
     if (!rows.length) {
         const row = document.createElement("tr");
-        row.innerHTML = `<td colspan="14" style="text-align:center;">No store product sales found for the selected scope.</td>`;
+        row.innerHTML = `<td colspan="14" style="text-align:center; padding: 2rem 1rem; color: #64748b;">No store product sales found for the selected scope.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("store-product-sales", data);
         return;
     }
 
@@ -1142,21 +1540,22 @@ function displayStoreProductSalesReport(data) {
         row.dataset.orderItemId = String(item.order_item_id || "");
         row.style.cursor = "pointer";
         row.title = "Double-click to edit sale price and cost price";
+        const profitColor = (item.estimated_profit || 0) >= 0 ? "#10b981" : "#ef4444";
         row.innerHTML = `
-            <td>${item.store_name}</td>
-            <td>${item.category_name || "-"}</td>
-            <td>${item.product_name}</td>
-            <td>${item.order_number || item.order_numbers || "-"}</td>
-            <td>${inventoryTitleCase(item.order_status || "-")}</td>
-            <td>${inventoryMoney(item.cost_price ?? item.average_cost_price)}</td>
-            <td>${inventoryMoney(item.sale_price ?? item.average_sale_price)}</td>
-            <td>${inventoryNumber(item.total_quantity)}</td>
-            <td>${inventoryMoney(item.total_cost)}</td>
-            <td>${inventoryMoney(item.gross_sales)}</td>
-            <td>${inventoryMoney(item.net_sales)}</td>
-            <td>${inventoryMoney(item.estimated_profit)}</td>
-            <td>${inventoryMoney(item.delivery_fee ?? 0)}</td>
-            <td>${inventoryMoney(item.order_total)}</td>
+            <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_name)}</td>
+            <td style="text-align: left; color: #64748b;">${inventoryEscapeHtml(item.category_name || "-")}</td>
+            <td style="text-align: left; font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.product_name)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || item.order_numbers || "-")}</td>
+            <td style="text-align: center;">${getOrderWiseStatusBadge(item.order_status || "-")}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(item.cost_price ?? item.average_cost_price)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.sale_price ?? item.average_sale_price)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.total_quantity)}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(item.total_cost)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.gross_sales)}</td>
+            <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.net_sales)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${profitColor};">${inventoryMoney(item.estimated_profit)}</td>
+            <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(item.delivery_fee ?? 0)}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.order_total)}</td>
         `;
         row.addEventListener("dblclick", () => {
             openStoreProductSalesEditModal(item.order_item_id);
@@ -1194,20 +1593,21 @@ function displayStoreProductSalesReport(data) {
         });
 
         footer.innerHTML = `
-            <tr style="background:#f8fafc; font-weight:700; border-top:2px solid #cbd5e1;">
-                <td colspan="5">Totals</td>
-                <td>${inventoryMoney(totals.costPrice)}</td>
-                <td>${inventoryMoney(totals.salePrice)}</td>
-                <td>${inventoryNumber(totals.qty)}</td>
-                <td>${inventoryMoney(totals.totalCost)}</td>
-                <td>${inventoryMoney(totals.grossSales)}</td>
-                <td>${inventoryMoney(totals.netSales)}</td>
-                <td>${inventoryMoney(totals.profit)}</td>
-                <td>${inventoryMoney(totals.deliveryFee)}</td>
-                <td>${inventoryMoney(totals.orderTotal)}</td>
+            <tr class="aginv-report-grand-row">
+                <td colspan="5" style="text-align: right; font-weight: 900;">Grand Total (${inventoryNumber(rows.length)} items):</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.costPrice)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.salePrice)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.qty)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.totalCost)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.grossSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.netSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.profit)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.deliveryFee)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.orderTotal)}</td>
             </tr>
         `;
     }
+    updateBriefReportSummary("store-product-sales", data);
 }
 
 function displayCombinedProductSalesReport(data) {
@@ -1221,8 +1621,9 @@ function displayCombinedProductSalesReport(data) {
     currentCombinedProductSalesRows = rows;
     if (!rows.length) {
         const row = document.createElement("tr");
-        row.innerHTML = `<td colspan="15" style="text-align:center;">No product sales found for the selected scope.</td>`;
+        row.innerHTML = `<td colspan="15" style="text-align:center; padding: 2rem 1rem; color: #64748b;">No product sales found for the selected scope.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("combined-product-sales", data);
         return;
     }
 
@@ -1231,22 +1632,23 @@ function displayCombinedProductSalesReport(data) {
         row.dataset.orderItemId = String(item.order_item_id || "");
         row.style.cursor = "pointer";
         row.title = "Double-click to edit sale price and cost price";
+        const profitColor = (item.estimated_profit || 0) >= 0 ? "#10b981" : "#ef4444";
         row.innerHTML = `
-            <td>${inventoryTitleCase(item.sale_type || "-")}</td>
-            <td>${item.store_name}</td>
-            <td>${item.category_name || "-"}</td>
-            <td>${item.product_name}</td>
-            <td>${item.order_number || item.order_numbers || "-"}</td>
-            <td>${inventoryTitleCase(item.order_status || "-")}</td>
-            <td>${inventoryMoney(item.cost_price ?? item.average_cost_price)}</td>
-            <td>${inventoryMoney(item.sale_price ?? item.average_sale_price)}</td>
-            <td>${inventoryNumber(item.total_quantity)}</td>
-            <td>${inventoryMoney(item.total_cost)}</td>
-            <td>${inventoryMoney(item.gross_sales)}</td>
-            <td>${inventoryMoney(item.net_sales)}</td>
-            <td>${inventoryMoney(item.estimated_profit)}</td>
-            <td>${inventoryMoney(item.delivery_fee ?? 0)}</td>
-            <td>${inventoryMoney(item.order_total)}</td>
+            <td style="text-align: center; font-weight: 600;">${inventoryTitleCase(item.sale_type || "-")}</td>
+            <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_name)}</td>
+            <td style="text-align: left; color: #64748b;">${inventoryEscapeHtml(item.category_name || "-")}</td>
+            <td style="text-align: left; font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.product_name)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || item.order_numbers || "-")}</td>
+            <td style="text-align: center;">${getOrderWiseStatusBadge(item.order_status || "-")}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(item.cost_price ?? item.average_cost_price)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.sale_price ?? item.average_sale_price)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.total_quantity)}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(item.total_cost)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.gross_sales)}</td>
+            <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.net_sales)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${profitColor};">${inventoryMoney(item.estimated_profit)}</td>
+            <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(item.delivery_fee ?? 0)}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.order_total)}</td>
         `;
         row.addEventListener("dblclick", () => {
             openCombinedProductSalesEditModal(item.order_item_id);
@@ -1284,20 +1686,21 @@ function displayCombinedProductSalesReport(data) {
         });
 
         footer.innerHTML = `
-            <tr style="background:#f8fafc; font-weight:700; border-top:2px solid #cbd5e1;">
-                <td colspan="6">Totals</td>
-                <td>${inventoryMoney(totals.costPrice)}</td>
-                <td>${inventoryMoney(totals.salePrice)}</td>
-                <td>${inventoryNumber(totals.qty)}</td>
-                <td>${inventoryMoney(totals.totalCost)}</td>
-                <td>${inventoryMoney(totals.grossSales)}</td>
-                <td>${inventoryMoney(totals.netSales)}</td>
-                <td>${inventoryMoney(totals.profit)}</td>
-                <td>${inventoryMoney(totals.deliveryFee)}</td>
-                <td>${inventoryMoney(totals.orderTotal)}</td>
+            <tr class="aginv-report-grand-row">
+                <td colspan="6" style="text-align: right; font-weight: 900;">Grand Total (${inventoryNumber(rows.length)} items):</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.costPrice)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.salePrice)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.qty)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.totalCost)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.grossSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.netSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.profit)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.deliveryFee)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.orderTotal)}</td>
             </tr>
         `;
     }
+    updateBriefReportSummary("combined-product-sales", data);
 }
 
 function displaySalesWithDeliveryReport(data) {
@@ -1311,26 +1714,28 @@ function displaySalesWithDeliveryReport(data) {
     currentSalesWithDeliveryRows = rows;
     if (!rows.length) {
         const row = document.createElement("tr");
-        row.innerHTML = `<td colspan="12" style="text-align:center;">No sales found for the selected scope.</td>`;
+        row.innerHTML = `<td colspan="12" style="text-align:center; padding: 2rem 1rem; color: #64748b;">No sales found for the selected scope.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("sales-with-delivery", data);
         return;
     }
 
     rows.forEach((item) => {
         const row = document.createElement("tr");
+        const profitColor = (item.estimated_profit || 0) >= 0 ? "#10b981" : "#ef4444";
         row.innerHTML = `
-            <td>${inventoryTitleCase(item.sale_type || "-")}</td>
-            <td>${item.store_names || item.store_name || "-"}</td>
-            <td>${item.order_number || "-"}</td>
-            <td>${inventoryTitleCase(item.order_status || "-")}</td>
-            <td>${inventoryNumber(item.total_quantity)}</td>
-            <td>${inventoryMoney(item.total_cost)}</td>
-            <td>${inventoryMoney(item.gross_sales)}</td>
-            <td>${inventoryMoney(item.net_sales)}</td>
-            <td>${inventoryMoney(item.delivery_fee)}</td>
-            <td>${inventoryMoney(item.total_with_delivery)}</td>
-            <td>${inventoryMoney(item.estimated_profit)}</td>
-            <td>${inventoryMoney(item.order_total)}</td>
+            <td style="text-align: center; font-weight: 600;">${inventoryTitleCase(item.sale_type || "-")}</td>
+            <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_names || item.store_name || "-")}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || "-")}</td>
+            <td style="text-align: center;">${getOrderWiseStatusBadge(item.order_status || "-")}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.total_quantity)}</td>
+            <td style="text-align: right; color: #64748b;">${inventoryMoney(item.total_cost)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.gross_sales)}</td>
+            <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.net_sales)}</td>
+            <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(item.delivery_fee)}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.total_with_delivery)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${profitColor};">${inventoryMoney(item.estimated_profit)}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.order_total)}</td>
         `;
         tbody.appendChild(row);
     });
@@ -1358,19 +1763,20 @@ function displaySalesWithDeliveryReport(data) {
 
     if (footer) {
         footer.innerHTML = `
-            <tr style="background:#f8fafc; font-weight:700; border-top:2px solid #cbd5e1;">
-                <td colspan="4">Totals</td>
-                <td>${inventoryNumber(totals.qty)}</td>
-                <td>${inventoryMoney(totals.totalCost)}</td>
-                <td>${inventoryMoney(totals.grossSales)}</td>
-                <td>${inventoryMoney(totals.netSales)}</td>
-                <td>${inventoryMoney(totals.delivery)}</td>
-                <td>${inventoryMoney(totals.totalWithDelivery)}</td>
-                <td>${inventoryMoney(totals.profit)}</td>
-                <td>${inventoryMoney(totals.orderTotal)}</td>
+            <tr class="aginv-report-grand-row">
+                <td colspan="4" style="text-align: right; font-weight: 900;">Grand Total (${inventoryNumber(rows.length)} orders):</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.qty)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.totalCost)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.grossSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.netSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.delivery)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.totalWithDelivery)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.profit)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.orderTotal)}</td>
             </tr>
         `;
     }
+    updateBriefReportSummary("sales-with-delivery", data);
 }
 
 function displaySalesByPaymentReport(data) {
@@ -1387,6 +1793,7 @@ function displaySalesByPaymentReport(data) {
         const row = document.createElement("tr");
         row.innerHTML = `<td colspan="${columnCount}" style="text-align:center;">No sales found for the selected scope.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("sales-by-payment", data);
         return;
     }
 
@@ -1460,18 +1867,20 @@ function displaySalesByPaymentReport(data) {
             tbody.appendChild(storeRow);
 
             storeGroup.rows.forEach((item) => {
+                const profit = Number(item.estimated_profit || 0);
+                const profitColor = profit >= 0 ? '#10b981' : '#ef4444';
                 const row = document.createElement("tr");
                 row.innerHTML = `
-                    <td>${item.order_number || "-"}</td>
-                    <td>${inventoryTitleCase(item.order_type || "-")}</td>
-                    <td>${storeKey}</td>
-                    <td>${inventoryTitleCase(item.store_payment_term || "-")}</td>
-                    <td>${inventoryMoney(item.total_cost)}</td>
-                    <td>${inventoryMoney(item.net_sales)}</td>
-                    <td>${inventoryMoney(item.estimated_profit)}</td>
-                    <td>${inventoryMoney(item.delivery_fee)}</td>
-                    <td>${inventoryMoney(item.total_with_delivery)}</td>
-                    <td>${inventoryMoney(item.order_total)}</td>
+                    <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || "-")}</td>
+                    <td style="text-align: center;">${inventoryTitleCase(item.order_type || "-")}</td>
+                    <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(storeKey)}</td>
+                    <td style="text-align: center;">${inventoryTitleCase(item.store_payment_term || "-")}</td>
+                    <td style="text-align: right; color: #64748b;">${inventoryMoney(item.total_cost)}</td>
+                    <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.net_sales)}</td>
+                    <td style="text-align: right; font-weight: 700; color: ${profitColor};">${inventoryMoney(item.estimated_profit)}</td>
+                    <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(item.delivery_fee)}</td>
+                    <td style="text-align: right; font-weight: 700;">${inventoryMoney(item.total_with_delivery)}</td>
+                    <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.order_total)}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -1479,16 +1888,13 @@ function displaySalesByPaymentReport(data) {
             const storeTotalsRow = document.createElement("tr");
             storeTotalsRow.className = "aginv-report-subtotal-row";
             storeTotalsRow.innerHTML = `
-                <td>Store Totals</td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td>${inventoryMoney(storeGroup.totalCost)}</td>
-                <td>${inventoryMoney(storeGroup.netSales)}</td>
-                <td>${inventoryMoney(storeGroup.profit)}</td>
-                <td>${inventoryMoney(storeGroup.delivery)}</td>
-                <td>${inventoryMoney(storeGroup.totalWithDelivery)}</td>
-                <td>${inventoryMoney(storeGroup.orderTotal)}</td>
+                <td colspan="4" style="text-align: right; font-weight: 700;">Store Totals (${inventoryEscapeHtml(storeKey)}):</td>
+                <td style="text-align: right; font-weight: 700;">${inventoryMoney(storeGroup.totalCost)}</td>
+                <td style="text-align: right; font-weight: 700;">${inventoryMoney(storeGroup.netSales)}</td>
+                <td style="text-align: right; font-weight: 700; color: #10b981;">${inventoryMoney(storeGroup.profit)}</td>
+                <td style="text-align: right; font-weight: 700; color: #d97706;">${inventoryMoney(storeGroup.delivery)}</td>
+                <td style="text-align: right; font-weight: 700;">${inventoryMoney(storeGroup.totalWithDelivery)}</td>
+                <td style="text-align: right; font-weight: 700;">${inventoryMoney(storeGroup.orderTotal)}</td>
             `;
             tbody.appendChild(storeTotalsRow);
         });
@@ -1496,16 +1902,13 @@ function displaySalesByPaymentReport(data) {
         const totalsRow = document.createElement("tr");
         totalsRow.className = "aginv-report-total-row";
         totalsRow.innerHTML = `
-            <td>${inventoryTitleCase(key)} Totals</td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td>${inventoryMoney(typeGroup.totalCost)}</td>
-            <td>${inventoryMoney(typeGroup.netSales)}</td>
-            <td>${inventoryMoney(typeGroup.profit)}</td>
-            <td>${inventoryMoney(typeGroup.delivery)}</td>
-            <td>${inventoryMoney(typeGroup.totalWithDelivery)}</td>
-            <td>${inventoryMoney(typeGroup.orderTotal)}</td>
+            <td colspan="4" style="text-align: right; font-weight: 800;">${inventoryTitleCase(key)} Totals:</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(typeGroup.totalCost)}</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(typeGroup.netSales)}</td>
+            <td style="text-align: right; font-weight: 800; color: #10b981;">${inventoryMoney(typeGroup.profit)}</td>
+            <td style="text-align: right; font-weight: 800; color: #d97706;">${inventoryMoney(typeGroup.delivery)}</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(typeGroup.totalWithDelivery)}</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(typeGroup.orderTotal)}</td>
         `;
         tbody.appendChild(totalsRow);
     });
@@ -1530,19 +1933,17 @@ function displaySalesByPaymentReport(data) {
     if (footer) {
         footer.innerHTML = `
             <tr class="aginv-report-grand-row">
-                <td>Grand Totals</td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td>${inventoryMoney(grandTotals.totalCost)}</td>
-                <td>${inventoryMoney(grandTotals.netSales)}</td>
-                <td>${inventoryMoney(grandTotals.profit)}</td>
-                <td>${inventoryMoney(grandTotals.delivery)}</td>
-                <td>${inventoryMoney(grandTotals.totalWithDelivery)}</td>
-                <td>${inventoryMoney(grandTotals.orderTotal)}</td>
+                <td colspan="4" style="text-align: right; font-weight: 900;">Grand Totals:</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.totalCost)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.netSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.profit)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.delivery)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.totalWithDelivery)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.orderTotal)}</td>
             </tr>
         `;
     }
+    updateBriefReportSummary("sales-by-payment", data);
 }
 
 function displaySalesByPaymentSimpleReport(data) {
@@ -1559,6 +1960,7 @@ function displaySalesByPaymentSimpleReport(data) {
         const row = document.createElement("tr");
         row.innerHTML = `<td colspan="${columnCount}" style="text-align:center;">No sales found for the selected scope.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("sales-by-payment-simple", data);
         return;
     }
 
@@ -1600,18 +2002,20 @@ function displaySalesByPaymentSimpleReport(data) {
         tbody.appendChild(headingRow);
 
         group.rows.forEach((item) => {
+            const profit = Number(item.estimated_profit || 0);
+            const profitColor = profit >= 0 ? '#10b981' : '#ef4444';
             const row = document.createElement("tr");
             row.innerHTML = `
-                <td>${item.order_number || "-"}</td>
-                <td>${inventoryTitleCase(item.order_type || "-")}</td>
-                <td>${item.store_names || item.store_name || "-"}</td>
-                <td>${inventoryTitleCase(item.store_payment_term || "-")}</td>
-                <td>${inventoryMoney(item.total_cost)}</td>
-                <td>${inventoryMoney(item.net_sales)}</td>
-                <td>${inventoryMoney(item.estimated_profit)}</td>
-                <td>${inventoryMoney(item.delivery_fee)}</td>
-                <td>${inventoryMoney(item.total_with_delivery)}</td>
-                <td>${inventoryMoney(item.order_total)}</td>
+                <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || "-")}</td>
+                <td style="text-align: center;">${inventoryTitleCase(item.order_type || "-")}</td>
+                <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_names || item.store_name || "-")}</td>
+                <td style="text-align: center;">${inventoryTitleCase(item.store_payment_term || "-")}</td>
+                <td style="text-align: right; color: #64748b;">${inventoryMoney(item.total_cost)}</td>
+                <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.net_sales)}</td>
+                <td style="text-align: right; font-weight: 700; color: ${profitColor};">${inventoryMoney(item.estimated_profit)}</td>
+                <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(item.delivery_fee)}</td>
+                <td style="text-align: right; font-weight: 700;">${inventoryMoney(item.total_with_delivery)}</td>
+                <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.order_total)}</td>
             `;
             tbody.appendChild(row);
         });
@@ -1619,16 +2023,13 @@ function displaySalesByPaymentSimpleReport(data) {
         const totalsRow = document.createElement("tr");
         totalsRow.className = "aginv-report-total-row";
         totalsRow.innerHTML = `
-            <td>${inventoryTitleCase(key)} Totals</td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td>${inventoryMoney(group.totalCost)}</td>
-            <td>${inventoryMoney(group.netSales)}</td>
-            <td>${inventoryMoney(group.profit)}</td>
-            <td>${inventoryMoney(group.delivery)}</td>
-            <td>${inventoryMoney(group.totalWithDelivery)}</td>
-            <td>${inventoryMoney(group.orderTotal)}</td>
+            <td colspan="4" style="text-align: right; font-weight: 800;">${inventoryTitleCase(key)} Totals:</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(group.totalCost)}</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(group.netSales)}</td>
+            <td style="text-align: right; font-weight: 800; color: #10b981;">${inventoryMoney(group.profit)}</td>
+            <td style="text-align: right; font-weight: 800; color: #d97706;">${inventoryMoney(group.delivery)}</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(group.totalWithDelivery)}</td>
+            <td style="text-align: right; font-weight: 800;">${inventoryMoney(group.orderTotal)}</td>
         `;
         tbody.appendChild(totalsRow);
     });
@@ -1653,19 +2054,17 @@ function displaySalesByPaymentSimpleReport(data) {
     if (footer) {
         footer.innerHTML = `
             <tr class="aginv-report-grand-row">
-                <td>Grand Totals</td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td>${inventoryMoney(grandTotals.totalCost)}</td>
-                <td>${inventoryMoney(grandTotals.netSales)}</td>
-                <td>${inventoryMoney(grandTotals.profit)}</td>
-                <td>${inventoryMoney(grandTotals.delivery)}</td>
-                <td>${inventoryMoney(grandTotals.totalWithDelivery)}</td>
-                <td>${inventoryMoney(grandTotals.orderTotal)}</td>
+                <td colspan="4" style="text-align: right; font-weight: 900;">Grand Totals:</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.totalCost)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.netSales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.profit)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.delivery)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.totalWithDelivery)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(grandTotals.orderTotal)}</td>
             </tr>
         `;
     }
+    updateBriefReportSummary("sales-by-payment-simple", data);
 }
 
 function displayCustomerDetailsReport(data) {
@@ -1748,24 +2147,24 @@ function displayCustomerDetailsReport(data) {
         rows.forEach((item) => {
             const row = document.createElement("tr");
             row.innerHTML = `
-                <td>
-                    <strong>${inventoryEscapeHtml(item.customer_name || "-")}</strong>
-                    ${item.customer_email ? `<br><small>${inventoryEscapeHtml(item.customer_email)}</small>` : ""}
+                <td style="text-align: left;">
+                    <div style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.customer_name || "-")}</div>
+                    ${item.customer_email ? `<div style="font-size: 0.72rem; color: #64748b;">${inventoryEscapeHtml(item.customer_email)}</div>` : ""}
                 </td>
-                <td>${inventoryEscapeHtml(item.contact_no || "-")}</td>
-                <td>${inventoryEscapeHtml(item.customer_address || "-")}</td>
-                <td>${inventoryNumber(item.total_orders)}</td>
-                <td>${inventoryNumber(item.delivered_orders)}</td>
-                <td>${inventoryNumber(item.cancelled_orders)}</td>
-                <td>${inventoryNumber(item.active_orders)}</td>
-                <td>${inventoryNumber(item.total_quantity)}</td>
-                <td>${inventoryMoney(item.items_subtotal)}</td>
-                <td>${inventoryMoney(item.delivery_fee)}</td>
-                <td>${inventoryMoney(item.total_order_amount)}</td>
-                <td>${inventoryMoney(item.delivered_amount)}</td>
-                <td>${inventoryMoney(item.cancelled_amount)}</td>
-                <td>${inventoryMoney(item.active_amount)}</td>
-                <td>${inventoryDateTime(item.last_order_date)}</td>
+                <td style="text-align: left; color: #475569;">${inventoryEscapeHtml(item.contact_no || "-")}</td>
+                <td style="text-align: left; color: #64748b; font-size: 0.74rem;">${inventoryEscapeHtml(item.customer_address || "-")}</td>
+                <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.total_orders)}</td>
+                <td style="text-align: right; font-weight: 600; color: #059669;">${inventoryNumber(item.delivered_orders)}</td>
+                <td style="text-align: right; color: #dc2626;">${inventoryNumber(item.cancelled_orders)}</td>
+                <td style="text-align: right; color: #2563eb;">${inventoryNumber(item.active_orders)}</td>
+                <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.total_quantity)}</td>
+                <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.items_subtotal)}</td>
+                <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(item.delivery_fee)}</td>
+                <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.total_order_amount)}</td>
+                <td style="text-align: right; font-weight: 600; color: #059669;">${inventoryMoney(item.delivered_amount)}</td>
+                <td style="text-align: right; color: #dc2626;">${inventoryMoney(item.cancelled_amount)}</td>
+                <td style="text-align: right; color: #2563eb;">${inventoryMoney(item.active_amount)}</td>
+                <td style="text-align: center; color: #475569;">${inventoryDateTime(item.last_order_date)}</td>
             `;
             tbody.appendChild(row);
         });
@@ -1800,24 +2199,23 @@ function displayCustomerDetailsReport(data) {
         if (footer) {
             footer.innerHTML = `
                 <tr class="aginv-report-grand-row">
-                    <td>Totals</td>
-                    <td></td>
-                    <td>${inventoryNumber(rows.length)} customers</td>
-                    <td>${inventoryNumber(totals.totalOrders)}</td>
-                    <td>${inventoryNumber(totals.deliveredOrders)}</td>
-                    <td>${inventoryNumber(totals.cancelledOrders)}</td>
-                    <td>${inventoryNumber(totals.activeOrders)}</td>
-                    <td>${inventoryNumber(totals.qty)}</td>
-                    <td>${inventoryMoney(totals.itemsSubtotal)}</td>
-                    <td>${inventoryMoney(totals.deliveryFee)}</td>
-                    <td>${inventoryMoney(totals.totalAmount)}</td>
-                    <td>${inventoryMoney(totals.deliveredAmount)}</td>
-                    <td>${inventoryMoney(totals.cancelledAmount)}</td>
-                    <td>${inventoryMoney(totals.activeAmount)}</td>
+                    <td colspan="3" style="text-align: right; font-weight: 900;">Grand Totals (${inventoryNumber(rows.length)} Customers):</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.totalOrders)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.deliveredOrders)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.cancelledOrders)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.activeOrders)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.qty)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.itemsSubtotal)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.deliveryFee)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.totalAmount)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.deliveredAmount)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.cancelledAmount)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.activeAmount)}</td>
                     <td></td>
                 </tr>
             `;
         }
+        updateBriefReportSummary("customer-details", data);
         return;
     }
 
@@ -1831,27 +2229,28 @@ function displayCustomerDetailsReport(data) {
             const row = document.createElement("tr");
             row.innerHTML = `<td colspan="${columnCount}" style="text-align:center;">No customer orders found for the selected scope.</td>`;
             tbody.appendChild(row);
+            updateBriefReportSummary("customer-details", data);
             return;
         }
 
         rows.forEach((item) => {
             const row = document.createElement("tr");
             row.innerHTML = `
-                <td>${inventoryDateTime(item.order_date)}</td>
-                <td>${inventoryEscapeHtml(item.order_number || "-")}</td>
-                <td>
-                    <strong>${inventoryEscapeHtml(item.customer_name || "-")}</strong>
-                    ${item.customer_email ? `<br><small>${inventoryEscapeHtml(item.customer_email)}</small>` : ""}
+                <td style="text-align: center; color: #475569;">${inventoryDateTime(item.order_date)}</td>
+                <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || "-")}</td>
+                <td style="text-align: left;">
+                    <div style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.customer_name || "-")}</div>
+                    ${item.customer_email ? `<div style="font-size: 0.72rem; color: #64748b;">${inventoryEscapeHtml(item.customer_email)}</div>` : ""}
                 </td>
-                <td>${inventoryEscapeHtml(item.contact_no || "-")}</td>
-                <td>${inventoryEscapeHtml(item.customer_address || "-")}</td>
-                <td>${inventoryEscapeHtml(item.store_names || "-")}</td>
-                <td>${inventoryEscapeHtml(item.products_summary || "-")}</td>
-                <td>${inventoryNumber(item.total_quantity)}</td>
-                <td>${inventoryMoney(item.items_subtotal)}</td>
-                <td>${inventoryMoney(item.delivery_fee)}</td>
-                <td>${inventoryMoney(item.order_total)}</td>
-                <td>${inventoryTitleCase(item.order_status || "-")}</td>
+                <td style="text-align: left; color: #475569;">${inventoryEscapeHtml(item.contact_no || "-")}</td>
+                <td style="text-align: left; color: #64748b; font-size: 0.74rem;">${inventoryEscapeHtml(item.customer_address || "-")}</td>
+                <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_names || "-")}</td>
+                <td style="text-align: left; font-size: 0.74rem;">${inventoryEscapeHtml(item.products_summary || "-")}</td>
+                <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.total_quantity)}</td>
+                <td style="text-align: right; font-weight: 600; color: #0f172a;">${inventoryMoney(item.items_subtotal)}</td>
+                <td style="text-align: right; color: #d97706; font-weight: 600;">${inventoryMoney(item.delivery_fee)}</td>
+                <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.order_total)}</td>
+                <td style="text-align: center;">${inventoryTitleCase(item.order_status || "-")}</td>
             `;
             tbody.appendChild(row);
         });
@@ -1869,20 +2268,16 @@ function displayCustomerDetailsReport(data) {
         if (footer) {
             footer.innerHTML = `
                 <tr class="aginv-report-grand-row">
-                    <td colspan="2">Totals</td>
-                    <td>${inventoryNumber(uniqueCustomers.size)} unique customers</td>
-                    <td></td>
-                    <td></td>
-                    <td></td>
-                    <td>${inventoryNumber(rows.length)} orders</td>
-                    <td>${inventoryNumber(totals.qty)}</td>
-                    <td>${inventoryMoney(totals.itemsSubtotal)}</td>
-                    <td>${inventoryMoney(totals.deliveryFee)}</td>
-                    <td>${inventoryMoney(totals.orderTotal)}</td>
+                    <td colspan="7" style="text-align: right; font-weight: 900;">Grand Totals (${inventoryNumber(rows.length)} Orders, ${inventoryNumber(uniqueCustomers.size)} Customers):</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.qty)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.itemsSubtotal)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.deliveryFee)}</td>
+                    <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.orderTotal)}</td>
                     <td></td>
                 </tr>
             `;
         }
+        updateBriefReportSummary("customer-details", data);
         return;
     }
 
@@ -1895,26 +2290,27 @@ function displayCustomerDetailsReport(data) {
         const row = document.createElement("tr");
         row.innerHTML = `<td colspan="${columnCount}" style="text-align:center;">No customer sales found for the selected scope.</td>`;
         tbody.appendChild(row);
+        updateBriefReportSummary("customer-details", data);
         return;
     }
 
     rows.forEach((item) => {
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${inventoryDateTime(item.order_date)}</td>
-            <td>${inventoryEscapeHtml(item.order_number || "-")}</td>
-            <td>${inventoryEscapeHtml(item.store_name || "-")}</td>
-            <td>${inventoryEscapeHtml(item.product_name || "-")}</td>
-            <td>
-                <strong>${inventoryEscapeHtml(item.customer_name || "-")}</strong>
-                ${item.customer_email ? `<br><small>${inventoryEscapeHtml(item.customer_email)}</small>` : ""}
+            <td style="text-align: center; color: #475569;">${inventoryDateTime(item.order_date)}</td>
+            <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || "-")}</td>
+            <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_name || "-")}</td>
+            <td style="text-align: left; font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.product_name || "-")}</td>
+            <td style="text-align: left;">
+                <div style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(item.customer_name || "-")}</div>
+                ${item.customer_email ? `<div style="font-size: 0.72rem; color: #64748b;">${inventoryEscapeHtml(item.customer_email)}</div>` : ""}
             </td>
-            <td>${inventoryEscapeHtml(item.contact_no || "-")}</td>
-            <td>${inventoryEscapeHtml(item.customer_address || "-")}</td>
-            <td>${inventoryNumber(item.quantity)}</td>
-            <td>${inventoryMoney(item.sale_price)}</td>
-            <td>${inventoryMoney(item.line_total)}</td>
-            <td>${inventoryTitleCase(item.order_status || "-")}</td>
+            <td style="text-align: left; color: #475569;">${inventoryEscapeHtml(item.contact_no || "-")}</td>
+            <td style="text-align: left; color: #64748b; font-size: 0.74rem;">${inventoryEscapeHtml(item.customer_address || "-")}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryNumber(item.quantity)}</td>
+            <td style="text-align: right; font-weight: 600;">${inventoryMoney(item.sale_price)}</td>
+            <td style="text-align: right; font-weight: 700; color: #0f172a;">${inventoryMoney(item.line_total)}</td>
+            <td style="text-align: center;">${inventoryTitleCase(item.order_status || "-")}</td>
         `;
         tbody.appendChild(row);
     });
@@ -1930,17 +2326,15 @@ function displayCustomerDetailsReport(data) {
     if (footer) {
         footer.innerHTML = `
             <tr class="aginv-report-grand-row">
-                <td colspan="4">Totals</td>
-                <td>${inventoryNumber(uniqueCustomers.size)} unique customers</td>
+                <td colspan="7" style="text-align: right; font-weight: 900;">Grand Totals (${inventoryNumber(rows.length)} Items, ${inventoryNumber(uniqueCustomers.size)} Customers):</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryNumber(totals.qty)}</td>
                 <td></td>
-                <td></td>
-                <td>${inventoryNumber(totals.qty)}</td>
-                <td></td>
-                <td>${inventoryMoney(totals.sales)}</td>
+                <td style="text-align: right; font-weight: 900;">${inventoryMoney(totals.sales)}</td>
                 <td></td>
             </tr>
         `;
     }
+    updateBriefReportSummary("customer-details", data);
 }
 
 function fillSalesEditModal(row, options) {
@@ -2148,7 +2542,7 @@ window.setInventoryPeriodPreset = setInventoryPeriodPreset;
 
 function updateInventoryPeriodBadge() {
     const badge = document.getElementById("orderWisePeriodBadge");
-    if (!badge) return;
+    const topBadge = document.getElementById("srSummaryPeriodBadge");
 
     const startEl = document.getElementById("inventoryStartDate");
     const endEl = document.getElementById("inventoryEndDate");
@@ -2162,10 +2556,12 @@ function updateInventoryPeriodBadge() {
         "last-7-days": "Last 7 Days",
         "this-month": "Monthly (This Month)",
         "last-30-days": "Last 30 Days",
-        custom: `Custom Range (${s || "-"} to ${e || "-"})`,
+        custom: `Custom (${s || "-"} → ${e || "-"})`,
     };
 
-    badge.textContent = labels[currentOrderWisePeriod] || `Custom (${s} to ${e})`;
+    const text = labels[currentOrderWisePeriod] || `Custom (${s} → ${e})`;
+    if (badge) badge.textContent = text;
+    if (topBadge) topBadge.textContent = text;
 }
 
 function getOrderWiseStatusBadge(status) {
@@ -2262,6 +2658,7 @@ function displayOrderWiseSalesReport(data) {
 
     updateInventoryPeriodBadge();
     renderOrderWiseSalesTable();
+    updateBriefReportSummary("order-wise-sales", data);
 }
 
 function toggleOrderWiseRow(orderId) {
@@ -2381,47 +2778,47 @@ function renderOrderWiseSalesTable() {
 
         return `
             <tr class="store-sales-summary-row" style="cursor: pointer;" onclick="toggleOrderWiseRow(${order.order_id})" title="Click to show order line items">
-                <td style="text-align: center;">
+                <td style="text-align: center; width: 38px; min-width: 38px; white-space: nowrap;">
                     <i id="ows-chevron-${order.order_id}" class="fas ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="color: #64748b; font-size: 0.72rem;"></i>
                 </td>
-                <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">
+                <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center; white-space: nowrap; min-width: 150px;">
                     #${inventoryEscapeHtml(order.order_number)}
                 </td>
-                <td style="text-align: center; color: #475569;">
+                <td style="text-align: center; color: #475569; white-space: nowrap; min-width: 160px;">
                     ${inventoryDateTime(order.created_at)}
                 </td>
-                <td style="text-align: left;">
+                <td style="text-align: left; min-width: 170px;">
                     <div style="font-weight: 600; color: #0f172a;">${inventoryEscapeHtml(order.customer_name)}</div>
                     <div style="font-size: 0.72rem; color: #64748b;"><i class="fas fa-phone-alt" style="font-size: 0.65rem;"></i> ${inventoryEscapeHtml(order.customer_phone)}</div>
                 </td>
-                <td style="text-align: left; font-weight: 500; color: #334155;">
+                <td style="text-align: left; font-weight: 500; color: #334155; min-width: 150px;">
                     ${inventoryEscapeHtml(order.store_names)}
                 </td>
-                <td style="text-align: center;">
+                <td style="text-align: center; white-space: nowrap; min-width: 140px;">
                     ${getOrderWiseStatusBadge(order.order_status)}
                 </td>
-                <td style="text-align: center;">
+                <td style="text-align: center; white-space: nowrap; min-width: 140px;">
                     ${getOrderWisePaymentBadge(order.payment_method)}
                 </td>
-                <td style="text-align: right; font-weight: 600;">
+                <td style="text-align: right; font-weight: 600; white-space: nowrap; min-width: 65px;">
                     ${inventoryNumber(order.total_quantity)}
                 </td>
-                <td style="text-align: right; font-weight: 600; color: #0f172a;">
+                <td style="text-align: right; font-weight: 600; color: #0f172a; white-space: nowrap; min-width: 115px;">
                     ${inventoryMoney(order.product_sales)}
                 </td>
-                <td style="text-align: right; color: #d97706; font-weight: 600;">
+                <td style="text-align: right; color: #d97706; font-weight: 600; white-space: nowrap; min-width: 120px;">
                     ${inventoryMoney(order.delivery_fee)}
                 </td>
-                <td style="text-align: right; font-weight: 700; color: #0f172a;">
+                <td style="text-align: right; font-weight: 700; color: #0f172a; white-space: nowrap; min-width: 115px;">
                     ${inventoryMoney(order.order_total)}
                 </td>
-                <td style="text-align: right; color: #64748b;">
+                <td style="text-align: right; color: #64748b; white-space: nowrap; min-width: 115px;">
                     ${inventoryMoney(order.total_cost)}
                 </td>
-                <td style="text-align: right; font-weight: 700; color: ${profitColor};">
+                <td style="text-align: right; font-weight: 700; color: ${profitColor}; white-space: nowrap; min-width: 110px;">
                     ${inventoryMoney(order.profit)}
                 </td>
-                <td style="text-align: right; font-weight: 700; color: ${marginColor};">
+                <td style="text-align: right; font-weight: 700; color: ${marginColor}; white-space: nowrap; min-width: 85px;">
                     ${order.profit_margin.toFixed(1)}%
                 </td>
             </tr>
@@ -2439,17 +2836,17 @@ function renderOrderWiseSalesTable() {
                         <table style="border-collapse: separate; border-spacing: 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; width: 100%; min-width: 960px;">
                             <thead>
                                 <tr>
-                                    <th style="width: 32px; text-align: center;">#</th>
-                                    <th style="text-align: left;">Product Name</th>
-                                    <th style="text-align: left;">Variant / Size</th>
-                                    <th style="text-align: left;">Store</th>
-                                    <th style="text-align: right;">Qty</th>
-                                    <th style="text-align: right;">Unit Cost</th>
-                                    <th style="text-align: right;">Unit Price</th>
-                                    <th style="text-align: right;">Total Cost</th>
-                                    <th style="text-align: right;">Total Sales</th>
-                                    <th style="text-align: right;">Item Profit</th>
-                                    <th style="text-align: right;">Margin %</th>
+                                    <th style="width: 32px; text-align: center; white-space: nowrap;">#</th>
+                                    <th style="text-align: left; white-space: nowrap;">Product Name</th>
+                                    <th style="text-align: left; white-space: nowrap;">Variant / Size</th>
+                                    <th style="text-align: left; white-space: nowrap;">Store</th>
+                                    <th style="text-align: right; white-space: nowrap;">Qty</th>
+                                    <th style="text-align: right; white-space: nowrap;">Unit Cost</th>
+                                    <th style="text-align: right; white-space: nowrap;">Unit Price</th>
+                                    <th style="text-align: right; white-space: nowrap;">Total Cost</th>
+                                    <th style="text-align: right; white-space: nowrap;">Total Sales</th>
+                                    <th style="text-align: right; white-space: nowrap;">Item Profit</th>
+                                    <th style="text-align: right; white-space: nowrap;">Margin %</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2468,21 +2865,41 @@ function renderOrderWiseSalesTable() {
 
     tfoot.innerHTML = `
         <tr class="aginv-report-grand-row">
-            <td colspan="7" style="text-align: right; font-weight: 900;">
+            <td colspan="7" style="text-align: right; font-weight: 900; white-space: nowrap;">
                 Grand Total (${inventoryNumber(orders.length)} Orders):
             </td>
-            <td style="text-align: right; font-weight: 900;">${inventoryNumber(runningQty)}</td>
-            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningProductSales)}</td>
-            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningDeliveryFee)}</td>
-            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningGrandTotal)}</td>
-            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningTotalCost)}</td>
-            <td style="text-align: right; font-weight: 900;">${inventoryMoney(runningProfit)}</td>
-            <td style="text-align: right; font-weight: 900;">${overallMargin.toFixed(1)}%</td>
+            <td style="text-align: right; font-weight: 900; white-space: nowrap;">${inventoryNumber(runningQty)}</td>
+            <td style="text-align: right; font-weight: 900; white-space: nowrap;">${inventoryMoney(runningProductSales)}</td>
+            <td style="text-align: right; font-weight: 900; white-space: nowrap;">${inventoryMoney(runningDeliveryFee)}</td>
+            <td style="text-align: right; font-weight: 900; white-space: nowrap;">${inventoryMoney(runningGrandTotal)}</td>
+            <td style="text-align: right; font-weight: 900; white-space: nowrap;">${inventoryMoney(runningTotalCost)}</td>
+            <td style="text-align: right; font-weight: 900; white-space: nowrap;">${inventoryMoney(runningProfit)}</td>
+            <td style="text-align: right; font-weight: 900; white-space: nowrap;">${overallMargin.toFixed(1)}%</td>
         </tr>
     `;
 }
 
 function switchInventoryReport(reportType) {
+    const reportSelect = document.getElementById("inventoryReportSelect");
+    if (reportSelect && reportSelect.value !== reportType) {
+        reportSelect.value = reportType;
+    }
+
+    syncSubreportNavStates(reportType);
+
+    const options = getInventoryReportOptionsForScope(currentInventoryReportScope);
+    const activeOption = options.find((opt) => opt.value === reportType);
+    const heading = document.getElementById("inventoryReportHeading");
+    const subheading = document.getElementById("inventoryReportSubheading");
+    if (heading && activeOption) {
+        heading.textContent = currentInventoryReportScope === "sales" ? (activeOption.shortLabel || activeOption.label) : "Inventory & Sales Reports";
+    }
+    if (subheading && activeOption) {
+        subheading.textContent = activeOption.label;
+    }
+
+    updateBriefReportSummary(reportType);
+
     const sections = [
         "orderWiseSalesReportSection",
         "storeReportSection",
@@ -2584,6 +3001,7 @@ function switchInventoryReport(reportType) {
             break;
     }
 }
+window.switchInventoryReport = switchInventoryReport;
 
 function loadSelectedInventoryReport() {
     const activeType = (document.getElementById("inventoryReportSelect") || {}).value || "order-wise-sales";
@@ -3519,7 +3937,14 @@ function exportInventoryReportExcel() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    const initialScope = window.location.hash === "#inventory-report" ? "inventory" : "sales";
+    const hash = window.location.hash || "";
+    let initialScope = hash.includes("inventory-report") ? "inventory" : "sales";
+    let initialSubreport = "order-wise-sales";
+    if (hash.includes("?sub=")) {
+        const sub = hash.split("?sub=")[1]?.split("&")[0];
+        if (sub) initialSubreport = sub;
+    }
+
     setInventoryReportScope(initialScope);
     ensureInventoryDateDefaults();
     setInventoryPeriodPreset("today", false);
@@ -3527,9 +3952,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const reportSelect = document.getElementById("inventoryReportSelect");
     if (reportSelect) {
-        reportSelect.value = "order-wise-sales";
+        reportSelect.value = initialSubreport;
     }
-    switchInventoryReport("order-wise-sales");
+    switchInventoryReport(initialSubreport);
 
     const tabLinks = document.querySelectorAll(".tab-link");
     tabLinks.forEach((link) => {
@@ -3540,6 +3965,19 @@ document.addEventListener("DOMContentLoaded", () => {
                     loadSelectedInventoryReport();
                 }, 100);
             });
+        }
+    });
+
+    window.addEventListener("hashchange", () => {
+        const currentHash = window.location.hash || "";
+        if (currentHash.includes("sale-reports")) {
+            setInventoryReportScope("sales");
+            if (currentHash.includes("?sub=")) {
+                const sub = currentHash.split("?sub=")[1]?.split("&")[0];
+                if (sub) switchInventoryReport(sub);
+            }
+        } else if (currentHash.includes("inventory-report")) {
+            setInventoryReportScope("inventory");
         }
     });
 

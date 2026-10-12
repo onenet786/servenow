@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>ServeNow Customer Workflow System Audit Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap');
+
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9pt;
+      color: #64748b;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Arial, sans-serif;
+    color: #1e293b;
+    background: #ffffff;
+    line-height: 1.55;
+    font-size: 11pt;
+    direction: rtl;
+    text-align: right;
+  }
+
+  .urdu-text {
+    font-family: 'Noto Nastaliq Urdu', 'Segoe UI', Tahoma, sans-serif;
+    line-height: 1.9;
+  }
+
+  .ltr {
+    direction: ltr;
+    text-align: left;
+    display: inline-block;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #064e3b 0%, #0f766e 50%, #115e59 100%);
+    color: #ffffff;
+    padding: 24px 28px;
+    border-radius: 12px;
+    margin-bottom: 22px;
+    box-shadow: 0 4px 12px rgba(6, 78, 59, 0.15);
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+  }
+
+  .brand-badge {
+    background: rgba(255, 255, 255, 0.18);
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 10pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    direction: ltr;
+  }
+
+  .header-date {
+    font-size: 9.5pt;
+    opacity: 0.9;
+    direction: ltr;
+  }
+
+  .header h1 {
+    font-size: 20pt;
+    font-weight: 800;
+    margin-bottom: 6px;
+    letter-spacing: -0.3px;
+  }
+
+  .header h2 {
+    font-size: 12.5pt;
+    font-weight: 500;
+    opacity: 0.95;
+    line-height: 1.7;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+
+  .meta-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+
+  .meta-card .title {
+    font-size: 9pt;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .meta-card .value {
+    font-size: 12.5pt;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  .meta-card.success .value { color: #059669; }
+  .meta-card.primary .value { color: #0284c7; }
+  .meta-card.warning .value { color: #d97706; }
+
+  .section-title {
+    font-size: 13.5pt;
+    font-weight: 800;
+    color: #0f172a;
+    border-right: 4px solid #0d9488;
+    padding-right: 10px;
+    margin: 24px 0 14px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .summary-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    color: #166534;
+    font-size: 10.5pt;
+    line-height: 1.8;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+    font-size: 9.8pt;
+    background: #ffffff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e2e8f0;
+  }
+
+  thead {
+    background: #0f766e;
+    color: #ffffff;
+  }
+
+  th {
+    padding: 11px 12px;
+    font-weight: 700;
+    text-align: right;
+    font-size: 9.5pt;
+    border-bottom: 2px solid #0d9488;
+  }
+
+  td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+    color: #334155;
+  }
+
+  tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .badge-success {
+    background: #dcfce7;
+    color: #15803d;
+    border: 1px solid #86efac;
+  }
+
+  .badge-warning {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fcd34d;
+  }
+
+  .code-ref {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 8.8pt;
+    color: #0f766e;
+    background: #e6fffa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    direction: ltr;
+    display: inline-block;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+  }
+
+  .detail-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    background: #ffffff;
+  }
+
+  .detail-card.accent {
+    border-right: 4px solid #0d9488;
+  }
+
+  .detail-card.amber {
+    border-right: 4px solid #f59e0b;
+    background: #fffbeb;
+  }
+
+  .detail-card h3 {
+    font-size: 11pt;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #0f172a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .detail-card p {
+    font-size: 9.5pt;
+    color: #475569;
+    line-height: 1.65;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .footer-note {
+    margin-top: 30px;
+    padding: 14px 16px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 9pt;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="brand-badge">SERVENOW SYSTEM VERIFICATION</div>
+    <div class="header-date">Report Date: 2026-09-23 | Ver: 1.0</div>
+  </div>
+  <h1>سسٹم ورک فلو اور لاجک کا مکمل تصدیقی جائزہ</h1>
+  <h2>کسٹمر ورک فلو گائیڈ (CUSTOMER_WORKFLOW_GUIDE_URDU.pdf) کے 10 مراحل کی کوڈ بیس مطابقت رپورٹ</h2>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-card success">
+    <div class="title">مجموعی مطابقت (Alignment)</div>
+    <div class="value">90%+ مطابقت</div>
+  </div>
+  <div class="meta-card primary">
+    <div class="title">جائزہ لیے گئے مراحل</div>
+    <div class="value">10/10 مراحل</div>
+  </div>
+  <div class="meta-card success">
+    <div class="title">کوڈ میں کوئی تبدیلی؟</div>
+    <div class="value">کوئی کوڈ ردوبدل نہیں</div>
+  </div>
+  <div class="meta-card warning">
+    <div class="title">جزوی نکات (Nuances)</div>
+    <div class="value">2 معمولی نکات</div>
+  </div>
+</div>
+
+<div class="summary-box">
+  <strong>خلاصہ رپورٹ (Executive Summary):</strong><br>
+  پی ڈی ایف دستاویز <code>CUSTOMER_WORKFLOW_GUIDE_URDU.pdf</code> کے تمام 10 مراحل کا بیک اینڈ سرور راؤٹس، ڈیٹا بیس کوئریز، اور فلٹر موبائل ایپ اسکرینز کے ساتھ گہرائی سے موازنہ کیا گیا۔ سسٹم کی تمام اہم ترین بزنس لاجکس بشمول جی پی ایس ریڈیس بلاکنگ، مخصوص ٹائم سلاٹ پر مینو بلاکنگ، کچن سائرن آڈیو الرٹ، رائیڈر لائیو پن ٹریکنگ، اور کینسلشن پر کسٹمر کے سروناؤ والیٹ میں 100% خودکار ریفنڈ مکمل طور پر درست اور فعال (Working) ہیں۔
+</div>
+
+<div class="section-title">تمام 10 مراحل کا تفصیلی تقابلی جدول (Detailed Comparison Matrix)</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 14%;">مرحلہ (Stage)</th>
+      <th style="width: 26%;">گائیڈ کا اصول (Rule in PDF)</th>
+      <th style="width: 15%;">حالت (Status)</th>
+      <th style="width: 45%;">کوڈ بیس تصدیق و نفاذ (Codebase Verification & References)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1. رجسٹریشن و تصدیق</strong><br><span style="font-size: 8.5pt; color: #64748b;">Registration & OTP</span></td>
+      <td>نام، فعال موبائل نمبر، 6 ہندسوں کا سیکیورٹی کوڈ، اور والیٹ کا خودکار لنک ہونا۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        <span class="code-ref">routes/auth.js</span> پر <code>/register</code> روٹ موجود ہے، 6 ہندسوں کا تصدیقی کوڈ جنریٹ ہوتا ہے، اور <span class="code-ref">routes/wallets.js</span> میں کسٹمر آئی ڈی کے تحت خودکار والیٹ بن جاتا ہے۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>2. خودکار لوکیشن و ایڈریس</strong><br><span style="font-size: 8.5pt; color: #64748b;">GPS & Address Book</span></td>
+      <td>ایپ کھلتے ہی لائیو جی پی ایس، محفوظ ایڈریسز، اور سروس ایریا ریڈیس چیک۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        موبائل ایپ <span class="code-ref">home_screen.dart</span> میں <code>Geolocator</code> اور <code>placemarkFromCoordinates</code> خودکار مقام لیتے ہیں۔ بیک اینڈ <span class="code-ref">routes/stores.js</span> میں <code>service_geo_limits</code> اور <code>haversineKm</code> رینج سے باہر ہونے پر سروس خودکار بند کر دیتا ہے۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>3. اسٹور و مینو تلاش</strong><br><span style="font-size: 8.5pt; color: #64748b;">Store Discovery</span></td>
+      <td>کھلی اور قریبی دکانیں سب سے پہلے، الگ کیٹیگریز اور برانڈ/ڈش فوری سرچ۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        <span class="code-ref">routes/stores.js</span> میں <code>opening_time</code>، <code>closing_time</code> اور <code>is_closed</code> فلیگ کے تحت دکانیں کھلتی/بند ہوتی ہیں۔ موبائل میں ریئل ٹائم سرچ اور کیٹیگری فلٹرز فعال ہیں۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>4. سائز و شفٹ دستیابی</strong><br><span style="font-size: 8.5pt; color: #64748b;">Sizes & Shift Schedule</span></td>
+      <td>سائز و وزن انتخاب، شفٹ ونڈو (ناشتہ 8 تا 11 بجے وغیرہ)، اور اسپیشل انسٹرکشنز۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        <span class="code-ref">utils/timeAvailability.js</span> اور <span class="code-ref">routes/orders.js</span> (لائن 1579): اگر پروڈکٹ کے اوقات ختم ہوں تو سسٹم آرڈر روک دیتا ہے (<code>Product is only available between ...</code>)۔ سائز پرائسنگ اور نوٹس مکمل فعال ہیں۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>5. اسمارٹ کارٹ و فیس</strong><br><span style="font-size: 8.5pt; color: #64748b;">Cart & Delivery Formula</span></td>
+      <td>کل رقم = پروڈکٹس + پیکنگ + کلومیٹر فیس (بیس فیس + اضافی کلومیٹر) - واؤچر۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        <span class="code-ref">routes/orders.js</span> میں <code>calculateDeliveryFeeByStoreCount</code>، <code>delivery_fee_base</code> اور ایڈمن ڈسٹنس کنفگریشن کے مطابق بل، پیکنگ چارجز اور فیس خودکار حساب کی جاتی ہے۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>6. چیک آؤٹ و ادائیگی</strong><br><span style="font-size: 8.5pt; color: #64748b;">Checkout & Payment Modes</span></td>
+      <td>کیش آن ڈیلیوری (COD)، سروناؤ والیٹ 1-کلک، اور مخلوط ادائیگی (Split Payment)۔</td>
+      <td><span class="badge badge-warning">جزوی فعال (Partial)</span></td>
+      <td>
+        • <strong>COD اور والیٹ:</strong> 100% فعال اور اٹامک بیلنس ڈیڈکشن کے ساتھ کام کر رہے ہیں۔<br>
+        • <strong>نوٹ:</strong> اسپلٹ پیمنٹ (والیٹ بیلنس کم ہونے پر بقایا خودکار COD بننا) موبائل ایپ <span class="code-ref">checkout_screen.dart</span> میں فی الحال آٹو اسپلٹ کے بجائے کم بیلنس کا میسج دکھا کر پورا کیش منتخب کرنے کا کہتی ہے۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>7. کچن قبولیت و تیاری</strong><br><span style="font-size: 8.5pt; color: #64748b;">Store Acceptance & Siren</span></td>
+      <td>آرڈر پر دکاندار اسکرین پر سائرن بجنا، اسٹیٹس لائف سائیکل اور کاؤنٹ ڈاؤن ٹائمر۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        <span class="code-ref">js/notifications.js</span> میں <code>playNotificationSound()</code> آرڈر آنے پر آڈیو سائرن بجاتی ہے۔ لائیو اسٹیٹس (Pending &rarr; Confirmed &rarr; Preparing &rarr; Ready) اور ای ٹی اے ٹائمر مکمل فعال ہیں۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>8. رائیڈر تفویض و لائیو ٹریکنگ</strong><br><span style="font-size: 8.5pt; color: #64748b;">Live GPS Tracking & Rider</span></td>
+      <td>قریبی رائیڈر تفویض، تصویر/بائیک/فون اسکرین پر، لائیو موومنٹ اور ڈائریکٹ کال۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        <span class="code-ref">order_details_screen.dart</span> میں سوکٹ <code>rider_location_update</code> پر نقشے پر پن لائیو موو ہوتی ہے۔ رائیڈر کو براہِ راست کال اور واٹس ایپ سپورٹ کا بٹن موجود ہے۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>9. دہلیز پر وصولی و رسید</strong><br><span style="font-size: 8.5pt; color: #64748b;">Doorstep Handover</span></td>
+      <td>پارسل معائنہ، نقد ادائیگی وصولی، آرڈر ڈلیورڈ، اور فوری ڈیجیٹل رسید و نوٹیفکیشن۔</td>
+      <td><span class="badge badge-success">فعال (Active)</span></td>
+      <td>
+        رائیڈر کے کیش کلیئر کرنے پر آرڈر <code>delivered</code> بنتا ہے۔ کسٹمر کے فون پر فوری پش نوٹیفکیشن (<code>title: "Order Delivered"</code>) اور ڈیجیٹل بل کی سمری ظاہر ہوتی ہے۔
+      </td>
+    </tr>
+
+    <tr>
+      <td><strong>10. منسوخی، ریفنڈ و فیڈبیک</strong><br><span style="font-size: 8.5pt; color: #64748b;">Refunds & Ratings</span></td>
+      <td>منظوری سے پہلے بلامعاوضہ کینسل، والیٹ میں فوری ریفنڈ، 1 تا 5 اسٹار ریٹنگ، سپورٹ۔</td>
+      <td><span class="badge badge-warning">جزوی فعال (Partial)</span></td>
+      <td>
+        • <strong>والیٹ آٹو ریفنڈ (100% فعال):</strong> <span class="code-ref">routes/orders.js</span> (لائن 4660) میں آرڈر کینسل ہوتے ہی پری پیڈ رقم خودکار والیٹ میں جمع ہو جاتی ہے۔<br>
+        • <strong>ہیلپ ڈیسک (100% فعال):</strong> ایپ سے لائیو کال اور واٹس ایپ لنک کام کر رہا ہے۔<br>
+        • <strong>نوٹ:</strong> کسٹمر کی جانب سے ڈیلیوری کے بعد 1 سے 5 اسٹار ریٹنگ دینے کا انٹرایکٹو ڈائیلاگ ابھی مکمل طور پر منسلک ہونا باقی ہے (فی الحال اسٹور کی ریٹنگ ایڈمن اینڈ سے سیٹ ہوتی ہے)۔
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="section-title">اہم تکنیکی تفصیلات و تصدیقی شواہد (Technical Findings)</div>
+
+<div class="card-grid">
+  <div class="detail-card accent">
+    <h3>
+      <span>شفٹ دستیابی و مینو پروٹیکشن (Shift Protection)</span>
+      <span class="badge badge-success">Verified</span>
+    </h3>
+    <p>
+      بیک اینڈ یوٹیلٹی <code>utils/timeAvailability.js</code> میں فنکشن <code>checkProductTimeAvailability</code> وقت کا موازنہ کرتا ہے۔ جب کسٹمر آرڈر سبمٹ کرتا ہے، تو <code>routes/orders.js</code> لائن 1579 پر یہ چیک رن ہوتا ہے اور مخصوص وقت کے علاوہ اشیاء شامل کرنے پر آرڈر فوری بلاک ہو جاتا ہے۔
+    </p>
+  </div>
+
+  <div class="detail-card accent">
+    <h3>
+      <span>کینسلشن پر خودکار والیٹ ریفنڈ (Instant Wallet Refund)</span>
+      <span class="badge badge-success">Verified</span>
+    </h3>
+    <p>
+      <code>routes/orders.js</code> لائن 4660 تا 4690 میں تصدیق ہوئی کہ جب کوئی آرڈر دکاندار کی قبولیت سے قبل کینسل ہوتا ہے، تو سسٹم کسٹمر کے سروناؤ والیٹ میں <code>UPDATE wallets SET balance = balance + ?</code> چلا کر فوری رقم ریفنڈ کرتا ہے اور ٹرانزیکشن لاگ میں انٹری کرتا ہے۔
+    </p>
+  </div>
+
+  <div class="detail-card amber">
+    <h3>
+      <span>مخلوط ادائیگی کا تفصیلی مشاہدہ (Split Payment)</span>
+      <span class="badge badge-warning">Observation</span>
+    </h3>
+    <p>
+      موبائل ایپ فائل <code>mobile_app/lib/screens/checkout_screen.dart</code> لائن 1184 پر چیکنگ کے دوران دیکھا گیا کہ جب والیٹ میں بل سے کم رقم ہوتی ہے، تو ایپ لال انڈیکیٹر دکھا کر صارف کو کیش آن ڈیلیوری منتخب کرنے کا کہتی ہے۔ گائیڈ کی مکمل تعمیل کے لیے ہائبرڈ اسپلٹ (والیٹ کٹوتی + بقیہ کیش) کا فیچر شامل کیا جا سکتا ہے۔
+    </p>
+  </div>
+
+  <div class="detail-card amber">
+    <h3>
+      <span>کسٹمر اسٹار ریٹنگ کا مشاہدہ (Customer Star Rating)</span>
+      <span class="badge badge-warning">Observation</span>
+    </h3>
+    <p>
+      ڈیٹا بیس اور ایڈمن ڈیش بورڈ میں اسٹور اور رائیڈر کی ریٹنگ کے فیلڈز موجود ہیں، مگر کسٹمر ایپ کے اندر ڈیلیوری مکمل ہوتے ہی 1 سے 5 اسٹار ریٹنگ اور فیڈبیک کا پوپ اپ ڈائیلاگ ابھی مکمل طور پر منسلک نہیں ہے۔
+    </p>
+  </div>
+</div>
+
+<div class="footer-note">
+  <div><strong>ServeNow Engineering Audit</strong> — Customer Journey Lifecycle Verification</div>
+  <div class="ltr">Status: 90%+ COMPLIANT | NO CODE MODIFICATIONS PERFORMED</div>
+</div>
+
+</body>
+</html>

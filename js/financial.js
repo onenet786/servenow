@@ -2439,11 +2439,14 @@ async function submitRiderCash() {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Success', id ? 'Rider cash movement updated' : 'Cash movement recorded successfully');
+            showSuccess('Success', id ? (data.message || 'Rider cash movement updated') : 'Cash movement recorded successfully');
             closeModal('riderCashModal');
             loadRiderCash();
         } else {
-            showError('Error', data.message);
+            const errorMsg = data.error && data.error !== data.message
+                ? `${data.message}: ${data.error}`
+                : (data.message || 'Failed to update rider cash movement');
+            showError('Error', errorMsg);
         }
     } catch (error) {
         console.error('Error recording rider cash:', error);
@@ -2761,10 +2764,13 @@ async function approveRiderCash(id) {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Success', 'Rider cash movement approved');
+            showSuccess('Success', data.message || 'Rider cash movement approved');
             loadRiderCash();
         } else {
-            showError('Error', data.message);
+            const errorMsg = data.error && data.error !== data.message
+                ? `${data.message}: ${data.error}`
+                : (data.message || 'Failed to approve rider cash');
+            showError('Error', errorMsg);
         }
     } catch (error) {
         console.error('Error approving rider cash:', error);
@@ -5691,8 +5697,10 @@ async function loadRiderReports() {
 
 function displayRiderReports(riders) {
     const tbody = document.getElementById('riderReportsTableBody');
+    const footer = document.getElementById('riderReportsTableFooter');
     if (!tbody) return;
     tbody.innerHTML = '';
+    if (footer) footer.innerHTML = '';
 
     if (!riders || riders.length === 0) {
         const emptyRow = document.createElement('tr');
@@ -5701,24 +5709,40 @@ function displayRiderReports(riders) {
         return;
     }
 
+    let totAssigned = 0;
+    let totDelivered = 0;
+    let totCancelled = 0;
+    let totFees = 0;
+    let totCollection = 0;
+    let totSubmission = 0;
+    let totPending = 0;
+
     riders.forEach(r => {
         const feesEarned = parseFloat(r.total_fees || 0);
         const cashCollection = parseFloat(r.cash_collection || 0);
         const cashSubmission = parseFloat(r.cash_submission || 0);
         const pendingCash = cashCollection - cashSubmission;
 
+        totAssigned += Number(r.total_assigned || 0);
+        totDelivered += Number(r.total_delivered || 0);
+        totCancelled += Number(r.total_cancelled || 0);
+        totFees += feesEarned;
+        totCollection += cashCollection;
+        totSubmission += cashSubmission;
+        totPending += pendingCash;
+
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td><strong>${r.first_name} ${r.last_name}</strong></td>
-            <td>${r.email}<br><small style="color: #64748b;">${r.phone || '-'}</small></td>
-            <td>${r.total_assigned}</td>
-            <td>${r.total_delivered}</td>
-            <td>${r.total_cancelled}</td>
-            <td>Rs  ${feesEarned.toFixed(2)}</td>
-            <td>Rs  ${cashCollection.toFixed(2)}</td>
-            <td>Rs  ${cashSubmission.toFixed(2)}</td>
-            <td style="font-weight: bold; color: ${pendingCash > 0 ? '#dc2626' : (pendingCash < 0 ? '#2563eb' : '#16a34a')}">Rs  ${pendingCash.toFixed(2)}</td>
-            <td>
+            <td style="text-align: left;"><strong style="color: #0f172a;">${r.first_name} ${r.last_name}</strong></td>
+            <td style="text-align: left; font-size: 0.74rem;">${r.email}<br><small style="color: #64748b;">${r.phone || '-'}</small></td>
+            <td style="text-align: right; font-weight: 600;">${r.total_assigned}</td>
+            <td style="text-align: right; font-weight: 600; color: #059669;">${r.total_delivered}</td>
+            <td style="text-align: right; color: #dc2626;">${r.total_cancelled}</td>
+            <td style="text-align: right; font-weight: 600;">Rs  ${feesEarned.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 600;">Rs  ${cashCollection.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 600;">Rs  ${cashSubmission.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${pendingCash > 0 ? '#dc2626' : (pendingCash < 0 ? '#2563eb' : '#16a34a')}">Rs  ${pendingCash.toFixed(2)}</td>
+            <td style="text-align: center;">
                 <button class="btn btn-sm btn-primary" onclick="generateRiderStatementPDFById(${r.id})" style="padding: 4px 8px; font-size: 11px; white-space: nowrap; border-radius: 4px;">
                     <i class="fas fa-file-pdf"></i> Statement PDF
                 </button>
@@ -5726,6 +5750,22 @@ function displayRiderReports(riders) {
         `;
         tbody.appendChild(row);
     });
+
+    if (footer) {
+        footer.innerHTML = `
+            <tr class="aginv-report-grand-row">
+                <td colspan="2" style="text-align: right; font-weight: 900;">Grand Totals (${riders.length} Riders):</td>
+                <td style="text-align: right; font-weight: 900;">${totAssigned}</td>
+                <td style="text-align: right; font-weight: 900;">${totDelivered}</td>
+                <td style="text-align: right; font-weight: 900;">${totCancelled}</td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totFees.toFixed(2)}</td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totCollection.toFixed(2)}</td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totSubmission.toFixed(2)}</td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totPending.toFixed(2)}</td>
+                <td></td>
+            </tr>
+        `;
+    }
 }
 
 function shouldShowStoreReportPendingOnly() {
@@ -6066,14 +6106,22 @@ function displayStoreReportDetails(details, storeId) {
 
 function displayStoreReports(stores) {
     const tbody = document.getElementById('storeReportsTableBody');
+    const footer = document.getElementById('storeReportsTableFooter');
     if (!tbody) return;
     tbody.innerHTML = '';
+    if (footer) footer.innerHTML = '';
 
     if (!stores || stores.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:1rem;">No stores found</td></tr>';
         updateStoreReportDueTotals([]);
         return;
     }
+
+    let totOrders = 0;
+    let totEarnings = 0;
+    let totPayable = 0;
+    let totPaid = 0;
+    let totPending = 0;
 
     (stores || []).forEach(s => {
         const earnings = parseFloat(s.total_earnings || 0);
@@ -6086,18 +6134,24 @@ function displayStoreReports(stores) {
             : '-';
         const graceDueText = formatGraceDueCell(s);
 
+        totOrders += Number(s.total_orders || 0);
+        totEarnings += earnings;
+        totPayable += payable;
+        totPaid += paid;
+        totPending += pending;
+
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${s.payment_term || 'No Payment Term'}</td>
-            <td>${s.name}</td>
-            <td>${s.email}<br>${s.phone || '-'}</td>
-            <td>${s.total_orders}</td>
-            <td>${graceStart}</td>
-            <td>${graceDueText}</td>
-            <td>Rs  ${earnings.toFixed(2)}</td>
-            <td>Rs  ${payable.toFixed(2)}</td>
-            <td>Rs  ${paid.toFixed(2)}</td>
-            <td style="color: ${pending > 0 ? 'orange' : 'inherit'}">Rs  ${pending.toFixed(2)}</td>
+            <td style="text-align: center;"><span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: #e0f2fe; color: #0369a1;">${s.payment_term || 'No Payment Term'}</span></td>
+            <td style="text-align: left;"><strong style="color: #0f172a;">${s.name}</strong></td>
+            <td style="text-align: left; font-size: 0.74rem;">${s.email}<br><small style="color: #64748b;">${s.phone || '-'}</small></td>
+            <td style="text-align: right; font-weight: 600;">${s.total_orders}</td>
+            <td style="text-align: center; color: #475569;">${graceStart}</td>
+            <td style="text-align: center; color: #475569;">${graceDueText}</td>
+            <td style="text-align: right; font-weight: 600; color: #0f172a;">Rs  ${earnings.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 600; color: #d97706;">Rs  ${payable.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 600; color: #16a34a;">Rs  ${paid.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${pending > 0 ? '#dc2626' : '#16a34a'}">Rs  ${pending.toFixed(2)}</td>
         `;
         row.title = 'Click to view store details';
         row.style.cursor = 'pointer';
@@ -6117,6 +6171,21 @@ function displayStoreReports(stores) {
         }
         tbody.appendChild(row);
     });
+
+    if (footer) {
+        footer.innerHTML = `
+            <tr class="aginv-report-grand-row">
+                <td colspan="3" style="text-align: right; font-weight: 900;">Grand Totals (${stores.length} Stores):</td>
+                <td style="text-align: right; font-weight: 900;">${totOrders}</td>
+                <td></td>
+                <td></td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totEarnings.toFixed(2)}</td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totPayable.toFixed(2)}</td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totPaid.toFixed(2)}</td>
+                <td style="text-align: right; font-weight: 900;">Rs  ${totPending.toFixed(2)}</td>
+            </tr>
+        `;
+    }
 }
 
 function getStorePaymentTermGroup(term) {
@@ -6152,8 +6221,10 @@ async function loadStorePaymentTermReport() {
 
 function displayStorePaymentTermGroups(stores) {
     const tbody = document.getElementById('storePaymentTermGroupsTableBody');
+    const footer = document.getElementById('storePaymentTermGroupsTableFooter');
     if (!tbody) return;
     tbody.innerHTML = '';
+    if (footer) footer.innerHTML = '';
 
     const groupedStores = new Map();
     (stores || []).forEach((store) => {
@@ -6172,6 +6243,8 @@ function displayStorePaymentTermGroups(stores) {
         'Other / Unassigned'
     ];
 
+    let grandPayable = 0;
+
     orderedGroups.forEach((groupName) => {
         const storesInGroup = (groupedStores.get(groupName) || [])
             .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
@@ -6182,12 +6255,13 @@ function displayStorePaymentTermGroups(stores) {
             (sum, store) => sum + Number(store.pending_settlement || 0),
             0
         );
+        grandPayable += totalPayable;
 
         const groupRow = document.createElement('tr');
+        groupRow.className = "aginv-report-group-row";
         groupRow.innerHTML = `
-            <td colspan="5" style="background:#f8fafc; font-weight:700;">
-                ${groupName} (${storesInGroup.length} store${storesInGroup.length === 1 ? '' : 's'}) |
-                Total Payable: Rs ${totalPayable.toFixed(2)}
+            <td colspan="5" style="background:#1e293b; color:#ffffff; font-weight:800; font-size:0.74rem; text-transform:uppercase; letter-spacing:0.04em; padding:0.45rem 0.5rem;">
+                ${groupName} (${storesInGroup.length} store${storesInGroup.length === 1 ? '' : 's'}) | Total Payable: Rs ${totalPayable.toFixed(2)}
             </td>
         `;
         tbody.appendChild(groupRow);
@@ -6196,15 +6270,24 @@ function displayStorePaymentTermGroups(stores) {
             const payable = Number(store.pending_settlement || 0);
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${groupName}</td>
-                <td>${store.payment_term || 'No Payment Term'}</td>
-                <td>${store.name}</td>
-                <td>${store.email}<br>${store.phone || '-'}</td>
-                <td style="color: ${payable > 0 ? 'orange' : 'inherit'}">Rs ${payable.toFixed(2)}</td>
+                <td style="text-align: left;">${groupName}</td>
+                <td style="text-align: center;"><span style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.72rem; font-weight:600; background:#e0f2fe; color:#0369a1;">${store.payment_term || 'No Payment Term'}</span></td>
+                <td style="text-align: left;"><strong style="color:#0f172a;">${store.name}</strong></td>
+                <td style="text-align: left; font-size:0.74rem;">${store.email}<br><small style="color:#64748b;">${store.phone || '-'}</small></td>
+                <td style="text-align: right; font-weight: 700; color: ${payable > 0 ? '#d97706' : '#16a34a'}">Rs ${payable.toFixed(2)}</td>
             `;
             tbody.appendChild(row);
         });
     });
+
+    if (footer) {
+        footer.innerHTML = `
+            <tr class="aginv-report-grand-row">
+                <td colspan="4" style="text-align: right; font-weight: 900;">Grand Totals (${(stores || []).length} Stores):</td>
+                <td style="text-align: right; font-weight: 900;">Rs ${grandPayable.toFixed(2)}</td>
+            </tr>
+        `;
+    }
 }
 
 function exportRiderReport() {
@@ -7352,11 +7435,11 @@ async function loadCreditStoresHistory() {
             `;
         }
     }
-}
-
-function renderCreditStoresLedgerTable(stores) {
+}function renderCreditStoresLedgerTable(stores) {
     const tbody = document.getElementById('creditStoresLedgerTableBody');
+    const footer = document.getElementById('creditStoresLedgerTableFooter');
     if (!tbody) return;
+    if (footer) footer.innerHTML = '';
 
     if (!Array.isArray(stores) || stores.length === 0) {
         tbody.innerHTML = `
@@ -7370,6 +7453,12 @@ function renderCreditStoresLedgerTable(stores) {
         return;
     }
 
+    let totOrders = 0;
+    let totGross = 0;
+    let totPayable = 0;
+    let totPaid = 0;
+    let totPending = 0;
+
     let html = '';
     stores.forEach((s, idx) => {
         const hasDue = Number(s.pending_balance || 0) > 0.01;
@@ -7377,59 +7466,65 @@ function renderCreditStoresLedgerTable(stores) {
         const balanceBadgeBg = hasDue ? '#ffe4e6' : '#dcfce7';
         const balanceBorder = hasDue ? '#fecaca' : '#bbf7d0';
 
+        totOrders += Number(s.delivered_orders || 0);
+        totGross += Number(s.gross_sales || 0);
+        totPayable += Number(s.total_payable || 0);
+        totPaid += Number(s.total_paid || 0);
+        totPending += Number(s.pending_balance || 0);
+
         let lastSettlementText = '<span style="color:#94a3b8;">None</span>';
         if (s.last_settlement_number) {
             const dateDisplay = s.last_settlement_date ? new Date(s.last_settlement_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '';
-            lastSettlementText = `<div style="font-size:0.75rem;"><strong style="color:#2563eb;">${escapeCreditHtml(s.last_settlement_number)}</strong><br><span style="color:#64748b;">${dateDisplay} (${escapeCreditHtml(s.last_settlement_status || 'paid')})</span></div>`;
+            lastSettlementText = `<div style="font-size:0.72rem;"><strong style="color:#2563eb;">${escapeCreditHtml(s.last_settlement_number)}</strong><br><span style="color:#64748b;">${dateDisplay} (${escapeCreditHtml(s.last_settlement_status || 'paid')})</span></div>`;
         }
 
         const isDiscount = String(s.payment_term || '').toLowerCase().includes('discount');
         const termBadgeClass = isDiscount ? 'background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe;' : 'background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;';
 
         html += `
-            <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">
-                <td style="padding: 0.75rem 0.6rem; text-align: center; color: #64748b; font-size: 0.75rem;">${idx + 1}</td>
-                <td style="padding: 0.75rem; font-weight: 700; color: #1e293b; font-size: 0.85rem; cursor: pointer;" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')">
+            <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s ease;">
+                <td style="text-align: center; color: #64748b; font-size: 0.72rem;">${idx + 1}</td>
+                <td style="font-weight: 700; color: #1e293b; cursor: pointer; text-align: left;" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')">
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <i class="fas fa-store" style="color: #6366f1; font-size: 0.85rem;"></i>
-                        <span style="color: #1e293b; text-decoration: underline dotted #cbd5e1;">${escapeCreditHtml(s.store_name)}</span>
+                        <i class="fas fa-store" style="color: #6366f1; font-size: 0.8rem;"></i>
+                        <span style="color: #0f172a;">${escapeCreditHtml(s.store_name)}</span>
                         ${s.is_active ? '<span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; display: inline-block;" title="Active"></span>' : '<span style="width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; display: inline-block;" title="Inactive"></span>'}
                     </div>
                     <div style="font-size: 0.72rem; color: #94a3b8; font-weight: 400; margin-top: 2px;">
                         ${escapeCreditHtml(s.address || 'Address not listed')}
                     </div>
                 </td>
-                <td style="padding: 0.75rem;">
+                <td style="text-align: center;">
                     <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; ${termBadgeClass}">
                         ${escapeCreditHtml(s.payment_term || 'Credit')}
                     </span>
                 </td>
-                <td style="padding: 0.75rem; font-size: 0.78rem; color: #475569;">
-                    <div><i class="fas fa-phone-alt" style="color: #94a3b8; width: 14px;"></i> ${escapeCreditHtml(s.phone)}</div>
-                    <div><i class="fas fa-envelope" style="color: #94a3b8; width: 14px;"></i> ${escapeCreditHtml(s.email)}</div>
+                <td style="font-size: 0.74rem; color: #475569; text-align: left;">
+                    <div><i class="fas fa-phone-alt" style="color: #94a3b8; width: 12px;"></i> ${escapeCreditHtml(s.phone)}</div>
+                    <div><i class="fas fa-envelope" style="color: #94a3b8; width: 12px;"></i> ${escapeCreditHtml(s.email)}</div>
                 </td>
-                <td style="padding: 0.75rem; text-align: center; font-weight: 700; color: #0284c7; font-size: 0.85rem;">
+                <td style="text-align: right; font-weight: 700; color: #0284c7;">
                     ${s.delivered_orders || 0}
                 </td>
-                <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #334155; font-size: 0.82rem;">
+                <td style="text-align: right; font-weight: 600; color: #334155;">
                     ${formatCreditRupees(s.gross_sales)}
                 </td>
-                <td style="padding: 0.75rem; text-align: right; font-weight: 700; color: #d97706; font-size: 0.85rem;">
+                <td style="text-align: right; font-weight: 700; color: #d97706;">
                     ${formatCreditRupees(s.total_payable)}
                 </td>
-                <td style="padding: 0.75rem; text-align: right; font-weight: 600; color: #16a34a; font-size: 0.82rem;">
+                <td style="text-align: right; font-weight: 600; color: #16a34a;">
                     ${formatCreditRupees(s.total_paid)}
                 </td>
-                <td style="padding: 0.75rem; text-align: right;">
-                    <span style="display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 0.82rem; background: ${balanceBadgeBg}; color: ${balanceColor}; border: 1px solid ${balanceBorder};">
+                <td style="text-align: right;">
+                    <span style="display: inline-block; padding: 2px 6px; border-radius: 6px; font-weight: 800; font-size: 0.76rem; background: ${balanceBadgeBg}; color: ${balanceColor}; border: 1px solid ${balanceBorder};">
                         ${formatCreditRupees(s.pending_balance)}
                     </span>
                 </td>
-                <td style="padding: 0.75rem; text-align: center;">
+                <td style="text-align: center;">
                     ${lastSettlementText}
                 </td>
-                <td style="padding: 0.75rem; text-align: center;">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')" style="font-size: 0.75rem; padding: 0.35rem 0.7rem; border-radius: 6px; white-space: nowrap; font-weight: 600;">
+                <td style="text-align: center;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')" style="font-size: 0.72rem; padding: 0.3rem 0.6rem; border-radius: 6px; white-space: nowrap; font-weight: 600;">
                         <i class="fas fa-receipt"></i> Order History
                     </button>
                 </td>
@@ -7438,6 +7533,21 @@ function renderCreditStoresLedgerTable(stores) {
     });
 
     tbody.innerHTML = html;
+
+    if (footer) {
+        footer.innerHTML = `
+            <tr class="aginv-report-grand-row">
+                <td colspan="4" style="text-align: right; font-weight: 900;">Grand Totals (${stores.length} Stores):</td>
+                <td style="text-align: right; font-weight: 900;">${totOrders}</td>
+                <td style="text-align: right; font-weight: 900;">${formatCreditRupees(totGross)}</td>
+                <td style="text-align: right; font-weight: 900;">${formatCreditRupees(totPayable)}</td>
+                <td style="text-align: right; font-weight: 900;">${formatCreditRupees(totPaid)}</td>
+                <td style="text-align: right; font-weight: 900;">${formatCreditRupees(totPending)}</td>
+                <td></td>
+                <td></td>
+            </tr>
+        `;
+    }
 }
 
 function filterCreditStoresLedgerTable() {

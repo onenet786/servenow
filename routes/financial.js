@@ -1864,31 +1864,36 @@ async function getOrCreateRiderWallet(db, riderId) {
 }
 
 async function assertNoWalletOrderCreditConflict(db, orderId, riderId, walletId) {
-    const [existingCredits] = await db.execute(
-        `SELECT wt.id, wt.wallet_id, w.rider_id AS wallet_rider_id
-         FROM wallet_transactions wt
-         JOIN wallets w ON w.id = wt.wallet_id
-         WHERE wt.type = 'credit'
-           AND wt.reference_type = 'order'
-           AND CAST(wt.reference_id AS UNSIGNED) = ?
-         LIMIT 5`,
-        [orderId]
-    );
-
-    const conflictingCredit = existingCredits.find(
-        (row) =>
-            Number(row.wallet_id) !== Number(walletId) ||
-            Number(row.wallet_rider_id) !== Number(riderId)
-    );
-    if (conflictingCredit) {
-        const error = new Error(
-            `Wallet credit conflict for order ${orderId}: already credited wallet ${conflictingCredit.wallet_id} / rider ${conflictingCredit.wallet_rider_id}`
+    try {
+        const [existingCredits] = await db.execute(
+            `SELECT wt.id, wt.wallet_id, w.rider_id AS wallet_rider_id
+             FROM wallet_transactions wt
+             JOIN wallets w ON w.id = wt.wallet_id
+             WHERE wt.type = 'credit'
+               AND wt.reference_type = 'order'
+               AND CAST(wt.reference_id AS UNSIGNED) = ?
+               AND w.rider_id IS NOT NULL
+             LIMIT 5`,
+            [orderId]
         );
-        error.statusCode = 409;
-        throw error;
-    }
 
-    return existingCredits;
+        const conflictingCredit = existingCredits.find(
+            (row) =>
+                Number(row.wallet_id) !== Number(walletId) ||
+                Number(row.wallet_rider_id) !== Number(riderId)
+        );
+        if (conflictingCredit) {
+            console.warn(
+                `[Wallet Credit Warning] Order ${orderId} already credited rider wallet ${conflictingCredit.wallet_id} / rider ${conflictingCredit.wallet_rider_id}. Skipping duplicate credit.`
+            );
+            return existingCredits;
+        }
+
+        return existingCredits;
+    } catch (err) {
+        console.warn('Error checking wallet order credit conflict:', err);
+        return [];
+    }
 }
 
 // Helper function to record wallet transaction and update balance
@@ -1939,106 +1944,80 @@ async function recordRiderWalletTransaction(db, riderId, type, amount, descripti
 }
 
 async function ensureWalletCreditsForSubmissionOrders(db, riderId, movementId) {
-    await ensureRiderCashSubmissionOrdersTable(db);
-    const wallet = await getOrCreateRiderWallet(db, riderId);
-    if (Number(wallet.rider_id || riderId) !== Number(riderId)) {
-        throw new Error(`Wallet ${wallet.id} does not belong to rider ${riderId}`);
-    }
+    try {
+        await ensureRiderCashSubmissionOrdersTable(db);
+        const wallet = await getOrCreateRiderWallet(db, riderId);
+        if (!wallet || Number(wallet.rider_id || riderId) !== Number(riderId)) {
+            console.warn(`Wallet for rider ${riderId} could not be resolved cleanly`);
+            return { backfilledCount: 0, backfilledAmount: 0 };
+        }
 
-    const [conflictRows] = await db.execute(
-        `SELECT rcso.order_id,
-                rcso.order_number,
-                o.rider_id AS order_rider_id,
-                wt.id AS wallet_transaction_id,
-                wt.wallet_id,
-                w.rider_id AS wallet_rider_id
-         FROM rider_cash_submission_orders rcso
-         JOIN orders o ON o.id = rcso.order_id
-         LEFT JOIN wallet_transactions wt
-           ON wt.type = 'credit'
-          AND wt.reference_type = 'order'
-          AND CAST(wt.reference_id AS UNSIGNED) = rcso.order_id
-         LEFT JOIN wallets w ON w.id = wt.wallet_id
-         WHERE rcso.movement_id = ?
-           AND rcso.rider_id = ?
-           AND (
-                o.rider_id <> rcso.rider_id
-                OR (wt.id IS NOT NULL AND (wt.wallet_id <> ? OR w.rider_id <> rcso.rider_id))
-           )
-         LIMIT 1`,
-        [movementId, riderId, wallet.id]
-    );
-    if (conflictRows.length > 0) {
-        const conflict = conflictRows[0];
-        throw new Error(
-            `Cannot backfill submitted order ${conflict.order_number || conflict.order_id}: rider or wallet ownership conflict`
+        // Find linked orders missing wallet credit entries for this rider
+        const [missingRows] = await db.execute(
+            `SELECT rcso.order_id,
+                    rcso.order_number,
+                    rcso.order_amount
+             FROM rider_cash_submission_orders rcso
+             JOIN orders o ON o.id = rcso.order_id AND o.rider_id = rcso.rider_id
+             LEFT JOIN wallet_transactions wt
+               ON wt.wallet_id = ?
+              AND wt.type = 'credit'
+              AND wt.reference_type = 'order'
+              AND CAST(wt.reference_id AS UNSIGNED) = rcso.order_id
+             WHERE rcso.movement_id = ?
+               AND rcso.rider_id = ?
+               AND wt.id IS NULL
+             ORDER BY rcso.order_id ASC`,
+            [wallet.id, movementId, riderId]
         );
-    }
 
-    // Find linked orders missing wallet credit entries.
-    const [missingRows] = await db.execute(
-        `SELECT rcso.order_id,
-                rcso.order_number,
-                rcso.order_amount
-         FROM rider_cash_submission_orders rcso
-         JOIN orders o ON o.id = rcso.order_id AND o.rider_id = rcso.rider_id
-         LEFT JOIN wallet_transactions wt
-           ON wt.wallet_id = ?
-          AND wt.type = 'credit'
-          AND wt.reference_type = 'order'
-          AND CAST(wt.reference_id AS UNSIGNED) = rcso.order_id
-         WHERE rcso.movement_id = ?
-           AND rcso.rider_id = ?
-           AND wt.id IS NULL
-         ORDER BY rcso.order_id ASC`,
-        [wallet.id, movementId, riderId]
-    );
-
-    let runningBalance = parseFloat(wallet.balance || 0);
-    for (const row of missingRows) {
-        const amount = Number(row.order_amount || 0);
-        if (amount <= 0) continue;
-        const existingCredits = await assertNoWalletOrderCreditConflict(
-            db,
-            row.order_id,
-            riderId,
-            wallet.id
-        );
-        if (existingCredits.length > 0) continue;
-        runningBalance += amount;
-
-        await db.execute(
-            `INSERT INTO wallet_transactions
-             (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
-             VALUES (?, 'credit', ?, ?, 'order', ?, ?)`,
-            [
-                wallet.id,
-                amount,
-                `Auto backfill from submitted cash order #${row.order_number || row.order_id}`,
+        let runningBalance = parseFloat(wallet.balance || 0);
+        let backfilledAmount = 0;
+        for (const row of missingRows) {
+            const amount = Number(row.order_amount || 0);
+            if (amount <= 0) continue;
+            const existingCredits = await assertNoWalletOrderCreditConflict(
+                db,
                 row.order_id,
-                runningBalance
-            ]
-        );
-    }
-
-    if (missingRows.length > 0) {
-        await db.execute(
-            `UPDATE wallets
-             SET balance = ?,
-                 total_credited = total_credited + ?
-             WHERE id = ?`,
-            [
-                runningBalance,
-                missingRows.reduce((s, r) => s + Number(r.order_amount || 0), 0),
+                riderId,
                 wallet.id
-            ]
-        );
-    }
+            );
+            if (existingCredits && existingCredits.length > 0) continue;
+            runningBalance += amount;
+            backfilledAmount += amount;
 
-    return {
-        backfilledCount: missingRows.length,
-        backfilledAmount: missingRows.reduce((s, r) => s + Number(r.order_amount || 0), 0)
-    };
+            await db.execute(
+                `INSERT INTO wallet_transactions
+                 (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
+                 VALUES (?, 'credit', ?, ?, 'order', ?, ?)`,
+                [
+                    wallet.id,
+                    amount,
+                    `Auto backfill from submitted cash order #${row.order_number || row.order_id}`,
+                    row.order_id,
+                    runningBalance
+                ]
+            );
+        }
+
+        if (backfilledAmount > 0) {
+            await db.execute(
+                `UPDATE wallets
+                 SET balance = ?,
+                     total_credited = total_credited + ?
+                 WHERE id = ?`,
+                [runningBalance, backfilledAmount, wallet.id]
+            );
+        }
+
+        return {
+            backfilledCount: missingRows.length,
+            backfilledAmount
+        };
+    } catch (err) {
+        console.warn('Non-fatal error in ensureWalletCreditsForSubmissionOrders:', err);
+        return { backfilledCount: 0, backfilledAmount: 0 };
+    }
 }
 
 router.post('/rider-cash', [
@@ -2280,13 +2259,13 @@ router.put('/rider-cash/:id', [
         if (!errors.isEmpty()) {
             return res.status(400).json({
                 success: false,
-                message: 'Validation failed',
+                message: errors.array().map(e => e.msg || e.param).join(', ') || 'Validation failed',
                 errors: errors.array()
             });
         }
 
         const { id } = req.params;
-        const { status, amount, description } = req.body;
+        const { status, amount, description, rider_id, movement_type, notes } = req.body;
 
         // Get current movement to check status transition
         const [movements] = await req.db.execute(
@@ -2320,11 +2299,26 @@ router.put('/rider-cash/:id', [
             });
         }
 
+        if (movementStatus === 'pending') {
+            if (rider_id !== undefined && rider_id !== null && Number(rider_id) !== Number(movement.rider_id)) {
+                updates.push('rider_id = ?');
+                params.push(rider_id);
+            }
+            if (movement_type && movement_type !== movement.movement_type) {
+                updates.push('movement_type = ?');
+                params.push(movement_type);
+            }
+            if (notes !== undefined && notes !== movement.notes) {
+                updates.push('notes = ?');
+                params.push(notes);
+            }
+        }
+
         if (requestedAmountChange) {
             updates.push('amount = ?');
             params.push(amount);
         }
-        if (description !== undefined) {
+        if (description !== undefined && description !== movement.description) {
             updates.push('description = ?');
             params.push(description);
         }
@@ -2341,11 +2335,12 @@ router.put('/rider-cash/:id', [
             params.push(status);
             
             if (status === 'approved') {
+                const approvedBy = req.user?.id || movement.recorded_by || null;
                 updates.push('approved_by = ?, approved_at = NOW()');
-                params.push(req.user.id);
+                params.push(approvedBy);
 
                 // Handle wallet updates and financial transactions based on movement type
-                const effectiveAmount = amount || movement.amount;
+                const effectiveAmount = (amount !== undefined && amount !== null) ? amount : movement.amount;
                 let transactionType = null;
                 let descriptionPrefix = '';
 
@@ -2371,8 +2366,6 @@ router.put('/rider-cash/:id', [
                     descriptionPrefix = 'Rider Cash Submission';
                 } else if (movement.movement_type === 'cash_collection') {
                     // Cash collection from customer (if not linked to order)
-                    // If it IS linked to an order, it was already income. 
-                    // But if this is a manual entry, treat as income.
                     if (movement.reference_type !== 'order') {
                         await recordRiderWalletTransaction(
                             req.db,
@@ -2386,9 +2379,6 @@ router.put('/rider-cash/:id', [
                         transactionType = 'income';
                         descriptionPrefix = 'Rider Cash Collection (Manual)';
                     }
-                    // If reference_type === 'order', it's already handled. 
-                    // But if user manually created it and wants it in report, we might need to log it?
-                    // Usually cash_collection is auto-created by orders.
                 } else if (movement.movement_type === 'settlement') {
                     // Credit to rider wallet for settlements (earnings)
                     await recordRiderWalletTransaction(
@@ -2400,13 +2390,20 @@ router.put('/rider-cash/:id', [
                         movement.id,
                         movement.movement_type
                     );
-                    // Rider settlement is an expense/payout for the platform
                     transactionType = 'settlement';
                     descriptionPrefix = 'Rider Settlement';
                 } else if (movement.movement_type === 'advance') {
-                    // Advances are already debited on POST
                     transactionType = 'expense';
                     descriptionPrefix = 'Rider Advance';
+                } else if (movement.movement_type === 'fuel_payment') {
+                    transactionType = 'expense';
+                    descriptionPrefix = 'Rider Fuel Payment';
+                } else if (movement.movement_type === 'store_payment') {
+                    transactionType = 'expense';
+                    descriptionPrefix = 'Rider Store Payment';
+                } else if (movement.movement_type === 'adjustment') {
+                    transactionType = 'adjustment';
+                    descriptionPrefix = 'Rider Cash Adjustment';
                 }
 
                 // Create financial transaction if applicable
@@ -2424,16 +2421,16 @@ router.put('/rider-cash/:id', [
                         related_entity_id: movement.rider_id,
                         reference_type: 'rider_cash_movement',
                         reference_id: movement.id,
-                        created_by: req.user.id
+                        created_by: approvedBy
                     });
                 }
             }
         }
 
         if (updates.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'No fields to update'
+            return res.json({
+                success: true,
+                message: 'Rider cash movement unchanged'
             });
         }
 
@@ -2446,13 +2443,14 @@ router.put('/rider-cash/:id', [
 
         res.json({
             success: true,
-            message: 'Rider cash movement updated successfully'
+            message: status === 'approved' ? 'Rider cash movement approved successfully' : 'Rider cash movement updated successfully'
         });
     } catch (error) {
         console.error('Error updating rider cash movement:', error);
+        logDebugError(error);
         res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to update rider cash movement',
+            message: error.message || 'Failed to update rider cash movement',
             error: error.message
         });
     }

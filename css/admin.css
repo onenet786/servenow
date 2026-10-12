@@ -4287,13 +4287,13 @@ textarea:focus {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #fffaf5, #f8fafc);
-  color: #475569;
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
-  border-bottom: 1px solid #e2e8f0;
+  background: #0f172a !important;
+  color: #ffffff !important;
+  font-size: 0.72rem;
+  letter-spacing: normal;
+  border-bottom: 3px solid #334155;
   white-space: normal;
-  line-height: 1.25;
+  line-height: 1.15;
 }
 
 #storeReportDetailsContent {
@@ -5761,16 +5761,19 @@ textarea:focus {
     position: sticky !important;
     top: 0 !important;
     z-index: 10 !important;
-    background: #f8fafc !important;
-    border-bottom: 2px solid #cbd5e1 !important;
+    background: #0f172a !important;
+    color: #ffffff !important;
+    border-bottom: 3px solid #334155 !important;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-    padding: 0.75rem 0.65rem !important;
-    white-space: nowrap !important;
+    padding: 0.45rem 0.35rem !important;
+    font-size: 0.72rem !important;
+    white-space: normal !important;
 }
 
 .credit-stores-ledger-container tbody td {
-    padding: 0.75rem 0.65rem !important;
-    border-bottom: 1px solid #f1f5f9 !important;
+    padding: 0.42rem 0.35rem !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    font-size: 0.76rem !important;
 }
 
 /* Custom Sleek Scrollbars for Credit Stores Ledger & Modal */
