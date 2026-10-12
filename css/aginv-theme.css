@@ -2230,6 +2230,10 @@ textarea:focus,
   color: #10b981 !important;
 }
 
+.top-summary-metric .metric-val.text-warning {
+  color: #d97706 !important;
+}
+
 .top-summary-metric .metric-sub {
   font-size: 0.67rem;
   color: #94a3b8;

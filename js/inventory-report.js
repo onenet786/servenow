@@ -252,7 +252,11 @@ function updateBriefReportSummary(reportType, incomingData) {
         const lEl = document.getElementById(`srMetric${num}Label`);
         const vEl = document.getElementById(`srMetric${num}Value`);
         const sEl = document.getElementById(`srMetric${num}Sub`);
-        if (lEl) lEl.innerHTML = label;
+        if (lEl) {
+            lEl.innerHTML = label;
+            const rawLabel = typeof label === "string" ? label.replace(/<[^>]*>/g, "").trim() : "";
+            if (rawLabel) lEl.setAttribute("title", rawLabel);
+        }
         if (vEl) {
             vEl.innerHTML = val;
             vEl.className = `metric-val ${colorClass}`.trim();
@@ -433,22 +437,82 @@ function updateBriefReportSummary(reportType, incomingData) {
         case "sales-by-payment":
         case "sales-by-payment-simple": {
             const rows = (incomingData?.sales_by_payment) || currentSalesByPaymentRows || [];
-            let netSales = 0;
-            let profit = 0;
-            let delivery = 0;
-            let totalWithDelivery = 0;
-            rows.forEach((item) => {
-                netSales += Number(item.sale_price || item.net_sales || 0) || 0;
-                profit += Number(item.profit || item.estimated_profit || 0) || 0;
-                delivery += Number(item.delivery_fee || item.delivery_charges || 0) || 0;
-                totalWithDelivery += Number(item.total_with_delivery || item.order_total || 0) || 0;
-            });
-            const margin = netSales > 0 ? `${((profit / netSales) * 100).toFixed(1)}%` : "0.0%";
+            let totalCredit = 0;
+            let creditNetSales = 0;
+            let creditOrdersCount = 0;
+            const seenCreditOrders = new Set();
 
-            setM(1, '<i class="fas fa-money-bill-wave"></i> Orders', inventoryNumber(rows.length), "Cash & Credit");
-            setM(2, '<i class="fas fa-coins"></i> Net Sales', inventoryBriefMoney(netSales), "Sales value", "text-primary", inventoryMoney(netSales));
-            setM(3, '<i class="fas fa-chart-line"></i> Profit', inventoryBriefMoney(profit), `Margin: ${margin}`, "text-success", inventoryMoney(profit));
-            setM(4, '<i class="fas fa-truck"></i> Total w/ Del', inventoryBriefMoney(totalWithDelivery), `Fee: ${inventoryBriefMoney(delivery)}`, "", inventoryMoney(totalWithDelivery));
+            let cashProfit = 0;
+            let cashNetSales = 0;
+            let cashOrdersCount = 0;
+            const seenCashOrders = new Set();
+
+            let totalDelivery = 0;
+            let deliveryOrdersCount = 0;
+            let grandTotal = 0;
+            let totalNetSales = 0;
+
+            rows.forEach((item) => {
+                const saleType = String(item.sale_type || "").toLowerCase().trim();
+                const term = String(item.store_payment_term || "").toLowerCase().trim();
+                const method = String(item.payment_method || "").toLowerCase().trim();
+                const isCredit = saleType.includes("credit") || term.includes("credit") || method.includes("credit");
+
+                const netSales = Number(item.net_sales != null ? item.net_sales : (item.sale_price || 0)) || 0;
+                const profit = Number(item.estimated_profit != null ? item.estimated_profit : (item.profit || 0)) || 0;
+                const delivery = Number(item.delivery_fee != null ? item.delivery_fee : (item.delivery_charges || 0)) || 0;
+                const rowTotalWithDelivery = Number(
+                    item.total_with_delivery != null
+                        ? item.total_with_delivery
+                        : (item.order_total != null ? item.order_total : (netSales + delivery))
+                ) || 0;
+                const orderKey = String(item.order_id || item.order_number || "");
+
+                totalNetSales += netSales;
+                totalDelivery += delivery;
+                grandTotal += rowTotalWithDelivery;
+                if (delivery > 0) deliveryOrdersCount++;
+
+                if (isCredit) {
+                    totalCredit += rowTotalWithDelivery;
+                    creditNetSales += netSales;
+                    if (orderKey) {
+                        if (!seenCreditOrders.has(orderKey)) {
+                            seenCreditOrders.add(orderKey);
+                            creditOrdersCount++;
+                        }
+                    } else {
+                        creditOrdersCount++;
+                    }
+                } else {
+                    cashProfit += profit;
+                    cashNetSales += netSales;
+                    if (orderKey) {
+                        if (!seenCashOrders.has(orderKey)) {
+                            seenCashOrders.add(orderKey);
+                            cashOrdersCount++;
+                        }
+                    } else {
+                        cashOrdersCount++;
+                    }
+                }
+            });
+
+            const cashMargin = cashNetSales > 0 ? `${((cashProfit / cashNetSales) * 100).toFixed(1)}%` : "0.0%";
+            const creditSub = rows.length > 0 ? `${inventoryNumber(creditOrdersCount)} orders` : "-";
+            const cashSub = rows.length > 0 ? `Margin: ${cashMargin}` : "-";
+            const deliverySub = rows.length > 0 ? `${inventoryNumber(deliveryOrdersCount || rows.length)} orders` : "-";
+            const grandSub = rows.length > 0 ? `Net: ${inventoryBriefMoney(totalNetSales)}` : "-";
+
+            const creditFull = `Total Credit: ${inventoryMoney(totalCredit)} (Net: ${inventoryMoney(creditNetSales)}, Orders: ${inventoryNumber(creditOrdersCount)})`;
+            const cashFull = `Total Cash Sale Profit: ${inventoryMoney(cashProfit)} (Sales: ${inventoryMoney(cashNetSales)}, Margin: ${cashMargin})`;
+            const deliveryFull = `Total Delivery Charges: ${inventoryMoney(totalDelivery)}`;
+            const grandFull = `Grand Total: ${inventoryMoney(grandTotal)} (Net: ${inventoryMoney(totalNetSales)}, Delivery: ${inventoryMoney(totalDelivery)})`;
+
+            setM(1, '<i class="fas fa-credit-card"></i> Total Credit', inventoryBriefMoney(totalCredit), creditSub, "text-warning", creditFull);
+            setM(2, '<i class="fas fa-coins"></i> Cash Sale Profit', inventoryBriefMoney(cashProfit), cashSub, "text-success", cashFull);
+            setM(3, '<i class="fas fa-truck"></i> Delivery Charges', inventoryBriefMoney(totalDelivery), deliverySub, "", deliveryFull);
+            setM(4, '<i class="fas fa-calculator"></i> Grand Total', inventoryBriefMoney(grandTotal), grandSub, "text-primary", grandFull);
             break;
         }
 
