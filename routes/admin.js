@@ -2562,6 +2562,8 @@ router.get(
               o.order_number,
               o.status as order_status,
               o.created_at as sold_at,
+              o.rider_id,
+              TRIM(CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, ''))) as rider_name,
               LOWER(TRIM(COALESCE(o.payment_method, ''))) as payment_method,
               GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') as store_names,
               CASE
@@ -2601,6 +2603,7 @@ router.get(
               END as order_total
           FROM order_items oi
           JOIN orders o ON o.id = oi.order_id
+          LEFT JOIN riders r ON r.id = o.rider_id
           JOIN products p ON p.id = oi.product_id
           JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
           LEFT JOIN (
@@ -2620,7 +2623,7 @@ router.get(
           ${hasStoreFilter ? "AND COALESCE(oi.store_id, p.store_id) = ?" : ""}
           ${startDate ? "AND DATE(o.created_at) >= ?" : ""}
           ${endDate ? "AND DATE(o.created_at) <= ?" : ""}
-          GROUP BY o.id, o.order_number, o.status, o.created_at, o.delivery_fee, o.payment_method,
+          GROUP BY o.id, o.order_number, o.status, o.created_at, o.delivery_fee, o.payment_method, o.rider_id, r.first_name, r.last_name,
                    CASE
                        WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%' THEN 'credit'
                        ELSE 'cash'
@@ -2644,6 +2647,8 @@ router.get(
             order_type: String(row.order_type || "").toLowerCase(),
             store_payment_term: String(row.store_payment_term || "").toLowerCase(),
             sale_type: String(row.sale_type || "").toLowerCase(),
+            rider_id: row.rider_id ? Number(row.rider_id) : null,
+            rider_name: (row.rider_name && row.rider_name.trim()) ? row.rider_name.trim() : (row.rider_id ? `Rider #${row.rider_id}` : "Counter / Unassigned"),
             store_names: row.store_names || "",
             total_quantity: Number(row.total_quantity) || 0,
             total_cost: parseFloat(row.total_cost) || 0,

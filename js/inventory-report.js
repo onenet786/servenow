@@ -270,6 +270,9 @@ function updateBriefReportSummary(reportType, incomingData) {
         }
     };
 
+    const riderDepositBar = document.getElementById("srRiderDepositBar");
+    if (riderDepositBar) riderDepositBar.style.display = "none";
+
     if (currentInventoryReportScope === "inventory" && activeType !== "order-wise-sales") {
         const summary = (incomingData?.summary || currentInventoryData?.summary) || {};
         const stores = summary.total_stores ?? "-";
@@ -442,10 +445,12 @@ function updateBriefReportSummary(reportType, incomingData) {
             let creditOrdersCount = 0;
             const seenCreditOrders = new Set();
 
+            let totalCashToDeposit = 0;
             let cashProfit = 0;
             let cashNetSales = 0;
             let cashOrdersCount = 0;
             const seenCashOrders = new Set();
+            const riderCashMap = {};
 
             let totalDelivery = 0;
             let deliveryOrdersCount = 0;
@@ -485,6 +490,7 @@ function updateBriefReportSummary(reportType, incomingData) {
                         creditOrdersCount++;
                     }
                 } else {
+                    totalCashToDeposit += rowTotalWithDelivery;
                     cashProfit += profit;
                     cashNetSales += netSales;
                     if (orderKey) {
@@ -495,24 +501,83 @@ function updateBriefReportSummary(reportType, incomingData) {
                     } else {
                         cashOrdersCount++;
                     }
+
+                    // Track cash collected by each rider for incharge deposit
+                    const riderName = String(item.rider_name || "Counter / Unassigned").trim();
+                    if (!riderCashMap[riderName]) {
+                        riderCashMap[riderName] = {
+                            name: riderName,
+                            totalCash: 0,
+                            netSales: 0,
+                            profit: 0,
+                            ordersCount: 0,
+                            orders: new Set(),
+                        };
+                    }
+                    riderCashMap[riderName].totalCash += rowTotalWithDelivery;
+                    riderCashMap[riderName].netSales += netSales;
+                    riderCashMap[riderName].profit += profit;
+                    if (orderKey && !riderCashMap[riderName].orders.has(orderKey)) {
+                        riderCashMap[riderName].orders.add(orderKey);
+                        riderCashMap[riderName].ordersCount++;
+                    } else if (!orderKey) {
+                        riderCashMap[riderName].ordersCount++;
+                    }
                 }
             });
 
+            const riderList = Object.values(riderCashMap).sort((a, b) => b.totalCash - a.totalCash);
             const cashMargin = cashNetSales > 0 ? `${((cashProfit / cashNetSales) * 100).toFixed(1)}%` : "0.0%";
             const creditSub = rows.length > 0 ? `${inventoryNumber(creditOrdersCount)} orders` : "-";
-            const cashSub = rows.length > 0 ? `Margin: ${cashMargin}` : "-";
+
+            // Formulate rider indication for subtitle
+            let cashSub = "-";
+            if (riderList.length === 0) {
+                cashSub = rows.length > 0 ? "No cash orders" : "-";
+            } else if (riderList.length === 1) {
+                cashSub = `${riderList[0].name}: ${inventoryBriefMoney(riderList[0].totalCash)}`;
+            } else if (riderList.length === 2) {
+                cashSub = `${riderList[0].name}: ${inventoryBriefMoney(riderList[0].totalCash)} · ${riderList[1].name}: ${inventoryBriefMoney(riderList[1].totalCash)}`;
+            } else {
+                cashSub = `${riderList.length} riders · ${riderList[0].name}: ${inventoryBriefMoney(riderList[0].totalCash)}...`;
+            }
+
+            const riderLines = riderList.map((r) => `  • ${r.name}: ${inventoryMoney(r.totalCash)} (${r.ordersCount} orders)`).join("\n");
+            const cashFull = `Incharge Cash to Deposit: ${inventoryMoney(totalCashToDeposit)}${riderLines ? "\nCash Collected by Rider:\n" + riderLines : ""}\nProfit: ${inventoryMoney(cashProfit)} (Margin: ${cashMargin})`;
+
             const deliverySub = rows.length > 0 ? `${inventoryNumber(deliveryOrdersCount || rows.length)} orders` : "-";
             const grandSub = rows.length > 0 ? `Net: ${inventoryBriefMoney(totalNetSales)}` : "-";
 
             const creditFull = `Total Credit: ${inventoryMoney(totalCredit)} (Net: ${inventoryMoney(creditNetSales)}, Orders: ${inventoryNumber(creditOrdersCount)})`;
-            const cashFull = `Total Cash Sale Profit: ${inventoryMoney(cashProfit)} (Sales: ${inventoryMoney(cashNetSales)}, Margin: ${cashMargin})`;
             const deliveryFull = `Total Delivery Charges: ${inventoryMoney(totalDelivery)}`;
             const grandFull = `Grand Total: ${inventoryMoney(grandTotal)} (Net: ${inventoryMoney(totalNetSales)}, Delivery: ${inventoryMoney(totalDelivery)})`;
 
             setM(1, '<i class="fas fa-credit-card"></i> Total Credit', inventoryBriefMoney(totalCredit), creditSub, "text-warning", creditFull);
-            setM(2, '<i class="fas fa-coins"></i> Cash Sale Profit', inventoryBriefMoney(cashProfit), cashSub, "text-success", cashFull);
+            setM(2, '<i class="fas fa-hand-holding-usd"></i> Cash to Deposit', inventoryBriefMoney(totalCashToDeposit), cashSub, "text-success", cashFull);
             setM(3, '<i class="fas fa-truck"></i> Delivery Charges', inventoryBriefMoney(totalDelivery), deliverySub, "", deliveryFull);
             setM(4, '<i class="fas fa-calculator"></i> Grand Total', inventoryBriefMoney(grandTotal), grandSub, "text-primary", grandFull);
+
+            // Populate Incharge Rider Cash Breakdown bar
+            if (riderDepositBar) {
+                if (riderList.length > 0) {
+                    riderDepositBar.style.display = "flex";
+                    const totalEl = document.getElementById("srRiderDepositTotal");
+                    if (totalEl) totalEl.textContent = `Deposit: ${inventoryMoney(totalCashToDeposit)}`;
+                    const chipsList = document.getElementById("srRiderChipsList");
+                    if (chipsList) {
+                        chipsList.innerHTML = riderList.map((r) => `
+                            <span class="sr-rider-chip" title="${inventoryEscapeHtml(r.name)}: ${inventoryMoney(r.totalCash)} (${r.ordersCount} orders)">
+                                <i class="fas fa-motorcycle"></i>
+                                <span>${inventoryEscapeHtml(r.name)}:</span>
+                                <span class="rider-chip-amount">${inventoryBriefMoney(r.totalCash)}</span>
+                                <span class="rider-chip-count">(${r.ordersCount} ord)</span>
+                            </span>
+                        `).join("");
+                    }
+                } else {
+                    riderDepositBar.style.display = "none";
+                }
+            }
             break;
         }
 
@@ -1933,9 +1998,13 @@ function displaySalesByPaymentReport(data) {
             storeGroup.rows.forEach((item) => {
                 const profit = Number(item.estimated_profit || 0);
                 const profitColor = profit >= 0 ? '#10b981' : '#ef4444';
+                const riderBadge = item.rider_name ? `<div style="font-size: 0.72rem; color: #475569; font-weight: 500; margin-top: 3px;"><i class="fas fa-motorcycle" style="color: #0284c7; margin-right: 3px;"></i>${inventoryEscapeHtml(item.rider_name)}</div>` : '';
                 const row = document.createElement("tr");
                 row.innerHTML = `
-                    <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || "-")}</td>
+                    <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">
+                        #${inventoryEscapeHtml(item.order_number || "-")}
+                        ${riderBadge}
+                    </td>
                     <td style="text-align: center;">${inventoryTitleCase(item.order_type || "-")}</td>
                     <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(storeKey)}</td>
                     <td style="text-align: center;">${inventoryTitleCase(item.store_payment_term || "-")}</td>
@@ -2068,9 +2137,13 @@ function displaySalesByPaymentSimpleReport(data) {
         group.rows.forEach((item) => {
             const profit = Number(item.estimated_profit || 0);
             const profitColor = profit >= 0 ? '#10b981' : '#ef4444';
+            const riderBadge = item.rider_name ? `<div style="font-size: 0.72rem; color: #475569; font-weight: 500; margin-top: 3px;"><i class="fas fa-motorcycle" style="color: #0284c7; margin-right: 3px;"></i>${inventoryEscapeHtml(item.rider_name)}</div>` : '';
             const row = document.createElement("tr");
             row.innerHTML = `
-                <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">#${inventoryEscapeHtml(item.order_number || "-")}</td>
+                <td style="font-family: monospace; font-weight: 700; color: #2563eb; text-align: center;">
+                    #${inventoryEscapeHtml(item.order_number || "-")}
+                    ${riderBadge}
+                </td>
                 <td style="text-align: center;">${inventoryTitleCase(item.order_type || "-")}</td>
                 <td style="text-align: left; font-weight: 500; color: #334155;">${inventoryEscapeHtml(item.store_names || item.store_name || "-")}</td>
                 <td style="text-align: center;">${inventoryTitleCase(item.store_payment_term || "-")}</td>
@@ -2084,10 +2157,11 @@ function displaySalesByPaymentSimpleReport(data) {
             tbody.appendChild(row);
         });
 
+        const totalsLabel = key === 'cash' ? 'Cash Totals (Deposit by Incharge):' : `${inventoryTitleCase(key)} Totals:`;
         const totalsRow = document.createElement("tr");
         totalsRow.className = "aginv-report-total-row";
         totalsRow.innerHTML = `
-            <td colspan="4" style="text-align: right; font-weight: 800;">${inventoryTitleCase(key)} Totals:</td>
+            <td colspan="4" style="text-align: right; font-weight: 800;">${totalsLabel}</td>
             <td style="text-align: right; font-weight: 800;">${inventoryMoney(group.totalCost)}</td>
             <td style="text-align: right; font-weight: 800;">${inventoryMoney(group.netSales)}</td>
             <td style="text-align: right; font-weight: 800; color: #10b981;">${inventoryMoney(group.profit)}</td>
@@ -2096,6 +2170,38 @@ function displaySalesByPaymentSimpleReport(data) {
             <td style="text-align: right; font-weight: 800;">${inventoryMoney(group.orderTotal)}</td>
         `;
         tbody.appendChild(totalsRow);
+
+        if (key === 'cash') {
+            const riderBreakdown = group.rows.reduce((rAcc, rItem) => {
+                const rName = String(rItem.rider_name || 'Counter / Unassigned').trim();
+                const amt = Number(rItem.total_with_delivery != null ? rItem.total_with_delivery : (rItem.order_total != null ? rItem.order_total : ((Number(rItem.net_sales || 0) + Number(rItem.delivery_fee || 0))))) || 0;
+                if (!rAcc[rName]) rAcc[rName] = { name: rName, total: 0, count: 0 };
+                rAcc[rName].total += amt;
+                rAcc[rName].count++;
+                return rAcc;
+            }, {});
+            const rList = Object.values(riderBreakdown).sort((a, b) => b.total - a.total);
+            if (rList.length > 0) {
+                const riderRow = document.createElement("tr");
+                riderRow.className = "aginv-report-sub-row";
+                riderRow.style.background = "#f0fdf4";
+                riderRow.style.borderBottom = "2px solid #bbf7d0";
+                const pillsHtml = rList.map(r => `
+                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #ffffff; color: #15803d; border: 1px solid #bbf7d0; border-radius: 9999px; margin: 2px 6px 2px 0; font-weight: 600; font-size: 0.75rem;">
+                        <i class="fas fa-motorcycle" style="color: #0284c7; font-size: 0.7rem;"></i> ${inventoryEscapeHtml(r.name)}: <strong style="color: #166534;">${inventoryMoney(r.total)}</strong> <span style="color: #64748b; font-size: 0.68rem;">(${r.count} ord)</span>
+                    </span>
+                `).join("");
+                riderRow.innerHTML = `
+                    <td colspan="4" style="text-align: right; font-weight: 700; color: #166534; vertical-align: middle;">
+                        <i class="fas fa-hand-holding-usd"></i> Cash by Rider (Deposit):
+                    </td>
+                    <td colspan="6" style="text-align: left; vertical-align: middle;">
+                        ${pillsHtml}
+                    </td>
+                `;
+                tbody.appendChild(riderRow);
+            }
+        }
     });
 
     const grandTotals = Object.values(totalsByType).reduce((acc, t) => {
