@@ -168,7 +168,8 @@ function calculateJnvTotals() {
     
     // Highlight if imbalanced
     const totalCell = document.getElementById('jnvDebitTotal').parentElement;
-    if (debitTotal !== creditTotal) {
+    // Compare in whole paisa so floating-point sums (0.1 + 0.2) don't flag a balanced voucher
+    if (Math.round(debitTotal * 100) !== Math.round(creditTotal * 100)) {
         totalCell.style.color = 'red';
     } else {
         totalCell.style.color = 'inherit';
@@ -180,7 +181,7 @@ function calculateJnvTotals() {
 async function submitJournalVoucher() {
     const { debitTotal, creditTotal } = calculateJnvTotals();
     
-    if (debitTotal !== creditTotal) {
+    if (Math.round(debitTotal * 100) !== Math.round(creditTotal * 100)) {
         showError('Imbalanced Voucher', 'Total Debits must equal Total Credits');
         return;
     }
@@ -206,7 +207,7 @@ async function submitJournalVoucher() {
         voucher_date: document.getElementById('jnvDate').value,
         reference_number: document.getElementById('jnvReference').value,
         description: document.getElementById('jnvDescription').value,
-        total_amount: debitTotal,
+        total_amount: Math.round(debitTotal * 100) / 100,
         entries
     };
 

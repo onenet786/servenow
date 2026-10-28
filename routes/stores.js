@@ -3139,7 +3139,23 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Hard delete the store record
+        // A hard delete cascades into orders and settlements and would erase
+        // financial history, so stores with trading history can only be deactivated.
+        const [[history]] = await req.db.execute(
+            `SELECT
+                (SELECT COUNT(*) FROM order_items WHERE store_id = ?) AS order_lines,
+                (SELECT COUNT(*) FROM orders WHERE store_id = ?) AS orders_count,
+                (SELECT COUNT(*) FROM store_settlements WHERE store_id = ?) AS settlements`,
+            [id, id, id]
+        );
+        if (Number(history.order_lines) + Number(history.orders_count) + Number(history.settlements) > 0) {
+            return res.status(409).json({
+                success: false,
+                message: 'This store has orders or settlements and cannot be deleted. Deactivate it instead to keep its financial history.'
+            });
+        }
+
+        // No trading history: safe to hard delete the store record
         const [result] = await req.db.execute(
             'DELETE FROM stores WHERE id = ?',
             [id]

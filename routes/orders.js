@@ -108,12 +108,14 @@ function calculateDeliveryFeeByStoreCount(storeCount, feeConfig) {
     additional_per_store: DEFAULT_ADDITIONAL_STORE_FEE,
   };
   if (!storeCount || storeCount <= 0) return 0;
-  if (storeCount === 1) return Number(cfg.base_fee) || DEFAULT_BASE_DELIVERY_FEE;
-  return (
-    (Number(cfg.base_fee) || DEFAULT_BASE_DELIVERY_FEE) +
-    (storeCount - 1) *
-      (Number(cfg.additional_per_store) || DEFAULT_ADDITIONAL_STORE_FEE)
-  );
+  // A configured 0 means free delivery; only fall back when the value is missing/invalid
+  const feeOr = (value, fallback) => {
+    const n = Number(value);
+    return value !== null && value !== undefined && value !== "" && Number.isFinite(n) && n >= 0 ? n : fallback;
+  };
+  const base = feeOr(cfg.base_fee, DEFAULT_BASE_DELIVERY_FEE);
+  if (storeCount === 1) return base;
+  return base + (storeCount - 1) * feeOr(cfg.additional_per_store, DEFAULT_ADDITIONAL_STORE_FEE);
 }
 
 async function loadProductSizeVariants(db, productIds) {

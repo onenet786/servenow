@@ -4172,6 +4172,19 @@ router.post(
   authenticateToken,
   requirePermission('menu_settings_database'),
   async (req, res) => {
+    // Erasing orders and financial history must be a deliberate, temporary
+    // decision: disabled unless ENABLE_DATA_RESET=true, and admin-only.
+    if (process.env.ENABLE_DATA_RESET !== "true") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Data reset is disabled on this server. Set ENABLE_DATA_RESET=true (after taking a backup) to allow it.",
+      });
+    }
+    if (req.user.user_type !== "admin") {
+      return res.status(403).json({ success: false, message: "Admin access required" });
+    }
+
     const { table } = req.body;
     const providedPass =
       req.body && req.body.password ? String(req.body.password) : "";

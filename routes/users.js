@@ -368,20 +368,60 @@ router.put('/:id', authenticateToken, requireAdmin, [
 router.delete('/me', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        
-        // You might want to do a soft delete or anonymize data instead of a hard delete
-        // for auditing and order history. But for Play Store "Account Deletion", 
-        // the user expects their personal data to be removed.
-        
-        // 1. Delete user from database
-        await req.db.execute('DELETE FROM users WHERE id = ?', [userId]);
 
-        // Note: Related data in other tables (orders, wallets) might need handling 
-        // depending on foreign key constraints (ON DELETE CASCADE or SET NULL).
+        // Rider ids come from a separate table and can collide with a users id;
+        // guests have no account. Only users-table accounts can delete themselves.
+        if (req.user.user_type === 'rider' || req.user.user_type === 'guest' || req.user.is_guest) {
+            return res.status(403).json({
+                success: false,
+                message: 'This account type cannot be deleted from the app. Please contact support.'
+            });
+        }
+
+        // Anonymise instead of hard-deleting: a DELETE cascades into orders,
+        // payments and wallets and would erase financial history. Personal data
+        // is removed; amounts and order records are kept for the accounts.
+        const unusablePassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+        const conn = await req.db.getConnection();
+        try {
+            await conn.beginTransaction();
+            await conn.execute(
+                `UPDATE users
+                    SET first_name = 'Deleted', last_name = 'User',
+                        email = CONCAT('deleted-', id, '@deleted.invalid'),
+                        phone = NULL, address = NULL, date_of_birth = NULL,
+                        password = ?, is_active = 0,
+                        verification_code = NULL, verification_expires_at = NULL,
+                        reset_password_token = NULL, reset_password_expires = NULL,
+                        stripe_customer_id = NULL, paypal_customer_id = NULL
+                  WHERE id = ?`,
+                [unusablePassword, userId]
+            );
+            await conn.execute(
+                `UPDATE orders SET delivery_address = '[deleted]', special_instructions = NULL WHERE user_id = ?`,
+                [userId]
+            );
+            await conn.execute(
+                "DELETE FROM refresh_tokens WHERE user_id = ? AND user_type <> 'rider'",
+                [userId]
+            );
+            try {
+                await conn.execute(
+                    "DELETE FROM push_device_tokens WHERE user_id = ? AND user_type <> 'rider'",
+                    [userId]
+                );
+            } catch (_) { /* table may not exist yet */ }
+            await conn.commit();
+        } catch (txErr) {
+            try { await conn.rollback(); } catch (_) {}
+            throw txErr;
+        } finally {
+            conn.release();
+        }
 
         res.json({
             success: true,
-            message: 'Your account and all associated data have been permanently deleted.'
+            message: 'Your account has been deleted and your personal data removed.'
         });
 
     } catch (error) {

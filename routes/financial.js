@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { applyWalletDelta } = require('../utils/walletBalance');
+const { checkDocumentUpdate, makerCheckerApplies } = require('../utils/financeControls');
 const { recordFinancialTransaction } = require('../utils/dbHelpers');
 const fs = require('fs');
 const path = require('path');
@@ -1085,6 +1086,15 @@ router.post('/transactions', [
             });
         }
 
+        // Direct ledger postings bypass voucher approval, so only admins may make them;
+        // staff record money movements through vouchers.
+        if (req.user.user_type !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only an admin can post directly to the ledger; please use a voucher'
+            });
+        }
+
         const { transaction_type, category, description, amount, payment_method, reference_type, reference_id, notes } = req.body;
         
         const transactionId = await recordFinancialTransaction(req.db, {
@@ -1283,6 +1293,11 @@ router.put('/payment-vouchers/:id', [
         }
 
         const { id } = req.params;
+        // Internal controls: status transitions, posted-field locks, maker-checker
+        const controlError = await checkDocumentUpdate(req.db, req.user, 'payment_voucher', id, req.body);
+        if (controlError) {
+            return res.status(controlError.status).json({ success: false, message: controlError.message });
+        }
         const { payee_name, payee_type, payee_id, amount, status, description, payment_method, check_number, cheque_number } = req.body;
 
         // Get existing voucher data if we're moving voucher into an accounting-posted state
@@ -1641,6 +1656,11 @@ router.put('/receipt-vouchers/:id', [
         }
 
         const { id } = req.params;
+        // Internal controls: status transitions, posted-field locks, maker-checker
+        const controlError = await checkDocumentUpdate(req.db, req.user, 'receipt_voucher', id, req.body);
+        if (controlError) {
+            return res.status(controlError.status).json({ success: false, message: controlError.message });
+        }
         const { payer_name, payer_type, payer_id, amount, status, description } = req.body;
 
         // Get existing voucher data if we're marking it as received
@@ -2279,6 +2299,11 @@ router.put('/rider-cash/:id', [
         }
 
         const { id } = req.params;
+        // Internal controls: status transitions, posted-field locks, maker-checker
+        const controlError = await checkDocumentUpdate(req.db, req.user, 'rider_cash', id, req.body);
+        if (controlError) {
+            return res.status(controlError.status).json({ success: false, message: controlError.message });
+        }
         const { status, amount, description, rider_id, movement_type, notes } = req.body;
 
         // Get current movement to check status transition
@@ -2728,6 +2753,26 @@ router.post('/store-settlements', [
             final_commissions = settlementCalc.adjustmentRemaining;
             final_deductions = parseFloat(deductions || 0);
             final_net = final_total - final_commissions - final_deductions;
+        } else {
+            // Manual settlements are not linked to order lines, so they are admin-only
+            // and their figures must add up (net = total - commissions - deductions).
+            if (req.user.user_type !== 'admin') {
+                await conn.rollback();
+                conn.release();
+                return res.status(403).json({
+                    success: false,
+                    message: 'Manual settlements can only be created by an admin; use auto-calculate'
+                });
+            }
+            const t = Number(final_total), c = Number(final_commissions), d = Number(final_deductions), n = Number(final_net);
+            if (![t, c, d, n].every((v) => Number.isFinite(v) && v >= 0) || Math.abs(t - c - d - n) > 0.005) {
+                await conn.rollback();
+                conn.release();
+                return res.status(400).json({
+                    success: false,
+                    message: 'Net amount must equal total minus commissions minus deductions'
+                });
+            }
         }
 
         const settlement_number = generateVoucherNumber('SS');
@@ -2794,6 +2839,11 @@ router.put('/store-settlements/:id', [
         }
 
         const { id } = req.params;
+        // Internal controls: status transitions, posted-field locks, maker-checker
+        const controlError = await checkDocumentUpdate(req.db, req.user, 'settlement', id, req.body);
+        if (controlError) {
+            return res.status(controlError.status).json({ success: false, message: controlError.message });
+        }
         const { status, net_amount, notes } = req.body;
 
         // Get existing settlement data if we're marking it as paid
@@ -2846,6 +2896,15 @@ router.put('/store-settlements/:id', [
             `UPDATE store_settlements SET ${updates.join(', ')} WHERE id = ?`,
             params
         );
+
+        // A cancelled (never paid) settlement releases its order lines so the
+        // store payable is settled again later instead of being lost.
+        if (status === 'cancelled') {
+            await req.db.execute(
+                'UPDATE order_items SET settlement_id = NULL WHERE settlement_id = ?',
+                [id]
+            );
+        }
 
         // Create financial transaction if status changed to paid
         if (status === 'paid' && existingSettlement) {
@@ -3042,6 +3101,11 @@ router.put('/expenses/:id', [
         }
 
         const { id } = req.params;
+        // Internal controls: status transitions, posted-field locks, maker-checker
+        const controlError = await checkDocumentUpdate(req.db, req.user, 'expense', id, req.body);
+        if (controlError) {
+            return res.status(controlError.status).json({ success: false, message: controlError.message });
+        }
         const { status, amount, notes } = req.body;
 
         // Get existing expense data if we're marking it as paid
@@ -3329,7 +3393,9 @@ router.post('/reports/generate', [
         let total_income = 0, total_expense = 0, total_settlements = 0, total_refunds = 0, total_adjustments = 0;
 
         const dateFilterFT = period_from && period_to ? 'AND ft.created_at BETWEEN ? AND ?' : '';
-        const dateParams = period_from && period_to ? [period_from, period_to] : [];
+        // Inclusive end date: a bare YYYY-MM-DD would exclude everything after midnight on the last day
+        const periodToEndOfDay = period_to && /^\d{4}-\d{2}-\d{2}$/.test(String(period_to)) ? `${period_to} 23:59:59` : period_to;
+        const dateParams = period_from && period_to ? [period_from, periodToEndOfDay] : [];
 
         // Base financial summary (always useful)
         const [transactions] = await req.db.execute(
@@ -6943,6 +7009,29 @@ router.post('/journal-vouchers', [
         if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
 
         const { voucher_date, description, reference_number, total_amount, entries } = req.body;
+
+        // Double-entry check in whole paisa: every line is a positive debit or
+        // credit, and total debits must equal total credits.
+        let debitPaisa = 0;
+        let creditPaisa = 0;
+        for (const entry of entries) {
+            const paisa = Math.round(Number(entry?.amount) * 100);
+            if (!Number.isFinite(paisa) || paisa <= 0 || !['debit', 'credit'].includes(entry?.entry_type)) {
+                return res.status(400).json({ success: false, message: 'Each entry needs a positive amount and an entry_type of debit or credit' });
+            }
+            if (entry.entry_type === 'debit') debitPaisa += paisa;
+            else creditPaisa += paisa;
+        }
+        if (debitPaisa !== creditPaisa) {
+            return res.status(400).json({
+                success: false,
+                message: `Journal voucher is not balanced: debits ${(debitPaisa / 100).toFixed(2)} vs credits ${(creditPaisa / 100).toFixed(2)}`
+            });
+        }
+        if (Math.round(Number(total_amount) * 100) !== debitPaisa) {
+            return res.status(400).json({ success: false, message: 'Total amount must equal the total of the debit entries' });
+        }
+
         const voucher_number = generateVoucherNumber('JNV');
 
         const [result] = await req.db.execute(
@@ -6979,14 +7068,22 @@ router.post('/journal-vouchers/:id/post', async (req, res) => {
             return res.status(400).json({ success: false, message: `Cannot post voucher with status: ${voucher.status}` });
         }
 
+        // Maker-checker: the preparer cannot post their own journal voucher
+        if (voucher.prepared_by && Number(voucher.prepared_by) === Number(req.user.id) && makerCheckerApplies(req.user)) {
+            return res.status(403).json({ success: false, message: 'The person who prepared this journal voucher cannot post it' });
+        }
+
         const [entries] = await req.db.execute('SELECT * FROM journal_voucher_entries WHERE jnv_id = ?', [id]);
         if (entries.length === 0) return res.status(400).json({ success: false, message: 'Voucher has no entries' });
 
-        // Update voucher status
-        await req.db.execute(
-            'UPDATE journal_vouchers SET status = \'posted\', approved_by = ?, posted_at = NOW() WHERE id = ?',
+        // Update voucher status (conditional, so concurrent requests cannot post it twice)
+        const [postResult] = await req.db.execute(
+            'UPDATE journal_vouchers SET status = \'posted\', approved_by = ?, posted_at = NOW() WHERE id = ? AND status = \'draft\'',
             [req.user.id, id]
         );
+        if (Number(postResult?.affectedRows || 0) === 0) {
+            return res.status(409).json({ success: false, message: 'Voucher was already posted' });
+        }
 
         // Post each entry to the master ledger
         for (const entry of entries) {
@@ -7069,13 +7166,15 @@ router.get('/reports/platform-summary', async (req, res) => {
         let params = [];
 
         if (start_date && end_date) {
-            dateFilter = ' WHERE created_at BETWEEN ? AND ?';
-            params.push(start_date, end_date);
+            dateFilter = ' AND created_at BETWEEN ? AND ?';
+            const endOfDay = /^\d{4}-\d{2}-\d{2}$/.test(String(end_date)) ? `${end_date} 23:59:59` : end_date;
+            params.push(start_date, endOfDay);
         }
 
+        // Cancelled orders are not sales
         const [orders] = await req.db.execute(
             `SELECT COUNT(*) as total_orders, SUM(total_amount) as gross_sales, SUM(delivery_fee) as total_delivery_fees 
-             FROM orders ${dateFilter}`,
+             FROM orders WHERE status <> 'cancelled' ${dateFilter}`,
             params
         );
 
@@ -7104,6 +7203,7 @@ router.get('/reports/top-products', async (req, res) => {
         const [products] = await req.db.execute(
             `SELECT p.name, s.name as store_name, SUM(oi.quantity) as total_sold, SUM(oi.price * oi.quantity) as total_revenue
              FROM order_items oi
+             JOIN orders o ON o.id = oi.order_id AND o.status <> 'cancelled'
              JOIN products p ON oi.product_id = p.id
              JOIN stores s ON p.store_id = s.id
              GROUP BY p.id, p.name, s.name
@@ -7187,6 +7287,7 @@ router.get('/reports/category-sales', async (req, res) => {
         const [categories] = await req.db.execute(
             `SELECT c.name, COUNT(oi.id) as items_sold, SUM(oi.price * oi.quantity) as revenue
              FROM order_items oi
+             JOIN orders o ON o.id = oi.order_id AND o.status <> 'cancelled'
              JOIN products p ON oi.product_id = p.id
              JOIN categories c ON p.category_id = c.id
              GROUP BY c.id, c.name
