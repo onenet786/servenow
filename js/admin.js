@@ -3186,7 +3186,8 @@ async function downloadBackup(encodedFilename) {
     showInfo('Download', `Preparing download for ${filename}...`);
     try {
         const resp = await fetch(`${API_BASE}/api/admin/backup-db/download?file=${encodeURIComponent(filename)}`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
+            headers: { 'Authorization': `Bearer ${authToken}` },
+            cache: 'no-store'
         });
         if (!resp.ok) {
             const text = await resp.text();
@@ -3195,7 +3196,21 @@ async function downloadBackup(encodedFilename) {
             return;
         }
 
-        const blob = await resp.blob();
+        // Read the dump in chunks: resp.blob() on a large (tens of MB) dump fails in
+        // Chrome with "Failed to fetch", while a streamed read completes reliably.
+        let blob;
+        if (resp.body && typeof resp.body.getReader === 'function') {
+            const reader = resp.body.getReader();
+            const parts = [];
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                parts.push(value);
+            }
+            blob = new Blob(parts, { type: resp.headers.get('Content-Type') || 'application/sql' });
+        } else {
+            blob = await resp.blob();
+        }
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
@@ -3203,8 +3218,9 @@ async function downloadBackup(encodedFilename) {
         a.download = filename;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
         a.remove();
+        // Revoking immediately can cancel the save of a large file; give the browser time
+        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
         showSuccess('Download Started', filename);
     } catch (err) {
         console.error('downloadBackup error:', err);

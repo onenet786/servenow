@@ -3331,7 +3331,15 @@ router.get(
           .json({ success: false, message: "File not found" });
 
       console.warn(`[SECURITY AUDIT] Backup downloaded: "${safe}" by user #${req.user.id} (${req.user.email || req.user.phone || 'admin'}) from IP ${req.ip}`);
-      return res.download(filepath);
+      // Database dumps hold personal data: never let a browser cache them, and serve them
+      // whole (a cached partial copy + range resume made Chrome abort with net::ERR_FAILED).
+      res.set("Cache-Control", "no-store");
+      return res.download(filepath, safe, {
+        cacheControl: false,
+        etag: false,
+        lastModified: false,
+        acceptRanges: false,
+      });
     } catch (err) {
       console.error("Download backup error:", err);
       return res.status(500).json({
