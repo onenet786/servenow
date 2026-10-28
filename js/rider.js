@@ -371,9 +371,34 @@ async function pushCurrentLocation(force = false) {
 }
 
 // Update location display on dashboard
+// Show a location problem once, as a compact banner in the existing info bar
+// (instead of a long red toast plus a second red message).
+function showRiderLocationProblem(error) {
+    const locationElement = document.getElementById('currentLocation');
+    const message = (error && error.message) ? error.message : 'Location unavailable';
+    const denied = /denied/i.test(message);
+    if (locationElement) {
+        locationElement.textContent = denied
+            ? 'Location is off. Allow it, then tap Refresh.'
+            : 'Location unavailable. Tap Refresh to try again.';
+        locationElement.title = message;
+        locationElement.style.color = '';
+    }
+    const bar = document.querySelector('.rider-info-bar');
+    if (bar) bar.classList.add('rider-info-bar--warning');
+}
+
+function clearRiderLocationProblem() {
+    const bar = document.querySelector('.rider-info-bar');
+    if (bar) bar.classList.remove('rider-info-bar--warning');
+    const locationElement = document.getElementById('currentLocation');
+    if (locationElement) locationElement.removeAttribute('title');
+}
+
 function updateLocationDisplay() {
     const locationElement = document.getElementById('currentLocation');
     if (locationElement && currentLocation) {
+        clearRiderLocationProblem();
         locationElement.textContent = currentLocation;
         locationElement.style.color = ''; // Reset color
     }
@@ -399,11 +424,7 @@ function refreshLocation() {
         })
         .catch((error) => {
             console.error('Failed to refresh location:', error);
-            if (locationElement) {
-                locationElement.textContent = 'Location unavailable - ' + error.message;
-                locationElement.style.color = '#e53e3e';
-            }
-            showError('Error', 'Failed to get location: ' + error.message);
+            showRiderLocationProblem(error);
         });
 }
 
@@ -505,59 +526,61 @@ async function displayRiderDeliveries(status = 'assigned', containerId = 'delive
                 const numStores = storeIds.size > 0 ? storeIds.size : 1;
                 const deliveryFee = calculateDeliveryFee(numStores);
                 
+                const statusText = snStatusLabel(delivery.status);
+                const paymentMethod = String(delivery.payment_method || '').toLowerCase();
+                const paymentStatus = String(delivery.payment_status || '').toLowerCase();
+                const isCash = paymentMethod === 'cash' || paymentMethod === 'cod' || paymentMethod === 'cash_on_delivery';
+                const collectCash = isCash && paymentStatus !== 'paid' && delivery.status !== 'delivered';
+                const cleanPhone = (delivery.phone || '').replace(/[^0-9]/g, '');
                 deliveryCard.innerHTML = `
                     <div class="order-header">
-                        <h3>Order #${delivery.order_number}</h3>
-                        <div class="order-header-actions" style="display:flex;align-items:center;gap:8px;">
-                            <button class="btn btn-small" title="Order Info" onclick="openOrderInfo(${delivery.id})"><i class="fa fa-info-circle"></i></button>
-                            <span class="order-status status-${delivery.status}">${delivery.status}</span>
+                        <h3>Order #${escapeHtmlPublic(delivery.order_number)}</h3>
+                        <div class="order-header-actions">
+                            <span class="order-status status-${escapeHtmlPublic(delivery.status)}">${escapeHtmlPublic(statusText)}</span>
+                            <button class="btn btn-small rider-info-btn" title="Order Info" aria-label="Order info" onclick="openOrderInfo(${delivery.id})"><i class="fa fa-info-circle"></i></button>
                         </div>
                     </div>
                     <div class="order-details">
-                        <p><strong>Customer:</strong> ${escapeHtmlPublic(delivery.first_name)} ${escapeHtmlPublic(delivery.last_name)}</p>
-                        <p><strong>Store:</strong> ${escapeHtmlPublic(delivery.store_name)}</p>
-                        <p style="display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:8px;margin-top:8px;">
-                            <span><strong>Items Subtotal:</strong></span>
-                            <span>PKR ${itemsSubtotal.toFixed(2)}</span>
-                        </p>
-                        <p style="display:flex;justify-content:space-between;">
-                            <span><strong>Delivery Fee (${numStores} store${numStores > 1 ? 's' : ''}):</strong></span>
-                            <span>PKR ${deliveryFee.toFixed(2)}</span>
-                        </p>
-                        <p style="display:flex;justify-content:space-between;border-top:2px solid #eee;padding-top:8px;margin-top:8px;font-weight:bold;">
-                            <span>Grand Total:</span>
-                            <span>PKR ${delivery.total_amount}</span>
-                        </p>
-                        <p><strong>Delivery Address:</strong> ${escapeHtmlPublic(delivery.delivery_address)}</p>
-                        <p><strong>Phone:</strong> ${escapeHtmlPublic(delivery.phone || 'N/A')}</p>
-                        ${delivery.phone ? `
-                        <div class="contact-actions" style="margin: 8px 0; display: flex; gap: 8px; flex-wrap: wrap;">
-                            <a class="btn btn-small" style="background:#2563eb;color:#fff;" href="tel:${escapeHtmlPublic(delivery.phone)}"><i class="fa fa-phone"></i> Call</a>
-                            <a class="btn btn-small" style="background:#f59e0b;color:#fff;" href="sms:${escapeHtmlPublic(delivery.phone)}"><i class="fa fa-sms"></i> SMS</a>
-                            <a class="btn btn-small" style="background:#16a34a;color:#fff;" href="https://wa.me/${(delivery.phone || '').replace(/[^0-9]/g, '')}" target="_blank" rel="noopener"><i class="fa fa-whatsapp"></i> WhatsApp</a>
+                        <div class="rider-block rider-block--people">
+                            <p class="rider-customer"><i class="fas fa-user" aria-hidden="true"></i><span><strong>${escapeHtmlPublic(delivery.first_name)} ${escapeHtmlPublic(delivery.last_name)}</strong><small>Customer</small></span></p>
+                            <p class="rider-store"><i class="fas fa-store" aria-hidden="true"></i><span>${escapeHtmlPublic(delivery.store_name)}<small>Pick up from</small></span></p>
+                            <p class="rider-address"><i class="fas fa-map-marker-alt" aria-hidden="true"></i><span>${escapeHtmlPublic(delivery.delivery_address)}<small>Deliver to</small></span></p>
+                            <p class="rider-phone"><i class="fas fa-phone" aria-hidden="true"></i><span>${escapeHtmlPublic(delivery.phone || 'N/A')}</span></p>
                         </div>
-                        ` : ''}
-                        <p><strong>Payment Status:</strong> <span class="payment-status">${delivery.payment_status}</span></p>
-                        <div class="order-items-summary" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd;">
-                            <p><strong>Items:</strong></p>
-                            <ul style="list-style: none; padding-left: 0;">
+                        <div class="rider-block rider-block--money">
+                            <p class="rider-line"><span>Items subtotal</span><span>PKR ${itemsSubtotal.toFixed(2)}</span></p>
+                            <p class="rider-line"><span>Delivery fee (${numStores} store${numStores > 1 ? 's' : ''})</span><span>PKR ${deliveryFee.toFixed(2)}</span></p>
+                            <p class="rider-line rider-line--total"><span>Grand total</span><span>PKR ${escapeHtmlPublic(String(delivery.total_amount ?? 0))}</span></p>
+                            ${collectCash ? `<p class="rider-collect"><i class="fas fa-money-bill-wave" aria-hidden="true"></i> Collect cash PKR ${escapeHtmlPublic(String(delivery.total_amount ?? 0))}</p>` : ''}
+                            <p class="rider-line rider-line--payment"><span>Payment</span><span class="payment-status payment-${escapeHtmlPublic(paymentStatus)}">${escapeHtmlPublic(delivery.payment_status)}</span></p>
+                        </div>
+                        <details class="order-items-summary">
+                            <summary>Items (${delivery.items ? delivery.items.length : 0})</summary>
+                            <ul>
                                 ${delivery.items && delivery.items.length > 0 ? delivery.items.map(item => `
-                                    <li style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                        <span>${item.quantity}x ${escapeHtmlPublic(item.product_name || 'Unknown Product')} ${item.variant_name ? `(${item.variant_name})` : ''}</span>
+                                    <li>
+                                        <span>${item.quantity}x ${escapeHtmlPublic(item.product_name || 'Unknown Product')} ${item.variant_name ? `(${escapeHtmlPublic(item.variant_name)})` : ''}</span>
                                         <span>PKR ${item.price * item.quantity}</span>
                                     </li>
                                 `).join('') : '<li>No items found</li>'}
                             </ul>
-                        </div>
-                        ${delivery.rider_latitude && delivery.rider_longitude ? `<p><strong>My Location:</strong> ${Number(delivery.rider_latitude).toFixed(6)}, ${Number(delivery.rider_longitude).toFixed(6)}</p>` : (delivery.rider_location ? `<p><strong>My Location:</strong> ${delivery.rider_location}</p>` : '')}
-                        ${delivery.estimated_delivery_time ? `<p><strong>Estimated Delivery:</strong> ${new Date(delivery.estimated_delivery_time).toLocaleString()}</p>` : ''}
+                        </details>
+                        ${delivery.rider_latitude && delivery.rider_longitude ? `<p class="rider-meta"><strong>My Location:</strong> ${Number(delivery.rider_latitude).toFixed(6)}, ${Number(delivery.rider_longitude).toFixed(6)}</p>` : (delivery.rider_location ? `<p class="rider-meta"><strong>My Location:</strong> ${escapeHtmlPublic(delivery.rider_location)}</p>` : '')}
+                        ${delivery.estimated_delivery_time ? `<p class="rider-meta"><strong>Estimated Delivery:</strong> ${new Date(delivery.estimated_delivery_time).toLocaleString()}</p>` : ''}
                     </div>
+                    ${delivery.phone ? `
+                    <div class="contact-actions">
+                        <a class="btn rider-contact-btn rider-contact-btn--call" href="tel:${escapeHtmlPublic(delivery.phone)}"><i class="fa fa-phone" aria-hidden="true"></i> Call</a>
+                        <a class="btn rider-contact-btn rider-contact-btn--whatsapp" href="https://wa.me/${cleanPhone}" target="_blank" rel="noopener"><i class="fab fa-whatsapp" aria-hidden="true"></i> WhatsApp</a>
+                        <a class="btn rider-contact-btn rider-contact-btn--sms" href="sms:${escapeHtmlPublic(delivery.phone)}"><i class="fa fa-sms" aria-hidden="true"></i> SMS</a>
+                    </div>
+                    ` : ''}
                     <div class="order-actions">
                         ${delivery.status === 'out_for_delivery' ? `
-                            <button onclick="markDelivered(${delivery.id})" class="btn btn-success">Mark as Delivered</button>
-                            <button onclick="updatePaymentStatus(${delivery.id}, 'paid')" class="btn btn-primary">Mark Payment Received</button>
+                            <button onclick="markDelivered(${delivery.id})" class="btn btn-success rider-primary-action"><i class="fas fa-check-circle" aria-hidden="true"></i> Mark as Delivered</button>
+                            <button onclick="updatePaymentStatus(${delivery.id}, 'paid')" class="btn btn-secondary rider-secondary-action"><i class="fas fa-money-bill-wave" aria-hidden="true"></i> Mark Payment Received</button>
                         ` : `
-                            <button onclick="viewDeliveryDetails(${delivery.id})" class="btn btn-primary">View Details</button>
+                            <button onclick="viewDeliveryDetails(${delivery.id})" class="btn btn-secondary rider-secondary-action">View Details</button>
                         `}
                     </div>
                 `;
@@ -927,12 +950,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch((error) => {
             console.error('Failed to get initial location:', error);
-            const locationElement = document.getElementById('currentLocation');
-            if (locationElement) {
-                locationElement.textContent = 'Location unavailable - ' + error.message;
-                locationElement.style.color = '#e53e3e';
-            }
-            showError('Location Error', 'Location access failed: ' + error.message + '<br><br>Please enable location permissions and refresh the page.', 10000);
+            showRiderLocationProblem(error);
         });
 
     // Start location tracking (will handle errors internally)

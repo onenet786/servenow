@@ -7,8 +7,12 @@
     <link rel="stylesheet" href="css/user.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/aginv-theme.css?v=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="css/servenow-ui.css?v=1">
 </head>
-<body>
+<body class="sn-ui sn-customer sn-page-orders">
     <div class="app-layout">
         <!-- Sidebar -->
         <aside class="app-sidebar" id="appSidebar">
@@ -26,7 +30,7 @@
                     <li><a href="wallet.html"><i class="fas fa-wallet"></i> Wallet</a></li>
                     <li><a href="cart.html"><i class="fas fa-shopping-cart"></i> Cart</a></li>
                     <li><a href="#" onclick="showChangePasswordModal(); return false;"><i class="fas fa-key"></i> Change Password</a></li>
-                    <li><a href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                    <li class="nav-logout"><a href="#" onclick="logout(); return false;"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
                 </ul>
             </nav>
         </aside>
@@ -107,9 +111,9 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="js/app.js?v=20"></script>
+    <script src="js/app.js?v=24"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/orders.js"></script>
+    <script src="js/orders.js?v=4"></script>
     <script>
         // Sidebar Toggle
         const sidebarToggle = document.getElementById('sidebarToggle');

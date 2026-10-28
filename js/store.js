@@ -58,6 +58,24 @@ function campaignBadge(campaign) {
     return `PKR ${value.toFixed(0)} OFF`;
 }
 
+// "12:00:00" -> "12:00 PM" (12-hour, no seconds). Returns '' when unusable.
+function formatStoreTime(value) {
+    const m = String(value == null ? '' : value).trim().match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return '';
+    const h = parseInt(m[1], 10);
+    if (!Number.isFinite(h) || h > 23) return '';
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${m[2]} ${suffix}`;
+}
+
+// "12:00 PM – 11:00 PM", or '' (line hidden) when either time is missing.
+function formatStoreHours(openTime, closeTime) {
+    const open = formatStoreTime(openTime);
+    const close = formatStoreTime(closeTime);
+    return open && close ? `${open} – ${close}` : '';
+}
+
 // Display store information
 function displayStoreInfo(store, campaigns = []) {
     if (!store) {
@@ -111,7 +129,7 @@ function displayStoreInfo(store, campaigns = []) {
                     <p><i class="fas fa-map-marker-alt"></i> ${escapeHtmlPublic(store.location || 'Location not available')}</p>
                     <p><i class="fas fa-star"></i> ${(parseFloat(store.rating) || 0).toFixed(1)} Rating</p>
                     <p><i class="fas fa-clock"></i> ${store.delivery_time || '30-45'} min delivery</p>
-                    <p><i class="fas fa-business-time"></i> ${store.opening_time || '--:--'} - ${store.closing_time || '--:--'}</p>
+                    ${formatStoreHours(store.opening_time, store.closing_time) ? `<p><i class="fas fa-business-time"></i> ${formatStoreHours(store.opening_time, store.closing_time)}</p>` : ''}
                 </div>
             </div>
             ${promoHtml}
@@ -183,13 +201,13 @@ function displayStoreProducts(storeProducts) {
         }
 
         productCard.innerHTML = `
-            ${buildImgTagForStore(imageSrc, variants, product.name, product.id, {
+            <div class="sn-media">${buildImgTagForStore(imageSrc, variants, product.name, product.id, {
                 image_bg_r: product.image_bg_r,
                 image_bg_g: product.image_bg_g,
                 image_bg_b: product.image_bg_b,
                 image_overlay_alpha: product.image_overlay_alpha,
                 image_contrast: product.image_contrast
-            })}
+            })}</div>
             <div class="product-card-content">
                 <h4>${escapeHtmlPublic(product.name)}</h4>
                 ${variantsHtml ? variantsHtml : `<p class="price" id="price-${product.id}" style="font-weight:bold;">${buildPriceHtml(displayPriceSource)}</p><div id="offer-${product.id}">${buildOfferBadgeHtml(displayPriceSource)}</div>`}

@@ -65,7 +65,7 @@ async function displayOrders(status = 'pending') {
                     const cleanPhone = order.rider_phone.replace(/[^0-9]/g, '');
                     contactRiderHtml = `
                         <div class="rider-contact" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 8px; border: 1px solid #eee; width: 100%; box-sizing: border-box;">
-                            <p style="margin-bottom: 10px;"><strong>Rider:</strong> ${order.rider_first_name} ${order.rider_last_name || ''}</p>
+                            <p style="margin-bottom: 10px;"><strong>Rider:</strong> ${escapeHtmlPublic([order.rider_first_name, order.rider_last_name].filter(Boolean).join(' '))}</p>
                             <div class="contact-actions" style="display: flex; gap: 8px; width: 100%;">
                                 <a href="tel:${escapeHtmlPublic(order.rider_phone)}" class="btn btn-small" style="background: #2196F3; color: white; padding: 8px 0; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 1; text-align: center; white-space: nowrap;">
                                     <i class="fas fa-phone" style="margin-right: 5px;"></i> Call
@@ -82,36 +82,52 @@ async function displayOrders(status = 'pending') {
                 }
                 let contactStoreHtml = '';
 
-                let storeHtml = `<p><strong>Store:</strong> ${escapeHtmlPublic(order.store_name)}</p>`;
+                let storeHtml = `<p class="sn-order-store"><i class="fas fa-store" aria-hidden="true"></i> ${escapeHtmlPublic(order.store_name)}</p>`;
+                let shipmentsHtml = '';
                 if (order.is_group && order.sub_orders) {
-                    storeHtml = `<p><strong>Store:</strong> <span style="color: #2196F3; font-weight: bold;">Multiple Stores</span></p>`;
-                    storeHtml += `<div style="margin-top: 10px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">
+                    storeHtml = `<p class="sn-order-store"><i class="fas fa-store" aria-hidden="true"></i> <span class="sn-multi-store">Multiple stores</span></p>`;
+                    shipmentsHtml += `<div class="sn-shipments" style="margin-top: 10px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">
                         <p style="margin-bottom: 5px;"><strong>Shipments:</strong></p>`;
                     order.sub_orders.forEach(sub => {
                         const callStoreBtn = '';
-                        storeHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9em;">
+                        shipmentsHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9em;">
                             <span>${escapeHtmlPublic(sub.store_name)}${callStoreBtn}</span>
-                            <span class="status-${sub.status}" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8em;">${sub.status}</span>
+                            <span class="status-${escapeHtmlPublic(sub.status)}" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8em;">${escapeHtmlPublic(snStatusLabel(sub.status))}</span>
                         </div>`;
                     });
-                    storeHtml += `</div>`;
+                    shipmentsHtml += `</div>`;
                 }
 
+                const customerName = [order.first_name || (user ? user.first_name : ''), order.last_name || (user ? user.last_name : '')]
+                    .filter(Boolean).join(' ');
+                const orderDate = order.created_at ? new Date(order.created_at) : null;
+                const orderDateText = orderDate && !isNaN(orderDate.getTime())
+                    ? orderDate.toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                    : '';
+                const itemsCount = order.items_count || (order.items ? order.items.length : 0);
                 orderCard.innerHTML = `
                     <div class="order-header">
-                        <h3>Order ${order.order_number}</h3>
-                        ${order.is_group ? '' : `<span class="order-status status-${order.status}">${order.status}</span>`}
+                        <div class="sn-order-title">
+                            <h3>Order ${escapeHtmlPublic(order.order_number)}</h3>
+                            ${orderDateText ? `<span class="sn-order-date">${escapeHtmlPublic(orderDateText)}</span>` : ''}
+                        </div>
+                        ${order.status ? `<span class="order-status status-${escapeHtmlPublic(order.status)}">${escapeHtmlPublic(snStatusLabel(order.status))}</span>` : ''}
                     </div>
                     <div class="order-details">
-                        <p><strong>Customer:</strong> ${order.first_name || (user ? user.first_name : '')} ${order.last_name || (user ? user.last_name : '')}</p>
-                        ${storeHtml}
-                        <p><strong>Total:</strong> PKR ${parseFloat(order.total_amount).toFixed(2)}</p>
+                        <div class="sn-order-summary">
+                            <div class="sn-order-summary__main">
+                                ${storeHtml}
+                                <p class="sn-order-items">${itemsCount} item${Number(itemsCount) === 1 ? '' : 's'}</p>
+                            </div>
+                            <p class="sn-order-total"><span>Total</span><strong>PKR ${parseFloat(order.total_amount).toFixed(2)}</strong></p>
+                        </div>
+                        ${shipmentsHtml}
+                        ${isStaff && customerName ? `<p><strong>Customer:</strong> ${escapeHtmlPublic(customerName)}</p>` : ''}
                         <p><strong>Delivery Address:</strong> ${escapeHtmlPublic(order.delivery_address)}</p>
-                        <p><strong>Items:</strong> ${order.items_count || (order.items ? order.items.length : 0)} items</p>
                         ${order.rider_latitude && order.rider_longitude ? 
                             `<p><strong>Rider Location:</strong> ${Number(order.rider_latitude).toFixed(6)}, ${Number(order.rider_longitude).toFixed(6)} 
                             <a href="https://www.google.com/maps?q=${order.rider_latitude},${order.rider_longitude}" target="_blank" style="margin-left: 8px; font-size: 0.9em; color: #2196F3;"><i class="fas fa-map-marker-alt"></i> View on Map</a></p>` : 
-                            (order.rider_location ? `<p><strong>Rider Location:</strong> ${order.rider_location}</p>` : '')}
+                            (order.rider_location ? `<p><strong>Rider Location:</strong> ${escapeHtmlPublic(order.rider_location)}</p>` : '')}
                         ${order.estimated_delivery_time ? `<p><strong>Estimated Delivery:</strong> ${new Date(order.estimated_delivery_time).toLocaleString()}</p>` : ''}
                         ${contactRiderHtml}
                         ${contactStoreHtml}

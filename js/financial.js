@@ -534,7 +534,8 @@ async function loadFinancialDashboard() {
                 const card = el.closest('.stat-card');
                 if (!card) return;
                 card.style.setProperty('border-left', `4px solid ${accent}`, 'important');
-                card.style.setProperty('background', bg, 'important');
+                // 2026-10 UI: flat white tiles; the left accent carries the meaning.
+                card.style.setProperty('background', '#ffffff', 'important');
             };
             const setDynamicAmount = (id, value, positiveColor, negativeColor) => {
                 const num = toNum(value);
@@ -558,8 +559,8 @@ async function loadFinancialDashboard() {
             setAmount('totalSettlementsAmount', stats.settlement, '#d97706');
             setAmount('totalRiderCashAmount', stats.riderCashSubmitted, '#2563eb');
             setAmount('riderFuelPaymentsAmount', stats.riderFuelPayments || 0, '#0891b2');
-            setAmount('paymentVouchersAmount', stats.paymentVouchers, '#7c3aed');
-            setAmount('receiptVouchersAmount', stats.receiptVouchers, '#4f46e5');
+            setAmount('paymentVouchersAmount', stats.paymentVouchers, '#475569');
+            setAmount('receiptVouchersAmount', stats.receiptVouchers, '#1d4ed8');
             setAmount('deliveryChargesAmount', stats.deliveryCharges || 0, '#0891b2');
             setAmount('storeBalancesAmount', stats.storeBalances || 0, '#b45309');
             setAmount('totalUnsettledAmount', stats.totalUnsettledAmount || 0, '#ea580c');
@@ -572,8 +573,8 @@ async function loadFinancialDashboard() {
             setTileStyle('totalSettlementsAmount', '#d97706', 'linear-gradient(135deg,#fffbeb,#fefce8)');
             setTileStyle('totalRiderCashAmount', '#2563eb', 'linear-gradient(135deg,#eff6ff,#eef2ff)');
             setTileStyle('riderFuelPaymentsAmount', '#0891b2', 'linear-gradient(135deg,#ecfeff,#cffafe)');
-            setTileStyle('paymentVouchersAmount', '#7c3aed', 'linear-gradient(135deg,#f5f3ff,#faf5ff)');
-            setTileStyle('receiptVouchersAmount', '#4f46e5', 'linear-gradient(135deg,#eef2ff,#e0e7ff)');
+            setTileStyle('paymentVouchersAmount', '#475569', 'linear-gradient(135deg,#f5f3ff,#faf5ff)');
+            setTileStyle('receiptVouchersAmount', '#1d4ed8', 'linear-gradient(135deg,#eef2ff,#e0e7ff)');
             setTileStyle('deliveryChargesAmount', '#0891b2', 'linear-gradient(135deg,#ecfeff,#cffafe)');
             setTileStyle('storeBalancesAmount', '#b45309', 'linear-gradient(135deg,#fffbeb,#fde68a)');
             setTileStyle('totalUnsettledAmount', '#ea580c', 'linear-gradient(135deg,#fff7ed,#ffedd5)');
@@ -680,7 +681,7 @@ function renderFinancialStoreWiseSummary(rows) {
         const card = el?.closest('.stat-card');
         if (!card) return;
         card.style.setProperty('border-left', `4px solid ${color}`, 'important');
-        card.style.setProperty('background', bg, 'important');
+        card.style.setProperty('background', '#ffffff', 'important'); // flat tile, accent on the left
         el.style.setProperty('color', color, 'important');
     };
 
@@ -697,7 +698,7 @@ function renderFinancialStoreWiseSummary(rows) {
     setText('fdStorePendingAmount', money(totalPending));
 
     setTile('fdStoreCountAmount', '#1d4ed8', 'linear-gradient(135deg,#eff6ff,#dbeafe)');
-    setTile('fdStoreOrdersAmount', '#7c3aed', 'linear-gradient(135deg,#f5f3ff,#ede9fe)');
+    setTile('fdStoreOrdersAmount', '#475569', 'linear-gradient(135deg,#f5f3ff,#ede9fe)');
     setTile('fdStoreEarningsAmount', '#15803d', 'linear-gradient(135deg,#f0fdf4,#dcfce7)');
     setTile('fdStorePaidAmount', '#0f766e', 'linear-gradient(135deg,#f0fdfa,#ccfbf1)');
     setTile(
@@ -8120,11 +8121,15 @@ function glMoney(value) {
 }
 
 function glTable(headers, rows, footer) {
-    const head = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('');
+    // Money columns (cells rendered by glMoney) are right-aligned via class="num".
+    const numCols = new Set();
+    rows.forEach((r) => r.forEach((c, i) => { if (/^Rs\s/.test(String(c))) numCols.add(i); }));
+    const cls = (i) => (numCols.has(i) ? ' class="num"' : '');
+    const head = headers.map((h, i) => `<th${cls(i)}>${escapeHtml(h)}</th>`).join('');
     const body = rows.length
-        ? rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
+        ? rows.map((r) => `<tr>${r.map((c, i) => `<td${cls(i)}>${c}</td>`).join('')}</tr>`).join('')
         : `<tr><td colspan="${headers.length}">No entries</td></tr>`;
-    const foot = footer ? `<tfoot><tr>${footer.map((c) => `<th>${c}</th>`).join('')}</tr></tfoot>` : '';
+    const foot = footer ? `<tfoot><tr>${footer.map((c, i) => `<th${cls(i)}>${c}</th>`).join('')}</tr></tfoot>` : '';
     return `<table class="data-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>`;
 }
 

@@ -182,7 +182,7 @@ async function displayCheckoutItems() {
             itemElement.className = 'checkout-item';
             itemElement.style.cssText = 'display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;';
             itemElement.innerHTML = `
-                <span>${item.name} x ${item.quantity}${offerText}</span>
+                <span>${typeof escapeHtmlPublic === 'function' ? escapeHtmlPublic(item.name) : item.name} x ${item.quantity}${offerText}</span>
                 <span>PKR ${itemTotal.toFixed(2)}</span>
             `;
             itemsContainer.appendChild(itemElement);
@@ -480,7 +480,7 @@ async function prefillUserInfo() {
 
     try {
         const user = JSON.parse(userData);
-        document.getElementById('fullName').value = `${user.first_name} ${user.last_name}`;
+        document.getElementById('fullName').value = [user.first_name, user.last_name].filter(Boolean).join(' ');
         document.getElementById('phone').value = user.phone || '';
         document.getElementById('deliveryAddress').value = user.address || '';
         console.log('Form prefilled');
@@ -506,7 +506,7 @@ async function prefillUserInfo() {
         console.log('User data from API:', data);
         if (data.success) {
             const user = data.user;
-            document.getElementById('fullName').value = `${user.first_name} ${user.last_name}`;
+            document.getElementById('fullName').value = [user.first_name, user.last_name].filter(Boolean).join(' ');
             document.getElementById('phone').value = user.phone || '';
             document.getElementById('deliveryAddress').value = user.address || '';
             console.log('Form updated from API');
@@ -550,4 +550,66 @@ document.addEventListener('DOMContentLoaded', function() {
     //     alert('Your cart is empty. Redirecting to home page.');
     //     window.location.href = 'index.html';
     // }
+});
+
+// ---------- Payment method cards (2026-10 UI redesign) ----------
+// Large tap-friendly cards that mirror the existing #paymentMethod <select>.
+// The select stays the source of truth (form submit + change handler above):
+// picking a card sets select.value and fires its normal "change" event.
+function snInitPaymentCards() {
+    const select = document.getElementById('paymentMethod');
+    if (!select || select.dataset.snCards === '1') return;
+    select.dataset.snCards = '1';
+    const meta = {
+        cash: { icon: 'fa-money-bill-wave', hint: 'Pay the rider on delivery' },
+        wallet: { icon: 'fa-wallet', hint: 'Use your ServeNow balance' },
+        card: { icon: 'fa-credit-card', hint: 'Credit or debit card' }
+    };
+    const group = document.createElement('div');
+    group.className = 'sn-pay-options';
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('aria-label', 'Payment method');
+    Array.from(select.options).forEach((opt) => {
+        if (!opt.value) return;
+        const info = meta[opt.value] || { icon: 'fa-circle', hint: '' };
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sn-pay-option';
+        btn.dataset.value = opt.value;
+        btn.setAttribute('role', 'radio');
+        const icon = document.createElement('i');
+        icon.className = `fas ${info.icon}`;
+        icon.setAttribute('aria-hidden', 'true');
+        const text = document.createElement('span');
+        text.className = 'sn-pay-option__text';
+        const title = document.createElement('strong');
+        title.textContent = opt.textContent;
+        const hint = document.createElement('small');
+        hint.textContent = info.hint;
+        text.appendChild(title);
+        text.appendChild(hint);
+        btn.appendChild(icon);
+        btn.appendChild(text);
+        btn.addEventListener('click', () => {
+            if (select.value === opt.value) return;
+            select.value = opt.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        group.appendChild(btn);
+    });
+    const sync = () => {
+        group.querySelectorAll('.sn-pay-option').forEach((btn) => {
+            const on = btn.dataset.value === select.value;
+            btn.classList.toggle('is-selected', on);
+            btn.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+    };
+    select.addEventListener('change', sync);
+    select.classList.add('sn-select-mirrored');
+    select.insertAdjacentElement('afterend', group);
+    sync();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    try { snInitPaymentCards(); } catch (e) { console.warn('Payment cards init failed', e); }
 });

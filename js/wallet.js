@@ -56,11 +56,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadPaymentMethods();
 
         // Event listeners
-        document.getElementById('paymentMethod').addEventListener('change', handlePaymentMethodChange);
-        document.getElementById('topupForm').addEventListener('submit', handleTopupSubmit);
-        document.getElementById('transactionFilter').addEventListener('input', handleTransactionFilter);
-        document.getElementById('saveAutoRechargeBtn').addEventListener('click', saveAutoRechargeSettings);
-        document.getElementById('sendMoneyForm').addEventListener('submit', handleSendMoneySubmit);
+        // (wallet.html does not contain every optional control, so bind only what exists)
+        document.getElementById('paymentMethod')?.addEventListener('change', handlePaymentMethodChange);
+        document.getElementById('topupForm')?.addEventListener('submit', handleTopupSubmit);
+        document.getElementById('transactionFilter')?.addEventListener('input', handleTransactionFilter);
+        document.getElementById('saveAutoRechargeBtn')?.addEventListener('click', saveAutoRechargeSettings);
+        document.getElementById('sendMoneyForm')?.addEventListener('submit', handleSendMoneySubmit);
 
         // Quick amount buttons
         document.querySelectorAll('.topup-amount-btn').forEach(btn => {
@@ -87,13 +88,17 @@ async function loadWalletBalance() {
 
         if (data.success && data.wallet) {
             const wallet = data.wallet;
-            document.getElementById('balanceAmount').textContent = (parseFloat(wallet.balance) || 0).toFixed(2);
-            document.getElementById('totalCredited').textContent = `PKR ${parseFloat(wallet.total_credited).toFixed(2)}`;
-            document.getElementById('totalSpent').textContent = `PKR ${parseFloat(wallet.total_spent).toFixed(2)}`;
-            document.getElementById('transactionCount').textContent = wallet.total_transactions || '0';
-            document.getElementById('autoRechargeStatus').textContent = wallet.auto_recharge_enabled ? 'Enabled' : 'Disabled';
+            // wallet.html uses #walletBalance; other layouts use #balanceAmount.
+            const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+            const balanceText = (parseFloat(wallet.balance) || 0).toFixed(2);
+            setText('balanceAmount', balanceText);
+            setText('walletBalance', balanceText);
+            setText('totalCredited', `PKR ${(parseFloat(wallet.total_credited) || 0).toFixed(2)}`);
+            setText('totalSpent', `PKR ${(parseFloat(wallet.total_spent) || 0).toFixed(2)}`);
+            setText('transactionCount', wallet.total_transactions || '0');
+            setText('autoRechargeStatus', wallet.auto_recharge_enabled ? 'Enabled' : 'Disabled');
 
-            if (wallet.auto_recharge_enabled) {
+            if (wallet.auto_recharge_enabled && document.getElementById('enableAutoRecharge')) {
                 document.getElementById('enableAutoRecharge').checked = true;
                 document.getElementById('autoRechargeThreshold').value = wallet.auto_recharge_threshold || '';
                 document.getElementById('autoRechargeAmount').value = wallet.auto_recharge_amount || '';
@@ -111,7 +116,9 @@ async function loadTransactions() {
         });
         const data = await response.json();
 
-        const tbody = document.getElementById('transactionsBody');
+        // wallet.html names the body #transactionsList; keep the old id working too.
+        const tbody = document.getElementById('transactionsBody') || document.getElementById('transactionsList');
+        if (!tbody) return;
         tbody.innerHTML = '';
 
         if (data.success && data.transactions && data.transactions.length) {
@@ -120,10 +127,14 @@ async function loadTransactions() {
                 const badgeClass = `badge badge-${tx.type}`;
                 const date = new Date(tx.created_at).toLocaleString();
                 
+                const txType = String(tx.type || '').toLowerCase();
+                const direction = (txType === 'credit' || txType === 'topup' || txType === 'refund') ? 'in'
+                    : (txType === 'debit' || txType === 'payment' || txType === 'order') ? 'out' : '';
+                const sign = direction === 'in' ? '+ ' : direction === 'out' ? '− ' : '';
                 row.innerHTML = `
                     <td>${date}</td>
-                    <td><span class="${badgeClass}">${tx.type.toUpperCase()}</span></td>
-                    <td>PKR ${parseFloat(tx.amount).toFixed(2)}</td>
+                    <td><span class="${escapeHtmlPublic(badgeClass)}">${escapeHtmlPublic(String(tx.type || '').toUpperCase())}</span></td>
+                    <td class="wallet-amount${direction ? ` wallet-amount--${direction}` : ''}">${sign}PKR ${parseFloat(tx.amount).toFixed(2)}</td>
                     <td>${escapeHtmlPublic(tx.description)}</td>
                     <td><strong>PKR ${parseFloat(tx.balance_after).toFixed(2)}</strong></td>
                 `;
@@ -139,7 +150,7 @@ async function loadTransactions() {
 
 function handleTransactionFilter(e) {
     const filterValue = e.target.value.toLowerCase();
-    const rows = document.querySelectorAll('#transactionsBody tr');
+    const rows = document.querySelectorAll('#transactionsBody tr, #transactionsList tr');
 
     rows.forEach(row => {
         const typeCell = row.querySelector('td:nth-child(2)');
@@ -190,6 +201,7 @@ function handlePaymentMethodChange(e) {
 async function loadPaymentMethods() {
     try {
         const container = document.getElementById('savedCards');
+        if (!container) return; // saved-cards panel is not on every wallet layout
         container.innerHTML = '<div style="color: #999; text-align: center; padding: 10px;">Loading saved cards...</div>';
 
         const res = await fetch(`${API_BASE}/api/wallet/payment-methods`, {
@@ -393,6 +405,7 @@ async function saveAutoRechargeSettings() {
 function showError(message) {
     const errorDiv = document.getElementById('errorMessage');
     const successDiv = document.getElementById('successMessage');
+    if (!errorDiv || !successDiv) { console.warn(message); return; }
     
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';

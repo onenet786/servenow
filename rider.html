@@ -41,8 +41,12 @@
         }
     </style>
     <link rel="stylesheet" href="css/aginv-theme.css?v=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="css/servenow-ui.css?v=1">
 </head>
-<body>
+<body class="sn-ui sn-rider">
     <div class="app-layout">
         <!-- Sidebar -->
         <aside class="app-sidebar" id="appSidebar">
@@ -110,7 +114,7 @@
                     <span id="currentLocation">Location tracking disabled</span>
                 </div>
                 <button onclick="refreshLocation()" class="btn btn-small btn-secondary">
-                    <i class="fas fa-sync-alt"></i> Refresh Location
+                    <i class="fas fa-sync-alt" aria-hidden="true"></i> <span>Refresh</span>
                 </button>
             </div>
 
@@ -239,9 +243,9 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="js/app.js?v=20"></script>
+    <script src="js/app.js?v=24"></script>
     <script src="js/notifications.js"></script>
-    <script src="js/rider.js?v=3"></script>
+    <script src="js/rider.js?v=5"></script>
     <script>
         // Sidebar Toggle
         const sidebarToggle = document.getElementById('sidebarToggle');

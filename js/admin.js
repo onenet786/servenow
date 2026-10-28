@@ -3438,6 +3438,17 @@ async function loadPushStatus() {
     }
 }
 
+// Display-only label for raw order statuses: "out_for_delivery" -> "Out for delivery".
+// Raw values stay untouched for filters, selects and API calls.
+function formatOrderStatusLabel(status) {
+    const text = String(status == null ? '' : status).replace(/_/g, ' ').trim();
+    return text ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : '';
+}
+
+function orderStatusPillHtml(status) {
+    return `<span class="order-status status-${escapeHtml(String(status || ''))}">${escapeHtml(formatOrderStatusLabel(status))}</span>`;
+}
+
 function renderActivityList(containerId, items) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -3457,7 +3468,7 @@ function renderActivityList(containerId, items) {
             <div class="activity-accent"></div>
             <div class="activity-content">
                 <div class="title">${escapeHtml(item.title)}</div>
-                <div class="subtitle">${item.subtitle}</div>
+                <div class="subtitle">${activitySubtitleHtml(item)}</div>
                 <div class="meta">
                     <span>${new Date(item.timestamp).toLocaleDateString()}</span>
                     <span>${new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -3468,6 +3479,17 @@ function renderActivityList(containerId, items) {
         div.onclick = () => showActivityDetails(item);
         container.appendChild(div);
     });
+}
+
+// Recent orders: show "Out for delivery" as a status pill plus the amount instead of
+// the raw "out_for_delivery - PKR 1160.00" subtitle sent by the API.
+function activitySubtitleHtml(item) {
+    const details = item && item.details ? item.details : null;
+    if (item && item.type === 'order' && details && details.Status) {
+        const amount = details.Amount ? ` <span class="activity-amount">${escapeHtml(String(details.Amount))}</span>` : '';
+        return `${orderStatusPillHtml(details.Status)}${amount}`;
+    }
+    return escapeHtml(String((item && item.subtitle) || ''));
 }
 
 function showActivityDetails(item) {
@@ -5429,7 +5451,7 @@ function displayOrders(orders = AppState.orders) {
         const storeDetailsHtml = buildOrderStoreDetailsHtml(order);
 
         // Multi-store status tooltip
-        let statusHtml = `<span class="status-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span>`;
+        let statusHtml = orderStatusPillHtml(order.status);
         
         if (order.store_statuses) {
             try {
@@ -5444,7 +5466,7 @@ function displayOrders(orders = AppState.orders) {
 
                     if (isMixed || isDelayed) {
                         const tooltipContent = uniqueStatuses.map(s => 
-                            `<div><strong>${escapeHtml(s.store_name)}:</strong> <span class="status-${s.status}">${s.status.toUpperCase()}</span></div>`
+                            `<div><strong>${escapeHtml(s.store_name)}:</strong> ${orderStatusPillHtml(s.status)}</div>`
                         ).join('');
                         
                         statusHtml += `
@@ -6893,7 +6915,7 @@ async function viewOrderDetails(orderId) {
                 </div>
                 <div class="info-group">
                     <h4>Order Status</h4>
-                    <p><strong>Status:</strong> <span class="status-${order.status}">${order.status.toUpperCase()}</span></p>
+                    <p><strong>Status:</strong> ${orderStatusPillHtml(order.status)}</p>
                     <p><strong>Payment:</strong> ${order.payment_method.toUpperCase()} (${order.payment_status})</p>
                     <p><strong>Date:</strong> ${new Date(order.created_at).toLocaleString()}</p>
                 </div>

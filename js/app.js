@@ -368,7 +368,9 @@ function updateNavigation() {
             const profileLi = document.createElement('li');
             profileLi.className = 'nav-dynamic';
             profileLi.innerHTML = `<a href="profile.html"><i class="fas fa-user"></i> Profile</a>`;
-            navUl.appendChild(profileLi);
+            // Keep Logout last when the page hard-codes it.
+            const pwdLink = navUl.querySelector('a[onclick*="showChangePasswordModal"]');
+            navUl.insertBefore(profileLi, (pwdLink && pwdLink.closest('li')) || navUl.querySelector('.nav-logout'));
         }
 
         // Add Change Password if not present
@@ -376,7 +378,7 @@ function updateNavigation() {
             const pwdLi = document.createElement('li');
             pwdLi.className = 'nav-dynamic';
             pwdLi.innerHTML = `<a href="#" onclick="showChangePasswordModal(); return false;"><i class="fas fa-key"></i> Change Password</a>`;
-            navUl.appendChild(pwdLi);
+            navUl.insertBefore(pwdLi, navUl.querySelector('.nav-logout'));
         }
         
         if (!navUl.querySelector('.nav-logout')) {
@@ -507,9 +509,9 @@ async function loadHomeCategories() {
       const card = document.createElement("div");
       card.className = "category-card";
       card.innerHTML = `
-                <img src="${imageSrc}" alt="${name}">
+                <img src="${escapeHtmlPublic(imageSrc)}" alt="${escapeHtmlPublic(name)}" loading="lazy" decoding="async">
                 <div class="category-card-content">
-                    <h4>${name}</h4>
+                    <h4>${escapeHtmlPublic(name)}</h4>
                     <a href="stores.html?category=${encodeURIComponent(
                       slug
                     )}&category_id=${encodeURIComponent(cat.id)}">Shop Now</a>
@@ -616,7 +618,213 @@ function updateCartCount() {
   if (cartCount) {
     cartCount.textContent = cart.length;
   }
+  try {
+    snSyncCartUi();
+  } catch (_) {
+    /* UI chrome only - never block cart logic */
+  }
 }
+
+/* ---------- ServeNow UI chrome (2026-10 redesign) ----------
+   Purely presentational helpers: header cart/account shortcuts, the mobile
+   bottom navigation, the sticky "View cart" bar and image fallbacks.
+   They only read existing state (cart array, auth token) and use plain links
+   to existing pages, so no existing handler or id is changed. */
+// Display-only status label: "out_for_delivery" -> "Out for delivery".
+function snStatusLabel(status) {
+  const text = String(status == null ? "" : status).replace(/_/g, " ").trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : "";
+}
+
+function snIsCustomerShell() {
+  return !!(document.body && document.body.classList.contains("sn-customer"));
+}
+
+function snCartTotals() {
+  let count = 0;
+  let total = 0;
+  (Array.isArray(cart) ? cart : []).forEach((item) => {
+    count += 1;
+    try {
+      total += getCartItemTotal(item);
+    } catch (_) {
+      total += (Number(item.price) || 0) * (Number(item.quantity) || 0);
+    }
+  });
+  return { count, total };
+}
+
+function snSyncCartUi() {
+  const { count, total } = snCartTotals();
+  document.querySelectorAll(".sn-cart-badge").forEach((badge) => {
+    badge.textContent = count > 99 ? "99+" : String(count);
+    badge.hidden = count === 0;
+  });
+  const bar = document.getElementById("snCartBar");
+  if (bar) {
+    const countEl = bar.querySelector(".sn-cart-bar__count");
+    const totalEl = bar.querySelector(".sn-cart-bar__total");
+    if (countEl) countEl.textContent = String(count);
+    if (totalEl) totalEl.textContent = `PKR ${total.toFixed(2)}`;
+    bar.hidden = count === 0;
+    document.body.classList.toggle("sn-has-cart-bar", count > 0);
+  }
+}
+
+function snBuildCustomerChrome() {
+  if (!snIsCustomerShell()) return;
+  const loggedIn = !!localStorage.getItem("serveNowToken");
+  const accountHref = loggedIn ? "profile.html" : "login.html";
+  const path = (window.location.pathname || "").toLowerCase();
+  const page = path.split("/").pop() || "index.html";
+
+  // Highlight the current page in the sidebar when the page markup didn't.
+  const sideLinks = Array.from(document.querySelectorAll("#appSidebar .nav-menu a[href]"));
+  if (sideLinks.length && !sideLinks.some((a) => a.classList.contains("active"))) {
+    const alias = { "store.html": "stores.html", "products.html": "stores.html", "checkout.html": "cart.html", "order-confirmation.html": "orders.html" };
+    const target = alias[page] || page;
+    const hit = sideLinks.find((a) => (a.getAttribute("href") || "").toLowerCase() === target);
+    if (hit) hit.classList.add("active");
+  }
+
+  // Brand in the top bar (the sidebar logo is hidden on phones).
+  const header = document.querySelector(".app-header");
+  if (header && !header.querySelector(".sn-header-brand")) {
+    const brand = document.createElement("a");
+    brand.className = "sn-header-brand";
+    brand.href = "index.html";
+    brand.setAttribute("aria-label", "ServeNow home");
+    brand.innerHTML =
+      '<img src="images/servenow_brand_logo.png" alt="" width="32" height="32"><span>ServeNow</span>';
+    const toggle = header.querySelector(".sidebar-toggle");
+    if (toggle && toggle.nextSibling) header.insertBefore(brand, toggle.nextSibling);
+    else header.insertBefore(brand, header.firstChild);
+  }
+
+  // Cart + account shortcuts on the right of the top bar.
+  const headerRight = header && header.querySelector(".header-right");
+  if (headerRight && !headerRight.querySelector(".sn-header-cart")) {
+    const cartLink = document.createElement("a");
+    cartLink.className = "sn-header-icon sn-header-cart";
+    cartLink.href = "cart.html";
+    cartLink.setAttribute("aria-label", "Cart");
+    cartLink.title = "Cart";
+    cartLink.innerHTML =
+      '<i class="fas fa-shopping-cart" aria-hidden="true"></i><span class="sn-cart-badge" hidden>0</span>';
+    const accountLink = document.createElement("a");
+    accountLink.className = "sn-header-icon sn-header-account";
+    accountLink.href = accountHref;
+    accountLink.setAttribute("aria-label", loggedIn ? "My account" : "Login");
+    accountLink.title = loggedIn ? "My account" : "Login";
+    accountLink.innerHTML = '<i class="fas fa-user" aria-hidden="true"></i>';
+    const profile = headerRight.querySelector(".user-profile");
+    headerRight.insertBefore(cartLink, profile || null);
+    headerRight.insertBefore(accountLink, profile || null);
+  }
+
+  // Bottom navigation for phones (CSS shows it below 768px only).
+  if (!document.querySelector(".sn-bottom-nav")) {
+    const items = [
+      { href: "index.html", icon: "fa-home", label: "Home", match: ["index.html", ""] },
+      { href: "stores.html", icon: "fa-store", label: "Stores", match: ["stores.html", "store.html", "products.html"] },
+      { href: "cart.html", icon: "fa-shopping-cart", label: "Cart", match: ["cart.html", "checkout.html"], badge: true },
+      { href: "orders.html", icon: "fa-receipt", label: "Orders", match: ["orders.html", "order-confirmation.html"] },
+      { href: accountHref, icon: "fa-user", label: "Account", match: ["profile.html", "wallet.html", "login.html", "register.html"] },
+    ];
+    const nav = document.createElement("nav");
+    nav.className = "sn-bottom-nav";
+    nav.setAttribute("aria-label", "Primary");
+    nav.innerHTML = items
+      .map((it) => {
+        const active = it.match.indexOf(page) !== -1;
+        return `<a href="${it.href}" class="sn-bottom-nav__item${active ? " is-active" : ""}"${active ? ' aria-current="page"' : ""}>
+          <span class="sn-bottom-nav__icon"><i class="fas ${it.icon}" aria-hidden="true"></i>${it.badge ? '<span class="sn-cart-badge" hidden>0</span>' : ""}</span>
+          <span class="sn-bottom-nav__label">${it.label}</span></a>`;
+      })
+      .join("");
+    document.body.appendChild(nav);
+    document.body.classList.add("sn-has-bottom-nav");
+  }
+
+  // Sticky "View cart" bar on pages where products are added.
+  if ((document.getElementById("storeProducts") || document.getElementById("productGrid")) && !document.getElementById("snCartBar")) {
+    const bar = document.createElement("a");
+    bar.id = "snCartBar";
+    bar.className = "sn-cart-bar";
+    bar.href = "cart.html";
+    bar.hidden = true;
+    bar.innerHTML =
+      '<span class="sn-cart-bar__count">0</span><span class="sn-cart-bar__label">View cart</span><span class="sn-cart-bar__total">PKR 0.00</span>';
+    document.body.appendChild(bar);
+  }
+
+  snSyncCartUi();
+}
+
+// Image fallbacks: when a product/store/category image is missing or fails,
+// show a neutral tile with an icon instead of broken-image alt text.
+const SN_IMG_HOSTS = ".category-card, .product-image, .sn-media, .store-image-container, .serving-dish, .order-item-thumb";
+function snMarkImage(img, missing) {
+  if (!img || !img.closest) return;
+  const host = img.closest(SN_IMG_HOSTS);
+  if (!host) return;
+  host.classList.toggle("sn-img-missing", !!missing);
+}
+function snIsPlaceholderSrc(img) {
+  const src = String(img.currentSrc || img.src || "");
+  return /servenow_brand_logo\.png|placehold\.co|via\.placeholder\.com/i.test(src);
+}
+document.addEventListener(
+  "error",
+  (e) => {
+    const t = e.target;
+    if (t && t.tagName === "IMG") {
+      t.dataset.snFailed = "1";
+      snMarkImage(t, true);
+    }
+  },
+  true
+);
+document.addEventListener(
+  "load",
+  (e) => {
+    const t = e.target;
+    if (t && t.tagName === "IMG") {
+      snMarkImage(t, t.dataset.snFailed === "1" || snIsPlaceholderSrc(t));
+    }
+  },
+  true
+);
+function snScanImages(root) {
+  (root || document).querySelectorAll("img").forEach((img) => {
+    if (!img.closest(SN_IMG_HOSTS)) return;
+    if (img.complete && (img.naturalWidth === 0 || snIsPlaceholderSrc(img))) {
+      snMarkImage(img, true);
+    }
+  });
+}
+window.addEventListener("DOMContentLoaded", function () {
+  try {
+    snBuildCustomerChrome();
+  } catch (e) {
+    console.warn("UI chrome init failed", e);
+  }
+  try {
+    snScanImages(document);
+    // Cards rendered later (categories, stores, products) are re-checked
+    // when they are inserted; load/error events above handle the rest.
+    if (window.MutationObserver && snIsCustomerShell()) {
+      const mo = new MutationObserver((records) => {
+        records.forEach((r) => r.addedNodes.forEach((n) => {
+          if (n.nodeType === 1) snScanImages(n.tagName === "IMG" ? n.parentNode || document : n);
+        }));
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    }
+  } catch (_) {
+    /* ignore */
+  }
+});
 
 async function fetchProductStock(productId) {
   try {
@@ -942,6 +1150,20 @@ function displayCart() {
   if (cartTotal) {
     cartTotal.textContent = `Total: PKR ${total.toFixed(2)}`;
   }
+
+  // Empty state: hide the summary/checkout (never show "Total: PKR 0.00"
+  // with an enabled checkout button) and show the friendly empty message.
+  const isEmpty = cart.length === 0;
+  const cartSection = cartContainer.closest(".cart-section");
+  const emptyCart = document.getElementById("emptyCart");
+  if (cartSection) cartSection.hidden = isEmpty;
+  if (emptyCart) emptyCart.style.display = isEmpty ? "block" : "none";
+  document.querySelectorAll('.cart-actions a[href="checkout.html"]').forEach((a) => {
+    a.classList.toggle("disabled", isEmpty);
+    if (isEmpty) a.setAttribute("aria-disabled", "true");
+    else a.removeAttribute("aria-disabled");
+  });
+  if (document.body) document.body.classList.toggle("sn-cart-empty", isEmpty);
 }
 
 // Location-based functionality
@@ -1244,13 +1466,13 @@ function buildStoreCardHtml(store) {
             </div>
         </div>
         <div class="store-image-container">
-            <img src="${imageSrc}" alt="${safeAlt}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${fallbackImg}'">
+            <img src="${escapeHtmlPublic(imageSrc)}" alt="${safeAlt}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${fallbackImg}'">
         </div>
         <div class="store-card-content">
-            <h4>${store && store.name ? store.name : "Store"}</h4>
-            <p><i class="fas fa-map-marker-alt"></i> ${locationText}</p>
-            <p><i class="fas fa-star"></i> ${ratingText} &nbsp;|&nbsp; <i class="fas fa-clock"></i> ${deliveryText}</p>
-            <a href="store.html?id=${id}">View Store</a>
+            <h4>${escapeHtmlPublic(store && store.name ? store.name : "Store")}</h4>
+            <p><i class="fas fa-map-marker-alt"></i> ${escapeHtmlPublic(locationText)}</p>
+            <p><i class="fas fa-star"></i> ${escapeHtmlPublic(ratingText)} &nbsp;|&nbsp; <i class="fas fa-clock"></i> ${escapeHtmlPublic(deliveryText)}</p>
+            <a href="store.html?id=${encodeURIComponent(id)}">View Store</a>
         </div>
     `;
 }
