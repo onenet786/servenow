@@ -465,7 +465,11 @@ async function connectDB() {
   console.log("Attempting to connect to database...");
   try {
     const connectionLimit = isProd ? 25 : 10;
-    const ssl = isProd ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" } : undefined;
+    // TLS to the database: on by default in production for a remote DB server, off for a
+    // DB on the same machine (local MySQL/MariaDB usually has no TLS). DB_SSL=true/false overrides.
+    const dbIsLocal = ["localhost", "127.0.0.1", "::1"].includes(String(process.env.DB_HOST || "").trim());
+    const useDbSsl = process.env.DB_SSL ? process.env.DB_SSL === "true" : isProd && !dbIsLocal;
+    const ssl = useDbSsl ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" } : undefined;
     pool = await mysql.createPool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
