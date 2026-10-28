@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Block secrets and data dumps from the repository
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)\.env$|(^|/)\.env\.[^e]|\.sql$|service-account.*\.json$|\.jks$|\.keystore$|\.pem$' | grep -vE '^database/(schema|optimizations|migrate-priority|update_units_sizes)\.sql$|^database/migrations/|^update_categories\.sql$|^fix-orders\.sql$' || true)
+          if [ -n "$bad" ]; then
+            echo "These files must not be committed:"; echo "$bad"; exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Tests
+        run: npm test

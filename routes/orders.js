@@ -1469,7 +1469,7 @@ if (process.env.NODE_ENV !== "production") router.get("/test-notification", (req
     const fs = require("fs");
     const path = require("path");
     const logEvent = (msg) => {
-      fs.appendFile(
+      if (process.env.NODE_ENV !== "production") fs.appendFile(
         path.join(__dirname, "../socket_debug.log"),
         `[${new Date().toISOString()}] ${msg}\n`,
         () => {},
@@ -2056,7 +2056,7 @@ router.post("/", authenticateToken, async (req, res) => {
       const fs = require("fs");
       const path = require("path");
       const logEvent = (msg) => {
-        fs.appendFile(
+        if (process.env.NODE_ENV !== "production") fs.appendFile(
           path.join(__dirname, "../socket_debug.log"),
           `[${new Date().toISOString()}] ${msg}\n`,
           (e) => {
@@ -5039,7 +5039,7 @@ router.put(
           const fs = require("fs");
           const path = require("path");
           const logMsg = `[${new Date().toISOString()}] Status updated: ${order.order_number} -> ${newGlobalStatus} (Requested: ${status}). Store Owner Update: ${req.user.user_type === 'store_owner'}. Total clients: ${req.io.engine.clientsCount}\n`;
-          fs.appendFile(
+          if (process.env.NODE_ENV !== "production") fs.appendFile(
             path.join(__dirname, "../socket_debug.log"),
             logMsg,
             () => {},
@@ -5191,128 +5191,8 @@ router.put(
         finalDeliveryFee = paidFee;
         newTotal = order.total_amount;
       }
-
-      // Assign rider and update status
-      // NOTE: We only update global status to 'out_for_delivery' if it was 'ready' or 'pending'.
-      // If it was already 'out_for_delivery' or 'delivered', we shouldn't revert it.
-      // But actually, assigning a rider usually implies the process is moving forward.
-      // However, if we blindly set 'out_for_delivery', it might override 'preparing' or 'ready' logic.
-      // If items are still 'preparing', the global status should arguably stay 'preparing' until pickup?
-      // BUT typically "Assigned" means the rider is on the way. 
-      // The issue user reported: "it again gone preparing status in store dashboard"
-      // This implies we MIGHT be setting it to something that triggers a revert, OR we are NOT updating item statuses?
-      //
-      // Wait, the user said: "it again gone preparing status in store dashboard and preparing too with store info"
-      // If we set global status to 'out_for_delivery', the store dashboard (which filters Active = preparing/ready/out_for_delivery) shows it.
-      // But why "preparing"?
-      // Ah, maybe the frontend or backend logic reverts it?
-      //
-      // If we look at the store dashboard logic:
-      // Active = preparing || ready || out_for_delivery
-      //
-      // If the admin assigns a rider, the status becomes 'out_for_delivery' here (line 1877).
-      //
-      // BUT, if the Store Owner had marked their items as "Ready", and now we assign a rider...
-      // Does assigning a rider change ITEM statuses? No.
-      //
-      // If the global status is 'out_for_delivery', but item status is 'ready', what does the dashboard show?
-      // The dashboard shows the item status if available, or global status if not.
-      //
-      // If the user sees "preparing", it means either:
-      // 1. The global status became "preparing" (unlikely here, we set it to out_for_delivery).
-      // 2. The item status is still "preparing".
-      //
-      // "when assign order to rider after making all stores ready in admin panel"
-      // If admin makes stores ready, they likely used the "Update Status" feature.
-      //
-      // If we assign a rider, we explicitly set status = 'out_for_delivery'.
-      //
-      // Let's check if we are overwriting something we shouldn't.
-      //
-      // Use case: Admin sets status to "Ready" (Global). Items might be updated to "Ready".
-      // Then Admin assigns Rider.
-      // This route updates global status to 'out_for_delivery'.
-      //
-      // If item statuses are 'ready', and global is 'out_for_delivery', the store dashboard should show 'Ready' or 'Out for Delivery'?
-      //
-      // Let's look at store_owner_dashboard_screen.dart again (from memory/previous reads):
-      // It displays `item['item_status']` if available.
-      //
-      // If the item status is "preparing", it shows preparing.
-      //
-      // The user says: "after making all stores ready in admin panel".
-      // If the admin panel updates status, it calls `PUT /:id/status`.
-      // That endpoint updates `order_items` AND recalculates global status.
-      //
-      // If the admin assigns a rider, it calls `POST /:id/assign-rider`.
-      // This endpoint (here) updates `orders` table but NOT `order_items`.
-      //
-      // If `order_items` were 'ready', they remain 'ready'.
-      //
-      // However, if the user sees "preparing", it implies `order_items` are 'preparing'.
-      //
-      // HYPOTHESIS: The Admin Panel "Make Ready" button might NOT be updating `order_items` correctly for all stores?
-      // OR, when assigning a rider, we trigger some side effect?
-      //
-      // Actually, if we set global status to 'out_for_delivery', we should probably NOT force it if items aren't ready?
-      // OR, we should just let it be.
-      //
-      // Wait, if the global status is 'out_for_delivery', but items are 'ready', the store owner sees 'ready'.
-      //
-      // If the user says it "gone preparing", it means `item_status` reverted to `preparing` OR global status became `preparing`.
-      //
-      // Let's look at the `PUT /:id/status` logic again (it was in previous turns).
-      // It updates `order_items`.
-      //
-      // Here in `assign-rider`, we set global status to `out_for_delivery`.
-      //
-      // Is there any hook that runs on `out_for_delivery`?
-      //
-      // Maybe the issue is simpler: When a rider is assigned, we should probably NOT change the status to `out_for_delivery` immediately?
-      // Usually "Out for Delivery" means the rider picked it up.
-      // "Assigned" just means "Rider Assigned" (status could be 'ready' or 'preparing').
-      //
-      // If we set it to 'out_for_delivery' immediately upon assignment, that might be premature.
-      //
-      // If we change this to keep the existing status (or only update if it's pending), that might fix the confusion.
-      //
-      // Let's check what the current status is.
-      // If status is 'ready', and we assign rider, it should probably stay 'ready' (or 'ready_for_pickup').
-      //
-      // If I change line 1877 to use the existing status (unless it's pending), that might be safer.
-      //
-      // BUT, usually assigning a rider moves it to "Accepted" or something.
-      //
-      // User said: "it again gone preparing".
-      // This strongly suggests something is resetting the status.
-      //
-      // Let's look at line 1874: `UPDATE orders SET ... status = 'out_for_delivery' ...`
-      // This forces global status to `out_for_delivery`.
-      //
-      // If the Store Owner dashboard sees `out_for_delivery`, it should show that?
-      //
-      // Unless... `_getStatusColor` or logic in dashboard defaults to something else?
-      //
-      // Wait! I recall the store dashboard logic:
-      // `_activeOrders` includes `preparing`, `ready`, `out_for_delivery`.
-      //
-      // If the user says it "gone preparing", it implies the TEXT says "Preparing".
-      //
-      // Let's try to preserve the current status if it is 'ready' or 'preparing'.
-      // Only change to 'confirmed' or 'preparing' if it was 'pending'?
-      //
-      // Actually, if a rider is assigned, the status shouldn't necessarily jump to `out_for_delivery`.
-      // `out_for_delivery` usually happens when Rider clicks "Pick Up".
-      //
-      // So, I should change this to NOT force `out_for_delivery`.
-      // I should leave the status as is, OR set it to 'confirmed'/ 'preparing' if it was pending.
-      //
-      // If the order was 'ready', it should stay 'ready'.
-      // If the order was 'preparing', it should stay 'preparing'.
-      //
-      // So, I will remove `status = 'out_for_delivery'` from the update query,
-      // OR only update it if it's currently 'pending'.
-      
+      // Assigning a rider does not mean the order is out for delivery (that happens
+      // at pickup): pending orders become confirmed, any other status is kept.
       let newStatus = order.status;
       if (order.status === 'pending') {
           newStatus = 'confirmed'; // or 'preparing'
@@ -5400,7 +5280,7 @@ router.put(
               const logMsg = `[${new Date().toISOString()}] Store notification sent to owner ${owner.owner_id} for store ${owner.store_name}\n`;
               const fs = require("fs");
               const path = require("path");
-              fs.appendFile(path.join(__dirname, "../socket_debug.log"), logMsg, () => {});
+              if (process.env.NODE_ENV !== "production") fs.appendFile(path.join(__dirname, "../socket_debug.log"), logMsg, () => {});
           }
 
           const riderRoomName = `rider_${rider_id}`;
@@ -5461,7 +5341,7 @@ router.put(
           const fs = require("fs");
           const path = require("path");
           const logMsg = `[${new Date().toISOString()}] Order assigned: ${order.order_number} to ${rider.first_name}. Sent to rooms: ${riderRoomName}, ${userRoomName}\n`;
-          fs.appendFile(
+          if (process.env.NODE_ENV !== "production") fs.appendFile(
             path.join(__dirname, "../socket_debug.log"),
             logMsg,
             () => {},
@@ -6295,6 +6175,15 @@ router.put(
   async (req, res) => {
     try {
       const { id } = req.params;
+      // Changing the items of a paid order would change its total without
+      // refunding or charging the difference; cancel (refunds) and re-place instead.
+      const [paidCheck] = await req.db.execute("SELECT payment_status FROM orders WHERE id = ?", [id]);
+      if (paidCheck[0]?.payment_status === "paid") {
+        return res.status(409).json({
+          success: false,
+          message: "This order is already paid, so its items cannot be changed. Cancel it (the customer is refunded) and place a new order.",
+        });
+      }
       const { items, store_id } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -6585,6 +6474,15 @@ router.post(
     try {
       await ensureProductsProfitSchema(req.db);
       const { id } = req.params;
+      // Changing the items of a paid order would change its total without
+      // refunding or charging the difference; cancel (refunds) and re-place instead.
+      const [paidCheck] = await req.db.execute("SELECT payment_status FROM orders WHERE id = ?", [id]);
+      if (paidCheck[0]?.payment_status === "paid") {
+        return res.status(409).json({
+          success: false,
+          message: "This order is already paid, so its items cannot be changed. Cancel it (the customer is refunded) and place a new order.",
+        });
+      }
       const { product_id, quantity, store_id } = req.body;
       const sizeId =
         req.body.size_id === null || req.body.size_id === undefined
@@ -6778,6 +6676,15 @@ router.delete(
   async (req, res) => {
     try {
       const { id, itemId } = req.params;
+      // Changing the items of a paid order would change its total without
+      // refunding or charging the difference; cancel (refunds) and re-place instead.
+      const [paidCheck] = await req.db.execute("SELECT payment_status FROM orders WHERE id = ?", [id]);
+      if (paidCheck[0]?.payment_status === "paid") {
+        return res.status(409).json({
+          success: false,
+          message: "This order is already paid, so its items cannot be changed. Cancel it (the customer is refunded) and place a new order.",
+        });
+      }
 
       const [orders] = await req.db.execute(
         "SELECT * FROM orders WHERE id = ?",

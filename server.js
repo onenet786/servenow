@@ -54,6 +54,16 @@ function validateEnvironment() {
   const missing = required.filter((name) => !String(process.env[name] || "").trim());
   if (missing.length) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   if (String(process.env.JWT_SECRET).length < 32) throw new Error("JWT_SECRET must contain at least 32 characters");
+  // Refuse publicly known secrets: the .env.example placeholder, and secrets
+  // that were committed to git history (stored here only as SHA-256 hashes).
+  const jwtSecret = String(process.env.JWT_SECRET);
+  const leakedSecretHashes = new Set([
+    "faafe2ca0338ca0124840081d7b3af3be06077ba90a34ebf9f741d14e4a39e3b",
+  ]);
+  const jwtSecretHash = require("crypto").createHash("sha256").update(jwtSecret).digest("hex");
+  if (/change_in_production|your_secret|example|placeholder/i.test(jwtSecret) || leakedSecretHashes.has(jwtSecretHash)) {
+    throw new Error("JWT_SECRET is a known/leaked value. Generate a new one, e.g. node -e \"console.log(require('crypto').randomBytes(48).toString('hex'))\"");
+  }
   if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
     throw new Error("STRIPE_WEBHOOK_SECRET is required when Stripe is enabled");
   }
@@ -152,7 +162,7 @@ const fs = require("fs");
 const debugLog = (msg) => {
   if (process.env.NODE_ENV === "production") return;
   const logMsg = `[${new Date().toISOString()}] ${msg}\n`;
-  fs.appendFile(path.join(__dirname, "socket_debug.log"), logMsg, (err) => {
+  if (process.env.NODE_ENV !== "production") fs.appendFile(path.join(__dirname, "socket_debug.log"), logMsg, (err) => {
     if (err) console.error("Failed to write socket debug log:", err.message);
   });
 };
