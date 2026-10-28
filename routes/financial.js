@@ -4,6 +4,7 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { applyWalletDelta } = require('../utils/walletBalance');
 const { checkDocumentUpdate, makerCheckerApplies } = require('../utils/financeControls');
 const { recordFinancialTransaction } = require('../utils/dbHelpers');
+const ledger = require('../services/ledger');
 const fs = require('fs');
 const path = require('path');
 
@@ -628,6 +629,7 @@ router.use(async (req, res, next) => {
     else if (path.startsWith('/bank-receipt-vouchers')) requiredPerm = 'menu_financial_brv';
     else if (path.startsWith('/journal-vouchers')) requiredPerm = 'menu_financial_jnv';
     else if (path.startsWith('/dashboard') || path.startsWith('/cash-ledger') || path.startsWith('/transactions')) requiredPerm = 'menu_financial_dashboard';
+    else if (path.startsWith('/gl/') && req.method === 'GET') requiredPerm = 'menu_financial_dashboard';
     else if (path.startsWith('/reports')) {
         // SECURITY: default-deny. Non-admins need at least one report/finance
         // permission; individual handlers (e.g. /reports/generate) narrow further.
@@ -938,6 +940,52 @@ router.get('/dashboard', async (req, res) => {
             (stats.expense + stats.settlement + stats.refund + stats.riderFuelPayments)
         ).toFixed(2));
         stats.netProfitIfSettled = Number((stats.net_profit - stats.totalUnsettledAmount).toFixed(2));
+
+        // Income, expenses, profit and cash come from the double-entry general ledger
+        // (revenue on delivery; store payouts and rider cash are balance-sheet movements,
+        // not income or expense). The previous cash-movement figures stay under `legacy`.
+        try {
+            await ledger.syncLedgerIfStale(req.db);
+            const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            let from = null;
+            let to = null;
+            if (period === 'today') { from = ymd(today); to = from; }
+            else if (period === 'week') { from = ymd(startOfWeek); to = ymd(new Date(endOfWeek.getTime() - 86400000)); }
+            else if (period === 'month') { from = ymd(new Date(currentYear, currentMonth - 1, 1)); to = ymd(new Date(currentYear, currentMonth, 0)); }
+            else if (period === 'year') { from = `${currentYear}-01-01`; to = `${currentYear}-12-31`; }
+            const [pl, tb] = await Promise.all([
+                ledger.profitAndLoss(req.db, { from, to }),
+                ledger.trialBalance(req.db),
+            ]);
+            const balanceOf = (code) => (tb.accounts.find((a) => a.code === code) || { balance: 0 }).balance;
+            stats.legacy = {
+                income: stats.income,
+                expense: stats.expense,
+                net_profit: stats.net_profit,
+                netProfitIfSettled: stats.netProfitIfSettled,
+                cashInHand: stats.cashInHand,
+            };
+            stats.income = pl.total_income;
+            stats.expense = pl.total_expenses;
+            stats.net_profit = pl.net_profit;
+            stats.netProfitIfSettled = pl.net_profit; // store payables are already accrued
+            stats.cashInHand = balanceOf('1000');
+            stats.gl = {
+                from,
+                to,
+                income: pl.income.map(({ code, name, amount }) => ({ code, name, amount })),
+                expenses: pl.expenses.map(({ code, name, amount }) => ({ code, name, amount })),
+                office_cash: balanceOf('1000'),
+                bank: balanceOf('1010'),
+                rider_cash_receivable: balanceOf('1100'),
+                store_payables: -balanceOf('2000'),
+                customer_wallets: -balanceOf('2100'),
+                suspense: balanceOf('3900'),
+                trial_balance_ok: tb.balanced,
+            };
+        } catch (glError) {
+            console.error('General ledger figures unavailable for dashboard:', glError);
+        }
 
         res.json({
             success: true,
@@ -1656,6 +1704,8 @@ router.put('/receipt-vouchers/:id', [
         }
 
         const { id } = req.params;
+        // Receipt vouchers have no approval stage in the schema: approving one confirms the cash was received
+        if (req.body.status === 'approved') req.body.status = 'received';
         // Internal controls: status transitions, posted-field locks, maker-checker
         const controlError = await checkDocumentUpdate(req.db, req.user, 'receipt_voucher', id, req.body);
         if (controlError) {
@@ -8209,6 +8259,56 @@ router.get('/reports/credit-stores-history/:storeId', async (req, res) => {
     } catch (error) {
         console.error('Error in /reports/credit-stores-history/:storeId:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ===== GENERAL LEDGER (double-entry, see services/ledger.js) =====
+
+const isoDate = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : null);
+
+function glRoute(handler) {
+    return async (req, res) => {
+        try {
+            await ledger.syncLedgerIfStale(req.db);
+            res.json({ success: true, data: await handler(req) });
+        } catch (error) {
+            console.error(`Error in GL ${req.path}:`, error);
+            res.status(500).json({ success: false, message: 'Failed to load general ledger' });
+        }
+    };
+}
+
+router.get('/gl/accounts', glRoute(async () => ledger.ACCOUNTS.map(([code, name, type]) => ({ code, name, type }))));
+
+router.get('/gl/trial-balance', glRoute((req) =>
+    ledger.trialBalance(req.db, { from: isoDate(req.query.from), to: isoDate(req.query.to) })));
+
+router.get('/gl/profit-loss', glRoute((req) =>
+    ledger.profitAndLoss(req.db, { from: isoDate(req.query.from), to: isoDate(req.query.to) })));
+
+router.get('/gl/balance-sheet', glRoute((req) =>
+    ledger.balanceSheet(req.db, { to: isoDate(req.query.to) })));
+
+router.get('/gl/account/:code', glRoute((req) =>
+    ledger.accountStatement(req.db, String(req.params.code), {
+        entityType: req.query.entity_type ? String(req.query.entity_type) : null,
+        entityId: req.query.entity_id != null ? String(req.query.entity_id) : null,
+        from: isoDate(req.query.from),
+        to: isoDate(req.query.to),
+        limit: req.query.limit,
+    })));
+
+router.get('/gl/entity-balances/:code', glRoute((req) =>
+    ledger.entityBalances(req.db, String(req.params.code), { to: isoDate(req.query.to) })));
+
+router.get('/gl/reconciliation', glRoute((req) => ledger.reconciliation(req.db)));
+
+router.post('/gl/sync', requireAdmin, async (req, res) => {
+    try {
+        res.json({ success: true, data: await ledger.syncLedger(req.db) });
+    } catch (error) {
+        console.error('Error in GL sync:', error);
+        res.status(500).json({ success: false, message: 'Ledger sync failed' });
     }
 });
 

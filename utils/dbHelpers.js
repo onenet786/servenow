@@ -122,11 +122,14 @@ async function generateFinancialTransactionNumber(db) {
 
 async function recordFinancialTransaction(db, data) {
   try {
-    // Check if already exists to avoid double counting
+    // Check if already exists to avoid double counting. One document can post several
+    // entries (e.g. an order's store payable and rider receivable), so the type and
+    // category are part of the identity, not just the reference.
     if (data.reference_type && data.reference_id) {
       const [existing] = await db.execute(
-        'SELECT id FROM financial_transactions WHERE reference_type = ? AND reference_id = ?',
-        [data.reference_type, data.reference_id]
+        `SELECT id FROM financial_transactions
+         WHERE reference_type = ? AND reference_id = ? AND transaction_type = ? AND COALESCE(category, '') = ?`,
+        [data.reference_type, data.reference_id, data.transaction_type, data.category || '']
       );
       if (existing.length > 0) return existing[0].id;
     }

@@ -2736,12 +2736,12 @@ async function approveReceiptVoucher(id) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             },
-            body: JSON.stringify({ status: 'approved' })
+            body: JSON.stringify({ status: 'received' })
         });
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Success', 'Receipt voucher approved');
+            showSuccess('Success', 'Receipt voucher marked as received');
             loadReceiptVouchers();
         } else {
             showError('Error', data.message);
@@ -8108,4 +8108,140 @@ function printCreditStoreStatement() {
         </html>
     `);
     printWin.document.close();
+}
+
+// ===== GENERAL LEDGER =====
+
+const GL_ENTITY_BY_ACCOUNT = { '1100': 'rider', '1300': 'rider', '2000': 'store', '2100': 'user', '1150': 'order', '2200': 'order' };
+
+function glMoney(value) {
+    const n = Number(value || 0);
+    return `Rs ${n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function glTable(headers, rows, footer) {
+    const head = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('');
+    const body = rows.length
+        ? rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')
+        : `<tr><td colspan="${headers.length}">No entries</td></tr>`;
+    const foot = footer ? `<tfoot><tr>${footer.map((c) => `<th>${c}</th>`).join('')}</tr></tfoot>` : '';
+    return `<table class="data-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table>`;
+}
+
+async function glFetch(path) {
+    const response = await fetch(`${API_BASE}/api/financial/gl/${path}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.message || 'Request failed');
+    return data.data;
+}
+
+async function onGeneralLedgerReportChange() {
+    const type = document.getElementById('glReportType').value;
+    document.getElementById('glAccountGroup').style.display = type === 'account' ? '' : 'none';
+    document.getElementById('glEntityGroup').style.display = type === 'account' ? '' : 'none';
+    document.getElementById('glFromGroup').style.display = ['trial-balance', 'profit-loss', 'account'].includes(type) ? '' : 'none';
+    document.getElementById('glToGroup').style.display = type === 'reconciliation' ? 'none' : '';
+    const accountSel = document.getElementById('glAccount');
+    if (type === 'account' && !accountSel.options.length) {
+        try {
+            const accounts = await glFetch('accounts');
+            accountSel.innerHTML = accounts
+                .map((a) => `<option value="${escapeHtml(a.code)}">${escapeHtml(a.code)} - ${escapeHtml(a.name)}</option>`)
+                .join('');
+        } catch (e) {
+            showError('General Ledger', e.message);
+        }
+    }
+    loadGeneralLedger();
+}
+
+async function loadGeneralLedger() {
+    const out = document.getElementById('glOutput');
+    if (!out) return;
+    const type = document.getElementById('glReportType').value;
+    const from = document.getElementById('glFrom').value;
+    const to = document.getElementById('glTo').value;
+    const qs = new URLSearchParams();
+    if (from && ['trial-balance', 'profit-loss', 'account'].includes(type)) qs.set('from', from);
+    if (to && type !== 'reconciliation') qs.set('to', to);
+    out.innerHTML = '<p>Loading...</p>';
+    try {
+        if (type === 'trial-balance') {
+            const d = await glFetch(`trial-balance?${qs}`);
+            const rows = d.accounts.filter((a) => a.debit || a.credit).map((a) => [
+                escapeHtml(a.code), escapeHtml(a.name), escapeHtml(a.type), glMoney(a.debit), glMoney(a.credit), glMoney(a.balance)
+            ]);
+            out.innerHTML = `<p><strong>${d.balanced ? 'Balanced' : 'NOT BALANCED'}</strong></p>` +
+                glTable(['Code', 'Account', 'Type', 'Debit', 'Credit', 'Balance (Dr +)'], rows, ['', 'Total', '', glMoney(d.total_debit), glMoney(d.total_credit), '']);
+        } else if (type === 'profit-loss') {
+            const d = await glFetch(`profit-loss?${qs}`);
+            const section = (title, list) => list.filter((a) => a.amount).map((a) => [escapeHtml(title), escapeHtml(`${a.code} ${a.name}`), glMoney(a.amount)]);
+            out.innerHTML = glTable(['Section', 'Account', 'Amount'], [
+                ...section('Income', d.income),
+                ['', '<strong>Total income</strong>', `<strong>${glMoney(d.total_income)}</strong>`],
+                ...section('Expenses', d.expenses),
+                ['', '<strong>Total expenses</strong>', `<strong>${glMoney(d.total_expenses)}</strong>`],
+            ], ['', 'Net profit', glMoney(d.net_profit)]);
+        } else if (type === 'balance-sheet') {
+            const d = await glFetch(`balance-sheet?${qs}`);
+            const section = (title, list) => list.filter((a) => a.amount).map((a) => [escapeHtml(title), escapeHtml(`${a.code} ${a.name}`), glMoney(a.amount)]);
+            out.innerHTML = `<p><strong>${d.balanced ? 'Balanced' : 'NOT BALANCED'}</strong></p>` + glTable(['Section', 'Account', 'Amount'], [
+                ...section('Assets', d.assets),
+                ['', '<strong>Total assets</strong>', `<strong>${glMoney(d.total_assets)}</strong>`],
+                ...section('Liabilities', d.liabilities),
+                ['', '<strong>Total liabilities</strong>', `<strong>${glMoney(d.total_liabilities)}</strong>`],
+                ...section('Equity', d.equity),
+                ['', '<strong>Total equity</strong>', `<strong>${glMoney(d.total_equity)}</strong>`],
+            ]);
+        } else if (type === 'account') {
+            const code = document.getElementById('glAccount').value || '1000';
+            const entityId = document.getElementById('glEntityId').value.trim();
+            if (entityId) {
+                qs.set('entity_id', entityId);
+                if (GL_ENTITY_BY_ACCOUNT[code]) qs.set('entity_type', GL_ENTITY_BY_ACCOUNT[code]);
+            }
+            const d = await glFetch(`account/${encodeURIComponent(code)}?${qs}`);
+            const rows = d.entries.map((e) => [
+                escapeHtml(e.date), escapeHtml(e.description), escapeHtml(`${e.source_type} ${e.source_id}`),
+                escapeHtml(e.entity_type ? `${e.entity_type} ${e.entity_id}` : ''), escapeHtml(e.memo || ''),
+                e.debit ? glMoney(e.debit) : '', e.credit ? glMoney(e.credit) : '', glMoney(e.balance)
+            ]);
+            out.innerHTML = `<p>${escapeHtml(`${d.account} ${d.name}`)} &middot; Opening ${glMoney(d.opening_balance)} &middot; Closing ${glMoney(d.closing_balance)}</p>` +
+                glTable(['Date', 'Journal', 'Source', 'Entity', 'Memo', 'Debit', 'Credit', 'Balance'], rows);
+        } else {
+            const d = await glFetch('reconciliation');
+            const riders = d.riders.filter((r) => r.wallet_balance || r.gl_balance).map((r) => [
+                escapeHtml(`${r.rider_id} ${r.name}`), glMoney(r.wallet_balance), glMoney(r.gl_balance),
+                r.difference ? `<strong>${glMoney(r.difference)}</strong>` : glMoney(0)
+            ]);
+            const pending = d.pending_rider_movements.map((m) => [
+                escapeHtml(m.movement_number), escapeHtml(m.rider_id), escapeHtml(m.movement_type), glMoney(m.amount),
+                escapeHtml(m.date), m.in_wallet ? 'Yes - already in wallet' : 'No'
+            ]);
+            const groups = {};
+            d.collections_clearing.forEach((c) => {
+                groups[c.reason] = groups[c.reason] || { count: 0, amount: 0 };
+                groups[c.reason].count += 1;
+                groups[c.reason].amount += c.balance;
+            });
+            const clearing = Object.entries(groups).map(([reason, g]) => [escapeHtml(reason), escapeHtml(g.count), glMoney(g.amount)]);
+            const stores = d.stores.map((s) => [escapeHtml(s.name), escapeHtml(s.payment_term), glMoney(s.gl_payable)]);
+            const suspense = d.suspense.filter((s) => s.debit || s.credit).slice(0, 100).map((s) => [
+                escapeHtml(s.date), escapeHtml(`${s.source_type} ${s.source_id}`), escapeHtml(s.memo || s.description || ''),
+                s.debit ? glMoney(s.debit) : '', s.credit ? glMoney(s.credit) : ''
+            ]);
+            out.innerHTML =
+                '<h3>Rider cash: wallet vs ledger</h3>' + glTable(['Rider', 'Wallet balance', 'Ledger balance', 'Difference'], riders) +
+                '<h3>Rider cash movements awaiting approval</h3>' + glTable(['Movement', 'Rider', 'Type', 'Amount', 'Date', 'Hit wallet?'], pending) +
+                '<h3>Cash collections not matching a delivered order</h3>' + glTable(['Reason', 'Orders', 'Amount'], clearing) +
+                `<h3>Store payables (owed to store +)</h3><p>Unallocated bulk store payments: ${glMoney(d.store_payments_unallocated)}</p>` + glTable(['Store', 'Payment term', 'Payable'], stores) +
+                '<h3>Suspense items to review</h3>' + glTable(['Date', 'Source', 'Memo', 'Debit', 'Credit'], suspense);
+        }
+    } catch (error) {
+        console.error('Error loading general ledger:', error);
+        out.innerHTML = '';
+        showError('General Ledger', error.message || 'Failed to load general ledger');
+    }
 }

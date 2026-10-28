@@ -246,8 +246,9 @@ router.post('/topup', authenticateToken, requireCustomerWallet, [
         );
 
         // Record in Master Ledger (financial_transactions)
+        // A top-up is money held for the customer (a liability), not income
         await recordFinancialTransaction(req.db, {
-            transaction_type: 'income',
+            transaction_type: 'adjustment',
             category: 'wallet_topup',
             description: `Wallet Top-up: ${req.user.email}`,
             amount: amount,

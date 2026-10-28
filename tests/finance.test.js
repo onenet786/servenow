@@ -51,6 +51,14 @@ test('a received receipt voucher cannot be toggled back (no double rider debit)'
   assert.equal((await call(admin, docs, 'PUT', '/api/financial/receipt-vouchers/4', { status: 'pending' })).status, 409);
 });
 
+test('receipt voucher: "approved" is accepted as received, but not by its preparer', async () => {
+  const docs = { cash_receipt_vouchers: { id: 4, status: 'draft', prepared_by: 8, amount: 5000 } };
+  assert.equal((await call(staff, docs, 'PUT', '/api/financial/receipt-vouchers/4', { status: 'approved' })).status, 403);
+  const ok = await call(staff2, docs, 'PUT', '/api/financial/receipt-vouchers/4', { status: 'approved' });
+  assert.notEqual(ok.status, 400, 'approved must not be rejected as an unknown status');
+  assert.notEqual(ok.status, 409);
+});
+
 test('journal vouchers must balance to the paisa', async () => {
   const unbalanced = { voucher_date: '2026-10-28', total_amount: 500, entries: [{ entry_type: 'debit', amount: 500 }, { entry_type: 'credit', amount: 300 }] };
   assert.equal((await call(admin, {}, 'POST', '/api/financial/journal-vouchers', unbalanced)).status, 400);

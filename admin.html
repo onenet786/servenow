@@ -264,6 +264,14 @@
                     ><i class="fas fa-chart-line"></i> Financial Dashboard</a
                   >
                 </li>
+                <li>
+                  <a
+                    href="admin.html#general-ledger"
+                    class="tab-link"
+                    data-tab="general-ledger"
+                    ><i class="fas fa-book"></i> General Ledger</a
+                  >
+                </li>
               </ul>
             </li>
             <li class="dropdown">
@@ -2064,6 +2072,43 @@
         </div>
 
         <!-- Financial Dashboard Tab -->
+        <div id="general-ledger" class="tab-content">
+          <h2>General Ledger</h2>
+          <p class="text-muted">Double-entry books posted from orders, rider cash, settlements, vouchers and expenses. Revenue is recognised on delivery.</p>
+          <div class="filter-controls">
+            <div class="filter-group">
+              <label for="glReportType">Report</label>
+              <select id="glReportType" class="form-control" onchange="onGeneralLedgerReportChange()">
+                <option value="trial-balance">Trial Balance</option>
+                <option value="profit-loss">Profit &amp; Loss</option>
+                <option value="balance-sheet">Balance Sheet</option>
+                <option value="account">Account Statement</option>
+                <option value="reconciliation">Reconciliation</option>
+              </select>
+            </div>
+            <div class="filter-group" id="glFromGroup">
+              <label for="glFrom">From</label>
+              <input type="date" id="glFrom" class="form-control" />
+            </div>
+            <div class="filter-group" id="glToGroup">
+              <label for="glTo">To</label>
+              <input type="date" id="glTo" class="form-control" />
+            </div>
+            <div class="filter-group" id="glAccountGroup" style="display: none">
+              <label for="glAccount">Account</label>
+              <select id="glAccount" class="form-control"></select>
+            </div>
+            <div class="filter-group" id="glEntityGroup" style="display: none">
+              <label for="glEntityId">Rider / store / order ID (optional)</label>
+              <input type="text" id="glEntityId" class="form-control" placeholder="e.g. 3" />
+            </div>
+            <button class="btn btn-primary" onclick="loadGeneralLedger()">
+              <i class="fas fa-sync"></i> Load
+            </button>
+          </div>
+          <div id="glOutput" class="table-container"></div>
+        </div>
+
         <div id="financial-dashboard" class="tab-content">
           <style>
             #cashInHandAmount { color: #0f766e !important; }
@@ -5263,7 +5308,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="js/notifications.js?v=4" defer></script>
     <script src="js/financial_helpers.js" defer></script>
-    <script src="js/financial.js?v=20" defer></script>
+    <script src="js/financial.js?v=21" defer></script>
     <script src="js/admin.js?v=47" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
     <script>

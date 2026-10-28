@@ -156,8 +156,8 @@ async function processCardPayment(req, orderId, userId, amount, cardToken, saveC
         // Record in Master Ledger if successful
         if (status === 'success') {
             await recordFinancialTransaction(req.db, {
-                transaction_type: 'income',
-                category: 'order_payment',
+                transaction_type: 'adjustment', // prepayment: revenue is recognised on delivery
+                category: 'customer_prepayment',
                 description: `Order Payment: Order #${orderId}`,
                 amount: amount,
                 payment_method: 'card',
@@ -349,8 +349,8 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
                 if (fullPayments.length) {
                     const p = fullPayments[0];
                     await recordFinancialTransaction(req.db, {
-                        transaction_type: 'income',
-                        category: 'order_payment',
+                        transaction_type: 'adjustment', // prepayment: revenue is recognised on delivery
+                        category: 'customer_prepayment',
                         description: `Order Payment (Webhook): Order #${payment.order_id}`,
                         amount: p.amount,
                         payment_method: 'card',

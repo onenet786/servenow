@@ -483,10 +483,27 @@ async function connectDB() {
     });
     console.log(`Connected to MySQL database pool: ${process.env.DB_NAME}`);
     console.log(`Connection pool size: ${connectionLimit}`);
+    startLedgerSync(pool);
   } catch (error) {
     console.error("Database connection failed:", error);
     process.exit(1);
   }
+}
+
+// Keep the general ledger current: post new/changed source documents shortly after
+// start-up and then every 10 minutes (reports also sync before reading).
+function startLedgerSync(dbPool) {
+  if (process.env.NODE_ENV === "test" || process.env.LEDGER_SYNC === "off") return;
+  const ledger = require("./services/ledger");
+  const run = () => ledger.syncLedgerIfStale(dbPool)
+    .then((summary) => {
+      if (summary && (summary.posted || summary.reversed || summary.unbalanced.length)) {
+        console.log(`[ledger] posted ${summary.posted}, reversed ${summary.reversed}, unbalanced ${summary.unbalanced.length}`);
+      }
+    })
+    .catch((err) => console.error("[ledger] sync failed:", err.message));
+  setTimeout(run, 15 * 1000).unref();
+  setInterval(run, 10 * 60 * 1000).unref();
 }
 
 // Make database pool available to routes

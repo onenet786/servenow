@@ -28,17 +28,18 @@ const DOCUMENTS = {
   receipt_voucher: {
     table: 'cash_receipt_vouchers',
     label: 'Receipt voucher',
-    makerColumn: null,
+    makerColumn: 'prepared_by',
+    // The table has no 'approved' status: confirming a receipt marks it received
+    // (the route maps an incoming 'approved' to 'received').
     transitions: {
-      draft: ['pending', 'approved', 'received', 'cancelled'],
-      pending: ['draft', 'approved', 'received', 'cancelled'],
-      approved: ['received', 'cancelled'],
+      draft: ['pending', 'received', 'cancelled'],
+      pending: ['draft', 'received', 'cancelled'],
       received: [],
       cancelled: [],
     },
     lockedStatuses: ['received'],
     lockedFields: { amount: 'amount', payer_name: 'payer_name', payer_type: 'payer_type', payer_id: 'payer_id', payment_method: 'payment_method' },
-    checkerStatuses: [],
+    checkerStatuses: ['received'],
   },
   expense: {
     table: 'admin_expenses',
