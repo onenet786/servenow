@@ -14,5 +14,12 @@ RewriteEngine On
   </Files>
 </IfModule>
 
+# Never serve server-side code, secrets, database dumps or logs from the web root
+RedirectMatch 404 "/\.(env|git)"
+RedirectMatch 404 "^/(database|routes|middleware|config|services|utils|scripts|tests|node_modules|mobile_app|query|scratch|bundle|react_web|webapp_v2)(/|$)"
+RedirectMatch 404 "^/(server|setup-db|migrate-db)\.js$"
+RedirectMatch 404 "^/package(-lock)?\.json$"
+RedirectMatch 404 "\.(sql|log|md|bat|lnk)$"
+
 # Proxy API requests to Node backend
 RewriteRule ^api/(.*)$ http://127.0.0.1:3002/api/$1 [P,L]
