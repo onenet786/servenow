@@ -3216,3 +3216,16 @@ router.post('/upload-image', authenticateToken, requireStoreOwner, upload.single
         res.status(500).json({ success: false, message: 'Image upload failed', error: error.message });
     }
 });
+
+// Schema helpers run their DDL once per process (see utils/runOnce.js)
+const { runOncePerProcess } = require("../utils/runOnce");
+ensureStoreStatusMessagesTable = runOncePerProcess(ensureStoreStatusMessagesTable);
+ensureGlobalDeliveryStatusTable = runOncePerProcess(ensureGlobalDeliveryStatusTable);
+ensureLivePromotionsTable = runOncePerProcess(ensureLivePromotionsTable);
+ensureCustomerFlashMessagesTable = runOncePerProcess(ensureCustomerFlashMessagesTable);
+ensureSystemSettingsTable = runOncePerProcess(ensureSystemSettingsTable);
+ensureStoreFinancialColumns = runOncePerProcess(ensureStoreFinancialColumns);
+ensureStoreCustomerVisibilityColumn = runOncePerProcess(ensureStoreCustomerVisibilityColumn);
+ensureStoreBankColumn = runOncePerProcess(ensureStoreBankColumn);
+ensureStoreBankDetailsColumns = runOncePerProcess(ensureStoreBankDetailsColumns);
+ensureServiceGeoLimitsTable = runOncePerProcess(ensureServiceGeoLimitsTable);

@@ -22,6 +22,14 @@ const cache = require("../utils/cache");
 
 const router = express.Router();
 
+// Expected order-placement failures (stock, wallet) that should reach the client
+class OrderRequestError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 const DEFAULT_BASE_DELIVERY_FEE = 70;
 const DEFAULT_PARCEL_DELIVERY_FEE = 150;
 const DEFAULT_ADDITIONAL_STORE_FEE = 30;
@@ -518,6 +526,27 @@ async function ensureOrdersStoreIdNullable(db) {
   }
 }
 
+// Orders track whether stock was deducted at placement (orders placed before
+// stock enforcement never deducted it), and payment_status needs 'refunded'.
+async function ensureOrderStockAndRefundSchema(db) {
+  try {
+    if (!(await hasColumn(db, "orders", "stock_deducted"))) {
+      await db.execute(
+        "ALTER TABLE orders ADD COLUMN stock_deducted TINYINT(1) NOT NULL DEFAULT 0",
+      );
+    }
+  } catch (e) {
+    console.error("Failed to add orders.stock_deducted column:", e);
+  }
+  try {
+    await db.execute(
+      "ALTER TABLE orders MODIFY COLUMN payment_status ENUM('pending','paid','failed','refunded') DEFAULT 'pending'",
+    );
+  } catch (e) {
+    console.error("Failed to add 'refunded' to orders.payment_status:", e);
+  }
+}
+
 async function ensureRiderLocationColumns(db) {
   try {
     const hasRiderLatitude = await hasColumn(db, "orders", "rider_latitude");
@@ -713,11 +742,13 @@ async function recordPickupPaidStorePaymentsForOrder(db, {
     );
     if (existingPayment.length) continue;
 
-    runningBalance = roundAmount(runningBalance - payable);
+    // Relative update so concurrent postings are not overwritten
     await db.execute(
-      "UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?",
-      [runningBalance, payable, walletInfo.walletId],
+      "UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ?",
+      [payable, payable, walletInfo.walletId],
     );
+    const [balanceRows] = await db.execute("SELECT balance FROM wallets WHERE id = ?", [walletInfo.walletId]);
+    runningBalance = roundAmount(Number(balanceRows[0]?.balance || 0));
     await db.execute(
       `INSERT INTO wallet_transactions
        (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
@@ -1047,7 +1078,7 @@ async function syncOrderFinancialsAndDeliveryFee(db, orderId, options = {}) {
   };
 }
 
-async function generateOrderNumber(db) {
+async function generateOrderNumber(db, { lockLatest = false } = {}) {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -1056,7 +1087,8 @@ async function generateOrderNumber(db) {
   const prefix = `Ord${datePart}`;
 
   const [rows] = await db.execute(
-    "SELECT order_number FROM orders WHERE order_number LIKE ? ORDER BY order_number DESC LIMIT 1",
+    // A locking read sees the latest committed rows even inside a transaction
+    `SELECT order_number FROM orders WHERE order_number LIKE ? ORDER BY order_number DESC LIMIT 1${lockLatest ? " FOR UPDATE" : ""}`,
     [`${prefix}%`],
   );
 
@@ -1465,6 +1497,13 @@ if (process.env.NODE_ENV !== "production") router.get("/test-notification", (req
 // Create new order
 router.post("/", authenticateToken, async (req, res) => {
   try {
+    // Rider ids come from a separate table and would be recorded as a customer's user_id
+    if (req.user?.user_type === "rider") {
+      return res.status(403).json({
+        success: false,
+        message: "Rider accounts cannot place customer orders",
+      });
+    }
     if (req.user?.user_type === "guest" || req.user?.is_guest === true) {
       return res.status(403).json({
         success: false,
@@ -1491,28 +1530,64 @@ router.post("/", authenticateToken, async (req, res) => {
       special_instructions,
     } = req.body;
 
-    if (!items || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
         message: "Order must contain at least one item",
       });
     }
 
-    if (!delivery_address || delivery_address.trim() === "") {
+    if (items.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "An order can contain at most 100 items",
+      });
+    }
+
+    // Same parsing as the per-item preparation below; adds an upper bound
+    const invalidQty = items.some((it) => {
+      const q = parseInt(String(it?.quantity), 10);
+      return !Number.isInteger(q) || q < 1 || q > 1000;
+    });
+    if (invalidQty) {
+      return res.status(400).json({
+        success: false,
+        message: "Each item quantity must be a whole number between 1 and 1000",
+      });
+    }
+
+    if (typeof delivery_address !== "string" || delivery_address.trim() === "") {
       return res.status(400).json({
         success: false,
         message: "Delivery address is required",
       });
     }
 
-    if (!payment_method) {
+    if (delivery_address.length > 500) {
       return res.status(400).json({
         success: false,
-        message: "Payment method is required",
+        message: "Delivery address is too long",
       });
     }
 
-    const order_number = await generateOrderNumber(req.db);
+    if (!["cash", "wallet", "card"].includes(payment_method)) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment method must be cash, wallet or card",
+      });
+    }
+
+    if (
+      special_instructions != null &&
+      (typeof special_instructions !== "string" || special_instructions.length > 1000)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Special instructions must be text of at most 1000 characters",
+      });
+    }
+
+    let order_number = await generateOrderNumber(req.db);
 
     // Validate and prepare items
     const preparedItems = [];
@@ -1802,55 +1877,12 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const grandTotal = roundAmount(itemsSubtotal + delivery_fee);
 
-    // Check & Deduct Wallet Atomically
-    let wallet = null;
-    let walletNewBalance = 0;
-    if (payment_method === "wallet") {
-      const [wallets] = await req.db.execute(
-        "SELECT id, balance FROM wallets WHERE user_id = ?",
-        [req.user.id],
-      );
-
-      if (!wallets.length) {
-        return res.status(400).json({
-          success: false,
-          message: "Wallet not found",
-        });
-      }
-
-      wallet = wallets[0];
-      const balance = parseFloat(wallet.balance);
-
-      if (balance < grandTotal) {
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient wallet balance. Required: PKR ${grandTotal.toFixed(2)}, Available: PKR ${balance.toFixed(2)}`,
-        });
-      }
-
-      // Atomically deduct balance with guard against concurrent double-spending
-      const [deductResult] = await req.db.execute(
-        "UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ? AND balance >= ?",
-        [grandTotal, grandTotal, wallet.id, grandTotal],
-      );
-
-      if (deductResult.affectedRows === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Insufficient wallet balance or concurrent transaction conflict. Please try again.",
-        });
-      }
-
-      const [freshWallet] = await req.db.execute(
-        "SELECT balance FROM wallets WHERE id = ?",
-        [wallet.id],
-      );
-      walletNewBalance = parseFloat(freshWallet[0]?.balance || (balance - grandTotal));
-    }
-
-    // Create Single Order
+    // Persist the order atomically: stock check, wallet debit, order, items,
+    // stock decrement and wallet/payment records all commit or all roll back.
+    // Schema helpers run DDL (implicit commit), so they must run before the transaction.
     await ensureOrderItemsSchema(req.db);
-    await ensureOrdersStoreIdNullable(req.db); // Ensure store_id can be NULL
+    await ensureOrdersStoreIdNullable(req.db);
+    await ensureOrderStockAndRefundSchema(req.db);
 
     // Determine store_id for the order
     let orderStoreId = null;
@@ -1858,74 +1890,154 @@ router.post("/", authenticateToken, async (req, res) => {
       orderStoreId = Array.from(storeIds)[0];
     }
 
-    const [orderResult] = await req.db.execute(
-      `INSERT INTO orders (order_number, user_id, store_id, total_amount, delivery_fee, payment_method, delivery_address, delivery_time, special_instructions)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        order_number,
-        req.user.id,
-        orderStoreId,
-        grandTotal,
-        delivery_fee,
-        payment_method,
-        delivery_address,
-        delivery_time || null,
-        special_instructions || null,
-      ],
-    );
-
-    const orderId = orderResult.insertId;
-
-    for (let item of preparedItems) {
-      await req.db.execute(
-        "INSERT INTO order_items (order_id, product_id, store_id, quantity, price, cost_price, size_id, unit_id, variant_label, discount_type, discount_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-          orderId,
-          item.productId,
-          item.storeId,
-          item.quantity,
-          item.unitPrice,
-          item.costPrice,
-          item.sizeId,
-          item.unitId,
-          item.variantLabel,
-          item.discount_type || null,
-          item.discount_value || null,
-        ],
+    // Total quantity per product (several lines can share a product via sizes/units)
+    const qtyByProduct = new Map();
+    for (const item of preparedItems) {
+      qtyByProduct.set(
+        item.productId,
+        (qtyByProduct.get(item.productId) || 0) + Number(item.quantity),
       );
-
-      // Decrement product inventory stock where tracked
-      try {
-        if (item.sizeId) {
-          await req.db.execute(
-            "UPDATE product_size_prices SET stock = GREATEST(0, stock - ?) WHERE product_id = ? AND size_id = ? AND stock IS NOT NULL",
-            [item.quantity, item.productId, item.sizeId],
-          );
-        }
-        await req.db.execute(
-          "UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ? AND stock IS NOT NULL",
-          [item.quantity, item.productId],
-        );
-      } catch (stockErr) {
-        console.warn(`[orders] Stock decrement warning for item ${item.productId}:`, stockErr?.message || stockErr);
-      }
     }
 
-    // Record Wallet Transaction
-    if (payment_method === "wallet" && wallet) {
-      await req.db.execute(
-        `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
-                 reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          wallet.id,
-          "debit",
-          grandTotal,
-          `Order payment - ${order_number}`,
-          "order",
-          orderId,
-          walletNewBalance,
-        ],
-      );
+    let orderId;
+    let wallet = null;
+    let walletNewBalance = 0;
+    const conn = await req.db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Stock check under row locks. NULL stock_quantity means stock is not tracked.
+      for (const [productId, qty] of qtyByProduct) {
+        const [stockRows] = await conn.execute(
+          "SELECT name, stock_quantity FROM products WHERE id = ? FOR UPDATE",
+          [productId],
+        );
+        const stock = stockRows[0]?.stock_quantity;
+        if (stock !== null && stock !== undefined && Number(stock) < qty) {
+          throw new OrderRequestError(
+            Number(stock) <= 0
+              ? `${stockRows[0].name} is out of stock`
+              : `Only ${stock} of ${stockRows[0].name} available`,
+            409,
+          );
+        }
+      }
+
+      if (payment_method === "wallet") {
+        const [wallets] = await conn.execute(
+          "SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE",
+          [req.user.id],
+        );
+        if (!wallets.length) {
+          throw new OrderRequestError("Wallet not found", 400);
+        }
+        wallet = wallets[0];
+        const balance = parseFloat(wallet.balance);
+        if (balance < grandTotal) {
+          throw new OrderRequestError(
+            `Insufficient wallet balance. Required: PKR ${grandTotal.toFixed(2)}, Available: PKR ${balance.toFixed(2)}`,
+            400,
+          );
+        }
+        await conn.execute(
+          "UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ?",
+          [grandTotal, grandTotal, wallet.id],
+        );
+        walletNewBalance = roundAmount(balance - grandTotal);
+      }
+
+      // Wallet orders are paid at creation; cash and card are settled later.
+      const initialPaymentStatus = payment_method === "wallet" ? "paid" : "pending";
+
+      // Order numbers are sequential per day; retry with a fresh number if a
+      // concurrent order took the same one.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const [orderResult] = await conn.execute(
+            `INSERT INTO orders (order_number, user_id, store_id, total_amount, delivery_fee, payment_method, payment_status, delivery_address, delivery_time, special_instructions)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              order_number,
+              req.user.id,
+              orderStoreId,
+              grandTotal,
+              delivery_fee,
+              payment_method,
+              initialPaymentStatus,
+              delivery_address,
+              delivery_time || null,
+              special_instructions || null,
+            ],
+          );
+          orderId = orderResult.insertId;
+          break;
+        } catch (insertErr) {
+          if (insertErr.code === "ER_DUP_ENTRY" && attempt < 5) {
+            order_number = await generateOrderNumber(conn, { lockLatest: true });
+            continue;
+          }
+          throw insertErr;
+        }
+      }
+
+      for (let item of preparedItems) {
+        await conn.execute(
+          "INSERT INTO order_items (order_id, product_id, store_id, quantity, price, cost_price, size_id, unit_id, variant_label, discount_type, discount_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [
+            orderId,
+            item.productId,
+            item.storeId,
+            item.quantity,
+            item.unitPrice,
+            item.costPrice,
+            item.sizeId,
+            item.unitId,
+            item.variantLabel,
+            item.discount_type || null,
+            item.discount_value || null,
+          ],
+        );
+      }
+
+      // Decrement tracked stock (checked above under the same locks)
+      for (const [productId, qty] of qtyByProduct) {
+        await conn.execute(
+          "UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND stock_quantity IS NOT NULL",
+          [qty, productId],
+        );
+      }
+      await conn.execute("UPDATE orders SET stock_deducted = 1 WHERE id = ?", [orderId]);
+
+      if (payment_method === "wallet" && wallet) {
+        await conn.execute(
+          `INSERT INTO wallet_transactions (wallet_id, type, amount, description,
+                   reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            wallet.id,
+            "debit",
+            grandTotal,
+            `Order payment - ${order_number}`,
+            "order",
+            orderId,
+            walletNewBalance,
+          ],
+        );
+        // Payment record: the single source of truth that this order is paid
+        await conn.execute(
+          `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, status)
+           VALUES (?, ?, ?, 'wallet', 'local', 'success')`,
+          [orderId, req.user.id, grandTotal],
+        );
+      }
+
+      await conn.commit();
+    } catch (txErr) {
+      try {
+        await conn.rollback();
+      } catch (_) {}
+      throw txErr;
+    } finally {
+      conn.release();
     }
 
     const adminStoreSummary =
@@ -2055,6 +2167,12 @@ router.post("/", authenticateToken, async (req, res) => {
       },
     });
   } catch (error) {
+    if (error instanceof OrderRequestError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+    }
     console.error("Error creating order:", error);
     res.status(500).json({
       success: false,
@@ -4286,12 +4404,25 @@ router.get("/", authenticateToken, async (req, res) => {
 
 const TERMINAL_ORDER_RESET_EMAILS = RESTRICTED_FINANCIAL_REPORT_EMAILS;
 
+// Admins only; when an allowlist is configured, only the listed admins.
 function canResetTerminalOrder(user) {
-  if (!user) return false;
-  if (user.user_type === "admin" && TERMINAL_ORDER_RESET_EMAILS.size === 0) return true;
+  if (!user || user.user_type !== "admin") return false;
+  if (TERMINAL_ORDER_RESET_EMAILS.size === 0) return true;
   const email = String(user.email || "").trim().toLowerCase();
-  return TERMINAL_ORDER_RESET_EMAILS.has(email) || user.user_type === "admin";
+  return TERMINAL_ORDER_RESET_EMAILS.has(email);
 }
+
+// Statuses a store owner may set on their own items. Rider steps
+// (out_for_delivery, delivered) and moving back to pending are not allowed.
+const STORE_OWNER_SETTABLE_STATUSES = new Set([
+  "confirmed",
+  "preparing",
+  "ready",
+  "ready_for_pickup",
+  "picked_up",
+  "cancelled",
+]);
+const ORDER_STATUSES_AFTER_PICKUP = new Set(["picked_up", "out_for_delivery", "delivered"]);
 
 async function emitOrderResetToNew(req, order) {
   if (!req.io) return;
@@ -4376,8 +4507,9 @@ router.put(
         "UPDATE order_items SET item_status = 'pending' WHERE order_id = ?",
         [id],
       );
+      // A refunded order must be paid again before it can be delivered
       await req.db.execute(
-        "UPDATE orders SET status = 'pending', rider_id = NULL, estimated_delivery_time = NULL, updated_at = NOW() WHERE id = ?",
+        "UPDATE orders SET status = 'pending', rider_id = NULL, estimated_delivery_time = NULL, payment_status = IF(payment_status = 'refunded', 'pending', payment_status), updated_at = NOW() WHERE id = ?",
         [id],
       );
 
@@ -4502,6 +4634,21 @@ router.put(
         });
       }
 
+      if (req.user.user_type === "store_owner") {
+        if (!STORE_OWNER_SETTABLE_STATUSES.has(status)) {
+          return res.status(403).json({
+            success: false,
+            message: `Store owners cannot set an order to "${status}"`,
+          });
+        }
+        if (status === "cancelled" && ORDER_STATUSES_AFTER_PICKUP.has(currentOrderStatus)) {
+          return res.status(400).json({
+            success: false,
+            message: "An order cannot be cancelled after it has been picked up",
+          });
+        }
+      }
+
       if (itemStatusForDB === "delivered" && currentPaymentStatus !== "paid") {
         return res.status(400).json({
           success: false,
@@ -4621,6 +4768,14 @@ router.put(
         });
       }
 
+      if (isTerminalReopen) {
+        // A refunded order must be paid again before it can be delivered
+        await req.db.execute(
+          "UPDATE orders SET payment_status = 'pending' WHERE id = ? AND payment_status = 'refunded'",
+          [id],
+        );
+      }
+
       if (isTerminalResetToNew) {
         await req.db.execute(
           "UPDATE orders SET status = ?, rider_id = NULL, estimated_delivery_time = NULL, updated_at = NOW() WHERE id = ?",
@@ -4633,68 +4788,91 @@ router.put(
         );
       }
 
-      // Order Cancellation Hooks: Refund wallet payment & Restore inventory stock
+      // Order Cancellation Hooks: refund wallet payment and restore inventory stock.
+      // The two steps are independent so a stock problem can never block a refund.
       if (newGlobalStatus === "cancelled" && currentOrderStatus !== "cancelled") {
-        try {
-          // 1. Restore product inventory stock
-          const [orderItemsToRestore] = await req.db.execute(
-            "SELECT product_id, size_id, quantity FROM order_items WHERE order_id = ?",
-            [id],
-          );
-          for (const item of orderItemsToRestore) {
-            const qty = Number(item.quantity || 0);
-            if (qty > 0) {
-              if (item.size_id) {
-                await req.db.execute(
-                  "UPDATE product_size_prices SET stock = stock + ? WHERE product_id = ? AND size_id = ? AND stock IS NOT NULL",
-                  [qty, item.product_id, item.size_id],
-                );
-              }
-              await req.db.execute(
-                "UPDATE products SET stock = stock + ? WHERE id = ? AND stock IS NOT NULL",
-                [qty, item.product_id],
-              );
-            }
-          }
+        await ensureOrderStockAndRefundSchema(req.db);
 
-          // 2. Automated wallet refund if paid by wallet
-          const isWalletPayment = String(order.payment_method || "").toLowerCase() === "wallet";
-          const refundAmount = parseFloat(order.total_amount || 0);
-          if (isWalletPayment && refundAmount > 0 && order.user_id) {
-            const [existingRefund] = await req.db.execute(
+        // 1. Wallet refund (atomic, locked, idempotent via the order_refund reference)
+        const isWalletPayment = String(order.payment_method || "").toLowerCase() === "wallet";
+        const refundAmount = parseFloat(order.total_amount || 0);
+        if (isWalletPayment && refundAmount > 0 && order.user_id) {
+          const refundConn = await req.db.getConnection();
+          try {
+            await refundConn.beginTransaction();
+            const [userWallet] = await refundConn.execute(
+              "SELECT id, balance FROM wallets WHERE user_id = ? LIMIT 1 FOR UPDATE",
+              [order.user_id],
+            );
+            const [existingRefund] = await refundConn.execute(
               "SELECT id FROM wallet_transactions WHERE reference_type = 'order_refund' AND reference_id = ? LIMIT 1",
               [id],
             );
-            if (existingRefund.length === 0) {
-              await req.db.execute(
-                "UPDATE wallets SET balance = balance + ?, total_spent = GREATEST(0, total_spent - ?) WHERE user_id = ?",
-                [refundAmount, refundAmount, order.user_id],
+            const [walletDebit] = await refundConn.execute(
+              "SELECT id FROM wallet_transactions WHERE reference_type = 'order' AND reference_id = ? AND type = 'debit' LIMIT 1",
+              [id],
+            );
+            // Only refund what was actually debited, and only once
+            if (userWallet.length > 0 && existingRefund.length === 0 && walletDebit.length > 0) {
+              const newBalance = roundAmount(parseFloat(userWallet[0].balance || 0) + refundAmount);
+              await refundConn.execute(
+                "UPDATE wallets SET balance = balance + ?, total_spent = GREATEST(0, total_spent - ?) WHERE id = ?",
+                [refundAmount, refundAmount, userWallet[0].id],
               );
-              const [userWallet] = await req.db.execute(
-                "SELECT id, balance FROM wallets WHERE user_id = ? LIMIT 1",
-                [order.user_id],
+              await refundConn.execute(
+                `INSERT INTO wallet_transactions (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
+                 VALUES (?, 'credit', ?, ?, 'order_refund', ?, ?)`,
+                [
+                  userWallet[0].id,
+                  refundAmount,
+                  `Refund for cancelled order #${order.order_number}`,
+                  id,
+                  newBalance,
+                ],
               );
-              if (userWallet.length > 0) {
-                await req.db.execute(
-                  `INSERT INTO wallet_transactions (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
-                   VALUES (?, 'credit', ?, ?, 'order_refund', ?, ?)`,
-                  [
-                    userWallet[0].id,
-                    refundAmount,
-                    `Refund for cancelled order #${order.order_number}`,
-                    id,
-                    userWallet[0].balance,
-                  ],
-                );
-              }
-              await req.db.execute(
+              await refundConn.execute(
                 "UPDATE orders SET payment_status = 'refunded' WHERE id = ?",
                 [id],
               );
+              await refundConn.execute(
+                "UPDATE payments SET status = 'refunded' WHERE order_id = ? AND payment_method = 'wallet' AND status = 'success'",
+                [id],
+              );
+            }
+            await refundConn.commit();
+          } catch (refundErr) {
+            try {
+              await refundConn.rollback();
+            } catch (_) {}
+            console.error(`[orders] Wallet refund failed for order ${id}:`, refundErr);
+          } finally {
+            refundConn.release();
+          }
+        }
+
+        // 2. Restore stock, only for orders that deducted it at placement
+        try {
+          const [flagResult] = await req.db.execute(
+            "UPDATE orders SET stock_deducted = 0 WHERE id = ? AND stock_deducted = 1",
+            [id],
+          );
+          if (Number(flagResult?.affectedRows || 0) > 0) {
+            const [orderItemsToRestore] = await req.db.execute(
+              "SELECT product_id, SUM(quantity) AS qty FROM order_items WHERE order_id = ? GROUP BY product_id",
+              [id],
+            );
+            for (const item of orderItemsToRestore) {
+              const qty = Number(item.qty || 0);
+              if (qty > 0) {
+                await req.db.execute(
+                  "UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND stock_quantity IS NOT NULL",
+                  [qty, item.product_id],
+                );
+              }
             }
           }
-        } catch (cancelErr) {
-          console.error("[orders] Error during cancellation hooks:", cancelErr);
+        } catch (stockErr) {
+          console.error(`[orders] Stock restore failed for order ${id}:`, stockErr);
         }
       }
 
@@ -4999,6 +5177,19 @@ router.put(
         newTotal = Number(itemsSubtotal) + Number(finalDeliveryFee);
       }
 
+      // A paid order's amount is final: changing it would not refund or charge the customer
+      if (order.payment_status === "paid") {
+        const paidFee = parseFloat(order.delivery_fee) || 0;
+        if (delivery_fee !== undefined && roundAmount(parseFloat(delivery_fee)) !== roundAmount(paidFee)) {
+          return res.status(400).json({
+            success: false,
+            message: "This order is already paid; its delivery fee cannot be changed",
+          });
+        }
+        finalDeliveryFee = paidFee;
+        newTotal = order.total_amount;
+      }
+
       // Assign rider and update status
       // NOTE: We only update global status to 'out_for_delivery' if it was 'ready' or 'pending'.
       // If it was already 'out_for_delivery' or 'delivered', we shouldn't revert it.
@@ -5126,8 +5317,10 @@ router.put(
       }
       // If it's already 'ready' or 'preparing', keep it.
       
-      await req.db.execute(
-        "UPDATE orders SET rider_id = ?, status = ?, estimated_delivery_time = ?, delivery_fee = ?, total_amount = ? WHERE id = ?",
+      // Optimistic concurrency: only apply if nobody changed the rider or status
+      // since we read the order (prevents two dispatchers silently overwriting each other).
+      const [assignResult] = await req.db.execute(
+        "UPDATE orders SET rider_id = ?, status = ?, estimated_delivery_time = ?, delivery_fee = ?, total_amount = ? WHERE id = ? AND status = ? AND rider_id <=> ?",
         [
           rider_id,
           newStatus,
@@ -5135,8 +5328,16 @@ router.put(
           finalDeliveryFee,
           newTotal,
           id,
+          order.status,
+          order.rider_id ?? null,
         ],
       );
+      if (Number(assignResult?.affectedRows || 0) === 0) {
+        return res.status(409).json({
+          success: false,
+          message: "This order was updated by someone else. Please refresh and try again.",
+        });
+      }
 
       // Emit order_assigned event
       try {
@@ -5500,8 +5701,16 @@ router.put("/:id(\\d+)/deliver", authenticateToken, async (req, res) => {
       });
     }
 
+    if (order.status === "cancelled" || order.status === "delivered") {
+      return res.status(400).json({
+        success: false,
+        message: `Order is already ${order.status}`,
+      });
+    }
+
+    // Conditional on status too, so a concurrent cancellation is not overwritten
     const [deliverResult] = await req.db.execute(
-      "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ? AND payment_status = ?",
+      "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ? AND payment_status = ? AND status NOT IN ('cancelled', 'delivered')",
       ["delivered", id, "paid"],
     );
 
@@ -5736,6 +5945,23 @@ router.put(
           success: false,
           message: "You do not have permission to update this order",
         });
+      }
+
+      // Marking a paid order as unpaid does not reverse wallet credits or ledger
+      // postings, so it is limited to admins and never allowed after delivery.
+      if (order.payment_status === "paid" && payment_status !== "paid") {
+        if (req.user.user_type !== "admin") {
+          return res.status(403).json({
+            success: false,
+            message: "Only an admin can change the payment status of a paid order",
+          });
+        }
+        if (order.status === "delivered") {
+          return res.status(400).json({
+            success: false,
+            message: "A delivered order's payment cannot be reversed; cancel and refund it instead",
+          });
+        }
       }
 
       const [paymentUpdateResult] = await req.db.execute(
@@ -6742,3 +6968,20 @@ router.get(
 );
 
 module.exports = router;
+
+// Schema helpers run their DDL once per process (see utils/runOnce.js)
+const { runOncePerProcess } = require("../utils/runOnce");
+ensureSystemSettingsTable = runOncePerProcess(ensureSystemSettingsTable);
+ensureGlobalDeliveryStatusTable = runOncePerProcess(ensureGlobalDeliveryStatusTable);
+ensureOrderItemsSchema = runOncePerProcess(ensureOrderItemsSchema);
+ensureProductsProfitSchema = runOncePerProcess(ensureProductsProfitSchema);
+ensureOrdersParentColumn = runOncePerProcess(ensureOrdersParentColumn);
+ensureOrdersStoreIdNullable = runOncePerProcess(ensureOrdersStoreIdNullable);
+ensureRiderLocationColumns = runOncePerProcess(ensureRiderLocationColumns);
+ensureOrderStockAndRefundSchema = runOncePerProcess(ensureOrderStockAndRefundSchema);
+ensureRiderLocationLogsTable = runOncePerProcess(ensureRiderLocationLogsTable);
+ensureRiderStorePaymentsTable = runOncePerProcess(ensureRiderStorePaymentsTable);
+ensureRiderCashMovementTypes = runOncePerProcess(ensureRiderCashMovementTypes);
+ensureRiderDayClosingsTable = runOncePerProcess(ensureRiderDayClosingsTable);
+ensureRiderCashSubmissionOrdersTable = runOncePerProcess(ensureRiderCashSubmissionOrdersTable);
+ensureStoreFinancialColumns = runOncePerProcess(ensureStoreFinancialColumns);

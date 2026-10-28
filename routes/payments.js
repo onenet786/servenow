@@ -33,6 +33,11 @@ router.post('/process', authenticateToken, [
         const { orderId, paymentMethod, amount, cardToken, saveCard } = req.body;
         const userId = req.user.id;
 
+        // Rider ids live in a separate table and could match a customer's user_id
+        if (req.user.user_type === 'rider' || req.user.user_type === 'guest') {
+            return sendError(res, 'Only customers can pay for orders', 403);
+        }
+
         // 1. Verify order exists and belongs to user
         const [orders] = await req.db.execute(
             'SELECT * FROM orders WHERE id = ? AND user_id = ?',
@@ -46,7 +51,13 @@ router.post('/process', authenticateToken, [
         const order = orders[0];
         const trustedAmount = Number(order.total_amount);
 
-        // 2. Prevent duplicate payment processing
+        // 2. Prevent duplicate payment processing (wallet orders are paid at creation)
+        if (order.payment_status === 'paid') {
+            return sendError(res, 'This order is already paid', 400);
+        }
+        if (order.status === 'cancelled') {
+            return sendError(res, 'This order has been cancelled', 400);
+        }
         const [existingPayment] = await req.db.execute(
             'SELECT id FROM payments WHERE order_id = ? AND status IN (?, ?)',
             [orderId, 'success', 'pending']
@@ -410,7 +421,9 @@ router.get('/:orderId', authenticateToken, async (req, res) => {
 // ===== REFUNDS =====
 
 // Request refund
-router.post('/:paymentId/refund', authenticateToken, [
+// Refunds are issued by admins only and always go back to the order's customer.
+// Customers get refunds by cancelling the order (see order status cancellation hooks).
+router.post('/:paymentId/refund', authenticateToken, requireAdmin, [
     body('reason').trim().isLength({ min: 5 }).withMessage('Reason must be at least 5 characters')
 ], async (req, res) => {
     try {
@@ -421,12 +434,12 @@ router.post('/:paymentId/refund', authenticateToken, [
 
         const { paymentId } = req.params;
         const { reason } = req.body;
-        const userId = req.user.id;
+        const adminId = req.user.id;
 
-        // 1. Get payment details
+        // 1. Get payment details (customer = the order's user)
         const [payments] = await req.db.execute(
-            `SELECT p.*, o.user_id FROM payments p 
-             JOIN orders o ON p.order_id = o.id 
+            `SELECT p.*, o.user_id AS customer_id, o.order_number FROM payments p
+             JOIN orders o ON p.order_id = o.id
              WHERE p.id = ?`,
             [paymentId]
         );
@@ -437,34 +450,35 @@ router.post('/:paymentId/refund', authenticateToken, [
 
         const payment = payments[0];
 
-        // 2. Check if user is owner or admin
-        if (payment.user_id !== userId && !req.user.user_type.includes('admin')) {
-            return sendError(res, 'Unauthorized', 403);
-        }
-
-        // 3. Check if payment can be refunded
+        // 2. Check if payment can be refunded
         if (payment.status !== 'success') {
             return sendError(res, 'Only successful payments can be refunded', 400);
         }
 
-        // 4. Check for existing refund
+        // 3. Check for existing refund (manual or via order cancellation)
         const [existingRefund] = await req.db.execute(
             'SELECT id FROM refunds WHERE payment_id = ? AND status != ?',
             [paymentId, 'failed']
         );
-
         if (existingRefund.length) {
-            return sendError(res, 'Refund already requested for this payment', 400);
+            return sendError(res, 'A refund already exists for this payment', 400);
+        }
+        const [cancellationRefund] = await req.db.execute(
+            "SELECT id FROM wallet_transactions WHERE reference_type = 'order_refund' AND reference_id = ? LIMIT 1",
+            [payment.order_id]
+        );
+        if (cancellationRefund.length) {
+            return sendError(res, 'This order was already refunded when it was cancelled', 400);
         }
 
-        // 5. Create refund record
+        // 4. Create refund record (user_id = the customer receiving the refund)
         const [result] = await req.db.execute(
-            `INSERT INTO refunds (payment_id, order_id, user_id, refund_amount, reason, status) 
+            `INSERT INTO refunds (payment_id, order_id, user_id, refund_amount, reason, status)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [paymentId, payment.order_id, userId, payment.amount, reason, 'pending']
+            [paymentId, payment.order_id, payment.customer_id, payment.amount, reason, 'pending']
         );
 
-        // 6. Process refund based on payment gateway
+        // 5. Process refund based on payment gateway
         if (payment.gateway === 'stripe' && stripe) {
             try {
                 const refund = await stripe.refunds.create({
@@ -475,19 +489,24 @@ router.post('/:paymentId/refund', authenticateToken, [
                     'UPDATE refunds SET status = ?, refund_transaction_id = ?, processed_at = NOW() WHERE id = ?',
                     ['processed', refund.id, result.insertId]
                 );
+                await req.db.execute(
+                    "UPDATE payments SET status = 'refunded' WHERE id = ?",
+                    [paymentId]
+                );
 
                 // Record in Master Ledger (financial_transactions)
                 await recordFinancialTransaction(req.db, {
                     transaction_type: 'refund',
                     category: 'order_refund',
-                    description: `Order Refund: Order #${payment.order_id}`,
+                    description: `Order Refund: Order #${payment.order_number || payment.order_id}`,
                     amount: payment.amount,
                     payment_method: 'card',
                     related_entity_type: 'order',
                     related_entity_id: payment.order_id,
                     reference_type: 'refund',
                     reference_id: result.insertId,
-                    created_by: userId
+                    created_by: adminId,
+                    notes: reason
                 });
             } catch (stripeError) {
                 await req.db.execute(
@@ -497,34 +516,51 @@ router.post('/:paymentId/refund', authenticateToken, [
                 return sendError(res, 'Refund processing failed', 400);
             }
         } else if (payment.payment_method === 'wallet') {
-            // Refund to wallet
-            const [wallets] = await req.db.execute(
-                'SELECT id FROM wallets WHERE user_id = ?',
-                [userId]
-            );
-
-            if (wallets.length) {
+            // Refund to the customer's wallet, atomically
+            const conn = await req.db.getConnection();
+            try {
+                await conn.beginTransaction();
+                const [wallets] = await conn.execute(
+                    'SELECT id, balance FROM wallets WHERE user_id = ? FOR UPDATE',
+                    [payment.customer_id]
+                );
+                if (!wallets.length) {
+                    throw new Error('Customer wallet not found');
+                }
                 const wallet = wallets[0];
-                await req.db.execute(
-                    'UPDATE wallets SET balance = balance + ? WHERE id = ?',
-                    [payment.amount, wallet.id]
+                const balanceAfter = Number(wallet.balance) + Number(payment.amount);
+                await conn.execute(
+                    'UPDATE wallets SET balance = balance + ?, total_spent = GREATEST(0, total_spent - ?) WHERE id = ?',
+                    [payment.amount, payment.amount, wallet.id]
                 );
-
-                await req.db.execute(
-                    `INSERT INTO wallet_transactions (wallet_id, type, amount, description, 
-                     reference_type, reference_id) VALUES (?, ?, ?, ?, ?, ?)`,
-                    [wallet.id, 'credit', payment.amount, `Refund for Order ${payment.order_id}`, 
-                     'refund', result.insertId]
+                await conn.execute(
+                    `INSERT INTO wallet_transactions (wallet_id, type, amount, description,
+                     reference_type, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [wallet.id, 'credit', payment.amount, `Refund for Order ${payment.order_number || payment.order_id}`,
+                     'refund', result.insertId, balanceAfter]
                 );
-
-                await req.db.execute(
+                await conn.execute(
                     'UPDATE refunds SET status = ?, processed_at = NOW() WHERE id = ?',
                     ['processed', result.insertId]
                 );
+                await conn.execute(
+                    "UPDATE payments SET status = 'refunded' WHERE id = ?",
+                    [paymentId]
+                );
+                await conn.commit();
+            } catch (walletErr) {
+                try { await conn.rollback(); } catch (_) {}
+                await req.db.execute(
+                    'UPDATE refunds SET status = ?, notes = ? WHERE id = ?',
+                    ['failed', walletErr.message, result.insertId]
+                );
+                return sendError(res, 'Refund processing failed', 400);
+            } finally {
+                conn.release();
             }
         }
 
-        return sendSuccess(res, { refund_id: result.insertId }, 'Refund requested successfully', 201);
+        return sendSuccess(res, { refund_id: result.insertId }, 'Refund processed', 201);
 
     } catch (error) {
         return sendServerError(res, error);

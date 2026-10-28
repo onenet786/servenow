@@ -393,7 +393,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "10mb" }));
+// The Stripe webhook must receive the raw body for signature verification,
+// so the JSON parser skips it (routes/payments.js applies express.raw there).
+const jsonParser = express.json({ limit: "10mb" });
+app.use((req, res, next) => {
+  if (req.path === "/api/payments/webhook/stripe") return next();
+  return jsonParser(req, res, next);
+});
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 console.log("Middleware setup complete.");
 

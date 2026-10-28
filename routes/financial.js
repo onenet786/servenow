@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { applyWalletDelta } = require('../utils/walletBalance');
 const { recordFinancialTransaction } = require('../utils/dbHelpers');
 const fs = require('fs');
 const path = require('path');
@@ -1941,22 +1942,8 @@ async function recordRiderWalletTransaction(db, riderId, type, amount, descripti
     }
 
     const wallet = await getOrCreateRiderWallet(db, riderId);
-    const newBalance = type === 'credit' 
-        ? parseFloat(wallet.balance || 0) + parseFloat(amount)
-        : parseFloat(wallet.balance || 0) - parseFloat(amount);
-
-    // Update wallet balance
-    if (type === 'credit') {
-        await db.execute(
-            'UPDATE wallets SET balance = ?, total_credited = total_credited + ? WHERE id = ?',
-            [newBalance, amount, wallet.id]
-        );
-    } else {
-        await db.execute(
-            'UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?',
-            [newBalance, amount, wallet.id]
-        );
-    }
+    // Relative update: concurrent postings cannot overwrite each other
+    const newBalance = await applyWalletDelta(db, wallet.id, type, amount);
 
     // Record wallet transaction
     await db.execute(
@@ -2027,12 +2014,13 @@ async function ensureWalletCreditsForSubmissionOrders(db, riderId, movementId) {
         }
 
         if (backfilledAmount > 0) {
+            // Relative update so concurrent postings are not overwritten
             await db.execute(
                 `UPDATE wallets
-                 SET balance = ?,
+                 SET balance = balance + ?,
                      total_credited = total_credited + ?
                  WHERE id = ?`,
-                [runningBalance, backfilledAmount, wallet.id]
+                [backfilledAmount, backfilledAmount, wallet.id]
             );
         }
 
@@ -7737,22 +7725,8 @@ async function getOrCreateStoreWallet(db, storeId) {
 // Helper function to record store wallet transaction
 async function recordStoreWalletTransaction(db, storeId, type, amount, description, referenceId, referenceType) {
     const wallet = await getOrCreateStoreWallet(db, storeId);
-    const newBalance = type === 'credit' 
-        ? parseFloat(wallet.balance || 0) + parseFloat(amount)
-        : parseFloat(wallet.balance || 0) - parseFloat(amount);
-
-    // Update wallet balance
-    if (type === 'credit') {
-        await db.execute(
-            'UPDATE wallets SET balance = ?, total_credited = total_credited + ? WHERE id = ?',
-            [newBalance, amount, wallet.id]
-        );
-    } else {
-        await db.execute(
-            'UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?',
-            [newBalance, amount, wallet.id]
-        );
-    }
+    // Relative update: concurrent postings cannot overwrite each other
+    const newBalance = await applyWalletDelta(db, wallet.id, type, amount);
 
     // Record wallet transaction
     await db.execute(
@@ -7795,22 +7769,8 @@ async function getOrCreateUserWallet(db, userId) {
 // Helper function to record user wallet transaction
 async function recordUserWalletTransaction(db, userId, type, amount, description, referenceId, referenceType) {
     const wallet = await getOrCreateUserWallet(db, userId);
-    const newBalance = type === 'credit' 
-        ? parseFloat(wallet.balance || 0) + parseFloat(amount)
-        : parseFloat(wallet.balance || 0) - parseFloat(amount);
-
-    // Update wallet balance
-    if (type === 'credit') {
-        await db.execute(
-            'UPDATE wallets SET balance = ?, total_credited = total_credited + ? WHERE id = ?',
-            [newBalance, amount, wallet.id]
-        );
-    } else {
-        await db.execute(
-            'UPDATE wallets SET balance = ?, total_spent = total_spent + ? WHERE id = ?',
-            [newBalance, amount, wallet.id]
-        );
-    }
+    // Relative update: concurrent postings cannot overwrite each other
+    const newBalance = await applyWalletDelta(db, wallet.id, type, amount);
 
     // Record wallet transaction
     await db.execute(
@@ -8152,3 +8112,14 @@ router.get('/reports/credit-stores-history/:storeId', async (req, res) => {
 });
 
 module.exports = router;
+
+// Schema helpers run their DDL once per process (see utils/runOnce.js)
+const { runOncePerProcess } = require("../utils/runOnce");
+ensureOrderItemsCostPriceColumn = runOncePerProcess(ensureOrderItemsCostPriceColumn);
+ensureRiderStorePaymentsTable = runOncePerProcess(ensureRiderStorePaymentsTable);
+ensureStoreSettlementColumns = runOncePerProcess(ensureStoreSettlementColumns);
+ensureStoreSettlementSchema = runOncePerProcess(ensureStoreSettlementSchema);
+ensureFinancialReportsReportTypeEnum = runOncePerProcess(ensureFinancialReportsReportTypeEnum);
+ensureRiderCashMovementTypes = runOncePerProcess(ensureRiderCashMovementTypes);
+ensureRiderCashSubmissionOrdersTable = runOncePerProcess(ensureRiderCashSubmissionOrdersTable);
+ensureRiderFuelPaymentEntriesTable = runOncePerProcess(ensureRiderFuelPaymentEntriesTable);

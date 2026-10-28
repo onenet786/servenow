@@ -4007,10 +4007,17 @@ router.post(
 
       const type = amount > 0 ? "credit" : "debit";
 
-      await req.db.execute("UPDATE wallets SET balance = ? WHERE id = ?", [
-        newBalance,
-        walletId,
-      ]);
+      // Relative, guarded update: never overwrites concurrent changes or goes negative
+      const [adjustResult] = await req.db.execute(
+        "UPDATE wallets SET balance = balance + ? WHERE id = ? AND balance + ? >= 0",
+        [amount, walletId, amount],
+      );
+      if (Number(adjustResult?.affectedRows || 0) === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Insufficient balance for deduction",
+        });
+      }
       const [txResult] = await req.db.execute(
         "INSERT INTO wallet_transactions (wallet_id, type, amount, description, balance_after) VALUES (?, ?, ?, ?, ?)",
         [
@@ -4461,3 +4468,8 @@ router.post(
 );
 
 module.exports = router;
+
+// Schema helpers run their DDL once per process (see utils/runOnce.js)
+const { runOncePerProcess } = require("../utils/runOnce");
+ensureSystemSettingsTable = runOncePerProcess(ensureSystemSettingsTable);
+ensureManualOrderItemCostColumn = runOncePerProcess(ensureManualOrderItemCostColumn);

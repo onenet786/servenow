@@ -1562,3 +1562,7 @@ router.delete('/:id', authenticateToken, requireStaffAccess, async (req, res) =>
 });
 
 module.exports = router;
+
+// Schema helpers run their DDL once per process (see utils/runOnce.js)
+const { runOncePerProcess } = require("../utils/runOnce");
+ensureProductColumns = runOncePerProcess(ensureProductColumns);
