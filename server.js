@@ -123,11 +123,11 @@ const io = new Server(server, {
 
 io.use((socket, next) => {
   const authHeader = socket.handshake.headers.authorization || "";
-  const queryToken = socket.handshake.query?.token || "";
+  // Query-string tokens are rejected (as for HTTP routes) because URLs leak into logs.
   const authToken = socket.handshake.auth?.token || socket.handshake.auth?.accessToken || "";
   const xAccessToken = socket.handshake.headers?.["x-access-token"] || "";
 
-  let rawToken = authToken || (authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader) || queryToken || xAccessToken;
+  let rawToken = authToken || (authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader) || xAccessToken;
 
   if (typeof rawToken === "string") {
     rawToken = rawToken.trim();
@@ -169,7 +169,11 @@ io.on("connection", (socket) => {
       const userRoom = `user_${userId}`;
       const typeRoom = `${userType}_${userId}`;
       
-      socket.join(userRoom);
+      // Riders live in a separate table, so their numeric id can collide with a
+      // users-table id. They only join their typed room (rider_<id>).
+      if (userType !== 'rider') {
+        socket.join(userRoom);
+      }
       socket.join(typeRoom);
       
       if (userType === 'admin' || userType === 'standard_user') {
@@ -298,8 +302,31 @@ app.use("/api/auth/forgot-password", passwordResetLimiter);
 app.use("/api/auth/verify-reset-otp", passwordResetLimiter);
 app.use("/api/auth/reset-password", passwordResetLimiter);
 app.use("/api/auth/resend-verification", passwordResetLimiter);
+app.use("/api/auth/resend-code", passwordResetLimiter);
 app.use("/api/users/request-deletion", passwordResetLimiter);
-app.use("/api/orders", orderLimiter);
+
+// 6-digit email verification codes: cap guesses per IP (successful checks don't count)
+const verifyCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === "production" ? 10 : 100,
+  message: "Too many verification attempts, please try again later.",
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/auth/verify-email", verifyCodeLimiter);
+
+const guestLoginLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: process.env.NODE_ENV === "production" ? 20 : 200,
+  message: "Too many guest sessions requested, please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/auth/guest-login", guestLoginLimiter);
+
+// Only order placement is spam-limited; status polling and rider updates use the global limiter
+app.post("/api/orders", orderLimiter);
 console.log(
   `Rate limiting configured for ${
     process.env.NODE_ENV || "production"
@@ -403,6 +430,14 @@ const staticAssetOptions = {
   },
 };
 
+// Only serve image files from /uploads, so any non-image uploaded before
+// signature checks existed (e.g. .html/.svg) can never render on this origin.
+app.use("/uploads", (req, res, next) => {
+  if (!/\.(jpe?g|png|gif|webp)$/i.test(req.path)) {
+    return res.status(404).end();
+  }
+  next();
+});
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), staticMediaOptions));
 app.use("/images", express.static(path.join(__dirname, "images"), staticMediaOptions));
 app.use("/next", express.static(path.join(__dirname, "webapp_v2"), staticAssetOptions));

@@ -67,10 +67,10 @@ async function displayOrders(status = 'pending') {
                         <div class="rider-contact" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 8px; border: 1px solid #eee; width: 100%; box-sizing: border-box;">
                             <p style="margin-bottom: 10px;"><strong>Rider:</strong> ${order.rider_first_name} ${order.rider_last_name || ''}</p>
                             <div class="contact-actions" style="display: flex; gap: 8px; width: 100%;">
-                                <a href="tel:${order.rider_phone}" class="btn btn-small" style="background: #2196F3; color: white; padding: 8px 0; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 1; text-align: center; white-space: nowrap;">
+                                <a href="tel:${escapeHtmlPublic(order.rider_phone)}" class="btn btn-small" style="background: #2196F3; color: white; padding: 8px 0; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 1; text-align: center; white-space: nowrap;">
                                     <i class="fas fa-phone" style="margin-right: 5px;"></i> Call
                                 </a>
-                                <a href="sms:${order.rider_phone}" class="btn btn-small" style="background: #FF9800; color: white; padding: 8px 0; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 1; text-align: center; white-space: nowrap;">
+                                <a href="sms:${escapeHtmlPublic(order.rider_phone)}" class="btn btn-small" style="background: #FF9800; color: white; padding: 8px 0; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 1; text-align: center; white-space: nowrap;">
                                     <i class="fas fa-sms" style="margin-right: 5px;"></i> SMS
                                 </a>
                                 <a href="https://wa.me/${cleanPhone}" target="_blank" class="btn btn-small" style="background: #4CAF50; color: white; padding: 8px 0; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 1; text-align: center; white-space: nowrap;">
@@ -82,7 +82,7 @@ async function displayOrders(status = 'pending') {
                 }
                 let contactStoreHtml = '';
 
-                let storeHtml = `<p><strong>Store:</strong> ${order.store_name}</p>`;
+                let storeHtml = `<p><strong>Store:</strong> ${escapeHtmlPublic(order.store_name)}</p>`;
                 if (order.is_group && order.sub_orders) {
                     storeHtml = `<p><strong>Store:</strong> <span style="color: #2196F3; font-weight: bold;">Multiple Stores</span></p>`;
                     storeHtml += `<div style="margin-top: 10px; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">
@@ -90,7 +90,7 @@ async function displayOrders(status = 'pending') {
                     order.sub_orders.forEach(sub => {
                         const callStoreBtn = '';
                         storeHtml += `<div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9em;">
-                            <span>${sub.store_name}${callStoreBtn}</span>
+                            <span>${escapeHtmlPublic(sub.store_name)}${callStoreBtn}</span>
                             <span class="status-${sub.status}" style="padding: 2px 6px; border-radius: 4px; font-size: 0.8em;">${sub.status}</span>
                         </div>`;
                     });
@@ -106,7 +106,7 @@ async function displayOrders(status = 'pending') {
                         <p><strong>Customer:</strong> ${order.first_name || (user ? user.first_name : '')} ${order.last_name || (user ? user.last_name : '')}</p>
                         ${storeHtml}
                         <p><strong>Total:</strong> PKR ${parseFloat(order.total_amount).toFixed(2)}</p>
-                        <p><strong>Delivery Address:</strong> ${order.delivery_address}</p>
+                        <p><strong>Delivery Address:</strong> ${escapeHtmlPublic(order.delivery_address)}</p>
                         <p><strong>Items:</strong> ${order.items_count || (order.items ? order.items.length : 0)} items</p>
                         ${order.rider_latitude && order.rider_longitude ? 
                             `<p><strong>Rider Location:</strong> ${Number(order.rider_latitude).toFixed(6)}, ${Number(order.rider_longitude).toFixed(6)} 

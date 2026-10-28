@@ -558,8 +558,10 @@ router.post(
         phone,
         address,
         password,
-        userType = "customer",
       } = req.body;
+      // SECURITY: public registration always creates customers. Elevated roles
+      // are only created through the admin-only user management endpoints.
+      const userType = "customer";
       const dateOfBirth = req.body.dateOfBirth || req.body.date_of_birth || null;
 
       // Check if user already exists

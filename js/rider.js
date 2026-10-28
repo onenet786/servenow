@@ -514,8 +514,8 @@ async function displayRiderDeliveries(status = 'assigned', containerId = 'delive
                         </div>
                     </div>
                     <div class="order-details">
-                        <p><strong>Customer:</strong> ${delivery.first_name} ${delivery.last_name}</p>
-                        <p><strong>Store:</strong> ${delivery.store_name}</p>
+                        <p><strong>Customer:</strong> ${escapeHtmlPublic(delivery.first_name)} ${escapeHtmlPublic(delivery.last_name)}</p>
+                        <p><strong>Store:</strong> ${escapeHtmlPublic(delivery.store_name)}</p>
                         <p style="display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:8px;margin-top:8px;">
                             <span><strong>Items Subtotal:</strong></span>
                             <span>PKR ${itemsSubtotal.toFixed(2)}</span>
@@ -528,12 +528,12 @@ async function displayRiderDeliveries(status = 'assigned', containerId = 'delive
                             <span>Grand Total:</span>
                             <span>PKR ${delivery.total_amount}</span>
                         </p>
-                        <p><strong>Delivery Address:</strong> ${delivery.delivery_address}</p>
-                        <p><strong>Phone:</strong> ${delivery.phone || 'N/A'}</p>
+                        <p><strong>Delivery Address:</strong> ${escapeHtmlPublic(delivery.delivery_address)}</p>
+                        <p><strong>Phone:</strong> ${escapeHtmlPublic(delivery.phone || 'N/A')}</p>
                         ${delivery.phone ? `
                         <div class="contact-actions" style="margin: 8px 0; display: flex; gap: 8px; flex-wrap: wrap;">
-                            <a class="btn btn-small" style="background:#2563eb;color:#fff;" href="tel:${delivery.phone}"><i class="fa fa-phone"></i> Call</a>
-                            <a class="btn btn-small" style="background:#f59e0b;color:#fff;" href="sms:${delivery.phone}"><i class="fa fa-sms"></i> SMS</a>
+                            <a class="btn btn-small" style="background:#2563eb;color:#fff;" href="tel:${escapeHtmlPublic(delivery.phone)}"><i class="fa fa-phone"></i> Call</a>
+                            <a class="btn btn-small" style="background:#f59e0b;color:#fff;" href="sms:${escapeHtmlPublic(delivery.phone)}"><i class="fa fa-sms"></i> SMS</a>
                             <a class="btn btn-small" style="background:#16a34a;color:#fff;" href="https://wa.me/${(delivery.phone || '').replace(/[^0-9]/g, '')}" target="_blank" rel="noopener"><i class="fa fa-whatsapp"></i> WhatsApp</a>
                         </div>
                         ` : ''}
@@ -543,7 +543,7 @@ async function displayRiderDeliveries(status = 'assigned', containerId = 'delive
                             <ul style="list-style: none; padding-left: 0;">
                                 ${delivery.items && delivery.items.length > 0 ? delivery.items.map(item => `
                                     <li style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                        <span>${item.quantity}x ${item.product_name || 'Unknown Product'} ${item.variant_name ? `(${item.variant_name})` : ''}</span>
+                                        <span>${item.quantity}x ${escapeHtmlPublic(item.product_name || 'Unknown Product')} ${item.variant_name ? `(${item.variant_name})` : ''}</span>
                                         <span>PKR ${item.price * item.quantity}</span>
                                     </li>
                                 `).join('') : '<li>No items found</li>'}
@@ -735,7 +735,7 @@ function openOrderInfo(orderId) {
         itemsHtml += `<li style="font-weight:bold;color:#2563eb;margin-top:8px;margin-bottom:4px;">${storeName}</li>`;
         itemsByStore[storeName].forEach(item => {
             itemsHtml += `<li style="display:flex;justify-content:space-between;margin-bottom:4px;margin-left:8px;">
-                <span>${item.quantity}x ${item.product_name || 'Product'} ${item.variant_name ? '(' + item.variant_name + ')' : ''}</span>
+                <span>${item.quantity}x ${escapeHtmlPublic(item.product_name || 'Product')} ${item.variant_name ? '(' + item.variant_name + ')' : ''}</span>
                 <span>PKR ${(item.price * item.quantity).toFixed(2)}</span>
             </li>`;
         });
@@ -745,9 +745,9 @@ function openOrderInfo(orderId) {
         <h3 style="margin-top:0;">Order #${delivery.order_number}</h3>
         <p><strong>Status:</strong> ${delivery.status}</p>
         <p><strong>Payment:</strong> ${delivery.payment_status || 'unknown'}</p>
-        <p><strong>Customer:</strong> ${delivery.first_name || ''} ${delivery.last_name || ''}</p>
-        <p><strong>Phone:</strong> ${delivery.phone || 'N/A'}</p>
-        <p><strong>Address:</strong> ${delivery.delivery_address || 'N/A'}</p>
+        <p><strong>Customer:</strong> ${escapeHtmlPublic(delivery.first_name || '')} ${escapeHtmlPublic(delivery.last_name || '')}</p>
+        <p><strong>Phone:</strong> ${escapeHtmlPublic(delivery.phone || 'N/A')}</p>
+        <p><strong>Address:</strong> ${escapeHtmlPublic(delivery.delivery_address || 'N/A')}</p>
         <div style="margin-top:10px;border-top:1px solid #eee;padding-top:8px;">
             <p><strong>Items</strong></p>
             <ul style="list-style:none;padding-left:0;margin:0;">

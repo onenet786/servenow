@@ -340,7 +340,7 @@ function updateNavigation() {
     // For riders, we might want a different set of links
     if (user.user_type === "rider") {
         navUl.innerHTML = `
-            <li class="nav-dynamic">Welcome ${user.first_name}</li>
+            <li class="nav-dynamic">Welcome ${escapeHtmlPublic(user.first_name)}</li>
             <li><a href="rider.html"><i class="fas fa-motorcycle"></i> Dashboard</a></li>
             <li><a href="orders.html"><i class="fas fa-box"></i> Orders</a></li>
             <li><a href="profile.html"><i class="fas fa-user"></i> Profile</a></li>
@@ -898,11 +898,11 @@ function displayCart() {
     itemElement.innerHTML = `
             <div class="serving-dish">
                 <div class="dish-shadow"></div>
-                <img src="${imgSrc}" alt="${item.name}" class="dish-image">
+                <img src="${imgSrc}" alt="${escapeHtmlPublic(item.name)}" class="dish-image">
             </div>
             <div class="serving-content">
                 <div class="serving-header">
-                    <h4>${item.name}</h4>
+                    <h4>${escapeHtmlPublic(item.name)}</h4>
                     <button class="serving-remove" onclick="removeFromCart(${
                       item.id
                     })" title="Remove Item">
@@ -1470,7 +1470,7 @@ async function loadProducts(category) {
                                 )}
                     </div>
                     <div class="product-card-content">
-                        <h4>${product.name}</h4>
+                        <h4>${escapeHtmlPublic(product.name)}</h4>
                         ${priceHtml}
                         <button class="add-to-cart" onclick="addToCart(${
                           product.id

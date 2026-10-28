@@ -627,11 +627,37 @@ router.use(async (req, res, next) => {
     else if (path.startsWith('/journal-vouchers')) requiredPerm = 'menu_financial_jnv';
     else if (path.startsWith('/dashboard') || path.startsWith('/cash-ledger') || path.startsWith('/transactions')) requiredPerm = 'menu_financial_dashboard';
     else if (path.startsWith('/reports')) {
-        // Delegate permission checks to the specific route handlers
-        return next();
+        // SECURITY: default-deny. Non-admins need at least one report/finance
+        // permission; individual handlers (e.g. /reports/generate) narrow further.
+        if (req.method === 'DELETE') {
+            return res.status(403).json({ success: false, message: 'Admin access required' });
+        }
+        try {
+            const [rows] = await req.db.execute(
+                `SELECT 1 FROM user_permissions
+                 WHERE user_id = ?
+                   AND (permission_key = 'menu_reports'
+                        OR permission_key LIKE 'menu\\_report\\_%'
+                        OR permission_key LIKE 'report\\_%'
+                        OR permission_key LIKE 'menu\\_financial%')
+                 LIMIT 1`,
+                [req.user.id]
+            );
+            if (rows.length > 0 && req.user.user_type === 'standard_user') {
+                return next();
+            }
+        } catch (e) {
+            console.error('Permission check error:', e);
+        }
+        return res.status(403).json({
+            success: false,
+            message: 'Admin access required or missing permission'
+        });
     }
 
-    if (requiredPerm) {
+    // Permissions are only granted to standard users; this also prevents a rider
+    // whose numeric id collides with a staff user from inheriting their access.
+    if (requiredPerm && req.user.user_type === 'standard_user') {
         try {
             // Check DB for permission
             const [rows] = await req.db.execute(

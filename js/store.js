@@ -104,11 +104,11 @@ function displayStoreInfo(store, campaigns = []) {
             </div>
             <div class="store-banner-content">
                 <div class="store-image-container">
-                    <img src="${logoSrc}" alt="${store.name}" class="store-logo" onerror="this.onerror=null;this.src='/images/servenow_brand_logo.png'">
+                    <img src="${logoSrc}" alt="${escapeHtmlPublic(store.name)}" class="store-logo" onerror="this.onerror=null;this.src='/images/servenow_brand_logo.png'">
                 </div>
                 <div class="store-info">
-                    <h2>${store.name}</h2>
-                    <p><i class="fas fa-map-marker-alt"></i> ${store.location || 'Location not available'}</p>
+                    <h2>${escapeHtmlPublic(store.name)}</h2>
+                    <p><i class="fas fa-map-marker-alt"></i> ${escapeHtmlPublic(store.location || 'Location not available')}</p>
                     <p><i class="fas fa-star"></i> ${(parseFloat(store.rating) || 0).toFixed(1)} Rating</p>
                     <p><i class="fas fa-clock"></i> ${store.delivery_time || '30-45'} min delivery</p>
                     <p><i class="fas fa-business-time"></i> ${store.opening_time || '--:--'} - ${store.closing_time || '--:--'}</p>
@@ -191,9 +191,9 @@ function displayStoreProducts(storeProducts) {
                 image_contrast: product.image_contrast
             })}
             <div class="product-card-content">
-                <h4>${product.name}</h4>
+                <h4>${escapeHtmlPublic(product.name)}</h4>
                 ${variantsHtml ? variantsHtml : `<p class="price" id="price-${product.id}" style="font-weight:bold;">${buildPriceHtml(displayPriceSource)}</p><div id="offer-${product.id}">${buildOfferBadgeHtml(displayPriceSource)}</div>`}
-                <button class="add-to-cart btn btn-primary btn-small" id="add-btn-${product.id}" onclick="addProductToCart(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${currentStoreId}, '${imageSrc.replace(/'/g, "\\'")}', ${product.stock_quantity || 0})" style="margin-top: auto; align-self: flex-start;">
+                <button class="add-to-cart btn btn-primary btn-small" id="add-btn-${product.id}" onclick="addProductToCart(${product.id}, ${escapeHtmlPublic(JSON.stringify(String(product.name ?? '')))}, ${currentStoreId}, ${escapeHtmlPublic(JSON.stringify(String(imageSrc ?? '')))}, ${product.stock_quantity || 0})" style="margin-top: auto; align-self: flex-start;">
                     <i class="fas fa-plus"></i> Add
                 </button>
             </div>

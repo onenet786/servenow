@@ -4048,7 +4048,7 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
     }
 
     const isStaff = req.user.user_type === "admin" || req.user.user_type === "standard_user";
-    const isOrderCustomer = req.user.id === order.user_id;
+    const isOrderCustomer = req.user.user_type !== "rider" && req.user.id === order.user_id;
     const isAssignedRider = req.user.user_type === "rider" && req.user.id === order.rider_id;
 
     if (!isStaff && !isOrderCustomer && !isAssignedRider && !isStoreOwner) {
@@ -5392,7 +5392,7 @@ router.put(
       if (
         req.user.user_type !== "admin" &&
         req.user.user_type !== "standard_user" &&
-        order.rider_id !== req.user.id
+        !(req.user.user_type === "rider" && order.rider_id === req.user.id)
       ) {
         return res.status(403).json({
           success: false,
@@ -5481,7 +5481,7 @@ router.put("/:id(\\d+)/deliver", authenticateToken, async (req, res) => {
     if (
       req.user.user_type !== "admin" &&
       req.user.user_type !== "standard_user" &&
-      order.rider_id !== req.user.id
+      !(req.user.user_type === "rider" && order.rider_id === req.user.id)
     ) {
       return res.status(403).json({
         success: false,
@@ -5730,7 +5730,7 @@ router.put(
       if (
         req.user.user_type !== "admin" &&
         req.user.user_type !== "standard_user" &&
-        order.rider_id !== req.user.id
+        !(req.user.user_type === "rider" && order.rider_id === req.user.id)
       ) {
         return res.status(403).json({
           success: false,

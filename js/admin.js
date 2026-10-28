@@ -3453,7 +3453,7 @@ function renderActivityList(containerId, items) {
         div.innerHTML = `
             <div class="activity-accent"></div>
             <div class="activity-content">
-                <div class="title">${item.title}</div>
+                <div class="title">${escapeHtml(item.title)}</div>
                 <div class="subtitle">${item.subtitle}</div>
                 <div class="meta">
                     <span>${new Date(item.timestamp).toLocaleDateString()}</span>
@@ -3560,9 +3560,9 @@ function displayAccounts(accounts) {
 
         row.innerHTML = `
             <td>${account.id}</td>
-            <td>${account.first_name} ${account.last_name}</td>
-            <td>${account.email}</td>
-            <td>${account.phone || '-'}</td>
+            <td>${escapeHtml(account.first_name)} ${escapeHtml(account.last_name)}</td>
+            <td>${escapeHtml(account.email)}</td>
+            <td>${escapeHtml(account.phone || '-')}</td>
             <td>${account.user_type}</td>
             <td>${statusBadge}</td>
             <td>${verifiedBadge}</td>
@@ -3575,7 +3575,7 @@ function displayAccounts(accounts) {
                     <button class="btn-small ${isActive ? 'btn-danger' : 'btn-success'}" onclick="toggleAccountStatus(${account.id}, ${isActive})">
                         <i class="fas fa-${isActive ? 'ban' : 'check'}"></i> ${isActive ? 'Deactivate' : 'Activate'}
                     </button>
-                    <button class="btn-small btn-warning" onclick="resetAccountVerification(${account.id}, '${account.email}')">
+                    <button class="btn-small btn-warning" onclick="resetAccountVerification(${account.id}, ${escapeHtml(JSON.stringify(String(account.email ?? '')))})">
                         <i class="fas fa-shield-alt"></i> Reset Verify
                     </button>
                 </div>
@@ -4168,7 +4168,7 @@ function updatePriorityWarning() {
         const currentStore = AppState.stores.find(s => s.id == document.getElementById('setPriorityForm').dataset.storeId);
         if (!currentStore || currentStore.priority != selectedPriority) {
             warningDiv.style.display = 'block';
-            warningDiv.innerHTML = `<strong>⚠️ Warning:</strong> Priority ${selectedPriority} is already assigned to "${storeWithPriority.name}". Setting this priority will remove it from that store.`;
+            warningDiv.innerHTML = `<strong>⚠️ Warning:</strong> Priority ${selectedPriority} is already assigned to "${escapeHtml(storeWithPriority.name)}". Setting this priority will remove it from that store.`;
             return;
         }
     }
@@ -5400,7 +5400,7 @@ function displayOrders(orders = AppState.orders) {
             <div class="orders-customer-cell${shouldBlinkCustomerDetails ? ' is-attention' : ''}" style="--order-indicator-color:${indicatorColor};">
                 <span class="orders-customer-name${shouldBlinkCustomerDetails ? ' is-attention' : ''}">
                     ${hasCustomerAlert ? `<span class="${indicatorClass}" style="--order-indicator-color:${indicatorColor};" title="${alertSummary}"></span>` : ''}
-                    <span>${order.first_name} ${order.last_name}</span>
+                    <span>${escapeHtml(order.first_name)} ${escapeHtml(order.last_name)}</span>
                 </span>
                 ${deliveryAddress ? `<span class="orders-cell-meta${shouldBlinkCustomerDetails ? ' is-attention' : ''}">Address: ${deliveryAddress}</span>` : ''}
                 ${preferredDeliveryTime ? `<span class="orders-cell-meta${shouldBlinkCustomerDetails ? ' is-attention' : ''}">Preferred Time: ${preferredDeliveryTime}</span>` : ''}
@@ -5441,7 +5441,7 @@ function displayOrders(orders = AppState.orders) {
 
                     if (isMixed || isDelayed) {
                         const tooltipContent = uniqueStatuses.map(s => 
-                            `<div><strong>${s.store_name}:</strong> <span class="status-${s.status}">${s.status.toUpperCase()}</span></div>`
+                            `<div><strong>${escapeHtml(s.store_name)}:</strong> <span class="status-${s.status}">${s.status.toUpperCase()}</span></div>`
                         ).join('');
                         
                         statusHtml += `
@@ -6881,10 +6881,10 @@ async function viewOrderDetails(orderId) {
             <div class="order-info-section">
                 <div class="info-group">
                     <h4>Customer Information</h4>
-                    <p><strong>Name:</strong> ${order.first_name} ${order.last_name}</p>
-                    <p><strong>Email:</strong> ${order.email}</p>
-                    <p><strong>Phone:</strong> ${order.phone || 'N/A'}</p>
-                    <p><strong>Address:</strong> ${order.delivery_address}</p>
+                    <p><strong>Name:</strong> ${escapeHtml(order.first_name)} ${escapeHtml(order.last_name)}</p>
+                    <p><strong>Email:</strong> ${escapeHtml(order.email)}</p>
+                    <p><strong>Phone:</strong> ${escapeHtml(order.phone || 'N/A')}</p>
+                    <p><strong>Address:</strong> ${escapeHtml(order.delivery_address)}</p>
                     ${preferredDeliveryTime ? `<p><strong>Preferred Delivery Time:</strong> ${preferredDeliveryTime}</p>` : ''}
                     ${specialInstructions ? `<p><strong>Special Instructions:</strong> ${specialInstructions}</p>` : ''}
                 </div>
@@ -6909,7 +6909,7 @@ async function viewOrderDetails(orderId) {
             html += `
                 <div class="store-order-block" style="margin-bottom: 20px; border: 1px solid #eee; padding: 15px; border-radius: 8px;">
                     <h5 style="margin-top: 0; color: #2563eb; border-bottom: 2px solid var(--border-color); padding-bottom: 5px;">
-                                <i class="fas fa-store"></i> ${store.store_name}
+                                <i class="fas fa-store"></i> ${escapeHtml(store.store_name)}
                             </h5>
                     <p style="margin: 0 0 10px; color: #475569;"><strong>Payment Term:</strong> ${paymentTerm}${graceDays}</p>
                     <table class="items-details-table" style="width: 100%; border-collapse: collapse;">
@@ -6931,7 +6931,7 @@ async function viewOrderDetails(orderId) {
                 computedItemsSubtotal += subtotal;
                 html += `
                     <tr style="border-bottom: 1px solid #f9f9f9;">
-                        <td style="padding: 8px;">${item.product_name}</td>
+                        <td style="padding: 8px;">${escapeHtml(item.product_name)}</td>
                         <td style="padding: 8px;">${item.variant_label || '-'}</td>
                         <td style="padding: 8px;">${item.quantity}</td>
                         <td style="padding: 8px;">PKR ${price.toFixed(2)}</td>
@@ -6974,7 +6974,7 @@ async function viewOrderDetails(orderId) {
                 <div class="info-group">
                     <h4>Rider Information</h4>
                     <p><strong>Name:</strong> ${order.rider_first_name} ${order.rider_last_name || ''}</p>
-                    <p><strong>Phone:</strong> ${order.rider_phone || 'N/A'}</p>
+                    <p><strong>Phone:</strong> ${escapeHtml(order.rider_phone || 'N/A')}</p>
                     ${riderLocationLine ? `<p><strong>Last Location:</strong> ${escapeHtml(riderLocationLine)}</p>` : ''}
                 </div>
             `;
@@ -7358,7 +7358,7 @@ async function editOrder(orderId) {
             storeSelect.innerHTML = '<option value="">Keep Current Store</option>';
             if (itemsData.success && itemsData.availableStores) {
                 itemsData.availableStores.forEach(store => {
-                    storeSelect.innerHTML += `<option value="${store.id}">${store.name}</option>`;
+                    storeSelect.innerHTML += `<option value="${store.id}">${escapeHtml(store.name)}</option>`;
                 });
             }
             const storeSelectClone = storeSelect.cloneNode(true);
@@ -8148,7 +8148,7 @@ async function loadUnits() {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${u.id}</td>
-                <td>${u.name}</td>
+                <td>${escapeHtml(u.name)}</td>
                 <td>${u.abbreviation || ''}</td>
                 <td>${typeof u.multiplier !== 'undefined' ? parseFloat(u.multiplier).toFixed(4) : ''}</td>
                 <td>
@@ -8413,7 +8413,7 @@ async function loadSizes() {
             row.innerHTML = `
                 <td>${s.id}</td>
                 <td>${s.label}</td>
-                <td>${s.description || ''}</td>
+                <td>${escapeHtml(s.description || '')}</td>
                 <td>
                     <div class="action-buttons">
                         <button class="btn-small btn-edit" onclick="editSize(${s.id})">
@@ -8886,7 +8886,7 @@ async function populateStoreCategorySelect(selectedId = null) {
         const data = await resp.json();
         if (data && data.success && Array.isArray(data.categories)) {
             data.categories.forEach(category => {
-                categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+                categorySelect.innerHTML += `<option value="${category.id}">${escapeHtml(category.name)}</option>`;
             });
         }
         if (normalizedSelectedId !== null) {
@@ -9864,7 +9864,7 @@ function addProductSizePriceRow(prefill) {
         measureSelect.innerHTML = '<option value="">Select Size</option>' + (AppState.sizes || []).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
         if (prefill && prefill.size_id) measureSelect.value = String(prefill.size_id);
     } else {
-        measureSelect.innerHTML = '<option value="">Select Unit</option>' + (AppState.units || []).map(u => `<option value="${u.id}">${u.name}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`).join('');
+        measureSelect.innerHTML = '<option value="">Select Unit</option>' + (AppState.units || []).map(u => `<option value="${u.id}">${escapeHtml(u.name)}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`).join('');
         if (prefill && prefill.unit_id) measureSelect.value = String(prefill.unit_id);
     }
 
@@ -9923,7 +9923,7 @@ function refreshProductSizePriceRowOptions() {
         if (mode === 'size') {
             sel.innerHTML = '<option value="">Select Size</option>' + (AppState.sizes || []).map(s => `<option value="${s.id}">${s.label}</option>`).join('');
         } else {
-            sel.innerHTML = '<option value="">Select Unit</option>' + (AppState.units || []).map(u => `<option value="${u.id}">${u.name}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`).join('');
+            sel.innerHTML = '<option value="">Select Unit</option>' + (AppState.units || []).map(u => `<option value="${u.id}">${escapeHtml(u.name)}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`).join('');
         }
         if (selected) sel.value = selected;
     }
@@ -10050,7 +10050,7 @@ async function showAddProductModal() {
         storeSelect.innerHTML = '<option value="">Select Store</option>';
         if (storesData.success) {
             storesData.stores.forEach(store => {
-                storeSelect.innerHTML += `<option value="${store.id}">${store.name}</option>`;
+                storeSelect.innerHTML += `<option value="${store.id}">${escapeHtml(store.name)}</option>`;
             });
         }
         setProductStoreTerms((storesData && storesData.stores) || []);
@@ -10061,7 +10061,7 @@ async function showAddProductModal() {
         categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
         if (categoriesData.success) {
             categoriesData.categories.forEach(category => {
-                categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+                categorySelect.innerHTML += `<option value="${category.id}">${escapeHtml(category.name)}</option>`;
             });
         }
 
@@ -10150,7 +10150,7 @@ async function showAddProductModal() {
             if (unitSelect) {
                 unitSelect.innerHTML = '<option value="">Select Unit (Optional)</option>';
                 if (unitsJson && unitsJson.success && Array.isArray(unitsJson.units)) {
-                    unitsJson.units.forEach(u => unitSelect.innerHTML += `<option value="${u.id}">${u.name}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`);
+                    unitsJson.units.forEach(u => unitSelect.innerHTML += `<option value="${u.id}">${escapeHtml(u.name)}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`);
                 }
             }
 
@@ -10464,7 +10464,7 @@ async function editProduct(productId) {
             storeSelect.innerHTML = '<option value="">Select Store</option>';
             if (storesData && storesData.success && Array.isArray(storesData.stores)) {
                 storesData.stores.forEach(store => {
-                    storeSelect.innerHTML += `<option value="${store.id}">${store.name}</option>`;
+                    storeSelect.innerHTML += `<option value="${store.id}">${escapeHtml(store.name)}</option>`;
                 });
             }
         }
@@ -10474,7 +10474,7 @@ async function editProduct(productId) {
             categorySelect.innerHTML = '<option value="">Select Category (Optional)</option>';
             if (categoriesData && categoriesData.success && Array.isArray(categoriesData.categories)) {
                 categoriesData.categories.forEach(category => {
-                    categorySelect.innerHTML += `<option value="${category.id}">${category.name}</option>`;
+                    categorySelect.innerHTML += `<option value="${category.id}">${escapeHtml(category.name)}</option>`;
                 });
             }
         }
@@ -10482,7 +10482,7 @@ async function editProduct(productId) {
             unitSelect.innerHTML = '<option value="">Select Unit (Optional)</option>';
             if (unitsJson && unitsJson.success && Array.isArray(unitsJson.units)) {
                 unitsJson.units.forEach(u => {
-                    unitSelect.innerHTML += `<option value="${u.id}">${u.name}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`;
+                    unitSelect.innerHTML += `<option value="${u.id}">${escapeHtml(u.name)}${u.abbreviation ? ' ('+u.abbreviation+')' : ''}</option>`;
                 });
             }
         }
@@ -10953,7 +10953,7 @@ async function loadFuelHistory(riderId) {
                     <td>${distance}</td>
                     <td>${pr}</td>
                     <td>${cost}</td>
-                    <td>${rec.notes || ''}</td>
+                    <td>${escapeHtml(rec.notes || '')}</td>
                     <td><button class="btn btn-small btn-danger" onclick="deleteFuelEntry(${rec.id}, ${riderId})">Delete</button></td>
                 `;
                 tbody.appendChild(tr);
@@ -11909,8 +11909,8 @@ function displayStores(stores) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${store.id}</td>
-            <td>${store.name}</td>
-            <td>${store.location}</td>
+            <td>${escapeHtml(store.name)}</td>
+            <td>${escapeHtml(store.location)}</td>
             <td>${ownerDisplay}</td>
             <td>${store.rating} ⭐</td>
             <td>${priorityDisplay}</td>
@@ -11925,7 +11925,7 @@ function displayStores(stores) {
                     <button class="btn-small btn-edit" onclick="editStore(${store.id})">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button class="btn-small btn-info" onclick="showSetPriorityModal(${store.id}, '${store.name}', ${store.priority || 'null'})">
+                    <button class="btn-small btn-info" onclick="showSetPriorityModal(${store.id}, ${escapeHtml(JSON.stringify(String(store.name ?? '')))}, ${store.priority || 'null'})">
                         <i class="fas fa-star"></i> Priority
                     </button>
                     <button class="btn-small btn-danger" onclick="deleteStore(${store.id})">
@@ -11966,7 +11966,7 @@ function displayStores(stores) {
             const address = s.address || '';
             const loc = s.location || '';
             const ratingBadge = `<div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:#ffd166;color:#4b5563;font-weight:700;">${typeof s.rating !== 'undefined' ? s.rating : 0}</span><span style="color:#64748b;font-size:13px;">Rating</span></div>`;
-            const avatar = safeImg ? `<img src="${safeImg}" alt="${s.name}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb;">` : `<div style="width:56px;height:56px;border-radius:8px;background:#e5e7eb;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;color:#6b7280;font-weight:700;">${(s.name||'S').slice(0,1).toUpperCase()}</div>`;
+            const avatar = safeImg ? `<img src="${safeImg}" alt="${escapeHtml(s.name)}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb;">` : `<div style="width:56px;height:56px;border-radius:8px;background:#e5e7eb;border:1px solid #d1d5db;display:flex;align-items:center;justify-content:center;color:#6b7280;font-weight:700;">${(s.name||'S').slice(0,1).toUpperCase()}</div>`;
             const pill = `<span style="padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block;background:${statusPillBg};color:${statusPillColor};">${s.is_active ? 'Active' : 'Inactive'}</span>`;
             const label = (lbl, val) => `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="width:88px;color:#9ca3af;font-size:12px;">${lbl}</div><div style="flex:1;color:#374151;font-size:13px;word-break:break-word;">${val || '-'}</div></div>`;
             return `
@@ -11974,7 +11974,7 @@ function displayStores(stores) {
                     ${avatar}
                     <div style="flex:1;min-width:0;">
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                            <div style="font-weight:800;color:#1f2937;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">${s.name || 'Store'}</div>
+                            <div style="font-weight:800;color:#1f2937;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">${escapeHtml(s.name || 'Store')}</div>
                             ${pill}
                         </div>
                         <div style="color:#64748b;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;">${loc || ''}</div>
@@ -12052,8 +12052,8 @@ function displayCategories(categories) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${category.id}</td>
-            <td>${category.name}</td>
-            <td>${category.description || ''}</td>
+            <td>${escapeHtml(category.name)}</td>
+            <td>${escapeHtml(category.description || '')}</td>
             <td><span class="status-${category.is_active ? 'active' : 'inactive'}">${category.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>
                 <div class="action-buttons">
@@ -12097,8 +12097,8 @@ function displayRiders(riders) {
         row.innerHTML = `
             <td>${rider.id}</td>
             <td>${rider.full_name || [rider.first_name || '', rider.last_name || ''].filter(Boolean).join(' ')}</td>
-            <td>${rider.email}</td>
-            <td>${rider.phone}</td>
+            <td>${escapeHtml(rider.email)}</td>
+            <td>${escapeHtml(rider.phone)}</td>
             <td>${rider.vehicle_type}</td>
             <td>${rider.license_number}</td>
             <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
@@ -12304,7 +12304,7 @@ function displayPayments(payments) {
         row.innerHTML = `
             <td>${payment.id}</td>
             <td>#${payment.order_id}</td>
-            <td>${payment.first_name} ${payment.last_name}</td>
+            <td>${escapeHtml(payment.first_name)} ${escapeHtml(payment.last_name)}</td>
             <td>PKR ${parseFloat(payment.amount).toFixed(2)}</td>
             <td><span class="badge badge-${payment.payment_method}">${payment.payment_method}</span></td>
             <td>${payment.gateway || 'N/A'}</td>
@@ -12367,7 +12367,7 @@ async function viewPaymentDetails(paymentId) {
         
         if (data.success) {
             const payment = data.payment;
-            showInfo('Payment Details', `ID: ${payment.id}<br>Order: #${payment.order_id}<br>Customer: ${payment.first_name} ${payment.last_name}<br>Amount: PKR ${payment.amount}<br>Method: ${payment.payment_method}<br>Status: ${payment.status}<br>Date: ${new Date(payment.created_at).toLocaleString()}`, 6000);
+            showInfo('Payment Details', `ID: ${payment.id}<br>Order: #${payment.order_id}<br>Customer: ${escapeHtml(payment.first_name)} ${escapeHtml(payment.last_name)}<br>Amount: PKR ${payment.amount}<br>Method: ${payment.payment_method}<br>Status: ${payment.status}<br>Date: ${new Date(payment.created_at).toLocaleString()}`, 6000);
         }
     } catch (error) {
         console.error('View payment details error:', error);
@@ -12427,7 +12427,7 @@ function displayWallets(wallets) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${wallet.id}</td>
-            <td>${wallet.first_name} ${wallet.last_name}</td>
+            <td>${escapeHtml(wallet.first_name)} ${escapeHtml(wallet.last_name)}</td>
             <td>PKR ${parseFloat(wallet.balance).toFixed(2)}</td>
             <td>PKR ${parseFloat(wallet.total_credited).toFixed(2)}</td>
             <td>PKR ${parseFloat(wallet.total_spent).toFixed(2)}</td>
@@ -12483,8 +12483,8 @@ async function viewWalletDetails(walletId) {
         
         if (data.success) {
             const wallet = data.wallet;
-            const txList = data.recent_transactions.slice(0, 5).map(tx => `  • ${tx.type.toUpperCase()}: PKR ${tx.amount} - ${tx.description}`).join('<br>');
-            showInfo('Wallet Details', `ID: ${wallet.id}<br>User: ${wallet.first_name} ${wallet.last_name}<br>Balance: PKR ${wallet.balance}<br>Total Credited: PKR ${wallet.total_credited}<br>Total Spent: PKR ${wallet.total_spent}<br><br><b>Recent Transactions:</b><br>${txList || 'No transactions'}`, 8000);
+            const txList = data.recent_transactions.slice(0, 5).map(tx => `  • ${tx.type.toUpperCase()}: PKR ${tx.amount} - ${escapeHtml(tx.description)}`).join('<br>');
+            showInfo('Wallet Details', `ID: ${wallet.id}<br>User: ${escapeHtml(wallet.first_name)} ${escapeHtml(wallet.last_name)}<br>Balance: PKR ${wallet.balance}<br>Total Credited: PKR ${wallet.total_credited}<br>Total Spent: PKR ${wallet.total_spent}<br><br><b>Recent Transactions:</b><br>${txList || 'No transactions'}`, 8000);
         }
     } catch (error) {
         console.error('View wallet details error:', error);

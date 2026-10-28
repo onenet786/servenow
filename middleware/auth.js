@@ -29,7 +29,7 @@ const authenticateToken = (req, res, next) => {
         });
     }
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    jwt.verify(token, process.env.JWT_SECRET, async (err, user) => {
         if (err) {
             if (process.env.NODE_ENV === 'development') {
                 console.error('[auth] JWT verify error:', err && err.message ? err.message : err);
@@ -39,10 +39,71 @@ const authenticateToken = (req, res, next) => {
                 message: 'Invalid or expired token'
             });
         }
+
+        // Tokens are long-lived, so re-check that the account still exists, is
+        // active, and still has the role the token claims.
+        try {
+            const status = await getAccountStatus(req.db, user);
+            if (!status.ok) {
+                return res.status(401).json({
+                    success: false,
+                    message: status.message
+                });
+            }
+        } catch (e) {
+            console.error('[auth] Account status check failed:', e.message);
+            return res.status(503).json({
+                success: false,
+                message: 'Authentication service unavailable'
+            });
+        }
+
         req.user = user;
         next();
     });
 };
+
+// Short-lived cache so the status check doesn't hit the DB on every request.
+const ACCOUNT_STATUS_TTL_MS = 60 * 1000;
+const accountStatusCache = new Map();
+
+async function getAccountStatus(db, user) {
+    if (user.user_type === 'guest' || user.is_guest) {
+        return { ok: true };
+    }
+    if (!db) {
+        throw new Error('Database connection missing in request');
+    }
+
+    const cacheKey = `${user.user_type}:${user.id}`;
+    const cached = accountStatusCache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) {
+        return cached.status;
+    }
+
+    let status;
+    if (user.user_type === 'rider') {
+        const [rows] = await db.execute('SELECT is_active FROM riders WHERE id = ?', [user.id]);
+        if (!rows.length || !rows[0].is_active) {
+            status = { ok: false, message: 'Account is inactive or no longer exists. Please log in again.' };
+        } else {
+            status = { ok: true };
+        }
+    } else {
+        const [rows] = await db.execute('SELECT is_active, user_type FROM users WHERE id = ?', [user.id]);
+        if (!rows.length || rows[0].is_active === 0 || rows[0].is_active === false) {
+            status = { ok: false, message: 'Account is inactive or no longer exists. Please log in again.' };
+        } else if (rows[0].user_type !== user.user_type) {
+            status = { ok: false, message: 'Your account role has changed. Please log in again.' };
+        } else {
+            status = { ok: true };
+        }
+    }
+
+    if (accountStatusCache.size > 10000) accountStatusCache.clear();
+    accountStatusCache.set(cacheKey, { status, expires: Date.now() + ACCOUNT_STATUS_TTL_MS });
+    return status;
+}
 
 // Middleware to check if user is admin
 const requireAdmin = (req, res, next) => {
@@ -116,7 +177,15 @@ const requirePermission = (permissionKey) => {
         if (req.user.user_type === 'admin') {
             return next();
         }
-        
+
+        // Permissions are only granted to standard users (also blocks rider id collisions)
+        if (req.user.user_type !== 'standard_user') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied. Missing permission: ' + permissionKey
+            });
+        }
+
         // Check if DB is available (it should be via server.js middleware)
         if (!req.db) {
             console.error('Database connection missing in request');

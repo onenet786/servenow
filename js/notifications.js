@@ -30,10 +30,6 @@
             const token = getStoredToken();
             cb({ token });
         },
-        query: () => {
-            const token = getStoredToken();
-            return token ? { token } : {};
-        },
         transports: ['websocket', 'polling'],
         autoConnect: Boolean(initialToken),
         reconnection: true,

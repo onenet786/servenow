@@ -5,7 +5,8 @@ const jwt = require('jsonwebtoken');
 const { authenticateToken, requireAdmin, requireDispatchAccess } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
-const { createImageUpload } = require('../middleware/upload');
+const crypto = require('crypto');
+const { createImageUpload, detectImageExtension, maxFileSize } = require('../middleware/upload');
 const sharp = (() => { try { return require('sharp'); } catch(e){ return null; } })();
 const upload = createImageUpload();
 
@@ -150,11 +151,17 @@ router.post('/', authenticateToken, requireAdmin, [
         const saveDataUrl = async (dataUrl, prefix) => {
             const m = String(dataUrl || '').match(/^data:(image\/[^;]+);base64,(.+)$/);
             if (!m) return null;
-            const mime = m[1];
-            const b64 = m[2];
-            const buf = Buffer.from(b64, 'base64');
-            const ext = mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : '.jpg';
-            const base = `${prefix}_${Date.now()}_${Math.round(Math.random()*1000)}`;
+            const buf = Buffer.from(m[2], 'base64');
+            if (buf.length > maxFileSize) {
+                throw Object.assign(new Error('Image is too large'), { statusCode: 400 });
+            }
+            // Trust the file signature, not the declared data-URL mime type
+            const ext = detectImageExtension(buf);
+            if (!ext) {
+                throw Object.assign(new Error('Only JPEG, PNG, GIF or WebP images are allowed'), { statusCode: 400 });
+            }
+            // Unguessable name: ID cards are personal documents
+            const base = `${prefix}_${crypto.randomBytes(16).toString('hex')}`;
             const outName = `${base}${ext}`;
             const outPath = path.join(uploadDir, outName);
             fs.writeFileSync(outPath, buf);
@@ -236,9 +243,9 @@ router.post('/', authenticateToken, requireAdmin, [
         });
     } catch (error) {
         console.error('Error creating rider:', error);
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to create rider',
+            message: error.statusCode ? error.message : 'Failed to create rider',
             error: error.message
         });
     }
@@ -318,11 +325,17 @@ router.put('/:id', authenticateToken, requireAdmin, [
         const saveDataUrl = async (dataUrl, prefix) => {
             const m = String(dataUrl || '').match(/^data:(image\/[^;]+);base64,(.+)$/);
             if (!m) return null;
-            const mime = m[1];
-            const b64 = m[2];
-            const buf = Buffer.from(b64, 'base64');
-            const ext = mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : '.jpg';
-            const base = `${prefix}_${Date.now()}_${Math.round(Math.random()*1000)}`;
+            const buf = Buffer.from(m[2], 'base64');
+            if (buf.length > maxFileSize) {
+                throw Object.assign(new Error('Image is too large'), { statusCode: 400 });
+            }
+            // Trust the file signature, not the declared data-URL mime type
+            const ext = detectImageExtension(buf);
+            if (!ext) {
+                throw Object.assign(new Error('Only JPEG, PNG, GIF or WebP images are allowed'), { statusCode: 400 });
+            }
+            // Unguessable name: ID cards are personal documents
+            const base = `${prefix}_${crypto.randomBytes(16).toString('hex')}`;
             const outName = `${base}${ext}`;
             const outPath = path.join(uploadDir, outName);
             fs.writeFileSync(outPath, buf);
@@ -440,9 +453,9 @@ router.put('/:id', authenticateToken, requireAdmin, [
         });
     } catch (error) {
         console.error('Error updating rider:', error);
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to update rider',
+            message: error.statusCode ? error.message : 'Failed to update rider',
             error: error.message
         });
     }

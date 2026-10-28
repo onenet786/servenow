@@ -124,7 +124,7 @@ async function loadTransactions() {
                     <td>${date}</td>
                     <td><span class="${badgeClass}">${tx.type.toUpperCase()}</span></td>
                     <td>PKR ${parseFloat(tx.amount).toFixed(2)}</td>
-                    <td>${tx.description}</td>
+                    <td>${escapeHtmlPublic(tx.description)}</td>
                     <td><strong>PKR ${parseFloat(tx.balance_after).toFixed(2)}</strong></td>
                 `;
                 tbody.appendChild(row);
@@ -500,7 +500,7 @@ async function loadReceivedTransfers() {
                     </div>
                     <div style="margin-bottom: 10px;">
                         <span style="font-size: 20px; font-weight: bold;">PKR ${parseFloat(t.amount).toFixed(2)}</span>
-                        ${t.description ? `<p style="margin: 5px 0; color: #666;">${t.description}</p>` : ''}
+                        ${t.description ? `<p style="margin: 5px 0; color: #666;">${escapeHtmlPublic(t.description)}</p>` : ''}
                     </div>
                     <div style="font-size: 12px; color: #999; margin-bottom: 10px;">
                         Received: ${new Date(t.created_at).toLocaleString()}
@@ -540,7 +540,7 @@ async function loadSentTransfers() {
                     </div>
                     <div style="margin-bottom: 10px;">
                         <span style="font-size: 20px; font-weight: bold;">PKR ${parseFloat(t.amount).toFixed(2)}</span>
-                        ${t.description ? `<p style="margin: 5px 0; color: #666;">${t.description}</p>` : ''}
+                        ${t.description ? `<p style="margin: 5px 0; color: #666;">${escapeHtmlPublic(t.description)}</p>` : ''}
                     </div>
                     <div style="font-size: 12px; color: #999; margin-bottom: 10px;">
                         Sent: ${new Date(t.created_at).toLocaleString()}

@@ -78,7 +78,7 @@ function displayJournalVouchers(vouchers) {
         row.innerHTML = `
             <td>${v.voucher_number}</td>
             <td>${date}</td>
-            <td>${v.description || '-'}</td>
+            <td>${escapeHtml(v.description || '-')}</td>
             <td>${v.reference_number || '-'}</td>
             <td>Rs  ${parseFloat(v.total_amount).toFixed(2)}</td>
             <td><span class="status-${v.status}">${v.status}</span></td>
@@ -287,12 +287,12 @@ async function viewJournalVoucher(id) {
             
             let entryRows = entries.map(e => `
                 <tr>
-                    <td>${e.account_name}</td>
+                    <td>${escapeHtml(e.account_name)}</td>
                     <td>${e.entity_type}</td>
                     <td>${e.entity_id || '-'}</td>
                     <td><span class="badge badge-${e.entry_type}">${e.entry_type.toUpperCase()}</span></td>
                     <td>Rs  ${parseFloat(e.amount).toFixed(2)}</td>
-                    <td>${e.description || '-'}</td>
+                    <td>${escapeHtml(e.description || '-')}</td>
                 </tr>
             `).join('');
             
@@ -301,7 +301,7 @@ async function viewJournalVoucher(id) {
                     <strong>Voucher #:</strong> ${v.voucher_number}<br>
                     <strong>Date:</strong> ${new Date(v.voucher_date).toLocaleDateString()}<br>
                     <strong>Status:</strong> <span class="status-${v.status}">${v.status}</span><br>
-                    <strong>Description:</strong> ${v.description || '-'}<br>
+                    <strong>Description:</strong> ${escapeHtml(v.description || '-')}<br>
                     <strong>Ref #:</strong> ${v.reference_number || '-'}<br>
                     <strong>Prepared By:</strong> ${v.prepared_by_name || '-'}<br>
                 </div>
@@ -654,7 +654,7 @@ function renderFinancialStoreWiseRows(rows) {
     };
     tbody.innerHTML = rows.map((r) => `
         <tr>
-            <td>${r.name || '-'}</td>
+            <td>${escapeHtml(r.name || '-')}</td>
             <td>${r.payment_term || '-'}</td>
             <td>${parseInt(String(r.total_orders || 0), 10) || 0}</td>
             <td>${money(r.total_earnings)}</td>
@@ -787,7 +787,7 @@ async function loadCashLedger() {
 
                 row.innerHTML = `
                     <td>${date}</td>
-                    <td>${t.description || '-'}</td>
+                    <td>${escapeHtml(t.description || '-')}</td>
                     <td><span class="badge badge-${t.transaction_type}">${t.transaction_type}</span></td>
                     <td>${t.category || '-'}</td>
                     <td class="${amountClass}" style="font-weight:bold">Rs  ${displayAmount.toFixed(2)}</td>
@@ -842,7 +842,7 @@ function displayTransactions(transactions) {
             <td>${t.id}</td>
             <td>${t.transaction_number}</td>
             <td><span class="badge badge-${t.transaction_type}">${t.transaction_type}</span></td>
-            <td>${t.description || '-'}</td>
+            <td>${escapeHtml(t.description || '-')}</td>
             <td>Rs  ${parseFloat(t.amount).toFixed(2)}</td>
             <td>${t.payment_method}</td>
             <td><span class="status-${t.status}">${t.status}</span></td>
@@ -913,7 +913,7 @@ function displayBankPaymentVouchers(vouchers) {
         row.innerHTML = `
             <td>${v.voucher_number}</td>
             <td>${date}</td>
-            <td>${v.payee_name}</td>
+            <td>${escapeHtml(v.payee_name)}</td>
             <td>${v.payee_type}</td>
             <td>Rs  ${parseFloat(v.amount).toFixed(2)}</td>
             <td>${v.purpose || '-'}</td>
@@ -941,7 +941,7 @@ function displayPaymentVouchers(vouchers) {
         row.innerHTML = `
             <td>${v.voucher_number}</td>
             <td>${date}</td>
-            <td>${v.payee_name}</td>
+            <td>${escapeHtml(v.payee_name)}</td>
             <td>${v.payee_type}</td>
             <td>Rs  ${parseFloat(v.amount).toFixed(2)}</td>
             <td>${v.purpose || '-'}</td>
@@ -1013,10 +1013,10 @@ function displayBankReceiptVouchers(vouchers) {
         row.innerHTML = `
             <td>${v.voucher_number}</td>
             <td>${date}</td>
-            <td>${v.payer_name}</td>
+            <td>${escapeHtml(v.payer_name)}</td>
             <td>${v.payer_type}</td>
             <td>Rs  ${parseFloat(v.amount).toFixed(2)}</td>
-            <td>${v.description || '-'}</td>
+            <td>${escapeHtml(v.description || '-')}</td>
             <td><span class="status-${v.status}">${v.status}</span></td>
             <td>
                 <button class="btn-small btn-info" onclick="editReceiptVoucher(${v.id})">Edit</button>
@@ -1041,10 +1041,10 @@ function displayReceiptVouchers(vouchers) {
         row.innerHTML = `
             <td>${v.voucher_number}</td>
             <td>${date}</td>
-            <td>${v.payer_name}</td>
+            <td>${escapeHtml(v.payer_name)}</td>
             <td>${v.payer_type}</td>
             <td>Rs  ${parseFloat(v.amount).toFixed(2)}</td>
-            <td>${v.description || '-'}</td>
+            <td>${escapeHtml(v.description || '-')}</td>
             <td><span class="status-${v.status}">${v.status}</span></td>
             <td>
                 <button class="btn-small btn-info" onclick="editReceiptVoucher(${v.id})">Edit</button>
@@ -1107,7 +1107,7 @@ function displayRiderCash(movements) {
             <td>${riderName}</td>
             <td>${m.movement_type.replace(/_/g, ' ')}</td>
             <td>Rs ${parseFloat(m.amount).toFixed(2)}</td>
-            <td>${m.description || '-'}</td>
+            <td>${escapeHtml(m.description || '-')}</td>
             <td><span class="status-${m.status}">${m.status}</span></td>
             <td>
                 ${actionButtons || '<span style="color:#6b7280;">-</span>'}
@@ -1160,7 +1160,7 @@ function displayStoreSettlements(settlements) {
         row.innerHTML = `
             <td>${s.settlement_number}</td>
             <td>${date}</td>
-            <td>${s.store_name || '-'}</td>
+            <td>${escapeHtml(s.store_name || '-')}</td>
             <td>${from} to ${to}</td>
             <td>Rs  ${totalOrders.toFixed(2)}</td>
             <td>Rs  ${commissions.toFixed(2)}</td>
@@ -1225,9 +1225,9 @@ function displayExpenses(expenses) {
             <td>${e.expense_number}</td>
             <td>${date}</td>
             <td>${e.category}</td>
-            <td>${e.description || '-'}</td>
+            <td>${escapeHtml(e.description || '-')}</td>
             <td>Rs  ${parseFloat(e.amount).toFixed(2)}</td>
-            <td>${e.vendor_name || '-'}</td>
+            <td>${escapeHtml(e.vendor_name || '-')}</td>
             <td><span class="status-${e.status}">${e.status}</span></td>
             <td>${actionButtons}</td>
         `;
@@ -1602,7 +1602,7 @@ async function loadSettlementDueStores() {
                     ? `Existing pending/approved settlement: Rs ${openSettlementAmount.toFixed(2)}`
                     : 'No new unlinked items available';
             return `
-            <label class="settlement-due-store-option ${canCreateSettlement ? 'is-creatable' : 'is-disabled'}" title="${escapeHtml(`${store.name || ''} - ${helperText}`)}">
+            <label class="settlement-due-store-option ${canCreateSettlement ? 'is-creatable' : 'is-disabled'}" title="${escapeHtml(`${escapeHtml(store.name || '')} - ${helperText}`)}">
                 <div class="settlement-card-top">
                     <input type="checkbox" class="settlement-due-store-checkbox" value="${store.id}" ${canCreateSettlement ? '' : 'disabled'}>
                     <span class="settlement-due-store-name" title="${escapeHtml(store.name || '')}"><i class="fas fa-store"></i> ${escapeHtml(store.name || '-')}</span>
@@ -2210,7 +2210,7 @@ function renderPendingFuelTable() {
             <td>${entry.entry_date ? new Date(entry.entry_date).toLocaleDateString() : '-'}</td>
             <td style="text-align:right">Rs  ${fuelCost.toFixed(2)}</td>
             <td style="text-align:right">${distance.toFixed(2)}</td>
-            <td>${entry.notes || '-'}</td>
+            <td>${escapeHtml(entry.notes || '-')}</td>
         `;
         tbody.appendChild(row);
     });
@@ -4466,7 +4466,7 @@ function viewReport(reportId) {
     if (data && data.type === 'rider_cash') {
         extraDetails = '<h3>Rider Cash Movements</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Order #</th><th>Rider</th><th>Date</th><th>Type</th><th>Amount</th></tr></thead><tbody>';
         data.movements.forEach(m => {
-            extraDetails += `<tr><td>${m.order_number || '-'}</td><td>${m.first_name} ${m.last_name}</td><td>${new Date(m.movement_date).toLocaleDateString()}</td><td>${m.movement_type}</td><td>Rs  ${parseFloat(m.amount).toFixed(2)}</td></tr>`;
+            extraDetails += `<tr><td>${m.order_number || '-'}</td><td>${escapeHtml(m.first_name)} ${escapeHtml(m.last_name)}</td><td>${new Date(m.movement_date).toLocaleDateString()}</td><td>${m.movement_type}</td><td>Rs  ${parseFloat(m.amount).toFixed(2)}</td></tr>`;
         });
         extraDetails += '</tbody></table></div>';
         if (data.kpis) {
@@ -4478,8 +4478,8 @@ function viewReport(reportId) {
             extraDetails += `<tr>
                 <td>${o.order_number}</td>
                 <td>${new Date(o.created_at).toLocaleDateString()}</td>
-                <td>${o.rider_name || '-'}</td>
-                <td>${o.customer_name || '-'}</td>
+                <td>${escapeHtml(o.rider_name || '-')}</td>
+                <td>${escapeHtml(o.customer_name || '-')}</td>
                 <td>${o.status || '-'}</td>
                 <td>${o.payment_method || '-'} / ${o.payment_status || '-'}</td>
                 <td>Rs ${parseFloat(o.total_amount || 0).toFixed(2)}</td>
@@ -4494,12 +4494,12 @@ function viewReport(reportId) {
         extraDetails = '<h3>Rider Payments Report</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Order #</th><th>Rider</th><th>Date</th><th>Type</th><th>Amount</th><th>Status</th><th>Description</th></tr></thead><tbody>';
         (data.entries || []).forEach(e => {
             extraDetails += `<tr>
-                <td>${e.first_name || ''} ${e.last_name || ''}</td>
+                <td>${escapeHtml(e.first_name || '')} ${escapeHtml(e.last_name || '')}</td>
                 <td>${new Date(e.movement_date).toLocaleDateString()}</td>
                 <td>${e.movement_type || '-'}</td>
                 <td>Rs ${parseFloat(e.amount || 0).toFixed(2)}</td>
                 <td>${e.status || '-'}</td>
-                <td>${e.description || ''}</td>
+                <td>${escapeHtml(e.description || '')}</td>
             </tr>`;
         });
         extraDetails += '</tbody></table></div>';
@@ -4507,12 +4507,12 @@ function viewReport(reportId) {
         extraDetails = '<h3>Rider Receivings Report</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Order #</th><th>Rider</th><th>Date</th><th>Type</th><th>Amount</th><th>Status</th><th>Description</th></tr></thead><tbody>';
         (data.entries || []).forEach(e => {
             extraDetails += `<tr>
-                <td>${e.first_name || ''} ${e.last_name || ''}</td>
+                <td>${escapeHtml(e.first_name || '')} ${escapeHtml(e.last_name || '')}</td>
                 <td>${new Date(e.movement_date).toLocaleDateString()}</td>
                 <td>${e.movement_type || '-'}</td>
                 <td>Rs ${parseFloat(e.amount || 0).toFixed(2)}</td>
                 <td>${e.status || '-'}</td>
-                <td>${e.description || ''}</td>
+                <td>${escapeHtml(e.description || '')}</td>
             </tr>`;
         });
         extraDetails += '</tbody></table></div>';
@@ -4520,7 +4520,7 @@ function viewReport(reportId) {
         extraDetails = '<h3>Rider Wallet Summary</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Rider</th><th>Current Balance</th><th>Credit Total</th><th>Debit Total</th><th>Net Credit-Debit</th><th>Refunds</th><th>Transfers</th><th>Entries</th></tr></thead><tbody>';
         (data.wallet_summary || []).forEach(r => {
             extraDetails += `<tr>
-                <td>${r.rider_name || '-'}</td>
+                <td>${escapeHtml(r.rider_name || '-')}</td>
                 <td>Rs ${parseFloat(r.current_balance || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.credits || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.debits || 0).toFixed(2)}</td>
@@ -4550,11 +4550,11 @@ function viewReport(reportId) {
             return entries.map(e => `
             <tr>
                 <td>${e.created_at ? new Date(e.created_at).toLocaleString() : '-'}</td>
-                <td>${e.rider_name || `${e.first_name || ''} ${e.last_name || ''}`}</td>
+                <td>${e.rider_name || `${escapeHtml(e.first_name || '')} ${escapeHtml(e.last_name || '')}`}</td>
                 <td>Rs ${parseFloat(e.amount || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(e.balance_after || 0).toFixed(2)}</td>
                 <td>${e.reference_type || '-'} ${e.reference_id || ''}</td>
-                <td>${e.description || '-'}</td>
+                <td>${escapeHtml(e.description || '-')}</td>
             </tr>`).join('');
         };
 
@@ -4568,13 +4568,13 @@ function viewReport(reportId) {
     } else if (data && data.type === 'store_financials') {
         extraDetails = '<h3>Store Financials</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Store</th><th>Sales</th><th>Cost</th><th>Profit</th></tr></thead><tbody>';
         data.stores.forEach(s => {
-            extraDetails += `<tr><td>${s.store_name}</td><td>Rs  ${parseFloat(s.total_sales).toFixed(2)}</td><td>Rs  ${parseFloat(s.total_cost).toFixed(2)}</td><td>Rs  ${parseFloat(s.estimated_profit).toFixed(2)}</td></tr>`;
+            extraDetails += `<tr><td>${escapeHtml(s.store_name)}</td><td>Rs  ${parseFloat(s.total_sales).toFixed(2)}</td><td>Rs  ${parseFloat(s.total_cost).toFixed(2)}</td><td>Rs  ${parseFloat(s.estimated_profit).toFixed(2)}</td></tr>`;
         });
         extraDetails += '</tbody></table></div>';
     } else if (data && data.type === 'general_voucher') {
         extraDetails = '<h3>Journal Vouchers</h3><div class="report-detail-table-wrapper"><table class="report-detail-table"><thead><tr><th>Voucher #</th><th>Date</th><th>Description</th><th>Amount</th></tr></thead><tbody>';
         data.vouchers.forEach(v => {
-            extraDetails += `<tr><td>${v.voucher_number}</td><td>${new Date(v.voucher_date).toLocaleDateString()}</td><td>${v.description || '-'}</td><td>Rs  ${parseFloat(v.total_amount).toFixed(2)}</td></tr>`;
+            extraDetails += `<tr><td>${v.voucher_number}</td><td>${new Date(v.voucher_date).toLocaleDateString()}</td><td>${escapeHtml(v.description || '-')}</td><td>Rs  ${parseFloat(v.total_amount).toFixed(2)}</td></tr>`;
         });
         extraDetails += '</tbody></table></div>';
     } else if (data && (data.type === 'rider_fuel' || data.type === 'rider_petrol')) {
@@ -4603,7 +4603,7 @@ function viewReport(reportId) {
         (data.rows || []).forEach(r => {
             extraDetails += `<tr>
                 <td>${new Date(r.mileage_date).toLocaleDateString()}</td>
-                <td>${r.rider_name || '-'}</td>
+                <td>${escapeHtml(r.rider_name || '-')}</td>
                 <td>${r.trips_logged || 0}</td>
                 <td>${parseFloat(r.total_distance || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.total_fuel_cost || 0).toFixed(2)}</td>
@@ -4635,7 +4635,7 @@ function viewReport(reportId) {
         (data.rows || []).forEach(r => {
             extraDetails += `<tr>
                 <td>${new Date(r.closing_date).toLocaleDateString()}</td>
-                <td>${r.rider_name || '-'}</td>
+                <td>${escapeHtml(r.rider_name || '-')}</td>
                 <td>Rs ${parseFloat(r.cash_collection || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.office_advance || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.office_settlement || 0).toFixed(2)}</td>
@@ -4676,7 +4676,7 @@ function viewReport(reportId) {
                 <td>${e.expense_number || e.transaction_number || '-'}</td>
                 <td>${e.expense_date ? new Date(e.expense_date).toLocaleDateString() : '-'}</td>
                 <td>${e.category || '-'}</td>
-                <td>${e.description || '-'}</td>
+                <td>${escapeHtml(e.description || '-')}</td>
                 <td>${e.payment_method || '-'}</td>
                 <td>${e.vendor_name || e.entity_name || '-'}</td>
                 <td>${e.status || '-'}</td>
@@ -4694,7 +4694,7 @@ function viewReport(reportId) {
                 extraDetails += `<tr>
                     <td>${s.settlement_number}</td>
                     <td>${new Date(s.settlement_date).toLocaleDateString()}</td>
-                    <td>${s.store_name}</td>
+                    <td>${escapeHtml(s.store_name)}</td>
                     <td>Rs  ${parseFloat(s.net_amount).toFixed(2)}</td>
                     <td>Rs  ${parseFloat(s.commissions).toFixed(2)}</td>
                     <td><span class="status-${s.status}">${s.status}</span></td>
@@ -4709,7 +4709,7 @@ function viewReport(reportId) {
                 extraDetails += `<tr>
                     <td>${o.order_number}</td>
                     <td>${new Date(o.order_date).toLocaleDateString()}</td>
-                    <td>${o.rider_name}</td>
+                    <td>${escapeHtml(o.rider_name)}</td>
                     <td>${o.store_names}</td>
                     <td>Rs  ${parseFloat(o.delivery_fee).toFixed(2)}</td>
                 </tr>`;
@@ -4724,7 +4724,7 @@ function viewReport(reportId) {
         if (data.rows) {
             data.rows.forEach(r => {
                 extraDetails += `<tr>
-                    <td>${r.store_name || '-'}</td>
+                    <td>${escapeHtml(r.store_name || '-')}</td>
                     <td>Rs ${parseFloat(r.period_generated_payable || 0).toFixed(2)}</td>
                     <td>Rs ${parseFloat(r.period_paid_settlements || 0).toFixed(2)}</td>
                     <td>${parseFloat(r.period_flow || 0) < 0 ? '<span style="color:#b91c1c;">' : '<span>'}Rs ${parseFloat(r.period_flow || 0).toFixed(2)}</span></td>
@@ -4748,7 +4748,7 @@ function viewReport(reportId) {
                 extraDetails += `<tr>
                     <td>${o.order_number || '-'}</td>
                     <td>${o.order_date ? new Date(o.order_date).toLocaleDateString() : '-'}</td>
-                    <td>${o.store_name || '-'}</td>
+                    <td>${escapeHtml(o.store_name || '-')}</td>
                     <td>Rs ${parseFloat(o.unsettled_amount || 0).toFixed(2)}</td>
                 </tr>`;
             });
@@ -4760,9 +4760,9 @@ function viewReport(reportId) {
             extraDetails += `<tr>
                 <td>${d.order_number || '-'}</td>
                 <td>${d.order_date ? new Date(d.order_date).toLocaleDateString() : '-'}</td>
-                <td>${d.store_name || '-'}</td>
+                <td>${escapeHtml(d.store_name || '-')}</td>
                 <td>${d.payment_term || '-'}</td>
-                <td>${d.rider_name || '-'}</td>
+                <td>${escapeHtml(d.rider_name || '-')}</td>
                 <td>Rs ${parseFloat(d.store_gross || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(d.store_payable || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(d.servenow_share || 0).toFixed(2)}</td>
@@ -4803,7 +4803,7 @@ function viewReport(reportId) {
             riderRows.forEach((r) => {
                 const gap = (parseFloat(r.collected || 0) - parseFloat(r.submitted || 0));
                 extraDetails += `<tr>
-                    <td>${r.rider_name}</td>
+                    <td>${escapeHtml(r.rider_name)}</td>
                     <td>${parseInt(r.orders || 0)}</td>
                     <td>Rs ${parseFloat(r.collected || 0).toFixed(2)}</td>
                     <td>Rs ${parseFloat(r.submitted || 0).toFixed(2)}</td>
@@ -4880,7 +4880,7 @@ function viewReport(reportId) {
         extraDetails += '<h3 style="margin-top:10px;">Store-wise Summary</h3><div class="report-detail-table-wrapper"><table class="report-detail-table" style="font-size:0.84em"><thead><tr><th>Store</th><th>Total Orders</th><th>Gross Sales</th><th>Expected Payable</th><th>Paid</th><th>Unsettled</th><th>Discrepancy</th></tr></thead><tbody>';
         (data.store_rows || []).forEach((r) => {
             extraDetails += `<tr>
-                <td>${r.store_name || '-'}</td>
+                <td>${escapeHtml(r.store_name || '-')}</td>
                 <td>${parseInt(r.total_orders || 0)}</td>
                 <td>Rs ${parseFloat(r.gross_sales || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.expected_payable || 0).toFixed(2)}</td>
@@ -4896,7 +4896,7 @@ function viewReport(reportId) {
             extraDetails += `<tr>
                 <td>${r.order_number || '-'}</td>
                 <td>${r.order_date ? new Date(r.order_date).toLocaleDateString() : '-'}</td>
-                <td>${r.store_name || '-'}</td>
+                <td>${escapeHtml(r.store_name || '-')}</td>
                 <td>Rs ${parseFloat(r.gross_sales || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.expected_payable || 0).toFixed(2)}</td>
                 <td>Rs ${parseFloat(r.paid_settlement_amount || 0).toFixed(2)}</td>
@@ -4912,7 +4912,7 @@ function viewReport(reportId) {
         extraDetails += '<h3 style="margin-top:10px;">Store-wise Summary</h3><div class="report-detail-table-wrapper"><table class="report-detail-table" style="font-size:0.78em"><thead><tr><th>Store</th><th>Term</th><th>Orders</th><th>Delivered</th><th>Cancelled</th><th>Sale Amount</th><th>Store Payable</th><th>ServeNow Profit</th><th>Cancelled/Unpaid Profit</th><th>Paid To Store</th><th>Pending</th><th>Cancelled Sale</th></tr></thead><tbody>';
         (data.store_rows || []).forEach((r) => {
             extraDetails += `<tr>
-                <td>${r.store_name || '-'}</td>
+                <td>${escapeHtml(r.store_name || '-')}</td>
                 <td>${r.payment_term || '-'}</td>
                 <td>${parseInt(r.total_orders || 0)}</td>
                 <td>${parseInt(r.delivered_orders || 0)}</td>
@@ -4933,7 +4933,7 @@ function viewReport(reportId) {
             extraDetails += `<tr>
                 <td>${r.order_number || '-'}</td>
                 <td>${r.order_date ? new Date(r.order_date).toLocaleDateString() : '-'}</td>
-                <td>${r.store_name || '-'}</td>
+                <td>${escapeHtml(r.store_name || '-')}</td>
                 <td>${r.order_status || '-'}</td>
                 <td>${r.payment_status || '-'}</td>
                 <td>Rs ${parseFloat(r.gross_sales || 0).toFixed(2)}</td>
@@ -4963,7 +4963,7 @@ function viewReport(reportId) {
                     <td>${entity}</td>
                     <td style="color:green">${income}</td>
                     <td style="color:red">${expense}</td>
-                    <td>${t.description || ''}</td>
+                    <td>${escapeHtml(t.description || '')}</td>
                 </tr>`;
             });
         }
@@ -5044,7 +5044,7 @@ function viewReport(reportId) {
                     <td>${entity}</td>
                     <td style="color:green">${income > 0 ? 'Rs  ' + income.toFixed(2) : '-'}</td>
                     <td style="color:red">${expense > 0 ? 'Rs  ' + expense.toFixed(2) : '-'}</td>
-                    <td>${t.description || '-'}</td>
+                    <td>${escapeHtml(t.description || '-')}</td>
                 </tr>`;
             });
         }
@@ -5078,7 +5078,7 @@ function viewReport(reportId) {
             data.orders.forEach(o => {
                 let itemsList = '';
                 if (o.items && Array.isArray(o.items)) {
-                    itemsList = o.items.map(i => `${i.name} x${i.qty}`).join('<br>');
+                    itemsList = o.items.map(i => `${escapeHtml(i.name)} x${i.qty}`).join('<br>');
                 }
                 
                 extraDetails += `<tr>
@@ -5219,7 +5219,7 @@ function viewTransaction(id) {
             <strong>Amount:</strong> Rs  ${parseFloat(transaction.amount).toFixed(2)}<br>
             <strong>Method:</strong> ${transaction.payment_method}<br>
             <strong>Status:</strong> <span class="status-${transaction.status}">${transaction.status}</span><br>
-            <strong>Description:</strong> ${transaction.description || '-'}<br>
+            <strong>Description:</strong> ${escapeHtml(transaction.description || '-')}<br>
             <strong>Date:</strong> ${new Date(transaction.created_at).toLocaleString()}
         `;
         showInfo('Transaction Details', details, 10000);
@@ -5733,8 +5733,8 @@ function displayRiderReports(riders) {
 
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td style="text-align: left;"><strong style="color: #0f172a;">${r.first_name} ${r.last_name}</strong></td>
-            <td style="text-align: left; font-size: 0.74rem;">${r.email}<br><small style="color: #64748b;">${r.phone || '-'}</small></td>
+            <td style="text-align: left;"><strong style="color: #0f172a;">${escapeHtml(r.first_name)} ${escapeHtml(r.last_name)}</strong></td>
+            <td style="text-align: left; font-size: 0.74rem;">${escapeHtml(r.email)}<br><small style="color: #64748b;">${escapeHtml(r.phone || '-')}</small></td>
             <td style="text-align: right; font-weight: 600;">${r.total_assigned}</td>
             <td style="text-align: right; font-weight: 600; color: #059669;">${r.total_delivered}</td>
             <td style="text-align: right; color: #dc2626;">${r.total_cancelled}</td>
@@ -6143,8 +6143,8 @@ function displayStoreReports(stores) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td style="text-align: center;"><span style="display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: #e0f2fe; color: #0369a1;">${s.payment_term || 'No Payment Term'}</span></td>
-            <td style="text-align: left;"><strong style="color: #0f172a;">${s.name}</strong></td>
-            <td style="text-align: left; font-size: 0.74rem;">${s.email}<br><small style="color: #64748b;">${s.phone || '-'}</small></td>
+            <td style="text-align: left;"><strong style="color: #0f172a;">${escapeHtml(s.name)}</strong></td>
+            <td style="text-align: left; font-size: 0.74rem;">${escapeHtml(s.email)}<br><small style="color: #64748b;">${escapeHtml(s.phone || '-')}</small></td>
             <td style="text-align: right; font-weight: 600;">${s.total_orders}</td>
             <td style="text-align: center; color: #475569;">${graceStart}</td>
             <td style="text-align: center; color: #475569;">${graceDueText}</td>
@@ -6272,8 +6272,8 @@ function displayStorePaymentTermGroups(stores) {
             row.innerHTML = `
                 <td style="text-align: left;">${groupName}</td>
                 <td style="text-align: center;"><span style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.72rem; font-weight:600; background:#e0f2fe; color:#0369a1;">${store.payment_term || 'No Payment Term'}</span></td>
-                <td style="text-align: left;"><strong style="color:#0f172a;">${store.name}</strong></td>
-                <td style="text-align: left; font-size:0.74rem;">${store.email}<br><small style="color:#64748b;">${store.phone || '-'}</small></td>
+                <td style="text-align: left;"><strong style="color:#0f172a;">${escapeHtml(store.name)}</strong></td>
+                <td style="text-align: left; font-size:0.74rem;">${escapeHtml(store.email)}<br><small style="color:#64748b;">${escapeHtml(store.phone || '-')}</small></td>
                 <td style="text-align: right; font-weight: 700; color: ${payable > 0 ? '#d97706' : '#16a34a'}">Rs ${payable.toFixed(2)}</td>
             `;
             tbody.appendChild(row);
@@ -6388,7 +6388,7 @@ async function populateOrderDetailFilters() {
         if (storeSelect) {
             storeSelect.innerHTML = '<option value="">All Stores</option>';
             stores.forEach(s => {
-                storeSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+                storeSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.name)}</option>`;
             });
         }
 
@@ -6488,7 +6488,7 @@ function displayOrderDetailReport(data) {
                 <td>${new Date(order.created_at).toLocaleDateString()}</td>
                 <td>${order.order_number}</td>
                 <td>${order.store_names}</td>
-                <td>${order.rider_name || '-'}</td>
+                <td>${escapeHtml(order.rider_name || '-')}</td>
                 <td class="text-right">Rs ${parseFloat(order.item_sales_gross).toFixed(2)}</td>
                 <td class="text-right">Rs ${parseFloat(order.delivery_fee).toFixed(2)}</td>
                 <td class="text-right"><strong>Rs ${parseFloat(order.total_in).toFixed(2)}</strong></td>
@@ -7484,7 +7484,7 @@ async function loadCreditStoresHistory() {
         html += `
             <tr style="border-bottom: 1px solid #e2e8f0; transition: background 0.15s ease;">
                 <td style="text-align: center; color: #64748b; font-size: 0.72rem;">${idx + 1}</td>
-                <td style="font-weight: 700; color: #1e293b; cursor: pointer; text-align: left;" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')">
+                <td style="font-weight: 700; color: #1e293b; cursor: pointer; text-align: left;" onclick="openCreditStoreOrderHistory(${s.store_id}, ${escapeCreditHtml(JSON.stringify(String(s.store_name ?? '')))})">
                     <div style="display: flex; align-items: center; gap: 6px;">
                         <i class="fas fa-store" style="color: #6366f1; font-size: 0.8rem;"></i>
                         <span style="color: #0f172a;">${escapeCreditHtml(s.store_name)}</span>
@@ -7524,7 +7524,7 @@ async function loadCreditStoresHistory() {
                     ${lastSettlementText}
                 </td>
                 <td style="text-align: center;">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="openCreditStoreOrderHistory(${s.store_id}, '${escapeCreditHtml(s.store_name)}')" style="font-size: 0.72rem; padding: 0.3rem 0.6rem; border-radius: 6px; white-space: nowrap; font-weight: 600;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="openCreditStoreOrderHistory(${s.store_id}, ${escapeCreditHtml(JSON.stringify(String(s.store_name ?? '')))})" style="font-size: 0.72rem; padding: 0.3rem 0.6rem; border-radius: 6px; white-space: nowrap; font-weight: 600;">
                         <i class="fas fa-receipt"></i> Order History
                     </button>
                 </td>

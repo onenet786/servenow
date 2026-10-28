@@ -57,6 +57,16 @@ const recordWalletTransaction = async (db, walletId, type, amount, description, 
 
 // ===== WALLET BALANCE & OPERATIONS =====
 
+// Customer-only wallet features (card top-up, saved cards, auto-recharge, P2P transfers).
+// Riders and guests are excluded: rider ids live in a separate table and would
+// otherwise collide with customer ids in users/wallets lookups.
+const requireCustomerWallet = (req, res, next) => {
+    if (req.user.user_type === 'rider' || req.user.user_type === 'guest' || req.user.is_guest) {
+        return sendError(res, 'This wallet feature is only available to customer accounts', 403);
+    }
+    next();
+};
+
 // Get wallet balance
 router.get('/balance', authenticateToken, async (req, res) => {
     try {
@@ -158,7 +168,7 @@ router.get('/balance', authenticateToken, async (req, res) => {
 });
 
 // Top up wallet
-router.post('/topup', authenticateToken, [
+router.post('/topup', authenticateToken, requireCustomerWallet, [
     body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0'),
     body('paymentMethod').isIn(['card', 'paypal']).withMessage('Invalid payment method')
 ], async (req, res) => {
@@ -331,7 +341,7 @@ router.get('/transactions', authenticateToken, async (req, res) => {
 // ===== AUTO-RECHARGE =====
 
 // Configure auto-recharge
-router.post('/auto-recharge', authenticateToken, [
+router.post('/auto-recharge', authenticateToken, requireCustomerWallet, [
     body('enabled').isBoolean().withMessage('Enabled must be boolean'),
     body('amount').optional().isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0'),
     body('threshold').optional().isFloat({ min: 0 }).withMessage('Threshold must be valid')
@@ -375,7 +385,7 @@ router.post('/auto-recharge', authenticateToken, [
 });
 
 // Get auto-recharge settings
-router.get('/auto-recharge', authenticateToken, async (req, res) => {
+router.get('/auto-recharge', authenticateToken, requireCustomerWallet, async (req, res) => {
     try {
         const userId = req.user.id;
         const wallet = await getOrCreateWallet(req.db, userId, req.user.user_type);
@@ -395,7 +405,7 @@ router.get('/auto-recharge', authenticateToken, async (req, res) => {
 // ===== SAVED PAYMENT METHODS =====
 
 // Get saved payment methods
-router.get('/payment-methods', authenticateToken, async (req, res) => {
+router.get('/payment-methods', authenticateToken, requireCustomerWallet, async (req, res) => {
     try {
         const userId = req.user.id;
 
@@ -414,7 +424,7 @@ router.get('/payment-methods', authenticateToken, async (req, res) => {
 });
 
 // Set primary payment method
-router.put('/payment-methods/:id/primary', authenticateToken, async (req, res) => {
+router.put('/payment-methods/:id/primary', authenticateToken, requireCustomerWallet, async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
@@ -443,7 +453,7 @@ router.put('/payment-methods/:id/primary', authenticateToken, async (req, res) =
 });
 
 // Delete payment method
-router.delete('/payment-methods/:id', authenticateToken, async (req, res) => {
+router.delete('/payment-methods/:id', authenticateToken, requireCustomerWallet, async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
@@ -469,7 +479,7 @@ router.delete('/payment-methods/:id', authenticateToken, async (req, res) => {
 // ===== P2P TRANSFERS =====
 
 // Send money to another user
-router.post('/transfers/send', authenticateToken, [
+router.post('/transfers/send', authenticateToken, requireCustomerWallet, [
     body('recipientId').isInt({ min: 1 }).withMessage('Invalid recipient ID'),
     body('amount').isFloat({ min: 0.01 }).withMessage('Amount must be greater than 0'),
     body('description').optional().trim().isLength({ max: 255 }).withMessage('Description too long')
@@ -554,7 +564,7 @@ router.post('/transfers/send', authenticateToken, [
 });
 
 // Get sent transfers
-router.get('/transfers/sent', authenticateToken, async (req, res) => {
+router.get('/transfers/sent', authenticateToken, requireCustomerWallet, async (req, res) => {
     try {
         console.log('[wallets] GET /transfers/sent - user:', req.user);
         const userId = req.user.id;
@@ -606,7 +616,7 @@ router.get('/transfers/sent', authenticateToken, async (req, res) => {
 });
 
 // Get received transfers
-router.get('/transfers/received', authenticateToken, async (req, res) => {
+router.get('/transfers/received', authenticateToken, requireCustomerWallet, async (req, res) => {
     try {
         console.log('[wallets] GET /transfers/received - user:', req.user);
         const userId = req.user.id;
@@ -675,7 +685,7 @@ router.get('/transfers/received', authenticateToken, async (req, res) => {
 });
 
 // Accept transfer
-router.post('/transfers/:id/accept', authenticateToken, async (req, res) => {
+router.post('/transfers/:id/accept', authenticateToken, requireCustomerWallet, async (req, res) => {
     let conn;
     try {
         const transferId = req.params.id;
@@ -755,7 +765,7 @@ router.post('/transfers/:id/accept', authenticateToken, async (req, res) => {
 });
 
 // Reject transfer
-router.post('/transfers/:id/reject', authenticateToken, [
+router.post('/transfers/:id/reject', authenticateToken, requireCustomerWallet, [
     body('reason').optional().trim().isLength({ max: 255 }).withMessage('Reason too long')
 ], async (req, res) => {
     let conn;
@@ -847,7 +857,7 @@ router.post('/transfers/:id/reject', authenticateToken, [
 });
 
 // Cancel transfer (sender only, before acceptance)
-router.post('/transfers/:id/cancel', authenticateToken, async (req, res) => {
+router.post('/transfers/:id/cancel', authenticateToken, requireCustomerWallet, async (req, res) => {
     let conn;
     try {
         const transferId = req.params.id;
