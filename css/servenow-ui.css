@@ -4931,9 +4931,51 @@ body.sn-admin .sp-detail dd { margin: 0; font-variant-numeric: tabular-nums; }
 body.sn-admin .sp-onaccount-card { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.9rem; border: 1px dashed var(--sn-border-strong); border-radius: var(--sn-radius-md); background: var(--sn-surface-2); cursor: pointer; }
 body.sn-admin .sp-onaccount-card p { margin: 0.15rem 0 0; color: var(--sn-muted); font-size: 0.8125rem; }
 
+/* Collapsible data-issue panels (native <details>) */
+body.sn-admin details.sp-disclosure { border: 1px solid var(--sn-border); border-radius: var(--sn-radius-md); background: #ffffff; margin-top: 0.6rem; }
+body.sn-admin details.sp-disclosure > summary.sp-disclosure-head {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+  border-radius: var(--sn-radius-md);
+  user-select: none;
+}
+body.sn-admin details.sp-disclosure > summary.sp-disclosure-head::-webkit-details-marker { display: none; }
+body.sn-admin details.sp-disclosure > summary.sp-disclosure-head:hover { background: var(--sn-surface-2); }
+body.sn-admin details.sp-disclosure > summary.sp-disclosure-head:focus-visible { outline: 2px solid var(--sn-green-600); outline-offset: 2px; }
+body.sn-admin details.sp-disclosure[open] > summary.sp-disclosure-head { border-bottom: 1px solid var(--sn-border); border-radius: var(--sn-radius-md) var(--sn-radius-md) 0 0; }
+body.sn-admin .sp-disclosure-title { font-weight: 700; font-size: 0.95rem; color: var(--sn-text); flex: 1 1 260px; min-width: 0; }
+body.sn-admin .sp-disclosure-meta { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+body.sn-admin .sp-disclosure-total { font-size: 0.8125rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--sn-text-2); white-space: nowrap; }
+body.sn-admin .sp-chevron { color: var(--sn-muted); font-size: 0.8rem; transition: transform 0.18s ease; margin-left: auto; }
+body.sn-admin details.sp-disclosure[open] > summary .sp-chevron { transform: rotate(180deg); }
+body.sn-admin .sp-disclosure-body { padding: 0.6rem 0.9rem 0.9rem; }
+body.sn-admin .sp-disclosure-body > p.sp-hint { margin: 0 0 0.6rem; color: var(--sn-muted); font-size: 0.8125rem; }
+body.sn-admin .sp-issue-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin-bottom: 0.6rem; }
+body.sn-admin .sp-issue-tools label { font-size: 0.75rem; font-weight: 600; color: var(--sn-text-2); }
+body.sn-admin .sp-issue-tools select { width: auto; min-width: 200px; max-width: 100%; height: 36px; min-height: 36px; padding: 0.3rem 2rem 0.3rem 0.6rem; font-size: 0.8125rem; }
+body.sn-admin .sp-issue-shown { font-size: 0.78rem; color: var(--sn-muted); font-variant-numeric: tabular-nums; }
+body.sn-admin .table-container.sp-issue-scroll { max-height: 360px; overflow: auto; margin: 0; padding: 0; border-radius: var(--sn-radius-sm); box-shadow: none; }
+body.sn-admin .sp-issue-scroll > table.sp-issue-table { margin: 0; }
+body.sn-admin .sp-issue-scroll:focus-visible { outline: 2px solid var(--sn-green-600); outline-offset: 2px; }
+body.sn-admin table.sp-issue-table td,
+body.sn-admin table.sp-issue-table th { padding: 0.4rem 0.6rem; height: auto; }
+body.sn-admin .sp-issue-list { margin: 0; padding-left: 1.2rem; max-height: 360px; overflow: auto; font-size: 0.8125rem; }
+body.sn-admin .sp-issue-list li + li { margin-top: 0.35rem; }
+@media (prefers-reduced-motion: reduce) {
+  body.sn-admin .sp-chevron { transition: none; }
+}
+
 @media (max-width: 640px) {
   body.sn-admin .sp-filters .filter-group { min-width: 0; flex: 1 1 140px; }
   body.sn-admin .sp-kpi .sp-kpi-value { font-size: 1.1rem; }
+  body.sn-admin .sp-disclosure-title { flex-basis: 100%; }
+  body.sn-admin .sp-issue-tools select { min-width: 0; flex: 1 1 100%; }
+  body.sn-admin .sp-issue-shown { flex-basis: 100%; }
 }
 
 @media print {
@@ -4947,4 +4989,24 @@ body.sn-admin .sp-onaccount-card p { margin: 0.15rem 0 0; color: var(--sn-muted)
   body.sn-admin.sp-printing #store-payments { display: block !important; }
   body.sn-admin.sp-printing .table-container { overflow: visible !important; box-shadow: none !important; }
   body.sn-admin.sp-printing .sp-table { font-size: 9px; }
+  /* The admin shell is a fixed 100vh app with inner scrolling; let the report flow onto all pages */
+  html:has(body.sn-admin.sp-printing),
+  body.sn-admin.sp-printing,
+  body.sn-admin.sp-printing .app-layout,
+  body.sn-admin.sp-printing .app-content,
+  body.sn-admin.sp-printing #store-payments { height: auto !important; max-height: none !important; overflow: visible !important; }
+  body.sn-admin.sp-printing .app-content { display: block !important; padding: 0 !important; }
+  body.sn-admin.sp-printing #store-payments .table-container { max-height: none !important; margin-top: 0.5rem !important; }
+  /* Data-issue panels print expanded (JS opens them on beforeprint) */
+  body.sn-admin #store-payments .sp-issue-scroll,
+  body.sn-admin #store-payments .sp-issue-list { max-height: none !important; overflow: visible !important; }
+  body.sn-admin #store-payments .sp-chevron,
+  body.sn-admin #store-payments .sp-issue-tools select,
+  body.sn-admin #store-payments .sp-issue-tools label { display: none !important; }
+  body.sn-admin #store-payments details.sp-disclosure { break-inside: auto; }
+  body.sn-admin #store-payments details.sp-disclosure > summary { break-after: avoid; }
+}
+@media print {
+  /* Browsers that support it also show closed panels' content in print */
+  body.sn-admin #store-payments details.sp-disclosure::details-content { content-visibility: visible; display: block; }
 }

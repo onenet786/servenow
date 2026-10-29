@@ -212,37 +212,135 @@
         document.getElementById('spNotes').innerHTML = `<div class="sp-note">${parts.join('<br>')}</div>`;
     }
 
-    function flagSection(title, hint, headers, rows) {
-        const count = rows.length;
-        const table = count
-            ? `<div class="table-container"><table class="data-table sp-table"><thead><tr>${headers.map((h) => `<th${h.num ? ' class="num"' : ''}>${esc(h.label)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`
-            : '<p class="sp-hint">Nothing found.</p>';
-        return `<div class="sp-section"><h3>${esc(title)} <span class="sp-flag-count${count ? '' : ' is-zero'}">${esc(count)}</span></h3><p class="sp-hint">${esc(hint)}</p>${table}</div>`;
+    // ------------------------------------------------- collapsible data issues
+    // Each data-issue list is a native <details> panel, collapsed by default.
+    // Open/closed state is remembered per panel in localStorage.
+
+    const PANEL_STORE_KEY = 'spIssuePanels';
+
+    function readPanelState() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(PANEL_STORE_KEY) || '{}');
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    function savePanelState(key, open) {
+        try {
+            const current = readPanelState();
+            current[key] = !!open;
+            localStorage.setItem(PANEL_STORE_KEY, JSON.stringify(current));
+        } catch (_) { /* storage unavailable: state is simply not remembered */ }
+    }
+
+    const panelOpenAttr = (key) => (readPanelState()[key] === true ? ' open' : '');
+
+    function panelSummary(title, count, total, totalTitle) {
+        return '<summary class="sp-disclosure-head">' +
+            `<span class="sp-disclosure-title">${esc(title)}</span>` +
+            '<span class="sp-disclosure-meta">' +
+            `<span class="sp-flag-count${count ? '' : ' is-zero'}"><span class="sn-visually-hidden">Count: </span>${esc(count)}</span>` +
+            (total === null ? '' : `<span class="sp-disclosure-total"${totalTitle ? ` title="${esc(totalTitle)}"` : ''}><span class="sn-visually-hidden">${esc(totalTitle || 'Total')}: </span>${esc(money(total))}</span>`) +
+            '</span>' +
+            '<i class="fas fa-chevron-down sp-chevron" aria-hidden="true"></i>' +
+            '</summary>';
+    }
+
+    // items: [{ storeId, storeName, amount, html }] where html is one <tr>.
+    function flagSection(key, title, hint, headers, items, totalTitle) {
+        const count = items.length;
+        const total = items.reduce((sum, it) => sum + num(it.amount), 0);
+        const panelId = `spIssue-${key}`;
+        let body;
+        if (count) {
+            const stores = new Map();
+            for (const it of items) {
+                const id = String(it.storeId === null || it.storeId === undefined ? '' : it.storeId);
+                if (!stores.has(id)) stores.set(id, { name: it.storeName || `Store ${id}`, n: 0 });
+                stores.get(id).n += 1;
+            }
+            const options = [...stores.entries()]
+                .sort((a, b) => String(a[1].name).localeCompare(String(b[1].name)))
+                .map(([id, s]) => `<option value="${esc(id)}">${esc(s.name)} (${esc(s.n)})</option>`)
+                .join('');
+            const rows = items
+                .map((it) => it.html.replace(/^<tr/, `<tr data-sp-row-store="${esc(it.storeId)}" data-sp-row-amount="${esc(num(it.amount))}"`))
+                .join('');
+            body = `
+                <div class="sp-issue-tools">
+                    <label for="${panelId}-store">Store</label>
+                    <select id="${panelId}-store" class="form-control" data-sp-issue-filter="${esc(key)}">
+                        <option value="all">All stores (${esc(stores.size)})</option>${options}
+                    </select>
+                    <span class="sp-issue-shown" data-sp-issue-shown="${esc(key)}" aria-live="polite">Showing ${esc(count)} of ${esc(count)} &middot; ${esc(money(total))}</span>
+                </div>
+                <div class="table-container sp-issue-scroll" tabindex="0" role="region" aria-label="${esc(title)}">
+                    <table class="data-table sp-table sp-issue-table"><thead><tr>${headers.map((h) => `<th scope="col"${h.num ? ' class="num"' : ''}>${esc(h.label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+                </div>`;
+        } else {
+            body = '<p class="sp-hint">Nothing found.</p>';
+        }
+        return `<details class="sp-section sp-disclosure" id="${panelId}" data-sp-panel="${esc(key)}"${panelOpenAttr(key)}>` +
+            panelSummary(title, count, count ? total : null, totalTitle) +
+            `<div class="sp-disclosure-body"><p class="sp-hint">${esc(hint)}</p>${body}</div>` +
+            '</details>';
+    }
+
+    function applyIssueFilter(select) {
+        const panel = select.closest('.sp-disclosure');
+        if (!panel) return;
+        const value = select.value;
+        let shown = 0;
+        let total = 0;
+        const rows = panel.querySelectorAll('tbody tr[data-sp-row-store]');
+        rows.forEach((tr) => {
+            const match = value === 'all' || tr.dataset.spRowStore === value;
+            tr.hidden = !match;
+            if (match) {
+                shown += 1;
+                total += num(tr.dataset.spRowAmount);
+            }
+        });
+        const label = panel.querySelector('[data-sp-issue-shown]');
+        if (label) {
+            const option = select.options[select.selectedIndex];
+            const storeName = value === 'all' || !option ? '' : ` for ${option.text.replace(/\s\(\d+\)$/, '')}`;
+            label.textContent = `Showing ${shown} of ${rows.length}${storeName} · ${money(total)}`;
+        }
+        const scroller = panel.querySelector('.sp-issue-scroll');
+        if (scroller) scroller.scrollTop = 0;
     }
 
     const storeLink = (r) => `<a href="#" data-sp-store="${esc(r.store_id)}">${esc(r.store_name)}</a>`;
 
     function renderFlags(data) {
         const fl = data.flags || {};
+        const item = (r, amount, html) => ({ storeId: r.store_id, storeName: r.store_name, amount, html });
         const html = [
             '<h2 style="margin-top:1.5rem">Data issues to review</h2>',
-            '<p class="text-muted">Read-only. Nothing here is changed automatically; corrections go through a journal voucher or the documented link script.</p>',
-            flagSection('Stores with credit (possible double payments)',
+            '<p class="text-muted">Read-only. Nothing here is changed automatically; corrections go through a journal voucher or the documented link script. Open a list to review it.</p>',
+            flagSection('credit', 'Stores with credit (possible double payments)',
                 'These stores were paid more than they earned from delivered orders. Their unsettled orders are covered by this credit before anything new is paid.',
                 [{ label: 'Store' }, { label: 'Payment term' }, { label: 'Store credit', num: true }],
-                (fl.stores_with_credit || []).map((r) => `<tr><td>${storeLink(r)}</td><td>${termLabel(r.payment_term)}</td><td class="num sp-amount-credit">${esc(money(r.store_credit))}</td></tr>`)),
-            flagSection('Lump-sum payments not linked to orders',
+                (fl.stores_with_credit || []).map((r) => item(r, r.store_credit, `<tr><td>${storeLink(r)}</td><td>${termLabel(r.payment_term)}</td><td class="num sp-amount-credit">${esc(money(r.store_credit))}</td></tr>`)),
+                'Total store credit'),
+            flagSection('unlinked', 'Lump-sum payments not linked to orders',
                 'Paid settlements with no order lines. "Payment on account" entries were recorded on purpose; older ones are lump sums whose orders kept showing as due.',
                 [{ label: 'Store' }, { label: 'Settlement' }, { label: 'Paid on' }, { label: 'Method' }, { label: 'Amount', num: true }, { label: 'Type' }],
-                (fl.unlinked_payments || []).map((r) => `<tr><td>${storeLink(r)}</td><td>${esc(r.settlement_number)}</td><td>${dateText(r.date)}</td><td>${esc(r.payment_method)}</td><td class="num">${esc(money(r.amount))}</td><td>${r.on_account ? '<span class="status-on-account">Payment on account</span>' : '<span class="status-due">Unlinked lump sum</span>'}</td></tr>`)),
-            flagSection('Order lines paid by a lump sum and then settled again',
+                (fl.unlinked_payments || []).map((r) => item(r, r.amount, `<tr><td>${storeLink(r)}</td><td>${esc(r.settlement_number)}</td><td>${dateText(r.date)}</td><td>${esc(r.payment_method)}</td><td class="num">${esc(money(r.amount))}</td><td>${r.on_account ? '<span class="status-on-account">Payment on account</span>' : '<span class="status-due">Unlinked lump sum</span>'}</td></tr>`)),
+                'Total paid'),
+            flagSection('double', 'Order lines paid by a lump sum and then settled again',
                 'The lump sum paid the oldest open order lines first; a later settlement linked the same lines and paid them again.',
                 [{ label: 'Store' }, { label: 'Later settlement' }, { label: 'Status' }, { label: 'Lines delivered' }, { label: 'Paid earlier by' }, { label: 'Paid twice', num: true }],
-                (fl.double_payments || []).map((r) => `<tr><td>${storeLink(r)}</td><td>${esc(r.settlement_number)}<span class="sp-sub">${dateText(r.settlement_date)}</span></td><td><span class="status-${esc(r.settlement_status)}">${esc(r.settlement_status)}</span></td><td>${dateText(r.items_from)} to ${dateText(r.items_to)}</td><td>${(r.lump_payments || []).map((l) => `${esc(l.ref)} (${esc(money(l.amount))})`).join('<br>')}</td><td class="num"><span class="status-double-paid">${esc(money(r.double_paid))}</span></td></tr>`)),
-            flagSection('Settlements whose net does not add up',
+                (fl.double_payments || []).map((r) => item(r, r.double_paid, `<tr><td>${storeLink(r)}</td><td>${esc(r.settlement_number)}<span class="sp-sub">${dateText(r.settlement_date)}</span></td><td><span class="status-${esc(r.settlement_status)}">${esc(r.settlement_status)}</span></td><td>${dateText(r.items_from)} to ${dateText(r.items_to)}</td><td>${(r.lump_payments || []).map((l) => `${esc(l.ref)} (${esc(money(l.amount))})`).join('<br>')}</td><td class="num"><span class="status-double-paid">${esc(money(r.double_paid))}</span></td></tr>`)),
+                'Total paid twice'),
+            flagSection('mismatch', 'Settlements whose net does not add up',
                 'Net amount differs from total orders - commissions - deductions - store credit applied.',
                 [{ label: 'Store' }, { label: 'Settlement' }, { label: 'Status' }, { label: 'Total', num: true }, { label: 'Commissions', num: true }, { label: 'Deductions', num: true }, { label: 'Credit applied', num: true }, { label: 'Expected net', num: true }, { label: 'Net paid', num: true }, { label: 'Difference', num: true }],
-                (fl.net_mismatches || []).map((r) => `<tr><td>${storeLink(r)}</td><td>${esc(r.settlement_number)}<span class="sp-sub">${dateText(r.date)}</span></td><td><span class="status-${esc(r.status)}">${esc(r.status)}</span></td><td class="num">${esc(money(r.total_orders_amount))}</td><td class="num">${esc(money(r.commissions))}</td><td class="num">${esc(money(r.deductions))}</td><td class="num">${esc(money(r.credit_applied))}</td><td class="num">${esc(money(r.expected_net))}</td><td class="num">${esc(money(r.net_amount))}</td><td class="num ${num(r.difference) > 0 ? 'sp-amount-credit' : 'sp-amount-owed'}">${esc(money(r.difference))}</td></tr>`))
+                (fl.net_mismatches || []).map((r) => item(r, Math.abs(num(r.difference)), `<tr><td>${storeLink(r)}</td><td>${esc(r.settlement_number)}<span class="sp-sub">${dateText(r.date)}</span></td><td><span class="status-${esc(r.status)}">${esc(r.status)}</span></td><td class="num">${esc(money(r.total_orders_amount))}</td><td class="num">${esc(money(r.commissions))}</td><td class="num">${esc(money(r.deductions))}</td><td class="num">${esc(money(r.credit_applied))}</td><td class="num">${esc(money(r.expected_net))}</td><td class="num">${esc(money(r.net_amount))}</td><td class="num ${num(r.difference) > 0 ? 'sp-amount-credit' : 'sp-amount-owed'}">${esc(money(r.difference))}</td></tr>`)),
+                'Total difference (absolute)')
         ].join('');
         document.getElementById('spFlags').innerHTML = html;
     }
@@ -322,6 +420,7 @@
         const doubles = (fl.double || []).map((r) => `<li><strong>${esc(r.settlement_number)}</strong> (${dateText(r.settlement_date)}) linked order lines delivered ${dateText(r.items_from)} to ${dateText(r.items_to)} that were already paid by ${(r.lump_payments || []).map((l) => `${esc(l.ref)} ${esc(money(l.amount))}`).join(', ')}: <span class="status-double-paid">${esc(money(r.double_paid))} paid twice</span></li>`).join('');
         const unlinked = (fl.unlinked || []).map((r) => `<li>${esc(r.settlement_number)} on ${dateText(r.date)}: ${esc(money(r.amount))} ${r.on_account ? '(payment on account)' : 'not linked to any order'}</li>`).join('');
         const mismatch = (fl.mismatch || []).map((r) => `<li>${esc(r.settlement_number)}: net ${esc(money(r.net_amount))}, expected ${esc(money(r.expected_net))}</li>`).join('');
+        const issueCount = (fl.double || []).length + (fl.unlinked || []).length + (fl.mismatch || []).length;
 
         document.getElementById('spStatementView').innerHTML = `
             <div class="sp-statement-head">
@@ -348,7 +447,7 @@
                 ${kpi('Unsettled now', money(p.unsettled_amount), `${money(p.covered_by_credit)} of open orders covered by credit`, num(p.unsettled_amount) > 0 ? 'is-owed' : 'is-ok')}
             </div>
             <div class="sp-note">All time: payable ${esc(money(p.total_payable))} &middot; paid ${esc(money(p.total_paid))} &middot; balance <strong class="${balanceClass(p.balance)}">${esc(money(p.balance))}</strong>. Credit available before open orders ${esc(money(p.credit_before_open_orders))}; open orders ${esc(money(p.open_payable))}, covered ${esc(money(p.covered_by_credit))}, credit left ${esc(money(p.credit_left))}.</div>
-            ${doubles || unlinked || mismatch ? `<div class="sp-section"><h3>Data issues for this store</h3><ul>${doubles}${unlinked}${mismatch}</ul></div>` : ''}
+            ${issueCount ? `<details class="sp-section sp-disclosure" id="spIssue-statement" data-sp-panel="statement"${panelOpenAttr('statement')}>${panelSummary('Data issues for this store', issueCount, null)}<div class="sp-disclosure-body"><ul class="sp-issue-list">${doubles}${unlinked}${mismatch}</ul></div></details>` : ''}
             <div id="spSettlementDetail"></div>
             <div class="sp-section">
                 <h3>Statement</h3>
@@ -491,6 +590,46 @@
         else if (target.dataset.spCloseDetail) {
             const box = document.getElementById('spSettlementDetail');
             if (box) box.innerHTML = '';
+        }
+    });
+
+    // Remember open/closed per panel. The click on <summary> (mouse, Enter or
+    // Space) is the user's intent; programmatic opening for print is not saved.
+    document.addEventListener('click', (event) => {
+        const summary = event.target.closest('#store-payments details.sp-disclosure > summary');
+        if (!summary) return;
+        const panel = summary.parentElement;
+        if (panel.dataset.spPanel) savePanelState(panel.dataset.spPanel, !panel.open);
+    });
+
+    document.addEventListener('change', (event) => {
+        const select = event.target.closest('#store-payments select[data-sp-issue-filter]');
+        if (select) applyIssueFilter(select);
+    });
+
+    // Printing shows every panel expanded, then restores what was open before.
+    window.addEventListener('beforeprint', () => {
+        // Browser print (Ctrl+P) on this tab gets the same print layout as the Print button.
+        const tab = document.getElementById('store-payments');
+        if (tab && tab.classList.contains('active') && !document.body.classList.contains('sp-printing')) {
+            document.body.classList.add('sp-printing');
+            document.body.dataset.spPrintAuto = '1';
+        }
+        document.querySelectorAll('#store-payments details.sp-disclosure').forEach((panel) => {
+            if (!panel.open) {
+                panel.dataset.spPrintOpened = '1';
+                panel.open = true;
+            }
+        });
+    });
+    window.addEventListener('afterprint', () => {
+        document.querySelectorAll('#store-payments details.sp-disclosure[data-sp-print-opened]').forEach((panel) => {
+            delete panel.dataset.spPrintOpened;
+            panel.open = false;
+        });
+        if (document.body.dataset.spPrintAuto) {
+            delete document.body.dataset.spPrintAuto;
+            document.body.classList.remove('sp-printing');
         }
     });
 
