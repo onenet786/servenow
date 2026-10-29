@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/admin/admin_ui.dart';
 import '../widgets/notification_bell_widget.dart';
+import '../widgets/ui/ui.dart';
 
 class StoreBalancesScreen extends StatefulWidget {
   const StoreBalancesScreen({super.key});
@@ -51,8 +53,9 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
       final stores = await ApiService.getStoresForAdmin(token);
       final storeSalesResponse = await ApiService.getStoreSalesReport(token);
       final storeSales = (storeSalesResponse['store_sales'] as List?) ?? [];
-      final storeOrdersResponse =
-          await ApiService.getStoreOrderBreakdown(token);
+      final storeOrdersResponse = await ApiService.getStoreOrderBreakdown(
+        token,
+      );
       final storeOrders = (storeOrdersResponse['store_orders'] as List?) ?? [];
       Map<String, dynamic> walletResponse = {};
       try {
@@ -131,16 +134,20 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
 
         if (status == 'delivered') {
           summary['served_orders'] = (summary['served_orders'] as int) + 1;
-          summary['served_sales'] = (summary['served_sales'] as double) + amount;
+          summary['served_sales'] =
+              (summary['served_sales'] as double) + amount;
         } else if (status == 'cancelled') {
-          summary['cancelled_orders'] = (summary['cancelled_orders'] as int) + 1;
+          summary['cancelled_orders'] =
+              (summary['cancelled_orders'] as int) + 1;
         } else {
           summary['pending_orders'] = (summary['pending_orders'] as int) + 1;
-          summary['pending_sales'] = (summary['pending_sales'] as double) + amount;
+          summary['pending_sales'] =
+              (summary['pending_sales'] as double) + amount;
         }
 
         final parsedDate =
-            DateTime.tryParse(o['created_at']?.toString() ?? '') ?? DateTime(1970);
+            DateTime.tryParse(o['created_at']?.toString() ?? '') ??
+            DateTime(1970);
         (summary['orders'] as List<Map<String, dynamic>>).add({
           'id': o['order_id'],
           'order_number': o['order_number'],
@@ -191,30 +198,28 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
         });
       }
 
-      final filters = storeNameLookup.entries
-          .map((e) => {
-                'store_id': e.key,
-                'store_name': e.value,
-              })
-          .toList()
-        ..sort((a, b) =>
-            a['store_name'].toString().compareTo(b['store_name'].toString()));
+      final filters =
+          storeNameLookup.entries
+              .map((e) => {'store_id': e.key, 'store_name': e.value})
+              .toList()
+            ..sort(
+              (a, b) => a['store_name'].toString().compareTo(
+                b['store_name'].toString(),
+              ),
+            );
 
       setState(() {
         _storeBalanceRows = rows;
         _storeFilterOptions = filters;
-        if (!_storeFilterOptions
-            .any((o) => o['store_id'] == _selectedStoreFilterId)) {
+        if (!_storeFilterOptions.any(
+          (o) => o['store_id'] == _selectedStoreFilterId,
+        )) {
           _selectedStoreFilterId = null;
         }
         _isLoading = false;
       });
     } catch (e, stack) {
-      _logger.e(
-        'Failed loading store balances',
-        error: e,
-        stackTrace: stack,
-      );
+      _logger.e('Failed loading store balances', error: e, stackTrace: stack);
       if (mounted) {
         setState(() {
           _error = 'Could not load store balances';
@@ -276,20 +281,20 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
     return TextField(
       controller: _storeSearchController,
       onChanged: (value) => setState(() => _storeSearchQuery = value),
+      textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        hintText: 'Search specific store (name or ID)',
+        hintText: 'Search store by name or ID',
         prefixIcon: const Icon(Icons.search),
         suffixIcon: _storeSearchQuery.trim().isEmpty
             ? null
             : IconButton(
+                tooltip: 'Clear search',
                 icon: const Icon(Icons.clear),
                 onPressed: () {
                   _storeSearchController.clear();
                   setState(() => _storeSearchQuery = '');
                 },
               ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
     );
   }
@@ -305,17 +310,23 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
   }
 
   Widget _buildFilterDropdown() {
-    return DropdownButton<int?>(
-      value: _selectedStoreFilterId,
+    return DropdownButtonFormField<int?>(
+      initialValue: _selectedStoreFilterId,
       isExpanded: true,
       icon: const Icon(Icons.keyboard_arrow_down),
-      underline: Container(height: 1, color: Colors.grey.shade300),
+      decoration: const InputDecoration(
+        labelText: 'Store',
+        prefixIcon: Icon(Icons.storefront_outlined),
+      ),
       items: [
         const DropdownMenuItem(value: null, child: Text('All stores')),
         ..._storeFilterOptions.map(
           (opt) => DropdownMenuItem(
             value: opt['store_id'] as int?,
-            child: Text(opt['store_name']?.toString() ?? 'Store'),
+            child: Text(
+              opt['store_name']?.toString() ?? 'Store',
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
       ],
@@ -326,16 +337,19 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
   }
 
   Widget _buildBalanceFilterDropdown() {
-    return DropdownButton<String>(
-      value: _selectedBalanceFilter,
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedBalanceFilter,
       isExpanded: true,
       icon: const Icon(Icons.keyboard_arrow_down),
-      underline: Container(height: 1, color: Colors.grey.shade300),
+      decoration: const InputDecoration(
+        labelText: 'Balance',
+        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+      ),
       items: const [
         DropdownMenuItem(value: 'all', child: Text('All balances')),
-        DropdownMenuItem(value: 'positive', child: Text('Positive balances')),
-        DropdownMenuItem(value: 'negative', child: Text('Negative balances')),
-        DropdownMenuItem(value: 'zero', child: Text('Zero balances')),
+        DropdownMenuItem(value: 'positive', child: Text('Positive')),
+        DropdownMenuItem(value: 'negative', child: Text('Negative')),
+        DropdownMenuItem(value: 'zero', child: Text('Zero')),
       ],
       onChanged: (value) {
         if (value == null) return;
@@ -351,11 +365,11 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
         children: [
           _buildTabChip('All', 'all'),
           const SizedBox(width: 8),
-          _buildTabChip('Delivered', 'delivered'),
+          _buildTabChip('With delivered', 'delivered'),
           const SizedBox(width: 8),
-          _buildTabChip('Pending', 'pending'),
+          _buildTabChip('With pending', 'pending'),
           const SizedBox(width: 8),
-          _buildTabChip('Cancelled', 'cancelled'),
+          _buildTabChip('With cancelled', 'cancelled'),
         ],
       ),
     );
@@ -370,16 +384,6 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
         if (!v) return;
         setState(() => _selectedStoreTab = value);
       },
-      selectedColor: Colors.indigo.withValues(alpha: 0.15),
-      labelStyle: TextStyle(
-        color: selected ? Colors.indigo : Colors.grey[700],
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-      ),
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: selected ? Colors.indigo : Colors.grey[300]!),
-      ),
     );
   }
 
@@ -398,114 +402,143 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
     final deliveredSales = row['served_sales'] as double? ?? 0;
     final pendingSales = row['pending_sales'] as double? ?? 0;
     final orders = (row['orders'] as List<Map<String, dynamic>>?) ?? [];
+    final balanceColor = wallet < 0
+        ? AppColors.danger
+        : (wallet > 0 ? AppColors.success : AppColors.text2);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpace.sm + 2),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.cardAll,
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        iconColor: AppColors.primary,
+        collapsedIconColor: AppColors.muted,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         title: Text(
           storeName,
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppText.bodyStrong,
         ),
-        subtitle: Text(
-          'Balance: PKR ${wallet.toStringAsFixed(2)} • Orders: $totalOrders',
-          style: TextStyle(
-            color: wallet < 0 ? Colors.red : Colors.green[700],
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Row(
             children: [
-              _metricChip('Delivered', '$delivered', Colors.green),
-              _metricChip('Pending', '$pending', Colors.orange),
-              _metricChip('Cancelled', '$cancelled', Colors.red),
-              _metricChip('Gross', 'PKR ${gross.toStringAsFixed(0)}', Colors.blue),
-              _metricChip('Net', 'PKR ${net.toStringAsFixed(0)}', Colors.indigo),
-              _metricChip(
-                'Discount',
-                'PKR ${discount.toStringAsFixed(0)}',
-                Colors.purple,
+              Text('Balance ', style: AppText.small),
+              Text(
+                Fmt.money(wallet),
+                style: AppText.label.copyWith(
+                  color: balanceColor,
+                  fontFeatures: AppText.tabular,
+                ),
               ),
-              _metricChip('Cost', 'PKR ${cost.toStringAsFixed(0)}', Colors.brown),
-              _metricChip(
-                'Profit',
-                'PKR ${profit.toStringAsFixed(0)}',
-                profit >= 0 ? Colors.teal : Colors.red,
-              ),
-              _metricChip(
-                'Delivered Sales',
-                'PKR ${deliveredSales.toStringAsFixed(0)}',
-                Colors.teal,
-              ),
-              _metricChip(
-                'Pending Sales',
-                'PKR ${pendingSales.toStringAsFixed(0)}',
-                Colors.deepOrange,
+              Text(
+                ' · ${Fmt.count(totalOrders, 'order')}',
+                style: AppText.small,
               ),
             ],
           ),
-          const SizedBox(height: 8),
+        ),
+        children: [
+          AdminTileGrid(
+            columns: 3,
+            spacing: AppSpace.sm,
+            children: [
+              AdminCountChip(
+                label: 'Delivered',
+                value: delivered,
+                foreground: AppColors.success,
+                background: AppColors.successBg,
+              ),
+              AdminCountChip(
+                label: 'Pending',
+                value: pending,
+                foreground: AppColors.warning,
+                background: AppColors.warningBg,
+              ),
+              AdminCountChip(
+                label: 'Cancelled',
+                value: cancelled,
+                foreground: AppColors.danger,
+                background: AppColors.dangerBg,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          InfoRow(label: 'Gross sales', value: Fmt.money(gross.round())),
+          InfoRow(label: 'Net sales', value: Fmt.money(net.round())),
+          InfoRow(label: 'Discount', value: Fmt.money(discount.round())),
+          InfoRow(label: 'Cost', value: Fmt.money(cost.round())),
+          InfoRow(
+            label: 'Estimated profit',
+            value: Fmt.money(profit.round()),
+            valueColor: profit >= 0 ? AppColors.success : AppColors.danger,
+          ),
+          InfoRow(
+            label: 'Delivered sales',
+            value: Fmt.money(deliveredSales.round()),
+          ),
+          InfoRow(
+            label: 'Pending sales',
+            value: Fmt.money(pendingSales.round()),
+          ),
+          const Divider(height: AppSpace.xl),
           if (orders.isEmpty)
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('No orders found', style: TextStyle(color: Colors.black54)),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text('No orders yet', style: AppText.small),
             )
           else ...[
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Recent Orders',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text('Recent orders', style: AppText.label),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             ...orders.take(5).map((o) {
               final number = (o['order_number'] ?? '').toString();
               final status = (o['status'] ?? '').toString();
               final amount = o['amount'] as double? ?? 0;
+              final created = o['created_at'] as DateTime?;
               return Container(
                 margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  color: AppColors.surface2,
+                  borderRadius: AppRadius.controlAll,
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        '#$number',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            Fmt.orderNumber(number, fallbackId: o['id']),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.bodyStrong,
+                          ),
+                          if (created != null && created.year > 1970)
+                            Text(Fmt.dateTime(created), style: AppText.caption),
+                        ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _statusColor(status).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(
-                        status.toUpperCase(),
-                        style: TextStyle(
-                          color: _statusColor(status),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                    StatusPill(status: status, dense: true),
+                    const SizedBox(width: AppSpace.sm),
                     Text(
-                      'PKR ${amount.toStringAsFixed(0)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      Fmt.money(amount.round()),
+                      style: AppText.price.copyWith(fontSize: 14),
                     ),
                   ],
                 ),
@@ -517,156 +550,89 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
     );
   }
 
-  Widget _metricChip(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(color: Colors.black87, fontSize: 11),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            TextSpan(
-              text: value,
-              style: TextStyle(color: color, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _statusColor(String status) {
-    final s = status.toLowerCase();
-    if (s == 'delivered') return Colors.green;
-    if (s == 'cancelled') return Colors.red;
-    if (['pending', 'confirmed', 'preparing', 'ready'].contains(s)) {
-      return Colors.orange;
-    }
-    return Colors.blueGrey;
-  }
-
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredStoreRows();
     final totals = _summaryTotals(filtered);
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Store Balances'),
         actions: const [NotificationBellWidget()],
-        elevation: 0,
       ),
       body: RefreshIndicator(
         onRefresh: _loadStoreBalances,
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const SkeletonList(count: 5)
             : _error != null
-                ? Center(child: Text(_error!))
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  EmptyState(
+                    isError: true,
+                    icon: Icons.cloud_off_rounded,
+                    title: _error!,
+                    message: 'Check the connection and try again.',
+                    actionLabel: 'Retry',
+                    actionIcon: Icons.refresh_rounded,
+                    onAction: _loadStoreBalances,
+                  ),
+                ],
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Wallet balances, sales and order counts per store.',
+                      style: AppText.small,
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    _buildStoreSearchField(),
+                    const SizedBox(height: AppSpace.md),
+                    if (_storeFilterOptions.isNotEmpty) ...[
+                      _buildFilterDropdown(),
+                      const SizedBox(height: AppSpace.md),
+                    ],
+                    _buildBalanceFilterDropdown(),
+                    const SizedBox(height: AppSpace.md),
+                    _buildTabChips(),
+                    const SizedBox(height: AppSpace.md),
+                    AdminTileGrid(
+                      columns: 3,
+                      spacing: AppSpace.sm,
                       children: [
-                        const Text(
-                          'Store Balances',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
+                        AdminStatTile(
+                          label: 'Stores',
+                          value: Fmt.number(filtered.length),
+                        ),
+                        AdminStatTile(
+                          label: 'Orders',
+                          value: Fmt.number(totals['orders']),
+                        ),
+                        AdminStatTile(
+                          label: 'Net sales',
+                          value: Fmt.money(
+                            (totals['net_sales'] as double).round(),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Review wallet balances, sales, and order counts per store.',
-                          style: TextStyle(color: Colors.black54),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildStoreSearchField(),
-                        const SizedBox(height: 8),
-                        if (_storeFilterOptions.isNotEmpty) _buildFilterDropdown(),
-                        const SizedBox(height: 8),
-                        _buildBalanceFilterDropdown(),
-                        const SizedBox(height: 8),
-                        _buildTabChips(),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _infoBadge(
-                                label: 'Stores',
-                                value: '${filtered.length}',
-                                color: Colors.indigo,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _infoBadge(
-                                label: 'Orders',
-                                value: '${totals['orders']}',
-                                color: Colors.blue,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _infoBadge(
-                                label: 'Net Sales',
-                                value:
-                                    'PKR ${(totals['net_sales'] as double).toStringAsFixed(0)}',
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (filtered.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Text('No data for the selected filters.'),
-                          )
-                        else
-                          ...filtered.map(_buildCard),
                       ],
                     ),
-                  ),
-      ),
-    );
-  }
-
-  Widget _infoBadge({
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.black54, fontSize: 11),
-          ),
-        ],
+                    const SizedBox(height: AppSpace.md),
+                    if (filtered.isEmpty)
+                      const EmptyState(
+                        compact: true,
+                        icon: Icons.filter_alt_off_rounded,
+                        title: 'No stores match these filters',
+                      )
+                    else
+                      ...filtered.map(_buildCard),
+                  ],
+                ),
+              ),
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/admin/admin_ui.dart';
+import '../widgets/ui/ui.dart';
 
 class InventoryReportScreen extends StatefulWidget {
   const InventoryReportScreen({super.key});
@@ -14,6 +16,7 @@ class InventoryReportScreen extends StatefulWidget {
 class _InventoryReportScreenState extends State<InventoryReportScreen> {
   final Logger _logger = Logger();
   bool _isLoading = true;
+  bool _hasError = false;
   List<dynamic> _storeItems = [];
   List<dynamic> _categoryItems = [];
   dynamic _totalStats;
@@ -72,10 +75,15 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
         return {
           ...item,
           'items':
-              (item['items'] as List?) ?? storeBreakdownMap[storeKey] ?? <Map>[],
-          'total_quantity': _asInt(item['total_quantity'] ?? item['total_stock']),
-          'total_value':
-              _asDouble(item['total_value'] ?? item['total_inventory_value']),
+              (item['items'] as List?) ??
+              storeBreakdownMap[storeKey] ??
+              <Map>[],
+          'total_quantity': _asInt(
+            item['total_quantity'] ?? item['total_stock'],
+          ),
+          'total_value': _asDouble(
+            item['total_value'] ?? item['total_inventory_value'],
+          ),
         };
       }).toList();
 
@@ -88,14 +96,16 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
               (item['products'] as List?) ??
               categoryBreakdownMap[categoryKey] ??
               <Map>[],
-          'total_quantity': _asInt(item['total_quantity'] ?? item['total_stock']),
-          'inventory_value':
-              _asDouble(item['inventory_value'] ?? item['total_inventory_value']),
-          'total_products':
-              _asInt(item['total_products']) > 0
-                  ? _asInt(item['total_products'])
-                  : ((item['products'] as List?)?.length ??
-                      (categoryBreakdownMap[categoryKey]?.length ?? 0)),
+          'total_quantity': _asInt(
+            item['total_quantity'] ?? item['total_stock'],
+          ),
+          'inventory_value': _asDouble(
+            item['inventory_value'] ?? item['total_inventory_value'],
+          ),
+          'total_products': _asInt(item['total_products']) > 0
+              ? _asInt(item['total_products'])
+              : ((item['products'] as List?)?.length ??
+                    (categoryBreakdownMap[categoryKey]?.length ?? 0)),
         };
       }).toList();
 
@@ -104,14 +114,20 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
         _categoryItems = normalizedCategoryItems;
         _totalStats = summary;
         _isLoading = false;
+        _hasError = false;
       });
     } catch (e) {
       _logger.e('Error loading inventory report: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading report: $e')));
+        setState(() {
+          _isLoading = false;
+          _hasError = _totalStats == null && _storeItems.isEmpty;
+        });
+        if (!_hasError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not refresh the report.')),
+          );
+        }
       }
     }
   }
@@ -119,33 +135,35 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: const Text(
-          'Inventory Report',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text('Inventory report')),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonList(count: 4)
+          : _hasError
+          ? EmptyState(
+              isError: true,
+              icon: Icons.cloud_off_rounded,
+              title: 'Could not load the report',
+              message: 'Check the connection and try again.',
+              actionLabel: 'Retry',
+              actionIcon: Icons.refresh_rounded,
+              onAction: () {
+                setState(() => _isLoading = true);
+                _loadInventoryReport();
+              },
+            )
           : RefreshIndicator(
               onRefresh: _loadInventoryReport,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildTotalStatsCard(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSpace.xxl),
                     _buildStoreInventorySection(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSpace.xxl),
                     _buildCategoryInventorySection(),
                   ],
                 ),
@@ -158,67 +176,60 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     if (_totalStats == null) {
       return const SizedBox.shrink();
     }
+    final stats = _totalStats as Map;
+    final totalProducts = _asInt(stats['total_products']);
+    final totalItems = _asInt(stats['total_items'] ?? stats['total_products']);
+    final totalQuantity = _asInt(
+      stats['total_quantity'] ?? stats['total_stock'],
+    );
+    final totalValue = _asDouble(stats['total_inventory_value']);
+    final averagePrice =
+        _asNum(stats['average_price'])?.toDouble() ??
+        (totalValue / (totalProducts == 0 ? 1 : totalProducts));
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.indigo.shade400, Colors.indigo.shade700],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.indigo.withAlpha((0.3 * 255).round()),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
+    return AdminPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Total Inventory Summary',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStatItem(
-                'Total Items',
-                (_totalStats['total_items'] ?? _totalStats['total_products'] ?? 0)
-                    .toString(),
-                Icons.inventory,
-              ),
-                _buildStatItem(
-                  'Total Quantity',
-                  (_totalStats['total_quantity'] ?? _totalStats['total_stock'] ?? 0)
-                      .toString(),
-                  Icons.shopping_bag,
+              const AdminIconBadge(icon: Icons.inventory_2_rounded),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Text('Total inventory', style: AppText.h2),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const SizedBox(height: AppSpace.lg),
+          // One value per tile, each scaled to fit: the old card put
+          // "Total Value" and "Average Price" side by side and they ran
+          // together ("PKR 1666428172.00PKR 1038920.31").
+          AdminTileGrid(
+            columns: 2,
             children: [
-              _buildStatItem(
-                'Total Value',
-                'PKR ${(_totalStats['total_inventory_value'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                Icons.monetization_on,
+              AdminStatTile(
+                icon: Icons.category_outlined,
+                label: 'Products',
+                value: Fmt.number(totalItems),
               ),
-                _buildStatItem(
-                  'Average Price',
-                  'PKR ${(_asNum(_totalStats['average_price']) ?? ((_asDouble(_totalStats['total_inventory_value']) / (_asInt(_totalStats['total_products']) == 0 ? 1 : _asInt(_totalStats['total_products']))))).toStringAsFixed(2)}',
-                  Icons.price_check,
-                ),
+              AdminStatTile(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Units in stock',
+                value: Fmt.number(totalQuantity),
+              ),
+              AdminStatTile(
+                icon: Icons.payments_outlined,
+                label: 'Stock value',
+                value: Fmt.money(totalValue.round()),
+              ),
+              AdminStatTile(
+                icon: Icons.sell_outlined,
+                label: 'Average price',
+                value: Fmt.money(averagePrice.round()),
+              ),
             ],
           ),
         ],
@@ -226,30 +237,17 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
+  Widget _sectionTitle(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(header: true, child: Text(title, style: AppText.h2)),
+          const SizedBox(height: 2),
+          Text(subtitle, style: AppText.small),
+        ],
+      ),
     );
   }
 
@@ -257,23 +255,13 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Inventory by Store',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 12),
+        _sectionTitle('By store', Fmt.count(_storeItems.length, 'store')),
         if (_storeItems.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'No store inventory data',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
+          const AdminPanel(
+            child: EmptyState(
+              compact: true,
+              icon: Icons.storefront_rounded,
+              title: 'No store inventory data',
             ),
           )
         else
@@ -281,7 +269,8 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _storeItems.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            separatorBuilder: (context, index) =>
+                const SizedBox(height: AppSpace.sm),
             itemBuilder: (context, index) {
               final item = _storeItems[index];
               return _buildStoreInventoryCard(item);
@@ -291,88 +280,123 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     );
   }
 
-  Widget _buildStoreInventoryCard(dynamic item) {
-    final storeItems = item['items'] as List<dynamic>? ?? [];
-
+  Widget _expandableCard({
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+  }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha((0.1 * 255).round()),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: AppRadius.cardAll,
+        border: Border.all(color: AppColors.border),
       ),
+      clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
+        shape: const Border(),
+        collapsedShape: const Border(),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        iconColor: AppColors.primary,
+        collapsedIconColor: AppColors.muted,
         title: Text(
-          item['store_name'] ?? 'Unknown Store',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppText.bodyStrong,
         ),
-        subtitle: Text(
-          '${storeItems.length} items | Value: PKR ${(item['total_value'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-        ),
+        subtitle: Text(subtitle, style: AppText.small),
+        children: children,
+      ),
+    );
+  }
+
+  Widget _breakdownRow({
+    required String name,
+    String? caption,
+    required int quantity,
+    required double price,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildInfoRow('Total Items', storeItems.length.toString()),
-                _buildInfoRow(
-                  'Total Quantity',
-                  (item['total_quantity'] ?? 0).toString(),
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.body,
                 ),
-                _buildInfoRow(
-                  'Total Value',
-                  'PKR ${(item['total_value'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                ),
-                const Divider(height: 16),
-                const Text(
-                  'Breakdown:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                ...storeItems.map(
-                  (product) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            product['product_name'] ?? 'Unknown',
-                            style: const TextStyle(fontSize: 12),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          'Qty: ${product['stock_quantity'] ?? 0}',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'PKR ${(double.tryParse(product['price']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                if (caption != null)
+                  Text(
+                    caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.caption,
                   ),
-                ),
               ],
             ),
           ),
+          const SizedBox(width: AppSpace.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${Fmt.number(quantity)} units',
+                style: AppText.small.copyWith(fontFeatures: AppText.tabular),
+              ),
+              Text(
+                '${Fmt.money(price.round())} / unit',
+                style: AppText.label.copyWith(
+                  color: AppColors.text,
+                  fontFeatures: AppText.tabular,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStoreInventoryCard(dynamic item) {
+    final storeItems = item['items'] as List<dynamic>? ?? [];
+    final totalValue = _asDouble(item['total_value']);
+    final totalQuantity = _asInt(item['total_quantity']);
+
+    return _expandableCard(
+      title: (item['store_name'] ?? 'Store').toString(),
+      subtitle:
+          '${Fmt.number(totalQuantity)} units · ${Fmt.money(totalValue.round())}',
+      children: [
+        InfoRow(label: 'Categories', value: Fmt.number(storeItems.length)),
+        InfoRow(label: 'Units in stock', value: Fmt.number(totalQuantity)),
+        InfoRow(
+          label: 'Stock value',
+          value: Fmt.money(totalValue.round()),
+          emphasize: true,
+        ),
+        if (storeItems.isNotEmpty) ...[
+          const Divider(height: AppSpace.xl),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('By category', style: AppText.label),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          ...storeItems.map(
+            (product) => _breakdownRow(
+              name: (product['product_name'] ?? 'Uncategorized').toString(),
+              quantity: _asInt(product['stock_quantity']),
+              price: _asDouble(product['price']),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -380,23 +404,16 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Inventory by Category',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+        _sectionTitle(
+          'By category',
+          Fmt.count(_categoryItems.length, 'category', 'categories'),
         ),
-        const SizedBox(height: 12),
         if (_categoryItems.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'No category inventory data',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
+          const AdminPanel(
+            child: EmptyState(
+              compact: true,
+              icon: Icons.category_outlined,
+              title: 'No category inventory data',
             ),
           )
         else
@@ -404,7 +421,8 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _categoryItems.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            separatorBuilder: (context, index) =>
+                const SizedBox(height: AppSpace.sm),
             itemBuilder: (context, index) {
               final item = _categoryItems[index];
               return _buildCategoryInventoryCard(item);
@@ -416,125 +434,43 @@ class _InventoryReportScreenState extends State<InventoryReportScreen> {
 
   Widget _buildCategoryInventoryCard(dynamic item) {
     final products = item['products'] as List<dynamic>? ?? [];
+    final totalProducts = _asInt(item['total_products'] ?? products.length);
+    final totalQuantity = _asInt(item['total_quantity']);
+    final totalValue = _asDouble(item['inventory_value']);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha((0.1 * 255).round()),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ExpansionTile(
-        title: Text(
-          item['category_name'] ?? 'Unknown Category',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+    return _expandableCard(
+      title: (item['category_name'] ?? 'Uncategorized').toString(),
+      subtitle:
+          '${Fmt.count(totalProducts, 'product')} · ${Fmt.number(totalQuantity)} units',
+      children: [
+        InfoRow(label: 'Products', value: Fmt.number(totalProducts)),
+        InfoRow(label: 'Units in stock', value: Fmt.number(totalQuantity)),
+        InfoRow(
+          label: 'Stock value',
+          value: Fmt.money(totalValue.round()),
+          emphasize: true,
         ),
-        subtitle: Text(
-          '${item['total_products'] ?? products.length} products | Qty: ${item['total_quantity'] ?? 0}',
-          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildInfoRow(
-                  'Total Products',
-                  (item['total_products'] ?? products.length).toString(),
-                ),
-                _buildInfoRow(
-                  'Total Quantity',
-                  (item['total_quantity'] ?? 0).toString(),
-                ),
-                _buildInfoRow(
-                  'Total Value',
-                  'PKR ${(item['inventory_value'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                ),
-                const Divider(height: 16),
-                const Text(
-                  'Breakdown:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                ...products.map(
-                  (product) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                product['product_name'] ?? 'Unknown',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                'Store: ${product['store_name'] ?? 'Unknown'}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Qty: ${product['stock_quantity'] ?? 0}',
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            Text(
-                              'PKR ${(double.tryParse(product['price']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+        if (products.isNotEmpty) ...[
+          const Divider(height: AppSpace.xl),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('By store', style: AppText.label),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          ...products.map(
+            (product) => _breakdownRow(
+              name: (product['product_name'] ?? 'Unknown').toString(),
+              caption:
+                  product['store_name'] != null &&
+                      product['store_name'] != product['product_name']
+                  ? 'Store: ${product['store_name']}'
+                  : null,
+              quantity: _asInt(product['stock_quantity']),
+              price: _asDouble(product['price']),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          ),
-        ],
-      ),
+      ],
     );
   }
 

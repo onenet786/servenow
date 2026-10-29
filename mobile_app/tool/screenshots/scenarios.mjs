@@ -148,15 +148,19 @@ SCENARIOS.customer_ur = [
 ];
 
 SCENARIOS.rider = [
+  // Phase B labels: bottom nav Home / History / Wallet / Profile (M3
+  // NavigationBar), card button "Summary · n items", wallet "Return Cash to
+  // Admin" / "Day Slip". The Summary sheet opens instantly (no fetch).
   { name: '01_home_assigned', wait: 3500 },
-  { name: '02_order_summary_dialog', steps: ['tapx:Summary', 'until:Pricing Breakdown'] },
+  { name: '01b_home_scrolled', steps: ['scroll:600'] },
+  { name: '02_order_summary_dialog', steps: ['tap:Summary', 'until:Pricing Breakdown'] },
   { name: '03_drawer', steps: ['tap:Open navigation menu'] },
-  { name: '04_history', steps: ['tapl:History'] },
-  { name: '05_wallet', steps: ['tapl:Wallet'] },
-  { name: '06_wallet_scrolled', steps: ['tapl:Wallet', 'scroll:800'] },
-  { name: '07_wallet_scrolled_more', steps: ['tapl:Wallet', 'scroll:800', 'scroll:900'] },
-  { name: '08_return_cash_dialog', steps: ['tapl:Wallet', 'tap:Return Cash to Admin'] },
-  { name: '09_profile', steps: ['tapl:Profile'] },
+  { name: '04_history', steps: ['tapx:History'] },
+  { name: '05_wallet', steps: ['tapx:Wallet'] },
+  { name: '06_wallet_scrolled', steps: ['tapx:Wallet', 'scroll:800'] },
+  { name: '07_wallet_scrolled_more', steps: ['tapx:Wallet', 'scroll:800', 'scroll:900'] },
+  { name: '08_return_cash_dialog', steps: ['tapx:Wallet', 'tap:Return Cash to Admin'] },
+  { name: '09_profile', steps: ['tapx:Profile'] },
   { name: '10_day_transactions', steps: ['tap:Open navigation menu', 'tap:Day Transactions'] },
   { name: '11_day_transactions_scrolled', steps: ['tap:Open navigation menu', 'tap:Day Transactions', 'scroll:800'] },
   { name: '12_notifications', steps: ['tapx:Notifications'] },
@@ -164,49 +168,56 @@ SCENARIOS.rider = [
 ];
 
 SCENARIOS.store_owner = [
+  // Phase B labels: tabs New / Active / History (with count badges), bottom
+  // nav Orders / Products / Offers / Financial / More. Status, Refresh,
+  // Change Password and Logout live in the More sheet. Financial opens one
+  // sheet on the last 7 days (no date pickers first). Store owners see the
+  // product list directly (no store header to expand).
   { name: '01_dashboard_new_orders', wait: 3500 },
-  { name: '02_active_orders', steps: ['tapx:Active'] },
-  { name: '03_history_orders', steps: ['tapx:History'] },
-  { name: '04_products_price_update', steps: ['tapx:Products'] },
-  { name: '05_products_expanded', steps: ['tapx:Products', 'wait:1500', 'tap:Imran Broast'] },
-  { name: '05b_edit_price_sheet', steps: ['tapx:Products', 'wait:1500', 'tap:Imran Broast', 'tap:Edit'] },
-  { name: '06_offer_campaigns', steps: ['tapx:Offers'] },
-  { name: '07_offer_campaigns_scrolled', steps: ['tapx:Offers', 'scroll:900'] },
-  { name: '08_store_status_dialog', steps: ['tapx:Status'] },
-  { name: '09_financial_history', steps: ['tapx:Financial'] },
-  { name: '09b_financial_history_result', steps: ['tapx:Financial', 'tapx:OK', 'wait:800', 'tapx:OK', 'wait:2500'] },
+  { name: '02_active_orders', steps: ['tap:Active'] },
+  { name: '03_history_orders', steps: ['tap:History'] },
+  { name: '04_products_price_update', steps: ['tapl:Products', 'wait:1500'] },
+  { name: '05b_edit_price_sheet', steps: ['tapl:Products', 'wait:1500', 'tap:Edit price'] },
+  { name: '06_offer_campaigns', steps: ['tapl:Offers', 'wait:1500'] },
+  { name: '07_offer_campaigns_scrolled', steps: ['tapl:Offers', 'wait:1500', 'scroll:900'] },
+  { name: '08_more_sheet', steps: ['tapl:More'] },
+  { name: '08b_store_status_dialog', steps: ['tapl:More', 'tap:Store status'] },
+  { name: '09_financial_history', steps: ['tapl:Financial', 'wait:2500'] },
+  { name: '09b_financial_history_30_days', steps: ['tapl:Financial', 'wait:1500', 'tap:Last 30 days', 'wait:2500'] },
   { name: '10_notifications', steps: ['tapx:Notifications'] },
-  { name: '11_change_password', steps: ['tapx:Password'] },
+  { name: '11_change_password', steps: ['tapl:More', 'tap:Change Password'] },
 ];
 
 SCENARIOS.admin = [
+  // Phase C labels: tabs "Dispatch / Daily sales / Tools", map buttons
+  // "Recentre / Full map" (Full map only with riders on the road), role
+  // ribbon "Open <role> view". Wallet and Tile Demo entries were removed;
+  // Rider Day is hidden when the server refuses it for this account.
   { name: '01_dashboard', wait: 4500 },
   { name: '02_dashboard_recent_activity', steps: ['scroll:700'] },
   { name: '03_order_assignment_dialog', steps: ['scroll:700', 'tap:Order Ord'] },
-  { name: '04_daily_sales_tab', steps: ['tap:Daily Sales & Closing', 'wait:1500'] },
-  { name: '05_daily_sales_scrolled', steps: ['tap:Daily Sales & Closing', 'wait:1500', 'scroll:700'] },
-  { name: '06_admin_tools_tab', steps: ['tap:Admin Tools', 'wait:1000'] },
-  { name: '07_admin_tools_scrolled', steps: ['tap:Admin Tools', 'wait:1000', 'scroll:800'] },
+  { name: '04_daily_sales_tab', steps: ['tapx:Daily sales', 'wait:1500'] },
+  { name: '05_daily_sales_scrolled', steps: ['tapx:Daily sales', 'wait:1500', 'scroll:700'] },
+  { name: '06_admin_tools_tab', steps: ['tapx:Tools', 'wait:1000'] },
+  { name: '07_admin_tools_scrolled', steps: ['tapx:Tools', 'wait:1000', 'scroll:800'] },
   { name: '08_drawer', steps: ['tap:Open navigation menu'] },
   { name: '09_drawer_scrolled', steps: ['tap:Open navigation menu', 'scroll:600'] },
-  { name: '10_full_live_tracker', steps: ['tap:Full Tracker'] },
-  { name: '11_manage_stores', steps: ['tap:Manage Stores'] },
-  { name: '12_manage_riders', steps: ['tap:Manage Riders'] },
+  { name: '10_live_rider_tracker', steps: ['tapx:Tools', 'wait:1000', 'scroll:2000'] },
+  { name: '11_manage_stores', steps: ['tap:Manage Stores'], wait: 2500 },
+  { name: '12_manage_riders', steps: ['tap:Manage Riders'], wait: 2500 },
   { name: '13_offer_campaigns', steps: ['tap:Offer Campaigns'] },
-  { name: '14_store_balances', steps: ['tap:Store Balances', 'until:Net Sales'], wait: 2500 },
+  { name: '14_store_balances', steps: ['tap:Store Balances', 'until:Net sales'], wait: 2500 },
   { name: '15_manage_products', steps: ['tapx:Products'] },
   { name: '16_manage_orders', steps: ['tapx:Orders'] },
-  { name: '17_rider_day_transactions', steps: ['tapx:Rider Day'] },
-  { name: '18_inventory_report', steps: ['tapx:Inventory'] },
+  { name: '17_rider_day_hidden_in_drawer', steps: ['wait:2500', 'tap:Open navigation menu', 'scroll:300'] },
+  { name: '18_inventory_report', steps: ['tapx:Inventory'], wait: 2500 },
+  { name: '18b_inventory_report_scrolled', steps: ['tapx:Inventory', 'wait:2500', 'scroll:500'] },
   { name: '19_store_status_dialog', steps: ['tapx:Status'] },
-  { name: '20_manage_users', steps: ['tap:Open navigation menu', 'tap:Manage Users'] },
-  { name: '21_wallet_item_opens_legacy_home', steps: ['tap:Open navigation menu', 'tapx:Wallet'] },
+  { name: '20_manage_users', steps: ['tap:Open navigation menu', 'tap:Manage Users'], wait: 2500 },
   { name: '22_ride_history', steps: ['tap:Open navigation menu', 'scroll:600', 'tap:Ride History'] },
-  { name: '23_customer_tile_demo', steps: ['tap:Open navigation menu', 'tap:Customer Tile Demo'] },
-  { name: '24_customer_tile_demo_store', steps: ['tap:Open navigation menu', 'tap:Customer Tile Demo', 'wait:1500', 'tap:Imran Broast'] },
-  { name: '25_role_customer_view', steps: ['tapx:Customer'] },
-  { name: '26_role_store_owner_view', steps: ['tapx:Store Owner'] },
-  { name: '27_role_rider_view', steps: ['tapx:Rider'] },
+  { name: '25_role_customer_view', steps: ['tapx:Open Customer view'] },
+  { name: '26_role_store_owner_view', steps: ['tapx:Open Store Owner view'] },
+  { name: '27_role_rider_view', steps: ['tapx:Open Rider view'] },
   { name: '28_notifications', steps: ['tapx:Notifications'] },
   { name: '29_change_password', steps: ['tap:Open navigation menu', 'scroll:600', 'tap:Change Password'] },
 ];

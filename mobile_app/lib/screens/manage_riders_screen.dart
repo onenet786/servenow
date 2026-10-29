@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/admin/admin_ui.dart';
+import '../widgets/ui/ui.dart';
 
 class ManageRidersScreen extends StatefulWidget {
   const ManageRidersScreen({super.key});
@@ -14,6 +16,7 @@ class ManageRidersScreen extends StatefulWidget {
 class _ManageRidersScreenState extends State<ManageRidersScreen> {
   final Logger _logger = Logger();
   bool _isLoading = true;
+  bool _hasError = false;
   List<dynamic> _riders = [];
   List<dynamic> _filteredRiders = [];
   String _statusFilter = '';
@@ -43,27 +46,58 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
         _riders = riders;
         _filteredRiders = riders;
         _isLoading = false;
+        _hasError = false;
       });
+      _filterRiders();
     } catch (e) {
       _logger.e('Error loading riders: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading riders: $e')));
+        setState(() {
+          _isLoading = false;
+          _hasError = _riders.isEmpty;
+        });
+        if (_riders.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not refresh riders.')),
+          );
+        }
       }
     }
   }
 
+  /// `GET /api/riders` returns `full_name` (or first/last name) and the
+  /// flags `is_active` / `is_available` - there is no `status`, delivery
+  /// count or rating column, so the old "ACTIVE / Deliveries 0 / Rating
+  /// N/A" values were defaults, not data.
+  String _name(dynamic rider) {
+    final full = (rider['full_name'] ?? '').toString().trim();
+    if (full.isNotEmpty) return full;
+    final name = '${rider['first_name'] ?? ''} ${rider['last_name'] ?? ''}'
+        .trim();
+    return name.isEmpty ? 'Rider #${rider['id'] ?? '-'}' : name;
+  }
+
+  bool _isActive(dynamic rider) =>
+      adminFlag(rider['is_active'], fallback: true);
+  bool _isAvailable(dynamic rider) => adminFlag(rider['is_available']);
+
   void _filterRiders() {
     final query = _searchController.text.toLowerCase();
     final List<dynamic> filtered = _riders.where((rider) {
-      final name = '${rider['first_name']} ${rider['last_name']}'.toLowerCase();
+      final name = _name(rider).toLowerCase();
       final email = (rider['email'] ?? '').toString().toLowerCase();
-      final status = (rider['status'] ?? '').toString();
+      final phone = (rider['phone'] ?? '').toString().toLowerCase();
 
-      final matchesSearch = name.contains(query) || email.contains(query);
-      final matchesStatus = _statusFilter.isEmpty || status == _statusFilter;
+      final matchesSearch =
+          name.contains(query) ||
+          email.contains(query) ||
+          phone.contains(query);
+      final matchesStatus = switch (_statusFilter) {
+        'active' => _isActive(rider),
+        'inactive' => !_isActive(rider),
+        'available' => _isActive(rider) && _isAvailable(rider),
+        _ => true,
+      };
 
       return matchesSearch && matchesStatus;
     }).toList();
@@ -74,48 +108,48 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: const Text(
-          'Manage Riders',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text('Riders')),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const SkeletonList(count: 5)
+          : _hasError
+          ? EmptyState(
+              isError: true,
+              icon: Icons.cloud_off_rounded,
+              title: 'Could not load riders',
+              message: 'Check the connection and try again.',
+              actionLabel: 'Retry',
+              actionIcon: Icons.refresh_rounded,
+              onAction: () {
+                setState(() => _isLoading = true);
+                _loadRiders();
+              },
+            )
           : RefreshIndicator(
               onRefresh: _loadRiders,
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     child: Column(
                       children: [
                         TextField(
                           controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search by name or email...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                          textInputAction: TextInputAction.search,
+                          decoration: const InputDecoration(
+                            hintText: 'Search by name, e-mail or phone',
+                            prefixIcon: Icon(Icons.search),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: AppSpace.md),
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
                               _buildFilterChip('All', ''),
                               _buildFilterChip('Active', 'active'),
+                              _buildFilterChip('Available now', 'available'),
                               _buildFilterChip('Inactive', 'inactive'),
-                              _buildFilterChip('Suspended', 'suspended'),
                             ],
                           ),
                         ),
@@ -124,15 +158,24 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
                   ),
                   Expanded(
                     child: _filteredRiders.isEmpty
-                        ? Center(
-                            child: Text(
-                              'No riders found',
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              EmptyState(
+                                compact: true,
+                                icon: Icons.two_wheeler_rounded,
+                                title: _riders.isEmpty
+                                    ? 'No riders yet'
+                                    : 'No riders match',
+                              ),
+                            ],
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                            physics: const AlwaysScrollableScrollPhysics(),
                             itemCount: _filteredRiders.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: AppSpace.md),
                             itemBuilder: (context, index) {
                               final rider = _filteredRiders[index];
                               return _buildRiderCard(rider);
@@ -148,125 +191,99 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
   Widget _buildFilterChip(String label, String status) {
     final isSelected = _statusFilter == status;
     return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: FilterChip(
+      padding: const EdgeInsetsDirectional.only(end: 8.0),
+      child: ChoiceChip(
         label: Text(label),
         selected: isSelected,
         onSelected: (selected) {
           setState(() => _statusFilter = selected ? status : '');
           _filterRiders();
         },
-        backgroundColor: Colors.white,
-        selectedColor: Colors.indigo.withAlpha((0.2 * 255).round()),
-        side: BorderSide(color: isSelected ? Colors.indigo : Colors.grey[300]!),
       ),
     );
   }
 
   Widget _buildRiderCard(dynamic rider) {
-    final status = rider['status'] ?? 'active';
-    final Color statusColor = status == 'active'
-        ? Colors.green
-        : status == 'inactive'
-        ? Colors.orange
-        : Colors.red;
+    final active = _isActive(rider);
+    final available = _isAvailable(rider);
+    final name = _name(rider);
+    final email = (rider['email'] ?? '').toString().trim();
+    final phone = (rider['phone'] ?? '').toString().trim();
+    final vehicle = adminHumanize(rider['vehicle_type']);
+    final joined = Fmt.date(rider['created_at']);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha((0.1 * 255).round()),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.tint100,
+                child: Text(
+                  name.isEmpty ? 'R' : name[0].toUpperCase(),
+                  style: AppText.title.copyWith(color: AppColors.primaryDeep),
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.title,
+                    ),
+                    if (email.isNotEmpty)
+                      Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.small,
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: AppSpace.sm),
+          Wrap(
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.xs,
+            children: [
+              if (active)
+                const TonePill.success('Active')
+              else
+                const TonePill.neutral('Inactive'),
+              if (active)
+                available
+                    ? const TonePill.info('Available')
+                    : const TonePill.neutral('Off duty'),
+            ],
+          ),
+          const Divider(height: AppSpace.xl),
+          InfoRow(
+            icon: Icons.call_outlined,
+            label: 'Phone',
+            value: phone.isEmpty ? '-' : phone,
+          ),
+          InfoRow(
+            icon: Icons.two_wheeler_rounded,
+            label: 'Vehicle',
+            value: vehicle,
+          ),
+          InfoRow(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Wallet',
+            value: Fmt.money(rider['wallet_balance']),
+          ),
+          if (joined.isNotEmpty)
+            InfoRow(icon: Icons.event_outlined, label: 'Joined', value: joined),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${rider['first_name']} ${rider['last_name']}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        rider['email'] ?? 'No email',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withAlpha((0.2 * 255).round()),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildInfoColumn('Phone', rider['phone'] ?? '-'),
-                _buildInfoColumn(
-                  'Deliveries',
-                  '${rider['total_deliveries'] ?? 0}',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildInfoColumn('Rating', '${rider['rating'] ?? 'N/A'}'),
-                _buildInfoColumn('Vehicle', rider['vehicle_type'] ?? '-'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoColumn(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-        Text(
-          value.length > 15 ? '${value.substring(0, 15)}...' : value,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-        ),
-      ],
     );
   }
 }

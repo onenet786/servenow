@@ -62,13 +62,15 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     final nestedData = (notification['data'] is Map<String, dynamic>)
         ? notification['data'] as Map<String, dynamic>
         : null;
-    final message = (notification['message'] ??
+    final message =
+        (notification['message'] ??
                 nestedData?['message'] ??
                 notification['title'] ??
                 'New notification')
             .toString();
-    final type =
-        (notification['type'] ?? nestedData?['type'])?.toString().toLowerCase();
+    final type = (notification['type'] ?? nestedData?['type'])
+        ?.toString()
+        .toLowerCase();
     final status = (notification['status'] ?? nestedData?['status'])
         ?.toString()
         .toLowerCase();
@@ -89,12 +91,14 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     }
 
     final isNewOrder = type == 'new_order';
-    final isHistoryUpdate = status == 'delivered' ||
+    final isHistoryUpdate =
+        status == 'delivered' ||
         status == 'cancelled' ||
         status == 'picked_up' ||
         type == 'order_completed' ||
         type == 'delivered';
-    final isActiveUpdate = status == 'preparing' ||
+    final isActiveUpdate =
+        status == 'preparing' ||
         status == 'ready' ||
         status == 'ready_for_pickup' ||
         status == 'out_for_delivery' ||
@@ -151,7 +155,8 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                 (o) =>
                     o['status'] == 'preparing' ||
                     o['status'] == 'ready' ||
-                    o['status'] == 'ready_for_pickup' || // Include ready_for_pickup in Active
+                    o['status'] ==
+                        'ready_for_pickup' || // Include ready_for_pickup in Active
                     o['status'] == 'out_for_delivery',
               )
               .toList();
@@ -160,8 +165,10 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                 (o) =>
                     o['status'] == 'delivered' ||
                     o['status'] == 'cancelled' ||
-                    o['status'] == 'picked_up' || // Show picked_up in history as it's done for the store
-                    o['status'] == 'out_for_delivery', // Also show out_for_delivery in history
+                    o['status'] ==
+                        'picked_up' || // Show picked_up in history as it's done for the store
+                    o['status'] ==
+                        'out_for_delivery', // Also show out_for_delivery in history
               )
               .toList();
         });
@@ -169,9 +176,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     } catch (e) {
       _logger.e('Error loading store orders: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('Could not load orders. Pull down to retry.')),
           ),
@@ -205,16 +210,16 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
         if (newStatus == 'ready') {
           _tabController.animateTo(1); // Switch to Active tab
         } else if (newStatus == 'picked_up') {
-          _tabController.animateTo(2); // Move to History after pickup confirmation
+          _tabController.animateTo(
+            2,
+          ); // Move to History after pickup confirmation
         }
         _loadOrders();
       }
     } catch (e) {
       _logger.e('Error updating status: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_tr('Could not update the order. Please try again.')),
           ),
@@ -279,7 +284,9 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                         maxLength: 500,
                         decoration: InputDecoration(
                           labelText: _tr('Status Message'),
-                          hintText: _tr('Store is closed due to maintenance...'),
+                          hintText: _tr(
+                            'Store is closed due to maintenance...',
+                          ),
                         ),
                       ),
                     ],
@@ -313,7 +320,9 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                               setDialogState(() => saving = false);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(_tr('Could not save. Please try again.')),
+                                  content: Text(
+                                    _tr('Could not save. Please try again.'),
+                                  ),
                                 ),
                               );
                             }
@@ -394,7 +403,9 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
       footer: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (ownerName.isNotEmpty || ownerEmail.isNotEmpty || ownerPhone.isNotEmpty)
+          if (ownerName.isNotEmpty ||
+              ownerEmail.isNotEmpty ||
+              ownerPhone.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Column(
@@ -443,7 +454,11 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                     child: TabBar(
                       controller: _tabController,
                       tabs: [
-                        _tab(_tr('New'), _pendingOrders.length, highlight: true),
+                        _tab(
+                          _tr('New'),
+                          _pendingOrders.length,
+                          highlight: true,
+                        ),
                         _tab(_tr('Active'), _activeOrders.length),
                         _tab(_tr('History'), 0),
                       ],
@@ -454,9 +469,21 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                     child: TabBarView(
                       controller: _tabController,
                       children: [
-                        _buildOrderList(_pendingOrders, showActions: true, kind: 0),
-                        _buildOrderList(_activeOrders, showActions: true, kind: 1),
-                        _buildOrderList(_historyOrders, showActions: false, kind: 2),
+                        _buildOrderList(
+                          _pendingOrders,
+                          showActions: true,
+                          kind: 0,
+                        ),
+                        _buildOrderList(
+                          _activeOrders,
+                          showActions: true,
+                          kind: 1,
+                        ),
+                        _buildOrderList(
+                          _historyOrders,
+                          showActions: false,
+                          kind: 2,
+                        ),
                       ],
                     ),
                   ),
@@ -658,7 +685,9 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
         case 1:
           icon = Icons.soup_kitchen_outlined;
           title = _tr('Nothing in progress');
-          message = _tr('Orders you are preparing or that wait for a rider show here.');
+          message = _tr(
+            'Orders you are preparing or that wait for a rider show here.',
+          );
           break;
         default:
           icon = Icons.history_rounded;
@@ -715,7 +744,9 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     final customerName =
         '${order['first_name'] ?? ''} ${order['last_name'] ?? ''}'.trim();
     final riderName = (order['rider_first_name'] ?? '').toString().trim();
-    final action = showActions ? _buildActionButtons(order, displayStatus) : null;
+    final action = showActions
+        ? _buildActionButtons(order, displayStatus)
+        : null;
 
     return AppCard(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -730,7 +761,10 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      Fmt.orderNumber(order['order_number'], fallbackId: order['id']),
+                      Fmt.orderNumber(
+                        order['order_number'],
+                        fallbackId: order['id'],
+                      ),
                       style: AppText.title,
                     ),
                     Text(
@@ -785,49 +819,50 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                         overflow: TextOverflow.ellipsis,
                         style: AppText.small,
                       ),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.delivery_dining_rounded,
-                          size: 16,
-                          color: riderName.isEmpty
-                              ? AppColors.muted
-                              : AppColors.info,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            riderName.isEmpty
-                                ? _tr('No rider yet')
-                                : '${_tr('Rider')}: $riderName',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppText.caption.copyWith(
-                              color: riderName.isEmpty
-                                  ? AppColors.muted
-                                  : AppColors.info,
+                    if (riderName.isNotEmpty || showActions)
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.delivery_dining_rounded,
+                            size: 16,
+                            color: riderName.isEmpty
+                                ? AppColors.muted
+                                : AppColors.info,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              riderName.isEmpty
+                                  ? _tr('No rider yet')
+                                  : '${_tr('Rider')}: $riderName',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.caption.copyWith(
+                                color: riderName.isEmpty
+                                    ? AppColors.muted
+                                    : AppColors.info,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                   ],
                 ),
               ),
               if (storeTotal > 0) PriceText(storeTotal),
             ],
           ),
-          if (action != null) ...[
-            const SizedBox(height: AppSpace.md),
-            action,
-          ],
+          if (action != null) ...[const SizedBox(height: AppSpace.md), action],
         ],
       ),
     );
   }
 
   /// One primary action per state.
-  Widget? _buildActionButtons(Map<String, dynamic> order, String currentStatus) {
+  Widget? _buildActionButtons(
+    Map<String, dynamic> order,
+    String currentStatus,
+  ) {
     final id = order['id'];
     final hasRider = order['rider_id'] != null;
     if (currentStatus == 'pending' ||
@@ -838,7 +873,8 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
         icon: Icons.check_circle_outline_rounded,
         onPressed: () => _updateStatus(id, 'ready'),
       );
-    } else if (currentStatus == 'ready' || currentStatus == 'ready_for_pickup') {
+    } else if (currentStatus == 'ready' ||
+        currentStatus == 'ready_for_pickup') {
       if (hasRider) {
         return PrimaryButton(
           label: _tr('Confirm Picked Up'),

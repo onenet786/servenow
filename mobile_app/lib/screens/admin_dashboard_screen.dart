@@ -159,7 +159,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (_riderDayAllowed != null) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final token = auth.token;
-    if (token == null || !_canViewRestrictedFinancialReports(auth.user?.email)) {
+    if (token == null ||
+        !_canViewRestrictedFinancialReports(auth.user?.email)) {
       return;
     }
     final today = _dateKey(DateTime.now());
@@ -929,7 +930,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                                         ),
                                                       ),
                                                       Text(
-                                                        Fmt.money(_toDouble(m['amount'])),
+                                                        Fmt.money(
+                                                          _toDouble(
+                                                            m['amount'],
+                                                          ),
+                                                        ),
                                                         style: TextStyle(
                                                           color: clr,
                                                           fontWeight:
@@ -1026,10 +1031,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final dateKey = _dateKey(_selectedDailySalesDate);
     Map<String, dynamic> data = <String, dynamic>{};
     try {
-      data = await ApiService.getAdminDailySalesSummary(
-        token,
-        dateKey,
-      );
+      data = await ApiService.getAdminDailySalesSummary(token, dateKey);
     } catch (e) {
       _logger.w('Daily sales summary API unavailable, using orders: $e');
     }
@@ -1168,7 +1170,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     for (final order in orders) {
       if (order is! Map) continue;
       final targetDateKey = _dateKey(reportDate);
-      final businessDate = (order['order_business_date'] ?? '').toString().trim();
+      final businessDate = (order['order_business_date'] ?? '')
+          .toString()
+          .trim();
       final dt = _parseServerDateTime(order['created_at']);
       final orderDateKey = businessDate.isNotEmpty
           ? businessDate
@@ -1183,13 +1187,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           .toString()
           .trim()
           .toLowerCase();
-      var paymentTerm = (order['store_payment_term'] ??
-              order['payment_term'] ??
-              order['store_payment_type'] ??
-              '')
-          .toString()
-          .trim()
-          .toLowerCase();
+      var paymentTerm =
+          (order['store_payment_term'] ??
+                  order['payment_term'] ??
+                  order['store_payment_type'] ??
+                  '')
+              .toString()
+              .trim()
+              .toLowerCase();
       if (paymentTerm.isEmpty) {
         final storeId = int.tryParse('${order['store_id']}');
         if (storeId != null && _storePaymentTermsById.containsKey(storeId)) {
@@ -2999,17 +3004,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             SizedBox(height: AppSpace.lg),
             Row(
               children: [
-                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+                Expanded(
+                  child: SkeletonBox(height: 92, radius: AppRadius.card),
+                ),
                 SizedBox(width: AppSpace.md),
-                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+                Expanded(
+                  child: SkeletonBox(height: 92, radius: AppRadius.card),
+                ),
               ],
             ),
             SizedBox(height: AppSpace.md),
             Row(
               children: [
-                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+                Expanded(
+                  child: SkeletonBox(height: 92, radius: AppRadius.card),
+                ),
                 SizedBox(width: AppSpace.md),
-                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+                Expanded(
+                  child: SkeletonBox(height: 92, radius: AppRadius.card),
+                ),
               ],
             ),
             SizedBox(height: AppSpace.lg),
@@ -3359,7 +3372,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
             ),
-            if (!hasRiders)
+            if (!hasRiders || points.isEmpty)
               Positioned.fill(
                 child: IgnorePointer(
                   child: Center(
@@ -3385,7 +3398,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              'No riders on a delivery right now',
+                              hasRiders
+                                  ? 'Rider locations are not shared yet'
+                                  : 'No riders on a delivery right now',
                               style: AppText.small.copyWith(
                                 color: AppColors.text2,
                               ),
@@ -3408,7 +3423,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     label: 'Recentre',
                     onTap: () => _recentreHeroMap(points),
                   ),
-                  if (hasRiders) ...[
+                  if (hasRiders && points.isNotEmpty) ...[
                     const SizedBox(width: 6),
                     _buildMapPillAction(
                       icon: Icons.open_in_full_rounded,
@@ -3696,7 +3711,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     style: AppText.label.copyWith(
                       fontSize: 13,
                       color: fg,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
                     ),
                   ),
                 ),
@@ -4125,35 +4142,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       ),
     ];
 
-    return Wrap(
-      spacing: AppSpace.sm + 2,
-      runSpacing: AppSpace.sm + 2,
-      children: actions.map((action) {
-        return SizedBox(
-          width: 100,
-          child: AppCard(
-            onTap: action.onTap,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpace.sm,
-              vertical: AppSpace.md,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AdminIconBadge(icon: action.icon, size: 38),
-                const SizedBox(height: AppSpace.sm),
-                Text(
-                  action.label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.label.copyWith(color: AppColors.text),
-                ),
-              ],
-            ),
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = (constraints.maxWidth / 80).floor().clamp(
+          2,
+          actions.length,
         );
-      }).toList(),
+        return AdminTileGrid(
+          columns: columns,
+          spacing: AppSpace.sm,
+          children: actions.map((action) {
+            return SizedBox(
+              width: double.infinity,
+              child: AppCard(
+                onTap: action.onTap,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.sm,
+                  vertical: AppSpace.md,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AdminIconBadge(icon: action.icon, size: 38),
+                    const SizedBox(height: AppSpace.sm),
+                    Text(
+                      action.label,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.label.copyWith(color: AppColors.text),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -4200,27 +4225,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           },
         ],
         onOrderDetailTap: _showTodayOrderDetails,
-        visual: AdminBreakdownBar(
-          emptyLabel: 'No orders yet today',
-          segments: [
-            AdminBreakdownSegment(
-              'Delivered',
-              _todayDelivered,
-              AppColors.primary,
-            ),
-            AdminBreakdownSegment(
-              'Out for delivery',
-              _todayOutForDelivery,
-              AppColors.outForDelivery,
-            ),
-            AdminBreakdownSegment('Open', todayOther, AppColors.warning),
-            AdminBreakdownSegment(
-              'Cancelled',
-              _todayCancelled,
-              AppColors.danger,
-            ),
-          ],
-        ),
+        visual: _todayTotal == 0
+            ? null
+            : AdminBreakdownBar(
+                emptyLabel: 'No orders yet today',
+                segments: [
+                  AdminBreakdownSegment(
+                    'Delivered',
+                    _todayDelivered,
+                    AppColors.primary,
+                  ),
+                  AdminBreakdownSegment(
+                    'Out for delivery',
+                    _todayOutForDelivery,
+                    AppColors.outForDelivery,
+                  ),
+                  AdminBreakdownSegment('Open', todayOther, AppColors.warning),
+                  AdminBreakdownSegment(
+                    'Cancelled',
+                    _todayCancelled,
+                    AppColors.danger,
+                  ),
+                ],
+              ),
       ),
       _buildOverviewMetricCard(
         title: 'All orders',
@@ -4246,21 +4273,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             'tone': 'cancelled',
           },
         ],
-        visual: AdminBreakdownBar(
-          segments: [
-            AdminBreakdownSegment(
-              'Delivered',
-              _allDelivered,
-              AppColors.primary,
-            ),
-            AdminBreakdownSegment('Open', allPending, AppColors.warning),
-            AdminBreakdownSegment(
-              'Cancelled',
-              _allCancelled,
-              AppColors.danger,
-            ),
-          ],
-        ),
+        visual: _allTotal == 0
+            ? null
+            : AdminBreakdownBar(
+                segments: [
+                  AdminBreakdownSegment(
+                    'Delivered',
+                    _allDelivered,
+                    AppColors.primary,
+                  ),
+                  AdminBreakdownSegment('Open', allPending, AppColors.warning),
+                  AdminBreakdownSegment(
+                    'Cancelled',
+                    _allCancelled,
+                    AppColors.danger,
+                  ),
+                ],
+              ),
       ),
       _buildOverviewMetricCard(
         title: 'Active users',
@@ -4331,10 +4360,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             overflow: TextOverflow.ellipsis,
             style: AppText.small,
           ),
-          if (visual != null) ...[
-            const SizedBox(height: AppSpace.md),
-            visual,
-          ],
+          if (visual != null) ...[const SizedBox(height: AppSpace.md), visual],
           if (orderDetails != null) ...[
             const SizedBox(height: AppSpace.md),
             _buildOrderDetailsSubCard(
@@ -4365,9 +4391,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       );
       // 'Out Delivery' is the key used by the tap handler; show the full
       // status name instead.
-      final displayLabel = toneKey == 'out_for_delivery'
-          ? style.label
-          : label;
+      final displayLabel = toneKey == 'out_for_delivery' ? style.label : label;
       return AdminCountChip(
         label: displayLabel,
         value: int.tryParse(detail['value'] ?? '0') ?? 0,
@@ -4560,9 +4584,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             decoration: BoxDecoration(
                               color: AppColors.surface2,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: AppColors.border,
-                              ),
+                              border: Border.all(color: AppColors.border),
                             ),
                             child: Text(
                               label == 'Out Delivery'
@@ -4808,9 +4830,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               decoration: BoxDecoration(
                                 color: AppColors.surface2,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: AppColors.border,
-                                ),
+                                border: Border.all(color: AppColors.border),
                               ),
                               child: Column(
                                 children: [
@@ -4869,9 +4889,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                   margin: const EdgeInsets.only(bottom: 8),
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: AppColors.border,
-                                    ),
+                                    border: Border.all(color: AppColors.border),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Row(
@@ -5797,8 +5815,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     title: _tr(
                       'No riders are currently sharing live locations',
                     ),
-                    message:
-                        'Riders appear here while they are on a delivery.',
+                    message: 'Riders appear here while they are on a delivery.',
                   ),
                 )
               else
@@ -6502,9 +6519,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 borderColor: pickupWarning
                     ? const Color(0xFFFCA5A5)
                     : AppColors.border,
-                textColor: pickupWarning
-                    ? AppColors.danger
-                    : AppColors.text,
+                textColor: pickupWarning ? AppColors.danger : AppColors.text,
               ),
             ],
           ),
@@ -7589,8 +7604,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   title: 'Order $orderNo',
                   subtitle: subtitle,
                   icon: Icons.receipt_long_rounded,
-                  color: riderId == null ? AppColors.warning : AppColors.primary,
-                  trailing: StatusPill(status: status, dense: true),
+                  color: riderId == null
+                      ? AppColors.warning
+                      : AppColors.primary,
+                  badge: StatusPill(status: status, dense: true),
                 ),
               ),
               if (raw != _assignableOrdersList.last) const Divider(height: 1),
@@ -7607,6 +7624,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required IconData icon,
     required Color color,
     Widget? trailing,
+    Widget? badge,
   }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -7620,12 +7638,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         overflow: TextOverflow.ellipsis,
         style: AppText.bodyStrong,
       ),
-      subtitle: Text(
-        subtitle,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: AppText.small,
-      ),
+      subtitle: badge == null
+          ? Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.small,
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.small,
+                ),
+                const SizedBox(height: 6),
+                badge,
+              ],
+            ),
       trailing:
           trailing ??
           const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
@@ -8140,10 +8172,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           child: Row(
                             children: [
                               Expanded(
-                                child: Text(
-                                  'Manage Orders',
-                                  style: AppText.h2,
-                                ),
+                                child: Text('Manage Orders', style: AppText.h2),
                               ),
                               IconButton(
                                 tooltip: 'Close',
@@ -8237,7 +8266,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                   isError: true,
                                   icon: Icons.cloud_off_rounded,
                                   title: 'Could not load orders',
-                                  message: 'Check the connection and try again.',
+                                  message:
+                                      'Check the connection and try again.',
                                   actionLabel: 'Retry',
                                   actionIcon: Icons.refresh_rounded,
                                   onAction: () => loadOrdersForDate(
@@ -8248,8 +8278,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               : filteredOrders.isEmpty && !isLoadingOrders
                               ? EmptyState(
                                   icon: Icons.receipt_long_rounded,
-                                  title: 'No orders on ${Fmt.date(selectedOrderDate)}',
-                                  message: 'Pick another date to see its orders.',
+                                  title:
+                                      'No orders on ${Fmt.date(selectedOrderDate)}',
+                                  message:
+                                      'Pick another date to see its orders.',
                                 )
                               : ListView(
                                   children: [

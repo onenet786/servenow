@@ -237,7 +237,10 @@ class _EntryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  Fmt.orderNumber(entry['order_number'], fallbackId: entry['order_id']),
+                  Fmt.orderNumber(
+                    entry['order_number'],
+                    fallbackId: entry['order_id'],
+                  ),
                   style: AppText.bodyStrong,
                 ),
               ),

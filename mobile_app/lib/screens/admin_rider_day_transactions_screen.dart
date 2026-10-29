@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/staff/staff_ui.dart';
 
 class AdminRiderDayTransactionsScreen extends StatefulWidget {
   const AdminRiderDayTransactionsScreen({
@@ -41,16 +42,6 @@ class _AdminRiderDayTransactionsScreenState
     _loadTransactions();
   }
 
-  Map<String, dynamic>? get _selectedRider {
-    for (final raw in widget.riders) {
-      final rider = (raw as Map).cast<String, dynamic>();
-      if (int.tryParse('${rider['id']}') == _selectedRiderId) {
-        return rider;
-      }
-    }
-    return null;
-  }
-
   String _riderDisplayName(Map<String, dynamic> rider) {
     final fullName = (rider['full_name'] ?? '').toString().trim();
     if (fullName.isNotEmpty) return fullName;
@@ -72,33 +63,6 @@ class _AdminRiderDayTransactionsScreenState
     final month = local.month.toString().padLeft(2, '0');
     final day = local.day.toString().padLeft(2, '0');
     return '${local.year}-$month-$day';
-  }
-
-  String _friendlyDateLabel(DateTime value) {
-    final today = DateTime.now();
-    final selected = DateTime(value.year, value.month, value.day);
-    final current = DateTime(today.year, today.month, today.day);
-    if (selected == current) return 'Today';
-    if (selected == current.subtract(const Duration(days: 1))) {
-      return 'Yesterday';
-    }
-    return _dateKey(selected);
-  }
-
-  String _formatDateTime(dynamic raw) {
-    if (raw == null) return '-';
-    final value = raw.toString().trim();
-    if (value.isEmpty) return '-';
-    final parsed =
-        DateTime.tryParse(value) ?? DateTime.tryParse(value.replaceFirst(' ', 'T'));
-    if (parsed == null) return value;
-    final dt = parsed.isUtc ? parsed.toLocal() : parsed;
-    final y = dt.year.toString().padLeft(4, '0');
-    final m = dt.month.toString().padLeft(2, '0');
-    final d = dt.day.toString().padLeft(2, '0');
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final mm = dt.minute.toString().padLeft(2, '0');
-    return '$y-$m-$d $hh:$mm';
   }
 
   Future<void> _loadTransactions() async {
@@ -126,7 +90,7 @@ class _AdminRiderDayTransactionsScreenState
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load rider day transactions: $e';
+        _error = _friendlyError(e);
         _isLoading = false;
       });
     }
@@ -156,75 +120,50 @@ class _AdminRiderDayTransactionsScreenState
     await _loadTransactions();
   }
 
-  Widget _amountRow(
-    String label,
-    dynamic value, {
-    Color? color,
-    bool strong = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: strong ? Colors.black87 : Colors.black54,
-                fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ),
-          Text(
-            'PKR ${_toDouble(value).toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 12,
-              color: color ?? Colors.black87,
-              fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
+  // ---------------------------------------------------------------------------
+  // UI (phase B redesign). Loading and date logic are above.
+  // ---------------------------------------------------------------------------
+
+  String _friendlyError(Object e) {
+    final text = e.toString().toLowerCase();
+    if (text.contains('permission') ||
+        text.contains('forbidden') ||
+        text.contains('403')) {
+      return 'You do not have access to rider day transactions.';
+    }
+    return 'Could not load rider day transactions.';
   }
 
-  Widget _collapsibleSection({
-    required String title,
-    required List<Widget> children,
-    Color color = const Color(0xFFF8FAFC),
-    Color borderColor = const Color(0xFFE2E8F0),
-    Widget? trailing,
-    bool initiallyExpanded = false,
-  }) {
-    return _TransactionSection(
-      title: title,
-      color: color,
-      borderColor: borderColor,
-      trailing: trailing,
-      initiallyExpanded: initiallyExpanded,
-      children: children,
-    );
-  }
-
-  Color _movementColor(String type) {
+  String _movementLabel(String type) {
     final t = type.toLowerCase();
-    if (t.contains('cash_collection')) return const Color(0xFF15803D);
-    if (t.contains('store_payment')) return const Color(0xFF1D4ED8);
-    if (t.contains('fuel')) return const Color(0xFFD97706);
-    if (t.contains('advance')) return const Color(0xFF7C3AED);
-    if (t.contains('settlement')) return const Color(0xFF0F766E);
-    return Colors.grey;
+    if (t.contains('cash_collection')) return 'Cash collected';
+    if (t.contains('store_payment')) return 'Store payment';
+    if (t.contains('fuel')) return 'Fuel expense';
+    if (t.contains('advance')) return 'Office advance';
+    if (t.contains('cash_submission')) return 'Cash submitted';
+    if (t.contains('settlement')) return 'Settlement';
+    final clean = type.replaceAll('_', ' ').trim();
+    if (clean.isEmpty) return 'Movement';
+    return clean[0].toUpperCase() + clean.substring(1);
+  }
+
+  StaffTone _movementTone(String type) {
+    final t = type.toLowerCase();
+    if (t.contains('cash_collection') || t.contains('advance')) {
+      return StaffTone.primary;
+    }
+    return StaffTone.neutral;
   }
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
     final stores = (order['stores'] as List?) ?? const [];
+    final effect = _toDouble(order['expected_rider_cash_effect']);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpace.md),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: AppColors.surface2,
+        borderRadius: AppRadius.controlAll,
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,56 +171,76 @@ class _AdminRiderDayTransactionsScreenState
           Row(
             children: [
               Expanded(
-                child: Text(
-                  (order['order_number'] ?? '#${order['order_id'] ?? '-'}')
-                      .toString(),
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      Fmt.orderNumber(
+                        order['order_number'],
+                        fallbackId: order['order_id'],
+                      ),
+                      style: AppText.bodyStrong,
+                    ),
+                    Text(
+                      Fmt.dateTime(order['created_at'], fallback: '-'),
+                      style: AppText.caption,
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                'Cash PKR ${_toDouble(order['expected_rider_cash_effect']).toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: Color(0xFF0F766E),
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w900,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Cash effect', style: AppText.caption),
+                  Text(
+                    '${effect >= 0 ? '+' : '−'} ${Fmt.money(effect.abs())}',
+                    style: AppText.price.copyWith(
+                      fontSize: 14,
+                      color: effect >= 0
+                          ? AppColors.primaryPressed
+                          : AppColors.danger,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            _formatDateTime(order['created_at']),
-            style: const TextStyle(color: Colors.black54, fontSize: 11),
+          const SizedBox(height: AppSpace.xs),
+          MoneyRow(
+            label: 'Customer cash collected',
+            amount: order['customer_cash_collected'],
           ),
-          const SizedBox(height: 8),
-          _amountRow(
-            'Customer cash collected',
-            order['customer_cash_collected'],
-            color: const Color(0xFF15803D),
+          MoneyRow(
+            label: 'Store paid by rider',
+            amount: order['rider_store_paid'],
           ),
-          _amountRow(
-            'Store paid by rider',
-            order['rider_store_paid'],
-            color: const Color(0xFFB91C1C),
-          ),
-          _amountRow(
-            'Store payable later',
-            order['store_payable_later'],
-            color: const Color(0xFF1D4ED8),
+          MoneyRow(
+            label: 'Store payable later',
+            amount: order['store_payable_later'],
           ),
           if (stores.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            ...stores.map((rawStore) {
-              final store = (rawStore as Map?)?.cast<String, dynamic>() ?? {};
-              return Text(
-                '${store['store_name'] ?? 'Store'} - ${store['payment_term'] ?? '-'}',
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              );
-            }),
+            const SizedBox(height: AppSpace.xs),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final rawStore in stores)
+                  Builder(
+                    builder: (_) {
+                      final store =
+                          (rawStore as Map?)?.cast<String, dynamic>() ?? {};
+                      final term = (store['payment_term'] ?? '').toString();
+                      return TonePill.neutral(
+                        [
+                          (store['store_name'] ?? 'Store').toString(),
+                          if (term.isNotEmpty) term,
+                        ].join(' · '),
+                        icon: Icons.storefront_outlined,
+                      );
+                    },
+                  ),
+              ],
+            ),
           ],
         ],
       ),
@@ -294,17 +253,19 @@ class _AdminRiderDayTransactionsScreenState
     final canGoNext = _selectedDate.isBefore(today);
 
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         children: [
           DropdownButtonFormField<int>(
             initialValue: _selectedRiderId,
             isExpanded: true,
             decoration: const InputDecoration(
-              labelText: 'Select Rider',
-              border: OutlineInputBorder(),
-              isDense: true,
+              labelText: 'Rider',
+              prefixIcon: Icon(Icons.two_wheeler_rounded),
             ),
             items: widget.riders.map((raw) {
               final rider = (raw as Map).cast<String, dynamic>();
@@ -323,44 +284,12 @@ class _AdminRiderDayTransactionsScreenState
               _loadTransactions();
             },
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF3E0),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: _isLoading ? null : () => _changeDate(-1),
-                  icon: const Icon(Icons.chevron_left),
-                  color: const Color(0xFFE65100),
-                ),
-                Expanded(
-                  child: InkWell(
-                    onTap: _isLoading ? null : _pickDate,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        '${_friendlyDateLabel(_selectedDate)}  ${_dateKey(_selectedDate)}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Color(0xFFE65100),
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: _isLoading || !canGoNext ? null : () => _changeDate(1),
-                  icon: const Icon(Icons.chevron_right),
-                  color: const Color(0xFFE65100),
-                ),
-              ],
-            ),
+          const SizedBox(height: AppSpace.sm),
+          DayStepper(
+            date: _selectedDate,
+            onPrevious: _isLoading ? null : () => _changeDate(-1),
+            onNext: _isLoading || !canGoNext ? null : () => _changeDate(1),
+            onPick: _isLoading ? null : _pickDate,
           ),
         ],
       ),
@@ -370,29 +299,30 @@ class _AdminRiderDayTransactionsScreenState
   Widget _buildBody() {
     final data = _data;
     if (_isLoading && data == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null && data == null) {
-      return Center(
+      return const Shimmer(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(AppSpace.lg),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.redAccent),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _loadTransactions,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
+              SkeletonBox(height: 96, radius: AppRadius.card),
+              SizedBox(height: AppSpace.md),
+              SkeletonBox(height: 220, radius: AppRadius.card),
+              SizedBox(height: AppSpace.md),
+              SkeletonBox(height: 120, radius: AppRadius.card),
             ],
           ),
         ),
+      );
+    }
+    if (_error != null && data == null) {
+      return EmptyState(
+        icon: Icons.lock_outline_rounded,
+        title: _error!,
+        message: 'Pick another rider or date, or try again.',
+        actionLabel: 'Retry',
+        actionIcon: Icons.refresh_rounded,
+        onAction: _loadTransactions,
+        isError: true,
       );
     }
     if (data == null) return const SizedBox.shrink();
@@ -402,10 +332,12 @@ class _AdminRiderDayTransactionsScreenState
     final dailySummary =
         (data['daily_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
     final ledgerSummary =
-        (data['ledger_summary'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+        (data['ledger_summary'] as Map<String, dynamic>?) ??
+        <String, dynamic>{};
     final movements = (data['movements'] as List?) ?? const [];
     final orderLedger = (data['order_ledger'] as List?) ?? const [];
-    final summaryDate = (dailySummary['date'] ?? _dateKey(_selectedDate)).toString();
+    final summaryDate = (dailySummary['date'] ?? _dateKey(_selectedDate))
+        .toString();
 
     double totalSubmitted = 0;
     for (final raw in movements) {
@@ -426,85 +358,178 @@ class _AdminRiderDayTransactionsScreenState
     final officeAdvance = _toDouble(summary['office_advance']);
     final fuelPayment = _toDouble(summary['fuel_payment']);
     final expectedCashWithRider =
-        officeAdvance + cashInCustomer - cashOutStore - fuelPayment - totalSubmitted;
+        officeAdvance +
+        cashInCustomer -
+        cashOutStore -
+        fuelPayment -
+        totalSubmitted;
+    final unsubmitted = _toDouble(summary['unsubmitted_cash_received']);
 
     return Stack(
       children: [
         ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
             if (_error != null) ...[
-              MaterialBanner(
-                content: Text(_error!),
-                leading: const Icon(Icons.warning_amber, color: Colors.redAccent),
-                actions: [
-                  TextButton(
-                    onPressed: () => setState(() => _error = null),
-                    child: const Text('Dismiss'),
+              AppCard(
+                color: AppColors.dangerBg,
+                borderColor: AppColors.dangerBg,
+                padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: AppColors.danger,
+                    ),
+                    const SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: AppText.small.copyWith(color: AppColors.danger),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _error = null),
+                      child: const Text('Dismiss'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpace.md),
+            ],
+            // Headline: what the rider should be holding.
+            Container(
+              padding: const EdgeInsets.all(AppSpace.lg),
+              decoration: BoxDecoration(
+                color: AppColors.tint50,
+                borderRadius: AppRadius.cardAll,
+                border: Border.all(color: AppColors.tint200),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Expected cash with rider',
+                          style: AppText.bodyStrong.copyWith(
+                            color: AppColors.primaryDeep,
+                          ),
+                        ),
+                        Text(
+                          Fmt.money(expectedCashWithRider),
+                          style: AppText.price.copyWith(
+                            fontSize: 28,
+                            color: AppColors.primaryDeep,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  if (unsubmitted > 0)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('Unsubmitted', style: AppText.caption),
+                        Text(
+                          Fmt.money(unsubmitted),
+                          style: AppText.price.copyWith(
+                            color: AppColors.warning,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
-              const SizedBox(height: 12),
-            ],
-            _collapsibleSection(
-              title: 'Cash Position',
-              initiallyExpanded: true,
-              color: const Color(0xFFF0FDFA),
-              borderColor: const Color(0xFF99F6E4),
+            ),
+            const SizedBox(height: AppSpace.md),
+            StaffSection(
+              title: 'Cash position',
+              collapsible: true,
               children: [
-                _amountRow('Office advance', officeAdvance,
-                    color: const Color(0xFF7C3AED)),
-                _amountRow('Customer cash collected', cashInCustomer,
-                    color: const Color(0xFF15803D)),
-                _amountRow('Store paid by rider', cashOutStore,
-                    color: const Color(0xFFB91C1C)),
-                _amountRow('Fuel / expense', fuelPayment,
-                    color: const Color(0xFFD97706)),
-                _amountRow('Submitted to office', totalSubmitted,
-                    color: const Color(0xFF475569)),
-                const Divider(height: 14),
-                _amountRow(
-                  'Expected cash with rider',
-                  expectedCashWithRider,
-                  color: const Color(0xFF0F766E),
-                  strong: true,
+                MoneyRow(
+                  label: 'Office advance',
+                  amount: officeAdvance,
+                  sign: '+',
                 ),
-                _amountRow(
-                  'Unsubmitted cash',
-                  summary['unsubmitted_cash_received'],
-                  color: const Color(0xFFE65100),
+                MoneyRow(
+                  label: 'Customer cash collected',
+                  amount: cashInCustomer,
+                  sign: '+',
+                  tone: StaffTone.primary,
+                ),
+                MoneyRow(
+                  label: 'Store paid by rider',
+                  amount: cashOutStore,
+                  sign: '-',
+                ),
+                MoneyRow(
+                  label: 'Fuel / expense',
+                  amount: fuelPayment,
+                  sign: '-',
+                ),
+                MoneyRow(
+                  label: 'Submitted to office',
+                  amount: totalSubmitted,
+                  sign: '-',
+                ),
+                const Divider(height: 16),
+                MoneyRow(
+                  label: 'Expected cash with rider',
+                  amount: expectedCashWithRider,
+                  strong: true,
+                  tone: StaffTone.primary,
+                ),
+                MoneyRow(
+                  label: 'Unsubmitted cash',
+                  amount: summary['unsubmitted_cash_received'],
+                  tone: unsubmitted > 0 ? StaffTone.warning : StaffTone.neutral,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            _collapsibleSection(
-              title: 'Daily Summary',
+            const SizedBox(height: AppSpace.md),
+            StaffSection(
+              title: 'Daily summary',
+              collapsible: true,
+              initiallyExpanded: false,
               trailing: Text(
-                summaryDate,
-                style: const TextStyle(
-                  color: Colors.black54,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
+                StaffDates.dateOnly(summaryDate, fallback: summaryDate),
+                style: AppText.caption,
               ),
               children: [
-                _amountRow('Cash collection', dailySummary['cash_collection']),
-                _amountRow('Store paid', dailySummary['store_payment']),
-                _amountRow('Fuel payment', dailySummary['fuel_payment']),
-                _amountRow(
-                  'Delivery fee earned',
-                  dailySummary['delivery_fee_earned'],
+                MoneyRow(
+                  label: 'Cash collection',
+                  amount: dailySummary['cash_collection'],
+                ),
+                MoneyRow(
+                  label: 'Store paid',
+                  amount: dailySummary['store_payment'],
+                ),
+                MoneyRow(
+                  label: 'Fuel payment',
+                  amount: dailySummary['fuel_payment'],
+                ),
+                MoneyRow(
+                  label: 'Delivery fee earned',
+                  amount: dailySummary['delivery_fee_earned'],
+                  tone: StaffTone.primary,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            _collapsibleSection(
-              title: 'Order-wise Ledger',
+            const SizedBox(height: AppSpace.md),
+            StaffSection(
+              title: 'Order-wise ledger',
+              collapsible: true,
+              initiallyExpanded: false,
+              trailing: TonePill.neutral(
+                Fmt.count(orderLedger.length, 'order'),
+              ),
               children: orderLedger.isEmpty
-                  ? const [
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(child: Text('No orders found')),
+                  ? [
+                      Text(
+                        'No orders on this day',
+                        style: AppText.bodySecondary,
                       ),
                     ]
                   : [
@@ -512,91 +537,77 @@ class _AdminRiderDayTransactionsScreenState
                         _buildOrderCard(
                           (rawOrder as Map?)?.cast<String, dynamic>() ?? {},
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: AppSpace.sm),
                       ],
                     ],
             ),
-            const SizedBox(height: 12),
-            _collapsibleSection(
-              title: 'Cash Movement Log',
+            const SizedBox(height: AppSpace.md),
+            StaffSection(
+              title: 'Cash movement log',
+              collapsible: true,
+              initiallyExpanded: false,
+              trailing: TonePill.neutral(
+                Fmt.count(movements.length, 'entry', 'entries'),
+              ),
               children: movements.isEmpty
-                  ? const [
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(child: Text('No movements found')),
+                  ? [
+                      Text(
+                        'No movements on this day',
+                        style: AppText.bodySecondary,
                       ),
                     ]
                   : [
-                      for (final rawMovement in movements) ...[
+                      for (var i = 0; i < movements.length; i++) ...[
+                        if (i > 0) const Divider(height: 16),
                         Builder(
                           builder: (_) {
                             final m =
-                                (rawMovement as Map?)?.cast<String, dynamic>() ??
-                                    {};
-                            final type = (m['movement_type'] ?? '-').toString();
-                            final color = _movementColor(type);
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                                (movements[i] as Map?)
+                                    ?.cast<String, dynamic>() ??
+                                {};
+                            final type = (m['movement_type'] ?? '').toString();
+                            final description = (m['description'] ?? '')
+                                .toString()
+                                .trim();
+                            final tone = _movementTone(type);
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: Text(
-                                          type.replaceAll('_', ' ').toUpperCase(),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
                                       Text(
-                                        'PKR ${_toDouble(m['amount']).toStringAsFixed(2)}',
-                                        style: TextStyle(
-                                          color: color,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 12,
+                                        _movementLabel(type),
+                                        style: AppText.bodyStrong,
+                                      ),
+                                      if (description.isNotEmpty)
+                                        Text(description, style: AppText.small),
+                                      Text(
+                                        Fmt.dateTime(
+                                          m['movement_at'] ??
+                                              m['created_at'] ??
+                                              m['movement_date'],
+                                          fallback: '-',
                                         ),
+                                        style: AppText.caption,
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    _formatDateTime(
-                                      m['movement_at'] ??
-                                          m['created_at'] ??
-                                          m['movement_date'],
-                                    ),
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      fontSize: 12,
-                                    ),
+                                ),
+                                const SizedBox(width: AppSpace.sm),
+                                Text(
+                                  Fmt.money(_toDouble(m['amount'])),
+                                  style: AppText.price.copyWith(
+                                    fontSize: 14,
+                                    color: tone.foreground,
                                   ),
-                                  if ((m['description'] ?? '')
-                                      .toString()
-                                      .trim()
-                                      .isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      m['description'].toString(),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                                ),
+                              ],
                             );
                           },
                         ),
-                        const SizedBox(height: 8),
                       ],
                     ],
             ),
@@ -615,14 +626,14 @@ class _AdminRiderDayTransactionsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final selectedRider = _selectedRider;
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Rider Day Transactions'),
+        title: const Text('Rider day transactions'),
         actions: [
           IconButton(
             onPressed: _isLoading ? null : _loadTransactions,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
           ),
         ],
@@ -630,100 +641,7 @@ class _AdminRiderDayTransactionsScreenState
       body: Column(
         children: [
           _buildControls(),
-          if (selectedRider != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _riderDisplayName(selectedRider),
-                  style: const TextStyle(
-                    color: Colors.black54,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
           Expanded(child: _buildBody()),
-        ],
-      ),
-    );
-  }
-}
-
-class _TransactionSection extends StatefulWidget {
-  const _TransactionSection({
-    required this.title,
-    required this.children,
-    required this.color,
-    required this.borderColor,
-    required this.initiallyExpanded,
-    this.trailing,
-  });
-
-  final String title;
-  final List<Widget> children;
-  final Color color;
-  final Color borderColor;
-  final bool initiallyExpanded;
-  final Widget? trailing;
-
-  @override
-  State<_TransactionSection> createState() => _TransactionSectionState();
-}
-
-class _TransactionSectionState extends State<_TransactionSection> {
-  late bool _expanded;
-
-  @override
-  void initState() {
-    super.initState();
-    _expanded = widget.initiallyExpanded;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: widget.color,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: widget.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                if (widget.trailing != null) ...[
-                  widget.trailing!,
-                  const SizedBox(width: 6),
-                ],
-                Icon(
-                  _expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                  color: Colors.black54,
-                ),
-              ],
-            ),
-          ),
-          if (_expanded) ...[
-            const SizedBox(height: 8),
-            ...widget.children,
-          ],
         ],
       ),
     );

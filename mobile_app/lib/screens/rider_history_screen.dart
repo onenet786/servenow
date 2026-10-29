@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../theme/customer_palette.dart';
+import '../widgets/staff/staff_ui.dart';
 
 class _RiderHistoryPoint {
   const _RiderHistoryPoint({
@@ -440,18 +441,13 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
   }
 
   String _formatDate(DateTime value) {
-    final day = value.day.toString().padLeft(2, '0');
-    final month = value.month.toString().padLeft(2, '0');
-    return '$day/$month/${value.year}';
+    final label = StaffDates.dayLabel(value);
+    final full = StaffDates.full(value);
+    return label == full ? full : '$label \u00b7 $full';
   }
 
-  String _formatMoment(DateTime? value) {
-    if (value == null) return '-';
-    final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
-    final minute = value.minute.toString().padLeft(2, '0');
-    final suffix = value.hour >= 12 ? 'pm' : 'am';
-    return '${value.day}/${value.month} $hour:$minute $suffix';
-  }
+  String _formatMoment(DateTime? value) =>
+      value == null ? '-' : Fmt.dateTime(value, fallback: '-');
 
   String _riderDropdownLabel(_RiderHistoryResult result) {
     return '${result.riderName} (${result.rideCount})';
@@ -478,11 +474,11 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
     required Color tint,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: tint.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: tint.withValues(alpha: 0.18)),
+        color: AppColors.surface,
+        borderRadius: AppRadius.controlAll,
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -495,19 +491,11 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: CustomerPalette.textMuted,
-                ),
+                style: AppText.caption,
               ),
               Text(
                 value,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: tint,
-                ),
+                style: AppText.price.copyWith(fontSize: 13),
               ),
             ],
           ),
@@ -579,15 +567,21 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
             : selectedRoute?.updatedAt;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FC),
-      appBar: AppBar(
-        title: const Text('Ride History'),
-        backgroundColor: Colors.white,
-        foregroundColor: CustomerPalette.textDark,
-        elevation: 0,
-      ),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text('Ride history')),
       body: _isLoadingRiders
-          ? const Center(child: CircularProgressIndicator())
+          ? const Shimmer(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpace.lg),
+                child: Column(
+                  children: [
+                    SkeletonBox(height: 180, radius: AppRadius.card),
+                    SizedBox(height: AppSpace.lg),
+                    SkeletonBox(height: 300, radius: AppRadius.card),
+                  ],
+                ),
+              ),
+            )
           : RefreshIndicator(
               onRefresh: _loadHistoryForDate,
               child: ListView(
@@ -597,35 +591,17 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: AppRadius.cardAll,
                       border: Border.all(color: CustomerPalette.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
-                          blurRadius: 18,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const Text('Rides by date', style: AppText.h2),
+                        const SizedBox(height: 4),
                         const Text(
-                          'Rider History By Date',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: CustomerPalette.textDark,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Pick a date to list all riders who moved that day. Tap any rider to show that rider route on the map.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: CustomerPalette.textMuted,
-                          ),
+                          'Pick a date to list the riders who moved that day. Tap a rider to show the route on the map.',
+                          style: AppText.small,
                         ),
                         const SizedBox(height: 14),
                         InkWell(
@@ -676,7 +652,7 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                               icon: Icons.two_wheeler,
                               label: 'Riders',
                               value: _results.length.toString(),
-                              tint: CustomerPalette.secondaryDark,
+                              tint: AppColors.primaryPressed,
                             ),
                             _summaryChip(
                               icon: Icons.assignment_turned_in_outlined,
@@ -688,20 +664,20 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                               icon: Icons.route_rounded,
                               label: 'Selected Ride Points',
                               value: selectedRoute?.points.length.toString() ?? '0',
-                              tint: const Color(0xFF0F766E),
+                              tint: AppColors.primaryPressed,
                             ),
                             _summaryChip(
                               icon: Icons.social_distance_rounded,
                               label: 'Selected Distance',
                               value:
                                   '${selectedDistance.toStringAsFixed(selectedDistance >= 10 ? 0 : 1)} km',
-                              tint: const Color(0xFF92400E),
+                              tint: AppColors.primaryPressed,
                             ),
                             _summaryChip(
                               icon: Icons.update_rounded,
                               label: 'Last Update',
                               value: _formatMoment(endedAt),
-                              tint: const Color(0xFF1D4ED8),
+                              tint: AppColors.primaryPressed,
                             ),
                           ],
                         ),
@@ -775,31 +751,40 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                     height: 340,
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: AppRadius.cardAll,
                       border: Border.all(color: CustomerPalette.border),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: _isLoadingHistory
                         ? const Center(child: CircularProgressIndicator())
                         : _error != null && _results.isEmpty
-                        ? Center(child: Text(_error!))
+                        ? EmptyState(
+                            icon: Icons.route_outlined,
+                            title: 'No rides on this date',
+                            message: _error,
+                            actionLabel: 'Pick another date',
+                            onAction: _pickDate,
+                            compact: true,
+                          )
                         : selected == null
-                        ? const Center(
-                            child: Text(
-                              'Select a date, rider, and ride to view the route map.',
-                            ),
+                        ? const EmptyState(
+                            icon: Icons.two_wheeler_rounded,
+                            title: 'Select a rider',
+                            message: 'Choose a rider and a ride to see the route.',
+                            compact: true,
                           )
                         : selectedRoute == null
-                        ? const Center(
-                            child: Text(
-                              'No ride is selected for this rider yet.',
-                            ),
+                        ? const EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            title: 'No ride selected',
+                            compact: true,
                           )
                         : selectedPoints.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'This ride has no recorded tracking route points in its delivery window.',
-                            ),
+                        ? const EmptyState(
+                            icon: Icons.location_off_outlined,
+                            title: 'No GPS points for this ride',
+                            message: 'The rider app did not record a route during this delivery.',
+                            compact: true,
                           )
                         : FlutterMap(
                             mapController: _mapController,
@@ -886,20 +871,13 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: AppRadius.cardAll,
                       border: Border.all(color: CustomerPalette.border),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Riders On Selected Date',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: CustomerPalette.textDark,
-                          ),
-                        ),
+                        const Text('Riders on this date', style: AppText.title),
                         const SizedBox(height: 10),
                         if (_isLoadingHistory)
                           const Center(child: CircularProgressIndicator())
@@ -1005,7 +983,7 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                                                   icon: Icons.route_rounded,
                                                   label: 'Points',
                                                   value: result.points.length.toString(),
-                                                  tint: CustomerPalette.secondaryDark,
+                                                  tint: AppColors.primaryPressed,
                                                 ),
                                                 _summaryChip(
                                                   icon: Icons.social_distance_rounded,
@@ -1018,13 +996,13 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                                                   icon: Icons.play_circle_outline_rounded,
                                                   label: 'Started',
                                                   value: _formatMoment(started),
-                                                  tint: const Color(0xFF92400E),
+                                                  tint: AppColors.primaryPressed,
                                                 ),
                                                 _summaryChip(
                                                   icon: Icons.update_rounded,
                                                   label: 'Updated',
                                                   value: _formatMoment(updated),
-                                                  tint: const Color(0xFF1D4ED8),
+                                                  tint: AppColors.primaryPressed,
                                                 ),
                                               ],
                                             ),
@@ -1046,20 +1024,13 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: AppRadius.cardAll,
                         border: Border.all(color: CustomerPalette.border),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Selected Ride Movement Log',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: CustomerPalette.textDark,
-                            ),
-                          ),
+                          const Text('Ride movement log', style: AppText.title),
                           const SizedBox(height: 10),
                           Wrap(
                             spacing: 8,
@@ -1076,7 +1047,7 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                                   icon: Icons.receipt_long_rounded,
                                   label: 'Selected Order',
                                   value: selectedRoute.orderNumber,
-                                  tint: CustomerPalette.secondaryDark,
+                                  tint: AppColors.primaryPressed,
                                 ),
                               if (selectedRoute != null)
                                 _summaryChip(
@@ -1084,8 +1055,10 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                                   label: 'Status',
                                   value: selectedRoute.status.isEmpty
                                       ? '-'
-                                      : selectedRoute.status,
-                                  tint: const Color(0xFF1D4ED8),
+                                      : OrderStatusStyle.of(
+                                          selectedRoute.status,
+                                        ).label,
+                                  tint: AppColors.primaryPressed,
                                 ),
                             ],
                           ),

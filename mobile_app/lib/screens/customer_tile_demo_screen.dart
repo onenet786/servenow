@@ -81,7 +81,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
 
       if (rawStores.isEmpty) {
         throw Exception(
-          'Store load failed from ${ApiService.baseUrl}. No stores were returned by the customer or admin feed.',
+          'No stores could be loaded right now.',
         );
       }
 
@@ -97,7 +97,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
       if (!mounted) return;
       setState(() {
         _errorMessage =
-            'Store load failed from ${ApiService.baseUrl}: ${error.toString()}';
+            'Could not load stores. Please try again.';
         _isLoadingStores = false;
       });
     }
@@ -144,7 +144,7 @@ class _CustomerTileDemoScreenState extends State<CustomerTileDemoScreen> {
       if (!mounted) return;
       setState(() {
         _errorMessage =
-            'Store details failed from ${ApiService.baseUrl}: ${error.toString()}';
+            'Could not load this store. Please try again.';
         _isLoadingProducts = false;
       });
     }

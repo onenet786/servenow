@@ -92,15 +92,17 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Customer': 'گاہک',
       'Store': 'دکان',
       'Summary': 'خلاصہ',
-      'Swipe: cash received': 'سوائپ کریں: رقم وصول',
-      'Swipe to mark delivered': 'پہنچانے کے لیے سوائپ کریں',
+      'Cash received': 'رقم وصول ہو گئی',
+      'Swipe to deliver': 'پہنچانے کے لیے سوائپ کریں',
       'Waiting for pickup': 'پک اپ کا انتظار',
       'Deliver': 'ڈیلیوری',
       'Special Instructions': 'خصوصی ہدایات',
       'No active deliveries': 'کوئی جاری ڈیلیوری نہیں',
-      'New orders assigned to you appear here automatically.': 'آپ کو دیے گئے نئے آرڈرز یہاں خود بخود نظر آئیں گے۔',
+      'New orders assigned to you appear here automatically.':
+          'آپ کو دیے گئے نئے آرڈرز یہاں خود بخود نظر آئیں گے۔',
       'No completed deliveries yet': 'ابھی تک کوئی مکمل ڈیلیوری نہیں',
-      'Delivered orders will be listed here by day.': 'مکمل آرڈرز یہاں دن کے حساب سے نظر آئیں گے۔',
+      'Delivered orders will be listed here by day.':
+          'مکمل آرڈرز یہاں دن کے حساب سے نظر آئیں گے۔',
       'Paid': 'ادا شدہ',
       'Not paid': 'ادا نہیں ہوا',
       'Payment failed': 'ادائیگی ناکام',
@@ -115,7 +117,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Total earnings account': 'کل آمدنی کا اکاؤنٹ',
       'Wallet & cash flow refreshed': 'والیٹ اور کیش اپ ڈیٹ ہو گئے',
       'Daily cash': 'روزانہ کیش',
-      'Advance, store payments and cash in your pocket': 'ایڈوانس، دکانوں کو ادائیگی اور آپ کی جیب میں رقم',
+      'Advance, store payments and cash in your pocket':
+          'ایڈوانس، دکانوں کو ادائیگی اور آپ کی جیب میں رقم',
       'Cash in pocket': 'جیب میں رقم',
       'Shift active': 'شفٹ جاری',
       'Shift closed': 'شفٹ بند',
@@ -130,7 +133,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Return Cash to Admin': 'رقم دفتر کو واپس کریں',
       'Day Slip': 'دن کی رسید',
       'Cash movements': 'رقم کی آمد و رفت',
-      'No cash movements logged for this day yet.': 'اس دن کی کوئی رقم درج نہیں ہوئی۔',
+      'No cash movements logged for this day yet.':
+          'اس دن کی کوئی رقم درج نہیں ہوئی۔',
       'Store payment': 'دکان کو ادائیگی',
       'Fuel expense': 'پیٹرول خرچ',
       'Cash returned to office': 'رقم دفتر کو واپس',
@@ -139,9 +143,12 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'COD': 'نقد',
       'Store paid': 'دکان کو ادا',
       'Return cash to office': 'رقم دفتر کو واپس کریں',
-      'Hand the cash to your dispatch manager or cashier.': 'رقم اپنے ڈسپیچ مینیجر یا کیشیئر کے حوالے کریں۔',
-      'The office records it in Rider Day Transactions.': 'دفتر اسے رائیڈر کے روزانہ لین دین میں درج کرے گا۔',
-      'Once verified, your cash in pocket updates automatically.': 'تصدیق کے بعد آپ کی جیب کی رقم خود اپ ڈیٹ ہو جائے گی۔',
+      'Hand the cash to your dispatch manager or cashier.':
+          'رقم اپنے ڈسپیچ مینیجر یا کیشیئر کے حوالے کریں۔',
+      'The office records it in Rider Day Transactions.':
+          'دفتر اسے رائیڈر کے روزانہ لین دین میں درج کرے گا۔',
+      'Once verified, your cash in pocket updates automatically.':
+          'تصدیق کے بعد آپ کی جیب کی رقم خود اپ ڈیٹ ہو جائے گی۔',
       'View full statement': 'مکمل اسٹیٹمنٹ دیکھیں',
       'Financial Statistics': 'مالی اعداد و شمار',
       'Daily': 'روزانہ',
@@ -156,17 +163,22 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'ID card': 'شناختی کارڈ',
       'Day Transactions': 'روزانہ لین دین',
       'Not submitted cash': 'جمع نہ کرائی گئی رقم',
-      'Cash orders not yet handed to the office': 'نقد آرڈرز جن کی رقم ابھی دفتر میں جمع نہیں ہوئی',
+      'Cash orders not yet handed to the office':
+          'نقد آرڈرز جن کی رقم ابھی دفتر میں جمع نہیں ہوئی',
       'All cash submitted': 'تمام رقم جمع ہو چکی',
-      'No unsubmitted cash orders for this day.': 'اس دن کوئی غیر جمع شدہ نقد آرڈر نہیں۔',
+      'No unsubmitted cash orders for this day.':
+          'اس دن کوئی غیر جمع شدہ نقد آرڈر نہیں۔',
       'Delivery fee': 'ڈیلیوری فیس',
       'Close day': 'دن بند کریں',
       'Close the day for': 'دن بند کریں:',
-      'You can still view the summary after closing.': 'بند کرنے کے بعد بھی خلاصہ دیکھ سکتے ہیں۔',
+      'You can still view the summary after closing.':
+          'بند کرنے کے بعد بھی خلاصہ دیکھ سکتے ہیں۔',
       'Day closed successfully': 'دن کامیابی سے بند ہو گیا',
-      'Could not close the day. Please try again.': 'دن بند نہیں ہو سکا۔ دوبارہ کوشش کریں۔',
+      'Could not close the day. Please try again.':
+          'دن بند نہیں ہو سکا۔ دوبارہ کوشش کریں۔',
       'Expected cash with you': 'آپ کے پاس متوقع رقم',
-      'Advance + customer cash − store paid − fuel − submitted': 'ایڈوانس + گاہک کی رقم − دکان کو ادا − پیٹرول − جمع شدہ',
+      'Advance + customer cash − store paid − fuel − submitted':
+          'ایڈوانس + گاہک کی رقم − دکان کو ادا − پیٹرول − جمع شدہ',
       'Customer cash': 'گاہک کی رقم',
       'Not submitted': 'جمع نہیں ہوئی',
       'Fuel': 'پیٹرول',
@@ -175,11 +187,14 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Daily Summary': 'روزانہ خلاصہ',
       'Delivery fees earned': 'کمائی گئی ڈیلیوری فیس',
       'Day closed at': 'دن بند ہوا',
-      'Could not load stats. Pull to refresh.': 'اعداد و شمار لوڈ نہیں ہو سکے۔ ریفریش کریں۔',
+      'Could not load stats. Pull to refresh.':
+          'اعداد و شمار لوڈ نہیں ہو سکے۔ ریفریش کریں۔',
       'Could not load day transactions.': 'روزانہ لین دین لوڈ نہیں ہو سکا۔',
       'Order marked as delivered': 'آرڈر پہنچا دیا گیا',
-      'Could not mark delivered. Please try again.': 'ڈیلیوری مارک نہیں ہو سکی۔ دوبارہ کوشش کریں۔',
-      'Could not update payment. Please try again.': 'ادائیگی اپ ڈیٹ نہیں ہو سکی۔ دوبارہ کوشش کریں۔',
+      'Could not mark delivered. Please try again.':
+          'ڈیلیوری مارک نہیں ہو سکی۔ دوبارہ کوشش کریں۔',
+      'Could not update payment. Please try again.':
+          'ادائیگی اپ ڈیٹ نہیں ہو سکی۔ دوبارہ کوشش کریں۔',
       'Location updated': 'مقام اپ ڈیٹ ہو گیا',
     };
     if (_isUrdu && localTranslations.containsKey(text)) {
@@ -571,8 +586,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate:
-          _selectedCashFlowDate.isAfter(now) ? now : _selectedCashFlowDate,
+      initialDate: _selectedCashFlowDate.isAfter(now)
+          ? now
+          : _selectedCashFlowDate,
       firstDate: DateTime(now.year - 2),
       lastDate: now,
     );
@@ -692,7 +708,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       _logger.e('Error loading wallet stats: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_tr('Could not load stats. Pull to refresh.'))),
+          SnackBar(
+            content: Text(_tr('Could not load stats. Pull to refresh.')),
+          ),
         );
       }
     } finally {
@@ -870,9 +888,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                               order['remaining_amount'] ??
                               order['total_amount'],
                         );
-                        final deliveryFee = _parseDouble(
-                          order['delivery_fee'],
-                        );
+                        final deliveryFee = _parseDouble(order['delivery_fee']);
                         final method = Fmt.paymentMethod(
                           order['payment_method'],
                         );
@@ -978,8 +994,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                     token,
                     date: summaryDate,
                   );
-                  dayClosing = (closeData['day_closing'] as Map<String, dynamic>?)
-                      ?.cast<String, dynamic>();
+                  dayClosing =
+                      (closeData['day_closing'] as Map<String, dynamic>?)
+                          ?.cast<String, dynamic>();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(_tr('Day closed successfully'))),
@@ -1045,7 +1062,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                         ),
                         StaffStat(
                           label: _tr('Fuel'),
-                          value: Fmt.money(_parseDouble(summary['fuel_payment'])),
+                          value: Fmt.money(
+                            _parseDouble(summary['fuel_payment']),
+                          ),
                           icon: Icons.local_gas_station_outlined,
                         ),
                         StaffStat(
@@ -1144,9 +1163,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     setState(() => _currentLocation = 'Updating...');
     await _getCurrentLocation();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_tr('Location updated'))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_tr('Location updated'))));
     }
   }
 
@@ -1617,7 +1636,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                     radius: 24,
                     backgroundColor: AppColors.tint100,
                     child: Text(
-                      name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'R',
+                      name.isNotEmpty
+                          ? name.substring(0, 1).toUpperCase()
+                          : 'R',
                       style: AppText.h2.copyWith(color: AppColors.primaryDeep),
                     ),
                   ),
@@ -1833,10 +1854,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                     style: AppText.title,
                   ),
                 ),
-                Text(
-                  _count(count, 'order', 'orders'),
-                  style: AppText.caption,
-                ),
+                Text(_count(count, 'order', 'orders'), style: AppText.caption),
               ],
             ),
           );
@@ -1875,11 +1893,14 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label.toUpperCase(), style: AppText.caption.copyWith(
-                fontSize: 11,
-                letterSpacing: 0.4,
-                fontWeight: FontWeight.w700,
-              )),
+              Text(
+                label.toUpperCase(),
+                style: AppText.caption.copyWith(
+                  fontSize: 11,
+                  letterSpacing: 0.4,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               Text(title, style: AppText.bodyStrong.copyWith(fontSize: 15)),
               if (subtitle != null && subtitle.isNotEmpty)
                 Text(subtitle, style: AppText.bodySecondary),
@@ -1924,13 +1945,13 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       if (status == 'out_for_delivery') {
         if (!isPaid) {
           return SwipeToConfirm(
-            label: '${_tr('Swipe: cash received')} ${Fmt.money(total)}',
+            label: '${_tr('Cash received')} · ${Fmt.money(total)}',
             color: AppColors.warning,
             onConfirmed: () => _markPaymentReceived(delivery['id']),
           );
         }
         return SwipeToConfirm(
-          label: _tr('Swipe to mark delivered'),
+          label: _tr('Swipe to deliver'),
           onConfirmed: () => _markAsDelivered(delivery['id']),
         );
       }
@@ -2191,8 +2212,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           const SizedBox(height: AppSpace.sm),
           Row(
             children: [
-              if (method.isNotEmpty)
-                Text(_tr(method), style: AppText.caption),
+              if (method.isNotEmpty) Text(_tr(method), style: AppText.caption),
               const Spacer(),
               PriceText(delivery['total_amount']),
             ],
@@ -2371,20 +2391,23 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                                       Expanded(
                                         child: Text(
                                           [
-                                            (item['product_name'] ?? 'Product')
-                                                .toString(),
-                                            Fmt.unit(
-                                              item['variant_label']?.toString(),
-                                            ),
-                                          ].where((s) => s.isNotEmpty).join(' · '),
+                                                (item['product_name'] ??
+                                                        'Product')
+                                                    .toString(),
+                                                Fmt.unit(
+                                                  item['variant_label']
+                                                      ?.toString(),
+                                                ),
+                                              ]
+                                              .where((s) => s.isNotEmpty)
+                                              .join(' · '),
                                           style: AppText.body,
                                         ),
                                       ),
                                       Text(
                                         Fmt.money(
                                           (double.tryParse(
-                                                    item['price']
-                                                            ?.toString() ??
+                                                    item['price']?.toString() ??
                                                         '0',
                                                   ) ??
                                                   0) *
@@ -2447,8 +2470,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   }
 
   Widget _buildWalletTab() {
-    final summary =
-        (_cashFlowData?['summary'] as Map<String, dynamic>?) ?? {};
+    final summary = (_cashFlowData?['summary'] as Map<String, dynamic>?) ?? {};
     final ledgerSummary =
         (_cashFlowData?['ledger_summary'] as Map<String, dynamic>?) ?? {};
     final movements = (_cashFlowData?['movements'] as List?) ?? const [];
@@ -2647,10 +2669,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
             style: AppText.price.copyWith(fontSize: 30, letterSpacing: -0.5),
           ),
           const SizedBox(height: AppSpace.xs),
-          Text(
-            _tr('Total earnings account'),
-            style: AppText.caption,
-          ),
+          Text(_tr('Total earnings account'), style: AppText.caption),
         ],
       ),
     );
@@ -2701,10 +2720,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                       _tr('Shift closed'),
                       icon: Icons.lock_rounded,
                     )
-                  : TonePill.success(
-                      _tr('Shift active'),
-                      icon: Icons.circle,
-                    ),
+                  : TonePill.success(_tr('Shift active'), icon: Icons.circle),
             ),
           ),
           Padding(
@@ -2752,36 +2768,23 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  flex: 3,
-                  child: FilledButton.icon(
-                    onPressed: () => _showSubmitCashToAdminDialog(cashInHand),
-                    icon: const Icon(
-                      Icons.assignment_turned_in_rounded,
-                      size: 18,
-                    ),
-                    label: Text(
-                      _tr('Return Cash to Admin'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                FilledButton.icon(
+                  onPressed: () => _showSubmitCashToAdminDialog(cashInHand),
+                  icon: const Icon(
+                    Icons.assignment_turned_in_rounded,
+                    size: 18,
                   ),
+                  label: Text(_tr('Return Cash to Admin')),
                 ),
-                const SizedBox(width: AppSpace.sm),
-                Expanded(
-                  flex: 2,
-                  child: OutlinedButton.icon(
-                    onPressed: () =>
-                        _openRiderFinancialHistoryForDate(_selectedCashFlowDate),
-                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    label: Text(
-                      _tr('Day Slip'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+                const SizedBox(height: AppSpace.sm),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _openRiderFinancialHistoryForDate(_selectedCashFlowDate),
+                  icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                  label: Text(_tr('Day Slip')),
                 ),
               ],
             ),
@@ -2844,7 +2847,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 final when =
                     m['movement_at'] ?? m['created_at'] ?? m['movement_date'];
                 final status = (m['status'] ?? '').toString();
-                final isAdd = type == 'advance' || type == 'cash_collection' ||
+                final isAdd =
+                    type == 'advance' ||
+                    type == 'cash_collection' ||
                     !(type == 'store_payment' ||
                         type == 'fuel_payment' ||
                         type == 'cash_submission');
@@ -2912,9 +2917,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   Widget _buildOrdersDeliveredCashSummary(List<dynamic> orderLedger) {
     return StaffSection(
       title: _tr('Delivered orders'),
-      trailing: TonePill.neutral(
-        _count(orderLedger.length, 'order', 'orders'),
-      ),
+      trailing: TonePill.neutral(_count(orderLedger.length, 'order', 'orders')),
       children: [
         for (var index = 0; index < orderLedger.length; index++) ...[
           if (index > 0) const Divider(height: 16),
@@ -2996,14 +2999,19 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                   amount: currentCashInHand,
                 ),
                 const SizedBox(height: AppSpace.lg),
-                step('1', _tr('Hand the cash to your dispatch manager or cashier.')),
+                step(
+                  '1',
+                  _tr('Hand the cash to your dispatch manager or cashier.'),
+                ),
                 step(
                   '2',
                   _tr('The office records it in Rider Day Transactions.'),
                 ),
                 step(
                   '3',
-                  _tr('Once verified, your cash in pocket updates automatically.'),
+                  _tr(
+                    'Once verified, your cash in pocket updates automatically.',
+                  ),
                 ),
               ],
             ),
@@ -3094,8 +3102,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                           children: [
                             Text(
                               _tr(
-                                Fmt.paymentMethod(summary['payment_method'])
-                                        .isEmpty
+                                Fmt.paymentMethod(
+                                      summary['payment_method'],
+                                    ).isEmpty
                                     ? 'Unknown'
                                     : Fmt.paymentMethod(
                                         summary['payment_method'],
@@ -3104,7 +3113,14 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                               style: AppText.bodyStrong,
                             ),
                             Text(
-                              _count(int.tryParse('${summary['order_count'] ?? 0}') ?? 0, 'order', 'orders'),
+                              _count(
+                                int.tryParse(
+                                      '${summary['order_count'] ?? 0}',
+                                    ) ??
+                                    0,
+                                'order',
+                                'orders',
+                              ),
                               style: AppText.caption,
                             ),
                           ],
@@ -3134,7 +3150,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final resolvedIdCard = idCardUrl.isEmpty
         ? ''
         : ApiService.getImageUrl(idCardUrl);
-    final sameImage = resolvedPhoto.isNotEmpty && resolvedPhoto == resolvedIdCard;
+    final sameImage =
+        resolvedPhoto.isNotEmpty && resolvedPhoto == resolvedIdCard;
 
     Widget field(IconData icon, String label, String value) {
       return Padding(
@@ -3149,11 +3166,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label, style: AppText.caption),
-                  Text(
-                    value,
-                    style: AppText.bodyStrong,
-                    softWrap: true,
-                  ),
+                  Text(value, style: AppText.bodyStrong, softWrap: true),
                 ],
               ),
             ),
@@ -3297,7 +3310,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 leading: const Icon(Icons.key_outlined),
                 title: Text(_tr('Change Password'), style: AppText.bodyStrong),
                 trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.of(context).pushNamed('/change-password'),
+                onTap: () =>
+                    Navigator.of(context).pushNamed('/change-password'),
               ),
               ListTile(
                 leading: const Icon(

@@ -172,15 +172,20 @@ class AdminBreakdownBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = segments.fold<int>(0, (sum, s) => sum + (s.value > 0 ? s.value : 0));
+    final total = segments.fold<int>(
+      0,
+      (sum, s) => sum + (s.value > 0 ? s.value : 0),
+    );
     if (total <= 0) {
       return Row(
         children: [
-          const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.muted),
-          const SizedBox(width: AppSpace.xs + 2),
-          Expanded(
-            child: Text(emptyLabel, style: AppText.caption),
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 15,
+            color: AppColors.muted,
           ),
+          const SizedBox(width: AppSpace.xs + 2),
+          Expanded(child: Text(emptyLabel, style: AppText.caption)),
         ],
       );
     }
@@ -192,6 +197,7 @@ class AdminBreakdownBar extends StatelessWidget {
         child: SizedBox(
           height: 8,
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (var i = 0; i < visible.length; i++) ...[
                 if (i > 0) const SizedBox(width: 2),
@@ -329,7 +335,11 @@ class AdminQuickMenuBar extends StatelessWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(entry.icon, size: 22, color: AppColors.primary),
+                              Icon(
+                                entry.icon,
+                                size: 22,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(height: 3),
                               FittedBox(
                                 fit: BoxFit.scaleDown,

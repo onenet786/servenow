@@ -76,7 +76,9 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
     }
     setState(() {
       _filteredStores = _stores.where((s) {
-        final name = (s['name'] ?? s['store_name'] ?? '').toString().toLowerCase();
+        final name = (s['name'] ?? s['store_name'] ?? '')
+            .toString()
+            .toLowerCase();
         final id = (s['id'] ?? '').toString();
         final location = (s['location'] ?? '').toString().toLowerCase();
         return name.contains(q) || id.contains(q) || location.contains(q);
@@ -87,7 +89,8 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
   /// Account state of the store. The API has no `status` column for
   /// stores (the old screen showed "inactive" for every store); the real
   /// flags are `is_active` and `is_customer_visible`.
-  bool _isActive(dynamic store) => adminFlag(store['is_active'], fallback: true);
+  bool _isActive(dynamic store) =>
+      adminFlag(store['is_active'], fallback: true);
   bool _isVisible(dynamic store) =>
       adminFlag(store['is_customer_visible'], fallback: true);
 
@@ -190,10 +193,11 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
     final active = _isActive(store);
     final visible = _isVisible(store);
     final manuallyClosed = adminFlag(store['is_closed']);
-    final withinHours = _checkIsOpen(
-      store['opening_time'],
-      store['closing_time'],
-    );
+    // Prefer the server's own `is_open` (same rule the customer app uses);
+    // fall back to the phone clock when the field is missing.
+    final withinHours = store['is_open'] != null
+        ? adminFlag(store['is_open'])
+        : _checkIsOpen(store['opening_time'], store['closing_time']);
     final open = active && !manuallyClosed && withinHours;
     final hours = Fmt.hours(
       store['opening_time']?.toString(),
@@ -231,22 +235,27 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
               OpenBadge(isOpen: open),
             ],
           ),
-          const SizedBox(height: AppSpace.sm),
-          Wrap(
-            spacing: AppSpace.sm,
-            runSpacing: AppSpace.xs,
-            children: [
-              if (active)
-                const TonePill.success('Active')
-              else
-                const TonePill.neutral('Inactive'),
-              if (!visible) const TonePill.warning('Hidden from customers'),
-            ],
-          ),
+          // Only exceptions get a pill (inactive / hidden); a normal store
+          // shows just its Open/Closed badge.
+          if (!active || !visible) ...[
+            const SizedBox(height: AppSpace.sm),
+            Wrap(
+              spacing: AppSpace.sm,
+              runSpacing: AppSpace.xs,
+              children: [
+                if (!active) const TonePill.neutral('Inactive'),
+                if (!visible) const TonePill.warning('Hidden from customers'),
+              ],
+            ),
+          ],
           const SizedBox(height: AppSpace.sm),
           Row(
             children: [
-              const Icon(Icons.schedule_rounded, size: 16, color: AppColors.muted),
+              const Icon(
+                Icons.schedule_rounded,
+                size: 16,
+                color: AppColors.muted,
+              ),
               const SizedBox(width: AppSpace.xs + 2),
               Expanded(
                 child: Text(
@@ -272,6 +281,7 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
             icon: Icons.mail_outline_rounded,
             label: 'E-mail',
             value: email.isEmpty ? '-' : email,
+            maxLines: 1,
           ),
           InfoRow(
             icon: Icons.place_outlined,

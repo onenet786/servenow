@@ -14,7 +14,6 @@ import 'providers/notification_provider.dart';
 import 'services/api_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/home_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'screens/rider_dashboard_screen.dart';
 import 'screens/store_owner_dashboard_screen.dart';
@@ -164,7 +163,10 @@ class MyApp extends StatelessWidget {
           '/orders': (context) => const OrdersScreen(),
           '/cart': (context) => const CartScreen(),
           '/checkout': (context) => const CheckoutScreen(),
-          '/wallet': (context) => const HomeScreen(), // Redirect to home
+          // Legacy alias: used to open the old customer HomeScreen (an admin
+          // drawer item "Wallet" pointed here). Nothing links to it any more;
+          // old deep links land on the real customer home.
+          '/wallet': (context) => const CustomerDashboardTestScreen(),
           '/inventory-report': (context) => const InventoryReportScreen(),
           '/manage-stores': (context) => const ManageStoresScreen(),
           '/manage-products': (context) => const ManageProductsScreen(),
@@ -175,7 +177,9 @@ class MyApp extends StatelessWidget {
           '/forgot-password': (context) => const ForgotPasswordScreen(),
           '/customer-test-dashboard': (context) =>
               const CustomerDashboardTestScreen(),
-          '/customer-tile-demo': (context) => const CustomerTileDemoScreen(),
+          // Prototype screen: debug builds only, not in any production menu.
+          if (kDebugMode)
+            '/customer-tile-demo': (context) => const CustomerTileDemoScreen(),
         },
       ),
     );

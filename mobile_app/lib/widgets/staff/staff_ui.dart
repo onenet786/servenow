@@ -120,9 +120,13 @@ class StaffStat extends StatelessWidget {
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 16, color: tone == StaffTone.neutral
-                    ? AppColors.muted
-                    : tone.foreground),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: tone == StaffTone.neutral
+                      ? AppColors.muted
+                      : tone.foreground,
+                ),
                 const SizedBox(width: 6),
               ],
               Expanded(
@@ -460,7 +464,11 @@ class ContactButton extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 22, color: onTap == null ? AppColors.muted : color),
+                Icon(
+                  icon,
+                  size: 22,
+                  color: onTap == null ? AppColors.muted : color,
+                ),
                 const SizedBox(height: 2),
                 Text(
                   label,
@@ -562,10 +570,6 @@ class CashCallout extends StatelessWidget {
               style: AppText.price.copyWith(
                 fontSize: collect ? 24 : 18,
                 color: collect ? AppColors.text : fg,
-                decoration: state == CashState.prepaid
-                    ? TextDecoration.lineThrough
-                    : null,
-                decorationColor: fg,
               ),
             ),
           ],
@@ -605,17 +609,9 @@ class StaffSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: AppSpace.sm),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: const BoxDecoration(
-                color: AppColors.borderStrong,
-                borderRadius: AppRadius.pillAll,
-              ),
-            ),
+            // The theme's bottom sheets already draw the drag handle.
             Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(20, 8, 8, 4),
+              padding: const EdgeInsetsDirectional.fromSTEB(20, 0, 8, 4),
               child: Row(
                 children: [
                   Expanded(
