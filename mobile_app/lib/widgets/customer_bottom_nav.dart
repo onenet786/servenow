@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
 import '../utils/cart_counts.dart';
 import '../utils/customer_language.dart';
+import 'ui/controls.dart';
 
 enum CustomerTab { home, stores, cart, orders, account }
 
@@ -79,11 +80,7 @@ class CustomerBottomNav extends StatelessWidget {
       final icon = Icon(
         selected ? Icons.shopping_cart_rounded : Icons.shopping_cart_outlined,
       );
-      if (units <= 0) return icon;
-      return Badge(
-        label: Text(units > 99 ? '99+' : '$units'),
-        child: icon,
-      );
+      return CountBadge(count: units, child: icon);
     }
 
     final destinations = <NavigationDestination>[

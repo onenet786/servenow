@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart' as latlng;
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 
+import '../utils/app_activity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
@@ -2409,6 +2410,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     _liveRiderTimer?.cancel();
     _liveRiderTimer = Timer.periodic(_liveRiderRefreshInterval, (_) {
       if (!mounted) return;
+      // Skip while backgrounded or covered by another screen; socket
+      // rider_location events still update the map in real time.
+      if (!AppActivity.shouldPoll(context)) return;
       _loadLiveRiderLocationsOnly();
     });
     unawaited(_loadLiveRiderLocationsOnly());
@@ -2441,6 +2445,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     // Fallback polling so logins are reflected even without explicit socket events.
     _liveStatsTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (!mounted) return;
+      if (!AppActivity.shouldPoll(context)) return;
       _loadVisitorStatsOnly();
     });
 

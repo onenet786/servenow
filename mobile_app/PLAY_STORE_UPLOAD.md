@@ -61,16 +61,60 @@ This document lists everything required to produce and upload a signed Android A
 
 ## 3) Build a Signed Release AAB
 
-From the `mobile_app` folder:
+Easiest: run `build_apk.bat` in the repo root (`D:\GIT-HUB\servenowuild_apk.bat`).
+It builds the AAB and per-ABI APKs with the size flags below
+(`build_apk.bat aab` = AAB only, `build_apk.bat apk` = APKs only).
+
+By hand, from the `mobile_app` folder:
 
 ```sh
 flutter clean
 flutter pub get
-flutter build appbundle --release
+flutter build appbundle --release --obfuscate --split-debug-info=build/symbols --tree-shake-icons
+# Optional, for direct installs (one APK per CPU type instead of one fat APK):
+flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols --tree-shake-icons
 ```
 
 Output:
-- `build/app/outputs/bundle/release/app-release.aab`
+- `build/app/outputs/bundle/release/app-release.aab` (upload this to Play)
+- `build/app/outputs/flutter-apk/app-{armeabi-v7a,arm64-v8a,x86_64}-release.apk`
+- `build/symbols/` (Dart debug symbols, see "Release size" below)
+
+### Release size
+
+What each flag does and why it is on:
+
+| Flag | Effect |
+|---|---|
+| `appbundle` (AAB) | Play builds a device-specific APK from the bundle: users download only their CPU's native code and their screen density's resources. Play requires AAB for new apps anyway. |
+| `--split-per-abi` (APK only) | Three APKs (armeabi-v7a, arm64-v8a, x86_64) instead of one "fat" APK with all three copies of the Flutter engine and Dart code. Use the `arm64-v8a` one for almost every current phone; `armeabi-v7a` for old 32-bit phones. Not needed for Play uploads (the AAB already does this). |
+| `--obfuscate --split-debug-info=build/symbols` | Strips Dart symbol names from `libapp.so` and writes them to `build/symbols/*.symbols` on the build machine. Smaller binary and less readable if decompiled. |
+| `--tree-shake-icons` | Only the Material icon glyphs the app uses are kept in the icon font (this is the release default; it is passed explicitly so it is never switched off by accident). |
+
+Also done in the app itself (2026-10-29): `pubspec.yaml` now bundles only the
+one image asset the code loads (`assets/icon/servenow_brand_logo_v2.png`);
+seven unused PNG/JPEG files (about 3.9 MB) are no longer packed into every
+build. The files stay in `assets/` for the launcher-icon tool.
+
+**Keep `build/symbols/` for every release you upload** (zip it next to the
+AAB, named with the version). Without it, crash stack traces from that
+release cannot be read. To read one:
+
+```sh
+flutter symbolize -i crash_stacktrace.txt -d build/symbols/app.android-arm64.symbols
+```
+
+Play Console can also symbolize native crashes if you upload the native debug
+symbols; Dart stack traces always need the files above.
+
+Signing is not affected by any of these flags: the release build is still
+signed with `android/key.properties` exactly as in section 2.
+
+Size check: after a build, compare
+`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` with the previous
+release, or use `flutter build apk --analyze-size --target-platform android-arm64`
+for a per-package breakdown. (Sizes were not measured when this was written:
+the Android toolchain is not installed on the machine used for the change.)
 
 ## 4) Play Console Store Listing Requirements
 
@@ -138,11 +182,12 @@ Prepare the following before creating your production listing:
 1. Set a unique `applicationId` in `android/app/build.gradle.kts`.
 2. Update `pubspec.yaml` `version:` to a higher build number.
 3. Ensure `android/key.properties` and keystore exist and are correct.
-4. Run:
+4. Run `build_apk.bat aab` from the repo root, or:
    ```sh
-   flutter clean && flutter pub get && flutter build appbundle --release
+   flutter clean && flutter pub get && flutter build appbundle --release --obfuscate --split-debug-info=build/symbols --tree-shake-icons
    ```
-5. Verify output AAB at `build/app/outputs/bundle/release/app-release.aab`.
+5. Verify output AAB at `build/app/outputs/bundle/release/app-release.aab`, and
+   archive `build/symbols/` with the version number.
 6. In Play Console:
    - Create app (if new) and choose your language, app name.
    - Complete Store listing (text, graphics, screenshots).

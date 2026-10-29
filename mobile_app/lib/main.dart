@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -12,6 +13,7 @@ import 'providers/cart_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/notification_provider.dart';
 import 'services/api_service.dart';
+import 'services/app_bootstrap.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
@@ -34,6 +36,7 @@ import 'screens/customer_dashboard_test_screen.dart';
 import 'screens/customer_tile_demo_screen.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
+import 'utils/app_activity.dart';
 import 'package:servenow/services/notifier.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -103,19 +106,36 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   } catch (_) {}
 }
 
+/// Firebase + background-notification setup. Same calls, same order as
+/// before; it just no longer blocks the first frame (see [AppBootstrap]).
+Future<void> _startDeferredServices() async {
+  if (kIsWeb) return;
+  try {
+    await Firebase.initializeApp();
+    await _ensureBackgroundNotificationsReady();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (_) {}
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb) {
-    try {
-      await Firebase.initializeApp();
-      await _ensureBackgroundNotificationsReady();
-      FirebaseMessaging.onBackgroundMessage(
-        _firebaseMessagingBackgroundHandler,
-      );
-    } catch (_) {}
-  }
+  AppBootstrap.starter = _startDeferredServices;
   runApp(const MyApp());
+  // After the first frame: the splash/auth check is already on screen while
+  // Firebase starts. NotificationProvider awaits the same future before it
+  // initialises, so nothing can use Firebase before it is ready.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    AppBootstrap.ensureStarted();
+  });
 }
+
+const SystemUiOverlayStyle _appOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.dark, // Android
+  statusBarBrightness: Brightness.light, // iOS
+  systemNavigationBarColor: AppColors.surface,
+  systemNavigationBarIconBrightness: Brightness.dark,
+);
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -135,17 +155,24 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
+        navigatorObservers: [AppActivity.routeObserver],
         title: 'ServeNow',
         debugShowCheckedModeBanner: false,
         builder: (context, child) {
-          return SafeArea(
-            top: false,
-            left: false,
-            right: false,
-            bottom: true,
-            child: _SessionGuard(
-              child: _AppUpdateOverlay(
-                child: child ?? const SizedBox.shrink(),
+          // Dark status-bar icons on the white UI for every route, including
+          // the AppBar-less ones (home tabs, splash, login, register). Screens
+          // with an AppBar still get AppBarTheme.systemOverlayStyle.
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: _appOverlayStyle,
+            child: SafeArea(
+              top: false,
+              left: false,
+              right: false,
+              bottom: true,
+              child: _SessionGuard(
+                child: _AppUpdateOverlay(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           );
@@ -587,10 +614,29 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
+  bool _precached = false;
+
   @override
   void initState() {
     super.initState();
     _checkAuth();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_precached) return;
+    _precached = true;
+    // Decode the login brand mark (a ~0.9 MB PNG) at its display size while
+    // the splash is up, so the login screen paints it on its first frame.
+    // Same key as Image.asset(cacheWidth: 120) in login_screen.dart.
+    precacheImage(
+      ResizeImage(
+        const AssetImage('assets/icon/servenow_brand_logo_v2.png'),
+        width: 120,
+      ),
+      context,
+    );
   }
 
   Future<void> _checkAuth() async {

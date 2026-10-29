@@ -7,6 +7,7 @@ import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/app_bootstrap.dart';
 import '../services/api_service.dart';
 import 'auth_provider.dart';
 
@@ -77,6 +78,10 @@ class NotificationProvider with ChangeNotifier {
   }
 
   void _initLocalNotifications() async {
+    // Firebase and the background-notification setup run after the first
+    // frame (AppBootstrap); wait for them so this initialisation, which
+    // installs the tap handler, still runs after them as before.
+    await AppBootstrap.ensureStarted();
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings();
     const settings = InitializationSettings(android: androidSettings, iOS: iosSettings);
@@ -213,6 +218,7 @@ class NotificationProvider with ChangeNotifier {
   Future<void> _initFirebaseMessaging() async {
     if (_isFirebaseMessagingReady) return;
     if (kIsWeb) return;
+    await AppBootstrap.ensureStarted();
     try {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();

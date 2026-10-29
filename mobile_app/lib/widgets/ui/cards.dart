@@ -4,9 +4,16 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text.dart';
 import 'app_network_image.dart';
+import 'bidi_text.dart';
 import 'status_pill.dart';
 
 /// Store card: 16:9 image, name, area, rating, ETA, delivery fee, open state.
+///
+/// [StoreCard.compact] is the row variant for vertical lists (Home "All
+/// stores", Stores tab): a 76 px logo tile shown whole on the start side and
+/// the text on the end side, [compactExtent] tall, so 5-6 stores fit on a
+/// phone screen instead of 1.3. Most store "images" are square logos, which
+/// the 16:9 card crops; the row never crops them.
 class StoreCard extends StatelessWidget {
   final String name;
   final String? subtitle;
@@ -35,18 +42,46 @@ class StoreCard extends StatelessWidget {
     this.openLabel = 'Open',
     this.closedLabel = 'Closed',
     this.closedNote,
-  });
+  }) : compact = false;
+
+  const StoreCard.compact({
+    super.key,
+    required this.name,
+    this.subtitle,
+    this.imageUrl,
+    this.isOpen = true,
+    this.rating,
+    this.eta,
+    this.deliveryFee,
+    this.badge,
+    this.onTap,
+    this.openLabel = 'Open',
+    this.closedLabel = 'Closed',
+    this.closedNote,
+  }) : compact = true;
+
+  final bool compact;
+
+  /// Height of one [StoreCard.compact] row (fixed, so lists can use it as
+  /// their item extent).
+  static const double compactExtent = 104;
 
   @override
   Widget build(BuildContext context) {
     final meta = <Widget>[
       if (rating != null && rating!.isNotEmpty)
-        _Meta(icon: Icons.star_rounded, text: rating!, iconColor: AppColors.star),
+        _Meta(
+          icon: Icons.star_rounded,
+          text: rating!,
+          iconColor: AppColors.star,
+        ),
       if (eta != null && eta!.isNotEmpty)
         _Meta(icon: Icons.schedule_rounded, text: eta!),
       if (deliveryFee != null && deliveryFee!.isNotEmpty)
         _Meta(icon: Icons.delivery_dining_outlined, text: deliveryFee!),
     ];
+
+    if (compact) return _buildCompact(meta);
 
     return Semantics(
       button: onTap != null,
@@ -69,8 +104,7 @@ class StoreCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     AppNetworkImage(url: imageUrl, fit: BoxFit.cover),
-                    if (!isOpen)
-                      const ColoredBox(color: Color(0x66FFFFFF)),
+                    if (!isOpen) const ColoredBox(color: Color(0x66FFFFFF)),
                     PositionedDirectional(
                       top: AppSpace.sm,
                       start: AppSpace.sm,
@@ -84,7 +118,10 @@ class StoreCard extends StatelessWidget {
                       PositionedDirectional(
                         top: AppSpace.sm,
                         end: AppSpace.sm,
-                        child: TonePill.warning(badge!, icon: Icons.local_offer_outlined),
+                        child: TonePill.warning(
+                          badge!,
+                          icon: Icons.local_offer_outlined,
+                        ),
                       ),
                   ],
                 ),
@@ -99,7 +136,7 @@ class StoreCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    BidiText(
                       name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -107,20 +144,24 @@ class StoreCard extends StatelessWidget {
                     ),
                     if (subtitle != null && subtitle!.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(
+                      BidiText(
                         subtitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppText.small,
                       ),
                     ],
-                    if (!isOpen && closedNote != null && closedNote!.isNotEmpty) ...[
+                    if (!isOpen &&
+                        closedNote != null &&
+                        closedNote!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         closedNote!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppText.caption.copyWith(color: AppColors.warning),
+                        style: AppText.caption.copyWith(
+                          color: AppColors.warning,
+                        ),
                       ),
                     ],
                     if (meta.isNotEmpty) ...[
@@ -131,6 +172,131 @@ class StoreCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+extension on StoreCard {
+  Widget _buildCompact(List<Widget> meta) {
+    final hasBadge = badge != null && badge!.isNotEmpty;
+    return Semantics(
+      button: onTap != null,
+      child: Material(
+        color: AppColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppRadius.cardAll,
+          side: BorderSide(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: StoreCard.compactExtent,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpace.md),
+              child: Row(
+                children: [
+                  SizedBox.square(
+                    dimension: 78,
+                    child: ClipRRect(
+                      borderRadius: AppRadius.controlAll,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          const ColoredBox(color: AppColors.surface2),
+                          Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: AppNetworkImage(
+                              url: imageUrl,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          if (!isOpen)
+                            const ColoredBox(color: Color(0x80FFFFFF)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: BidiText(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.title,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpace.sm),
+                            OpenBadge(
+                              isOpen: isOpen,
+                              openLabel: openLabel,
+                              closedLabel: closedLabel,
+                            ),
+                          ],
+                        ),
+                        if (!isOpen &&
+                            closedNote != null &&
+                            closedNote!.isNotEmpty)
+                          Text(
+                            closedNote!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.caption.copyWith(
+                              color: AppColors.warning,
+                            ),
+                          )
+                        else if (subtitle != null && subtitle!.isNotEmpty)
+                          BidiText(
+                            subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.small,
+                          ),
+                        if (meta.isNotEmpty || hasBadge) ...[
+                          const SizedBox(height: AppSpace.xs),
+                          // One line: meta that does not fit is clipped,
+                          // never wrapped, so every row has the same height.
+                          SizedBox(
+                            height: 22,
+                            child: ClipRect(
+                              child: OverflowBox(
+                                alignment: AlignmentDirectional.centerStart,
+                                maxWidth: double.infinity,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (final m in meta) ...[
+                                      m,
+                                      const SizedBox(width: AppSpace.md),
+                                    ],
+                                    if (hasBadge)
+                                      _Meta(
+                                        icon: Icons.local_offer_outlined,
+                                        text: badge!,
+                                        iconColor: AppColors.warning,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -225,35 +391,44 @@ class ProductCard extends StatelessWidget {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      BidiText(
                         name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
+                        latinHeight: 1.25,
                         style: AppText.bodyStrong.copyWith(height: 1.25),
                       ),
-                      if (hint != null && hint!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          hint!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.caption,
-                        ),
-                      ],
-                      const Spacer(),
+                      // Price and unit on one line right under the name;
+                      // the ADD button / stepper gets its own full-width row
+                      // at the bottom, so a 48 dp stepper never squeezes the
+                      // price to "Rs…".
+                      const SizedBox(height: AppSpace.xs),
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Expanded(child: price),
-                          const SizedBox(width: 4),
-                          // Own semantics node, so ADD / the stepper stay
-                          // separately focusable inside the tappable card.
-                          Semantics(container: true, child: action),
+                          Flexible(child: price),
+                          if (hint != null && hint!.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                hint!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.caption,
+                              ),
+                            ),
+                          ],
                         ],
+                      ),
+                      const Spacer(),
+                      // Own semantics node, so ADD / the stepper stay
+                      // separately focusable inside the tappable card.
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: Semantics(container: true, child: action),
                       ),
                     ],
                   ),

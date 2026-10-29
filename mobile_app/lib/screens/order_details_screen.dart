@@ -481,6 +481,27 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
+  /// Location line of the tracking sheet. It must agree with the status
+  /// pill next to it: never "once the rider is on the way" while the pill
+  /// already says "Out for delivery".
+  String _trackingNote(String riderLocation, bool hasCoords) {
+    if (riderLocation.isNotEmpty) return riderLocation;
+    if (hasCoords) return _tr('Rider location is being shared.');
+    switch (OrderStatusStyle.normalize(_order['status'])) {
+      case 'picked_up':
+      case 'out_for_delivery':
+        return _tr(
+          'Your rider is on the way. Live location is not available for this order.',
+        );
+      case 'delivered':
+        return _tr('This order has been delivered.');
+      case 'cancelled':
+        return _tr('This order was cancelled.');
+      default:
+        return _tr('Live location appears here once the rider is on the way.');
+    }
+  }
+
   Future<void> _showTrackingSheet() async {
     final riderLocation = (_order['rider_location'] ?? '').toString().trim();
     final hasCoords =
@@ -540,13 +561,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          riderLocation.isNotEmpty
-                              ? riderLocation
-                              : hasCoords
-                              ? _tr('Rider location is being shared.')
-                              : _tr(
-                                  'Live location appears here once the rider is on the way.',
-                                ),
+                          _trackingNote(riderLocation, hasCoords),
                           style: AppText.caption,
                         ),
                       ),

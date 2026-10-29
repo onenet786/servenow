@@ -70,24 +70,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       final fullName = _fullNameController.text.trim();
-      final nameParts =
-          fullName.isEmpty ? <String>[] : fullName.split(RegExp(r'\s+'));
+      final nameParts = fullName.isEmpty
+          ? <String>[]
+          : fullName.split(RegExp(r'\s+'));
       final firstName = nameParts.isNotEmpty ? nameParts.first : fullName;
-      final lastName =
-          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : fullName;
+      final lastName = nameParts.length > 1
+          ? nameParts.sublist(1).join(' ')
+          : fullName;
 
-      final requiresVerification = await Provider.of<AuthProvider>(
-        context,
-        listen: false,
-      ).register(
-        firstName: firstName,
-        lastName: lastName,
-        dateOfBirth: _dobController.text,
-        email: _emailController.text,
-        password: _passwordController.text,
-        phone: _fullPhone,
-        address: _addressController.text,
-      );
+      final requiresVerification =
+          await Provider.of<AuthProvider>(context, listen: false).register(
+            firstName: firstName,
+            lastName: lastName,
+            dateOfBirth: _dobController.text,
+            email: _emailController.text,
+            password: _passwordController.text,
+            phone: _fullPhone,
+            address: _addressController.text,
+          );
 
       if (!mounted) return;
 
@@ -132,10 +132,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Padding(
               padding: const EdgeInsetsDirectional.only(end: AppSpace.md),
               child: Center(
-                child: _LanguageToggle(
-                  isUrdu: _isUrdu,
-                  onChanged: _setLanguage,
-                ),
+                child: LanguageToggle(isUrdu: _isUrdu, onChanged: _setLanguage),
               ),
             ),
           ],
@@ -392,64 +389,6 @@ class _PakistanMobileSuffixFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: digits,
       selection: TextSelection.collapsed(offset: digits.length),
-    );
-  }
-}
-
-/// Compact EN / اردو segmented switch.
-class _LanguageToggle extends StatelessWidget {
-  final bool isUrdu;
-  final ValueChanged<bool> onChanged;
-
-  const _LanguageToggle({required this.isUrdu, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget seg(String label, String semantics, bool urdu) {
-      final selected = isUrdu == urdu;
-      return Semantics(
-        button: true,
-        selected: selected,
-        label: semantics,
-        excludeSemantics: true,
-        child: InkWell(
-          borderRadius: AppRadius.pillAll,
-          onTap: selected ? null : () => onChanged(urdu),
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.tint100 : Colors.transparent,
-              borderRadius: AppRadius.pillAll,
-            ),
-            child: Text(
-              label,
-              style: AppText.label.copyWith(
-                color: selected ? AppColors.primaryDeep : AppColors.text2,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
-        borderRadius: AppRadius.pillAll,
-      ),
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            seg('EN', 'English', false),
-            seg('اردو', 'Urdu', true),
-          ],
-        ),
-      ),
     );
   }
 }

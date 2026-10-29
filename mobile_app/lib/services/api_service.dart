@@ -214,6 +214,26 @@ class ApiService {
     headers: headers,
   );
 
+  /// Bodies above this size are decoded on a background isolate.
+  static const int _isolateDecodeThreshold = 100 * 1024;
+
+  static Map<String, dynamic> _decodeJsonMap(String body) =>
+      jsonDecode(body) as Map<String, dynamic>;
+
+  /// Same result and errors as [_handleResponse]; large successful bodies
+  /// (a customer's full order history is ~1.3 MB on the production copy)
+  /// are decoded with `compute()` so the UI isolate does not stall. On web
+  /// `compute()` runs on the same thread, so it is skipped there.
+  static Future<Map<String, dynamic>> _handleResponseAsync(
+    http.Response response,
+  ) async {
+    final ok = response.statusCode >= 200 && response.statusCode < 300;
+    if (ok && !kIsWeb && response.body.length > _isolateDecodeThreshold) {
+      return compute(_decodeJsonMap, response.body);
+    }
+    return _handleResponse(response);
+  }
+
   static Map<String, dynamic> _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
@@ -725,7 +745,7 @@ class ApiService {
       uri,
       headers: {'Authorization': 'Bearer $token'},
     );
-    final data = _handleResponse(response);
+    final data = await _handleResponseAsync(response);
     return data['orders'] ?? [];
   }
 
@@ -885,7 +905,7 @@ class ApiService {
         'Rider deliveries failed: status=${response.statusCode}, url=$uri, body=$preview',
       );
     }
-    final data = _handleResponse(response);
+    final data = await _handleResponseAsync(response);
     return data['deliveries'] ?? [];
   }
 

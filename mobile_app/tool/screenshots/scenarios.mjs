@@ -75,7 +75,8 @@ export const SCENARIOS = {};
 SCENARIOS.guest = [
   { name: '01_splash', session: 'customer', raw: true, bootWait: 0, wait: 0 },
   { name: '02_login', session: 'guest_anon' },
-  { name: '03_login_language_sheet', session: 'guest_anon', steps: ['tapx:EN'] },
+  // Login and Register share one EN / اردو segmented toggle (one tap switches).
+  { name: '03_login_urdu_toggle', session: 'guest_anon', steps: ['tapx:Urdu'] },
   { name: '04_login_validation_errors', session: 'guest_anon', steps: ['tapx:Log in'] },
   { name: '05_register', session: 'guest_anon', steps: ['tap:Register Here'] },
   { name: '06_register_scrolled', session: 'guest_anon', steps: ['tap:Register Here', 'scroll:700'] },
@@ -124,7 +125,8 @@ SCENARIOS.customer = [
   { name: '20_order_details_actions', steps: [DASH_ORDERS_TAB, 'tapx:View details', 'scroll:800'] },
   { name: '21_track_order', steps: [DASH_ORDERS_TAB, 'tapx:View details', 'wait:1500', 'scroll:2500', 'tap:Track Order'] },
   { name: '22_order_contact_support', steps: [DASH_ORDERS_TAB, 'tapx:View details', 'wait:1500', 'scroll:2500', 'tap:Contact Support'] },
-  { name: '23_change_password', steps: [DASH_MENU, 'tap:Change Password'] },
+  // The hamburger is now 'Help & settings'; Change Password lives in Account.
+  { name: '23_change_password', steps: [DASH_ACCOUNT_TAB, 'tap:Change Password'] },
   { name: '24_account', steps: [DASH_ACCOUNT_TAB] },
   { name: '25_store_add_item', steps: [...OPEN_STORE, 'wait:2500', 'scroll:400', 'wait:800', 'tapx:Add Chicken Leg Piece'], wait: 1500 },
 ];
@@ -142,7 +144,7 @@ SCENARIOS.customer_ur = [
   { name: '10_checkout_payment', steps: [UR_CART, `tap:${UR.checkout}`, 'scroll:700'] },
   { name: '11_orders', steps: [UR_ORDERS_TAB] },
   { name: '12_order_details', steps: [UR_ORDERS_TAB, `tapx:${UR.viewDetails}`] },
-  { name: '13_change_password', steps: [UR_MENU, `tap:${UR.changePassword}`] },
+  { name: '13_change_password', steps: [UR_ACCOUNT_TAB, `tap:${UR.changePassword}`] },
   { name: '14_account', steps: [UR_ACCOUNT_TAB] },
   { name: '15_stores_tab', steps: ['tapx:دکانیں'] },
 ];

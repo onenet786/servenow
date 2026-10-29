@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -15,6 +16,7 @@ import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/notification_provider.dart' as app_notif;
 import '../services/api_service.dart';
+import '../utils/app_activity.dart';
 import '../utils/customer_language.dart';
 import '../utils/cart_counts.dart';
 import '../widgets/customer_bottom_nav.dart';
@@ -31,7 +33,18 @@ class CustomerDashboardTestScreen extends StatefulWidget {
 }
 
 class _CustomerDashboardTestScreenState
-    extends State<CustomerDashboardTestScreen> {
+    extends State<CustomerDashboardTestScreen>
+    with RouteAware {
+  /// Global delivery status / promotions / flash / support / update poll.
+  /// Was 5 s even in the background; now 15 s and only while this screen is
+  /// visible in the foreground. Start/end boundaries of a delivery pause or
+  /// promotion are still hit exactly by the one-shot timers below, checkout
+  /// re-checks the pause before placing an order, and the screen refreshes
+  /// as soon as it becomes visible again.
+  static const Duration _globalStatusPollInterval = Duration(seconds: 15);
+  bool _globalStatusPollMissed = false;
+  bool _routeSubscribed = false;
+
   static const String _launchFlashSeenSignatureKey =
       'customer_launch_flash_seen_signature';
   List<dynamic> _allStores = [];
@@ -69,9 +82,16 @@ class _CustomerDashboardTestScreenState
     super.initState();
     _loadLanguagePreference();
     _fetchData();
-    _globalStatusPollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _globalStatusPollTimer = Timer.periodic(_globalStatusPollInterval, (_) {
+      if (!mounted) return;
+      if (!AppActivity.shouldPoll(context)) {
+        _globalStatusPollMissed = true;
+        return;
+      }
+      _globalStatusPollMissed = false;
       _refreshGlobalStatusOnly();
     });
+    AppActivity.instance.foreground.addListener(_onForegroundChanged);
     _searchController.addListener(_onSearchChanged);
     _startBannerAutoScroll();
     CustomerNav.homeTab.addListener(_onHomeTabRequested);
@@ -132,6 +152,16 @@ class _CustomerDashboardTestScreenState
       'Search store by name or area': 'دکان نام یا علاقے سے تلاش کریں',
       'No stores found in this category': 'اس زمرے میں کوئی دکان نہیں ملی۔',
       'Language': 'زبان',
+      'Help & settings': 'مدد اور ترتیبات',
+      'Track my order': 'میرا آرڈر ٹریک کریں',
+      'Restaurants': 'ریسٹورنٹ',
+      'Fast food': 'فاسٹ فوڈ',
+      'Bakery & sweets': 'بیکری اور مٹھائی',
+      'Drinks & ice cream': 'مشروبات اور آئس کریم',
+      'Grocery': 'گروسری',
+      'Meat': 'گوشت',
+      'Fruit & veg': 'پھل اور سبزی',
+      'Pharmacy': 'فارمیسی',
       'Select Language': 'زبان منتخب کریں',
       'English': 'English',
       'Urdu': 'اردو',
@@ -202,7 +232,36 @@ class _CustomerDashboardTestScreenState
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_routeSubscribed) {
+      final route = ModalRoute.of(context);
+      if (route != null) {
+        AppActivity.routeObserver.subscribe(this, route);
+        _routeSubscribed = true;
+      }
+    }
+  }
+
+  /// Back on top after a pushed screen (store, cart, checkout...) closed.
+  @override
+  void didPopNext() => _refreshIfPollMissed();
+
+  void _onForegroundChanged() {
+    if (AppActivity.instance.foreground.value) _refreshIfPollMissed();
+  }
+
+  void _refreshIfPollMissed() {
+    if (!mounted || !_globalStatusPollMissed) return;
+    if (!AppActivity.shouldPoll(context)) return;
+    _globalStatusPollMissed = false;
+    _refreshGlobalStatusOnly();
+  }
+
+  @override
   void dispose() {
+    AppActivity.instance.foreground.removeListener(_onForegroundChanged);
+    if (_routeSubscribed) AppActivity.routeObserver.unsubscribe(this);
     _bannerTimer?.cancel();
     _globalStatusRefreshTimer?.cancel();
     _livePromotionsRefreshTimer?.cancel();
@@ -217,6 +276,8 @@ class _CustomerDashboardTestScreenState
   void _startBannerAutoScroll() {
     _bannerTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted) return;
+      // Only rotate while the Home tab is actually on screen.
+      if (_tab != CustomerTab.home || !AppActivity.shouldPoll(context)) return;
       final count = _liveWidgetItems.length;
       if (count <= 1 || !_bannerController.hasClients) return;
       final next = (_activeBanner + 1) % count;
@@ -460,14 +521,14 @@ class _CustomerDashboardTestScreenState
       final name = (store['name'] ?? '').toString().toLowerCase();
       final location = (store['location'] ?? '').toString().toLowerCase();
       final category = (store['category_name'] ?? '').toString().trim();
-      final categoryLabel = _normalizeCategoryKey(category);
+      final categoryKey = _storeCategoryKey(store);
       final matchesSearch =
           search.isEmpty ||
           name.contains(search) ||
           location.contains(search) ||
           category.toLowerCase().contains(search);
       final matchesCategory =
-          selectedCategory == 'all' || categoryLabel == selectedCategory;
+          selectedCategory == 'all' || categoryKey == selectedCategory;
       return matchesSearch && matchesCategory;
     }).toList();
   }
@@ -498,7 +559,7 @@ class _CustomerDashboardTestScreenState
     if (value.contains('grocery') || value.contains('mart')) {
       return Icons.local_grocery_store_rounded;
     }
-    if (value.contains('fruit')) return Icons.apple_rounded;
+    if (value.contains('fruit')) return Icons.eco_rounded;
     if (value.contains('veg')) return Icons.eco_rounded;
     if (value.contains('meat') || value.contains('seafood')) {
       return Icons.set_meal_rounded;
@@ -507,6 +568,7 @@ class _CustomerDashboardTestScreenState
       return Icons.bakery_dining_rounded;
     }
     if (value.contains('drink') || value.contains('beverage')) {
+      if (value.contains('ice')) return Icons.icecream_rounded;
       return Icons.local_drink_rounded;
     }
     if (value.contains('pharmacy') || value.contains('health')) {
@@ -515,18 +577,89 @@ class _CustomerDashboardTestScreenState
     if (value.contains('home') || value.contains('house')) {
       return Icons.home_work_rounded;
     }
+    if (value.contains('fast')) return Icons.lunch_dining_rounded;
+    if (value.contains('restaurant') || value.contains('hotel')) {
+      return Icons.restaurant_rounded;
+    }
     return Icons.storefront_rounded;
   }
 
+  /// Fallback categories for stores the API returns without a
+  /// `category_name` (the production stores list does not send it). Matched
+  /// on whole words of the store's name, tags and description; the first
+  /// group that matches wins, so the order matters ("Chicken Shawarma" is
+  /// fast food, not meat). Display-only: nothing is sent to the server.
+  static final List<(String, String, RegExp)> _keywordCategories = [
+    ('pharmacy', 'Pharmacy', RegExp(r'\b(pharmacy|medicine|medical|chemist)')),
+    ('fruit-veg', 'Fruit & veg', RegExp(r'\b(fruits?|vegetables?|sabzi)\b')),
+    ('bakery', 'Bakery & sweets', RegExp(r'\b(bakers?|bakery|jalebi|sweets?|cakes?)\b')),
+    ('drinks', 'Drinks & ice cream', RegExp(r'\b(drinks?|juices?|shakes?|soda|ice|ice ?cream|kulfi|kulfa|paan)\b')),
+    ('fast-food', 'Fast food', RegExp(r'\b(burgers?|pizz\w*|broast|shawarma|zinger|fries|cafe)\b')),
+    ('meat', 'Meat', RegExp(r'\b(meat|mutton)\b')),
+    ('grocery', 'Grocery', RegExp(r'\b(grocery|mart|traders|eggs|milk|store)\b')),
+    ('food', 'Restaurants', RegExp(r'\b(hotel|biryani|pulao|karahi|tikka|bbq|kabab|cuisine|kitchen|foods?|dera|momos|paratha|breakfast|puri|channa|samosa|bhal\w*|gappy|naan|inn)\b')),
+  ];
+
+  static final Expando<String> _categoryKeyCache = Expando<String>();
+
+  /// Category key of a store: the server's `category_name` when present,
+  /// otherwise a keyword match, otherwise '' (shown under "All" only).
+  String _storeCategoryKey(dynamic store) {
+    if (store is! Map) return '';
+    final cached = _categoryKeyCache[store];
+    if (cached != null) return cached;
+    final serverCategory = (store['category_name'] ?? '').toString().trim();
+    var key = '';
+    if (serverCategory.isNotEmpty) {
+      key = _normalizeCategoryKey(serverCategory);
+    } else {
+      // The name decides first; tags/description only when the name has no
+      // keyword (descriptions mention "sweets", "fruits" etc. loosely).
+      final passes = [
+        '${store['name'] ?? ''}'.toLowerCase(),
+        [store['tags'], store['description']]
+            .where((v) => v != null)
+            .join(' ')
+            .toLowerCase(),
+      ];
+      for (final haystack in passes) {
+        for (final (k, _, pattern) in _keywordCategories) {
+          if (pattern.hasMatch(haystack)) {
+            key = k;
+            break;
+          }
+        }
+        if (key.isNotEmpty) break;
+      }
+    }
+    _categoryKeyCache[store] = key;
+    return key;
+  }
+
+  List<dynamic>? _categoryOptionsSource;
+  bool? _categoryOptionsUrdu;
+  List<Map<String, dynamic>> _categoryOptionsCache = const [];
+
   List<Map<String, dynamic>> get _categoryOptions {
+    if (identical(_categoryOptionsSource, _allStores) &&
+        _categoryOptionsUrdu == _isUrdu) {
+      return _categoryOptionsCache;
+    }
     final counts = <String, int>{};
     final labels = <String, String>{};
+    final fallbackLabels = {
+      for (final (k, label, _) in _keywordCategories) k: label,
+    };
     for (final raw in _allStores) {
-      final category = (raw['category_name'] ?? '').toString().trim();
-      if (category.isEmpty) continue;
-      final key = _normalizeCategoryKey(category);
+      final key = _storeCategoryKey(raw);
+      if (key.isEmpty) continue;
+      final serverCategory = (raw is Map ? raw['category_name'] ?? '' : '')
+          .toString()
+          .trim();
       counts[key] = (counts[key] ?? 0) + 1;
-      labels[key] = category;
+      labels[key] = serverCategory.isNotEmpty
+          ? serverCategory
+          : _tr(fallbackLabels[key] ?? key);
     }
 
     final options = <Map<String, dynamic>>[
@@ -541,16 +674,19 @@ class _CustomerDashboardTestScreenState
     final sortedKeys = counts.keys.toList()
       ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
 
-    for (final key in sortedKeys.take(6)) {
+    for (final key in sortedKeys.take(8)) {
       final label = labels[key]!;
       options.add({
         'key': key,
         'label': label,
         'count': counts[key]!,
-        'icon': _categoryIcon(label),
+        'icon': _categoryIcon(key == 'food' ? 'restaurant' : key),
       });
     }
 
+    _categoryOptionsSource = _allStores;
+    _categoryOptionsUrdu = _isUrdu;
+    _categoryOptionsCache = options;
     return options;
   }
 
@@ -930,8 +1066,9 @@ class _CustomerDashboardTestScreenState
     if (imageUrl.isNotEmpty) {
       if (!mounted) return;
       try {
+        // Warm the same disk/memory cache AppNetworkImage reads from.
         await precacheImage(
-          NetworkImage(imageUrl),
+          CachedNetworkImageProvider(imageUrl),
           context,
         ).timeout(const Duration(seconds: 2));
       } catch (_) {}
@@ -1007,18 +1144,11 @@ class _CustomerDashboardTestScreenState
                               curve: Curves.easeOutBack,
                               builder: (context, scale, child) =>
                                   Transform.scale(scale: scale, child: child),
-                              child: Image.network(
-                                imageUrl,
+                              child: AppNetworkImage(
+                                url: imageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => Container(
-                                  color: AppColors.surface3,
-                                  alignment: Alignment.center,
-                                  child: const Icon(
+                                placeholderIcon:
                                     Icons.image_not_supported_outlined,
-                                    size: 34,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
                               ),
                             )
                           : Container(
@@ -1261,9 +1391,9 @@ class _CustomerDashboardTestScreenState
     return '${Fmt.money(fee, urdu: _isUrdu)} ${_tr('delivery')}';
   }
 
-  Widget _storeCard(dynamic store, {double? width}) {
+  Widget _storeCard(dynamic store, {double? width, bool compact = false}) {
     final isOpen = _isStoreOpen(store);
-    final card = StoreCard(
+    final card = (compact ? StoreCard.compact : StoreCard.new)(
       name: (store['name'] ?? _tr('Unknown Store')).toString(),
       subtitle: (store['location'] ?? '').toString(),
       imageUrl: ApiService.getImageUrl(store['image_url']),
@@ -1315,16 +1445,45 @@ class _CustomerDashboardTestScreenState
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                // Orders, Cart and Account already live in the bottom bar;
+                // this menu is the quick "help & settings" shortcut instead
+                // of a copy of the Account tab.
                 children: [
-                  item(
-                    Icons.receipt_long_outlined,
-                    _tr('My Orders'),
-                    () => _selectTab(CustomerTab.orders),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        _tr('Help & settings'),
+                        style: AppText.h2,
+                      ),
+                    ),
                   ),
                   item(
-                    Icons.shopping_cart_outlined,
-                    _tr('My Cart'),
-                    () => _selectTab(CustomerTab.cart),
+                    Icons.support_agent_outlined,
+                    _tr('Contact Us'),
+                    _showSupportOptions,
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.translate_rounded,
+                      color: AppColors.text2,
+                    ),
+                    title: Text(_tr('Language')),
+                    trailing: Text(
+                      _isUrdu ? 'اردو' : 'English',
+                      style: AppText.label.copyWith(color: AppColors.primary),
+                    ),
+                    minTileHeight: 52,
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      _showLanguageOptions();
+                    },
+                  ),
+                  item(
+                    Icons.local_shipping_outlined,
+                    _tr('Track my order'),
+                    () => _selectTab(CustomerTab.orders),
                   ),
                   if (isGuest)
                     item(
@@ -1334,21 +1493,10 @@ class _CustomerDashboardTestScreenState
                     )
                   else
                     item(
-                      Icons.key_outlined,
-                      _tr('Change Password'),
-                      () => Navigator.of(context).pushNamed('/change-password'),
+                      Icons.person_outline_rounded,
+                      _tr('Account'),
+                      () => _selectTab(CustomerTab.account),
                     ),
-                  item(
-                    Icons.support_agent_outlined,
-                    _tr('Contact Us'),
-                    _showSupportOptions,
-                  ),
-                  item(
-                    Icons.logout_rounded,
-                    _tr('Logout'),
-                    _logout,
-                    color: AppColors.danger,
-                  ),
                 ],
               ),
             ),
@@ -1525,9 +1673,9 @@ class _CustomerDashboardTestScreenState
     final units = context.select<CartProvider, int>((c) => c.totalUnits);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         AppSpace.sm,
-        AppSpace.sm,
+        _isUrdu ? AppSpace.md : AppSpace.sm,
         AppSpace.xs,
         AppSpace.xs,
       ),
@@ -1544,11 +1692,18 @@ class _CustomerDashboardTestScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Nastaliq "السلام علیکم" has tall ascenders: give the line
+                // more than the theme's 1.85 and spread the leading evenly
+                // so nothing is cut at the top of the bar.
                 Text(
                   greeting,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppText.caption.copyWith(color: AppColors.text2),
+                  style: AppText.caption.copyWith(
+                    color: AppColors.text2,
+                    height: _isUrdu ? 2.1 : null,
+                    leadingDistribution: TextLeadingDistribution.even,
+                  ),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1587,14 +1742,10 @@ class _CustomerDashboardTestScreenState
             ),
           ),
           const NotificationBellWidget(),
-          IconButton(
+          CartIconButton(
+            count: units,
             tooltip: _tr('Open cart'),
             onPressed: () => _selectTab(CustomerTab.cart),
-            icon: Badge(
-              isLabelVisible: units > 0,
-              label: Text(units > 99 ? '99+' : '$units'),
-              child: const Icon(Icons.shopping_cart_outlined),
-            ),
           ),
         ],
       ),
@@ -1760,7 +1911,7 @@ class _CustomerDashboardTestScreenState
           subtitle: _tr('Fresh offers and live delivery updates'),
         ),
         SizedBox(
-          height: 148,
+          height: _isUrdu ? 172 : 148,
           child: PageView.builder(
             controller: _bannerController,
             onPageChanged: (index) {
@@ -1939,23 +2090,42 @@ class _CustomerDashboardTestScreenState
                       closedLabel: _tr('Closed'),
                     ),
                     const SizedBox(height: AppSpace.sm),
-                    Text(
+                    BidiText(
                       (store['name'] ?? '').toString(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      latinHeight: 1.2,
                       style: AppText.title.copyWith(height: _isUrdu ? null : 1.2),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    BidiText(
                       (store['location'] ?? '').toString(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppText.caption,
                     ),
                     const Spacer(),
-                    Text(
-                      '${_tr('Order now')} →',
-                      style: AppText.label.copyWith(color: AppColors.primary),
+                    // Arrow as an icon (mirrors in Urdu), text on one line.
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            _tr('Order now'),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.visible,
+                            style: AppText.label.copyWith(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -2021,7 +2191,7 @@ class _CustomerDashboardTestScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
+                            BidiText(
                               (order['store_name'] ?? store?['name'] ?? '')
                                   .toString(),
                               maxLines: 1,
@@ -2029,7 +2199,7 @@ class _CustomerDashboardTestScreenState
                               style: AppText.bodyStrong,
                             ),
                             if (items.isNotEmpty)
-                              Text(
+                              BidiText(
                                 items,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -2116,10 +2286,10 @@ class _CustomerDashboardTestScreenState
             child: Shimmer(
               child: Column(
                 children: List.generate(
-                  3,
+                  5,
                   (_) => const Padding(
-                    padding: EdgeInsets.only(bottom: AppSpace.md),
-                    child: SkeletonCard(imageHeight: 150),
+                    padding: EdgeInsets.only(bottom: AppSpace.sm),
+                    child: SkeletonStoreRow(),
                   ),
                 ),
               ),
@@ -2171,27 +2341,31 @@ class _CustomerDashboardTestScreenState
 
     final width = MediaQuery.sizeOf(context).width;
     final columns = width >= 1100 ? 3 : (width >= 700 ? 2 : 1);
+    // Compact rows (logo + text, fixed height): 5-6 stores per phone screen
+    // and a fixed extent, so the list never measures its children.
     return [
       header,
       SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
         sliver: columns == 1
-            ? SliverList.separated(
+            ? SliverFixedExtentList.builder(
+                itemExtent: StoreCard.compactExtent + AppSpace.sm,
                 itemCount: _filteredStores.length,
-                separatorBuilder: (_, _) => const SizedBox(height: AppSpace.md),
-                itemBuilder: (context, index) =>
-                    _storeCard(_filteredStores[index]),
+                itemBuilder: (context, index) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                  child: _storeCard(_filteredStores[index], compact: true),
+                ),
               )
             : SliverGrid.builder(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
                   crossAxisSpacing: AppSpace.md,
-                  mainAxisSpacing: AppSpace.md,
-                  mainAxisExtent: (width - 32) / columns * 9 / 16 + 100,
+                  mainAxisSpacing: AppSpace.sm,
+                  mainAxisExtent: StoreCard.compactExtent,
                 ),
                 itemCount: _filteredStores.length,
                 itemBuilder: (context, index) =>
-                    _storeCard(_filteredStores[index]),
+                    _storeCard(_filteredStores[index], compact: true),
               ),
       ),
     ];

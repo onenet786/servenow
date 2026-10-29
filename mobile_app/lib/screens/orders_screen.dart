@@ -115,7 +115,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
         _isGuestView = false;
         _isLoading = false;
       });
-      _maybeRequestReview();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -125,8 +124,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     }
   }
 
-  /// Asks for a Play review once, only after the customer's 2nd successful
-  /// delivery. Never behind a button, never on web.
+  /// Asks for a Play review once, right after the customer has looked at a
+  /// delivered order and has at least two delivered orders. Never behind a
+  /// button, never on web, never on simply opening the Orders tab.
   Future<void> _maybeRequestReview() async {
     if (kIsWeb) return;
     try {
@@ -160,7 +160,15 @@ class _OrdersScreenState extends State<OrdersScreen> {
       ),
     );
     if (updated == true) {
-      _fetchOrders();
+      await _fetchOrders();
+    }
+    if (!mounted) return;
+    final viewed = _orders.cast<dynamic>().firstWhere(
+      (o) => o is Map && '${o['id']}' == '${order['id']}',
+      orElse: () => order,
+    );
+    if (OrderStatusStyle.normalize((viewed as Map)['status']) == 'delivered') {
+      _maybeRequestReview();
     }
   }
 
@@ -469,7 +477,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      BidiText(
                         _storeLabel(order),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

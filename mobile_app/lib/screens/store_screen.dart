@@ -423,14 +423,10 @@ class _StoreScreenState extends State<StoreScreen> {
         appBar: AppBar(
           title: Text(_tr('Store Details')),
           actions: [
-            IconButton(
+            CartIconButton(
+              count: units,
               tooltip: _tr('Open cart'),
               onPressed: () => Navigator.of(context).pushNamed('/cart'),
-              icon: Badge(
-                isLabelVisible: units > 0,
-                label: Text(units > 99 ? '99+' : '$units'),
-                child: const Icon(Icons.shopping_cart_outlined),
-              ),
             ),
             const SizedBox(width: AppSpace.xs),
           ],
@@ -503,7 +499,8 @@ class _StoreScreenState extends State<StoreScreen> {
             final tileWidth =
                 (width - AppSpace.gutter * 2 - AppSpace.md * (columns - 1)) /
                 columns;
-            final tileExtent = tileWidth * 3 / 4 + (_isUrdu ? 150 : 118);
+            // Text block: name (2 lines) + unit + 48 dp price/action row.
+            final tileExtent = tileWidth * 3 / 4 + (_isUrdu ? 134 : 122);
 
             return RefreshIndicator(
               onRefresh: _refresh,
@@ -996,12 +993,15 @@ class _StoreScreenState extends State<StoreScreen> {
         button: true,
         label: '${_tr('Add')} ${product.name}',
         excludeSemantics: true,
-        child: SizedBox(
-          height: 36,
+        // Draws 36 tall; the padded tap target makes the hit area 48.
+        child: Center(
+          widthFactor: 1,
+          heightFactor: 1,
           child: FilledButton(
             style: FilledButton.styleFrom(
               minimumSize: const Size(56, 36),
               padding: const EdgeInsets.symmetric(horizontal: 12),
+              tapTargetSize: MaterialTapTargetSize.padded,
               textStyle: AppText.label.copyWith(fontSize: 13),
             ),
             onPressed: () {

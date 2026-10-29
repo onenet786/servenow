@@ -94,6 +94,10 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Summary': 'خلاصہ',
       'Cash received': 'رقم وصول ہو گئی',
       'Swipe to deliver': 'پہنچانے کے لیے سوائپ کریں',
+      'Confirm cash received?': 'کیا رقم وصول ہو گئی؟',
+      'Mark this order as delivered?': 'کیا یہ آرڈر پہنچا دیا گیا؟',
+      'Confirm': 'تصدیق کریں',
+      'Location shared': 'لوکیشن شیئر ہو رہی ہے',
       'Waiting for pickup': 'پک اپ کا انتظار',
       'Deliver': 'ڈیلیوری',
       'Special Instructions': 'خصوصی ہدایات',
@@ -623,6 +627,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       });
       if (status == 'assigned') {
         unawaited(_syncBackgroundTracking(deliveries));
+        _syncForegroundTrackingMode();
       }
     } catch (e, stackTrace) {
       _logger.e(
@@ -1169,8 +1174,13 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     }
   }
 
+  /// Shown until (or instead of) a geocoded area name. Display only: the
+  /// raw coordinates are still what is sent to the server.
   String _formatCoordinateLabel(Position position) {
-    return '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+    final at = Fmt.time(DateTime.now().toIso8601String());
+    return at.isEmpty
+        ? _tr('Location shared')
+        : '${_tr('Location shared')} · ${Fmt.isolate(at)}';
   }
 
   String _locationCacheKeyForPosition(Position position) {
@@ -1181,8 +1191,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final fallback = _formatCoordinateLabel(position);
     final cacheKey = _locationCacheKeyForPosition(position);
     final cached = _locationLabelCache[cacheKey];
-    if (cached != null && cached.trim().isNotEmpty) {
-      return cached;
+    if (cached != null) {
+      // '' marks "geocoding found nothing here": do not retry.
+      return cached.trim().isNotEmpty ? cached : fallback;
     }
 
     try {
@@ -1212,7 +1223,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       _logger.w('Reverse geocoding skipped: $e');
     }
 
-    _locationLabelCache[cacheKey] = fallback;
+    _locationLabelCache[cacheKey] = '';
     return fallback;
   }
 
@@ -1276,13 +1287,46 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     }
   }
 
+  /// Accuracy mode of the foreground position stream; null = not started.
+  bool? _trackingHighAccuracy;
+
+  /// Switches the foreground stream between its two modes when the rider
+  /// gets or finishes their assigned deliveries.
+  void _syncForegroundTrackingMode() {
+    final wantHigh = _assignedDeliveries.isNotEmpty;
+    if (_trackingHighAccuracy == null || _trackingHighAccuracy == wantHigh) {
+      return;
+    }
+    _startLocationTracking();
+  }
+
+  /// Foreground position stream.
+  ///
+  /// * With an assigned delivery: GPS at navigation accuracy every 2 m, and
+  ///   each fix is synced to the server (unchanged behaviour).
+  /// * Without one: nothing is synced from this stream (the listener below
+  ///   already skipped syncing when there are no assigned deliveries); it
+  ///   only feeds the "Current location" label. It now uses balanced
+  ///   accuracy and a 100 m filter (research 3.8, "online and waiting")
+  ///   instead of continuous best-for-navigation GPS, which is the main
+  ///   battery cost while a rider waits for orders.
+  ///
+  /// The background service (RiderBackgroundTrackingService) is untouched:
+  /// it still starts/stops with assigned deliveries.
   void _startLocationTracking() {
     _locationStreamSubscription?.cancel();
 
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 2,
-    );
+    final highAccuracy = _assignedDeliveries.isNotEmpty;
+    _trackingHighAccuracy = highAccuracy;
+    final locationSettings = highAccuracy
+        ? const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 2,
+          )
+        : const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            distanceFilter: 100,
+          );
 
     _locationStreamSubscription =
         Geolocator.getPositionStream(locationSettings: locationSettings).listen(
@@ -1739,14 +1783,12 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         onDestinationSelected: _switchToTab,
         destinations: [
           NavigationDestination(
-            icon: Badge(
-              isLabelVisible: _assignedDeliveries.isNotEmpty,
-              label: Text('${_assignedDeliveries.length}'),
+            icon: CountBadge(
+              count: _assignedDeliveries.length,
               child: const Icon(Icons.delivery_dining_outlined),
             ),
-            selectedIcon: Badge(
-              isLabelVisible: _assignedDeliveries.isNotEmpty,
-              label: Text('${_assignedDeliveries.length}'),
+            selectedIcon: CountBadge(
+              count: _assignedDeliveries.length,
               child: const Icon(Icons.delivery_dining_rounded),
             ),
             label: _tr('Home'),
@@ -1944,14 +1986,22 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       if (!isAssigned) return const SizedBox.shrink();
       if (status == 'out_for_delivery') {
         if (!isPaid) {
+          // Green like every other primary action; "cash" is carried by
+          // the label and the amber "Collect cash" callout above.
           return SwipeToConfirm(
-            label: '${_tr('Cash received')} · ${Fmt.money(total)}',
-            color: AppColors.warning,
+            label: '${_tr('Cash received')} · ${Fmt.money(total, urdu: _isUrdu)}',
+            confirmTitle: _tr('Confirm cash received?'),
+            confirmLabel: _tr('Confirm'),
+            cancelLabel: _tr('Cancel'),
             onConfirmed: () => _markPaymentReceived(delivery['id']),
           );
         }
         return SwipeToConfirm(
           label: _tr('Swipe to deliver'),
+          color: AppColors.primaryDeep,
+          confirmTitle: _tr('Mark this order as delivered?'),
+          confirmLabel: _tr('Confirm'),
+          cancelLabel: _tr('Cancel'),
           onConfirmed: () => _markAsDelivered(delivery['id']),
         );
       }

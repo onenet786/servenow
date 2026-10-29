@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFF9F4</color>
+    <!-- App surface (AppColors.surface) and brand green (AppColors.primary).
+         The launch window uses the surface colour so the first frame does
+         not flash a different colour before Flutter draws the white UI. -->
+    <color name="launch_background">#FFFFFF</color>
+    <color name="brand_primary">#15803D</color>
 </resources>

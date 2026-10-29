@@ -41,95 +41,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String _tr(String text) => CustomerLanguage.tr(_isUrdu, text);
 
-  Future<void> _showLanguageOptions() async {
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        Widget option(String label, bool urdu, String sample) {
-          final selected = _isUrdu == urdu;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpace.sm),
-            child: Material(
-              color: selected ? AppColors.tint50 : AppColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: AppRadius.controlAll,
-                side: BorderSide(
-                  color: selected ? AppColors.primary : AppColors.border,
-                  width: selected ? 1.5 : 1,
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _setLanguage(urdu);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpace.lg,
-                    vertical: AppSpace.md,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(label, style: AppText.bodyStrong),
-                            Text(sample, style: AppText.small),
-                          ],
-                        ),
-                      ),
-                      if (selected) ...[
-                        Text(
-                          _tr('Selected'),
-                          style: AppText.label.copyWith(
-                            color: AppColors.primaryPressed,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpace.xs),
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          color: AppColors.primary,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
-        return LanguageScope(
-          isUrdu: _isUrdu,
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.gutter,
-                0,
-                AppSpace.gutter,
-                AppSpace.lg,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_tr('Select Language'), style: AppText.h2),
-                  const SizedBox(height: AppSpace.md),
-                  option(_tr('English'), false, 'English'),
-                  option(_tr('Urdu'), true, 'اردو'),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   void dispose() {
     _emailController.dispose();
@@ -220,10 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       const _BrandMark(),
                       const Spacer(),
-                      _LanguagePill(
-                        isUrdu: _isUrdu,
-                        onTap: _showLanguageOptions,
-                      ),
+                      LanguageToggle(isUrdu: _isUrdu, onChanged: _setLanguage),
                     ],
                   ),
                   const SizedBox(height: AppSpace.xxxl),
@@ -418,8 +326,11 @@ class _BrandMark extends StatelessWidget {
               height: 40,
               color: AppColors.primary,
               alignment: Alignment.center,
-              child: const Icon(Icons.shopping_cart_outlined,
-                  color: Colors.white, size: 22),
+              child: const Icon(
+                Icons.shopping_cart_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
           ),
         ),
@@ -436,30 +347,6 @@ class _BrandMark extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Visible language switch: "EN" / "اردو".
-class _LanguagePill extends StatelessWidget {
-  final bool isUrdu;
-  final VoidCallback onTap;
-
-  const _LanguagePill({required this.isUrdu, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: const Icon(Icons.translate_rounded, size: 18),
-      label: Text(isUrdu ? 'اردو' : 'EN'),
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(48, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        foregroundColor: AppColors.primaryPressed,
-        side: const BorderSide(color: AppColors.border),
-        shape: const StadiumBorder(),
-      ),
     );
   }
 }

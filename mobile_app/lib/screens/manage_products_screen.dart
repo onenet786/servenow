@@ -248,9 +248,22 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                   },
                 ),
               ],
+              // Visible on/off state: filter icon when off, check mark,
+              // green fill and border when on.
               FilterChip(
                 label: const Text('Has sizes'),
                 selected: _onlyVariantProducts,
+                showCheckmark: true,
+                avatar: _onlyVariantProducts
+                    ? null
+                    : const Icon(Icons.filter_list_rounded, size: 18),
+                selectedColor: AppColors.tint100,
+                checkmarkColor: AppColors.primaryPressed,
+                side: BorderSide(
+                  color: _onlyVariantProducts
+                      ? AppColors.primary
+                      : AppColors.borderStrong,
+                ),
                 onSelected: (v) {
                   setState(() => _onlyVariantProducts = v);
                   _filterProducts();
@@ -343,6 +356,33 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
       'Stock ${Fmt.number(stock)}',
     ].join(' · ');
 
+    final Widget priceLine;
+    if (variants.isEmpty) {
+      priceLine = PriceText(product['price']);
+    } else if (variants.length == 1) {
+      priceLine = Text(
+        [
+          Fmt.money(minVariant ?? 0),
+          Fmt.unit(
+            (variants.first['size_label'] ??
+                    variants.first['unit_name'] ??
+                    '')
+                .toString(),
+          ),
+        ].where((t) => t.isNotEmpty).join(' · '),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppText.price.copyWith(fontSize: 14),
+      );
+    } else {
+      priceLine = Text(
+        'from ${Fmt.money(minVariant ?? 0)} · ${Fmt.count(variants.length, 'size')}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: AppText.price.copyWith(fontSize: 14),
+      );
+    }
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -379,26 +419,22 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpace.xs),
-                  if (variants.isEmpty)
-                    PriceText(product['price'])
-                  else if (variants.length == 1)
-                    Text(
-                      [
-                        Fmt.money(minVariant ?? 0),
-                        Fmt.unit(
-                          (variants.first['size_label'] ??
-                                  variants.first['unit_name'] ??
-                                  '')
-                              .toString(),
+                  // Price and its edit action share one row.
+                  Row(
+                    children: [
+                      Expanded(child: priceLine),
+                      const SizedBox(width: AppSpace.sm),
+                      OutlinedButton.icon(
+                        onPressed: () => _openEditPriceSheet(product),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 40),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
-                      ].where((t) => t.isNotEmpty).join(' · '),
-                      style: AppText.price.copyWith(fontSize: 14),
-                    )
-                  else
-                    Text(
-                      'from ${Fmt.money(minVariant ?? 0)} · ${Fmt.count(variants.length, 'size')}',
-                      style: AppText.price.copyWith(fontSize: 14),
-                    ),
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        label: const Text('Edit price'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -430,15 +466,6 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
             }).toList(),
           ),
         ],
-        const SizedBox(height: AppSpace.sm),
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: OutlinedButton.icon(
-            onPressed: () => _openEditPriceSheet(product),
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            label: const Text('Edit price'),
-          ),
-        ),
       ],
     );
 

@@ -17,6 +17,21 @@ class Fmt {
 
   static String isolate(String text) => '$lri$text$pdi';
 
+  /// True when [text] has at least as many Latin letters as Arabic-script
+  /// ones (an English store/product name or description shown in Urdu mode).
+  static bool isMostlyLatin(String text) {
+    var latin = 0;
+    var arabic = 0;
+    for (final rune in text.runes) {
+      if ((rune >= 0x41 && rune <= 0x5A) || (rune >= 0x61 && rune <= 0x7A)) {
+        latin++;
+      } else if (rune >= 0x0600 && rune <= 0x06FF) {
+        arabic++;
+      }
+    }
+    return latin > 0 && latin >= arabic;
+  }
+
   static double toDouble(dynamic value) {
     if (value == null) return 0;
     if (value is num) return value.toDouble();

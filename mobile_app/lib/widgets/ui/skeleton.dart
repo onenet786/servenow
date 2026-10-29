@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
+import 'cards.dart';
 
-/// Left-to-right shimmer for skeleton content. One animation drives every
-/// [SkeletonBox] below it, inside one [RepaintBoundary] (no Opacity layers).
+//// Left-to-right shimmer for skeleton content.
+///
+/// One [AnimationController] and one [ShaderMask] for the whole skeleton:
+/// the [SkeletonBox]es underneath are plain, never-rebuilt grey blocks and a
+/// translucent highlight band is swept over all of them at once. Per frame
+/// only the mask's shader changes; no child widget rebuilds.
 class Shimmer extends StatefulWidget {
   final Widget child;
 
@@ -20,6 +25,12 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     duration: const Duration(milliseconds: 1300),
   )..repeat();
 
+  static const List<Color> _band = [
+    Color(0x00FFFFFF),
+    Color(0x99FFFFFF),
+    Color(0x00FFFFFF),
+  ];
+
   @override
   void dispose() {
     _controller.dispose();
@@ -29,22 +40,26 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
-      child: _ShimmerScope(animation: _controller, child: widget.child),
+      child: AnimatedBuilder(
+        animation: _controller,
+        // Built once; only the ShaderMask below is rebuilt each frame.
+        child: widget.child,
+        builder: (context, child) {
+          final t = _controller.value * 3 - 1; // -1 .. 2
+          return ShaderMask(
+            blendMode: BlendMode.srcATop,
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment(-1 + 2 * (t - 0.5), 0),
+              end: Alignment(-1 + 2 * (t + 0.5), 0),
+              colors: _band,
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(bounds),
+            child: child,
+          );
+        },
+      ),
     );
   }
-}
-
-class _ShimmerScope extends InheritedWidget {
-  final Animation<double> animation;
-
-  const _ShimmerScope({required this.animation, required super.child});
-
-  static Animation<double>? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<_ShimmerScope>()?.animation;
-
-  @override
-  bool updateShouldNotify(_ShimmerScope oldWidget) =>
-      oldWidget.animation != animation;
 }
 
 /// A grey rounded block. Shimmers when placed inside a [Shimmer].
@@ -61,42 +76,58 @@ class SkeletonBox extends StatelessWidget {
   });
 
   static const Color _base = Color(0xFFE9EBEF);
-  static const Color _highlight = Color(0xFFF6F7F9);
 
   @override
   Widget build(BuildContext context) {
-    final animation = _ShimmerScope.of(context);
-    final shape = BorderRadius.circular(radius);
-    if (animation == null) {
-      return Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(color: _base, borderRadius: shape),
-      );
-    }
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        final t = animation.value * 3 - 1; // -1 .. 2
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            borderRadius: shape,
-            gradient: LinearGradient(
-              begin: Alignment(-1 + 2 * (t - 0.5), 0),
-              end: Alignment(-1 + 2 * (t + 0.5), 0),
-              colors: const [_base, _highlight, _base],
-              stops: const [0.0, 0.5, 1.0],
-            ),
-          ),
-        );
-      },
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: _base,
+        borderRadius: BorderRadius.circular(radius),
+      ),
     );
   }
 }
 
-/// Skeleton shaped like a list of cards (image + two text lines).
+/// Skeleton of one [StoreCard.compact] row.
+class SkeletonStoreRow extends StatelessWidget {
+  const SkeletonStoreRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: StoreCard.compactExtent,
+      padding: const EdgeInsets.all(AppSpace.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadius.cardAll,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: const Row(
+        children: [
+          SkeletonBox(width: 78, height: 78, radius: AppRadius.control),
+          SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SkeletonBox(width: 160, height: 16),
+                SizedBox(height: AppSpace.sm),
+                SkeletonBox(width: 110, height: 12),
+                SizedBox(height: AppSpace.sm),
+                SkeletonBox(width: 140, height: 12),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Skeleton shaped like a list of cards (image + two text lines).
 class SkeletonList extends StatelessWidget {
   final int count;
   final double imageHeight;

@@ -597,9 +597,13 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
     final ready = Fmt.toDouble(_stats['ready']).round();
     final balance = Fmt.toDouble(_stats['received_balance']);
 
+    // Columns are separated by a gap and labels may wrap to two lines, so
+    // "Net receivable" and "Total orders" never touch at 360-390 px.
     Widget stat(String value, String label, {Color? color}) {
       return Expanded(
-        child: Column(
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(end: AppSpace.sm),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             FittedBox(
@@ -614,8 +618,14 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
                 ),
               ),
             ),
-            Text(label, maxLines: 1, style: AppText.caption),
+            Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.caption.copyWith(height: 1.25),
+            ),
           ],
+          ),
         ),
       );
     }

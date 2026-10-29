@@ -196,21 +196,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return [...sameCategory, ...otherCategory];
   }
 
-  /// True when the text is mostly Latin (e.g. an English description shown
-  /// in Urdu mode) so punctuation does not flip.
-  bool _isMostlyLatin(String text) {
-    var latin = 0;
-    var arabic = 0;
-    for (final rune in text.runes) {
-      if ((rune >= 0x41 && rune <= 0x5A) || (rune >= 0x61 && rune <= 0x7A)) {
-        latin++;
-      } else if (rune >= 0x0600 && rune <= 0x06FF) {
-        arabic++;
-      }
-    }
-    return latin >= arabic;
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasPromo =
@@ -250,14 +235,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             style: AppText.title,
           ),
           actions: [
-            IconButton(
+            CartIconButton(
+              count: units,
               tooltip: _tr('Open cart'),
               onPressed: () => Navigator.of(context).pushNamed('/cart'),
-              icon: Badge(
-                isLabelVisible: units > 0,
-                label: Text(units > 99 ? '99+' : '$units'),
-                child: const Icon(Icons.shopping_cart_outlined),
-              ),
             ),
             const SizedBox(width: AppSpace.xs),
           ],
@@ -287,7 +268,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 ],
               ),
             ),
-            if (widget.product.sizeVariants.isNotEmpty) ...[
+            // One option is not a choice: its unit is shown under the name
+            // instead of a one-row "Select Variant / Size" list.
+            if (widget.product.sizeVariants.length > 1) ...[
               const SizedBox(height: AppSpace.sm),
               _buildVariantsSection(),
             ],
@@ -351,10 +334,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(product.name, style: AppText.h1),
+        BidiText(product.name, style: AppText.h1),
         if ((product.categoryName ?? '').trim().isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(product.categoryName!.trim(), style: AppText.small),
+        ],
+        if (product.sizeVariants.length == 1 &&
+            Fmt.unit(product.sizeVariants.first.displayLabel).isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            _variantLabel(product.sizeVariants.first.displayLabel),
+            style: AppText.small.copyWith(color: AppColors.text),
+          ),
         ],
         const SizedBox(height: AppSpace.md),
         Row(
@@ -393,20 +384,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Widget _buildDescription() {
     final text = widget.product.description!.trim();
-    final latin = _isMostlyLatin(text);
+    final latin = Fmt.isMostlyLatin(text);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(_tr('Description'), style: AppText.label),
         const SizedBox(height: 4),
+        // The description keeps its own script direction and line height:
+        // English prose reads left-aligned at 1.5 even on the Urdu screen,
+        // Urdu prose right-aligned at the Nastaliq line height.
         Directionality(
           textDirection: latin ? TextDirection.ltr : TextDirection.rtl,
           child: SizedBox(
             width: double.infinity,
             child: Text(
               text,
-              textAlign: _isUrdu && latin ? TextAlign.end : TextAlign.start,
-              style: AppText.bodySecondary,
+              textAlign: TextAlign.start,
+              style: AppText.bodySecondary.copyWith(
+                height: latin ? 1.5 : AppText.urduLineHeight,
+              ),
             ),
           ),
         ),
@@ -432,6 +428,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ],
       ),
     );
+  }
+
+  /// `1Piece` -> `1 Piece`, kept as one left-to-right run in Urdu so it
+  /// does not render as "Piece 1".
+  String _variantLabel(String raw) {
+    final label = Fmt.unit(raw).isEmpty ? raw : Fmt.unit(raw);
+    return _isUrdu ? Fmt.isolate(label) : label;
   }
 
   Widget _buildVariantsSection() {
@@ -484,9 +487,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       const SizedBox(width: AppSpace.md),
                       Expanded(
                         child: Text(
-                          Fmt.unit(variant.displayLabel).isEmpty
-                              ? variant.displayLabel
-                              : Fmt.unit(variant.displayLabel),
+                          _variantLabel(variant.displayLabel),
                           style: AppText.bodyStrong,
                         ),
                       ),

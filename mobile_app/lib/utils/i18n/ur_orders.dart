@@ -75,6 +75,9 @@ const Map<String, String> urOrders = <String, String>{
       'ڈیلیوری پر نقد ادائیگی۔ براہ کرم کھلے پیسے تیار رکھیں۔',
   'Last Updated': 'آخری اپ ڈیٹ',
   'Rider location is being shared.': 'رائیڈر کی لوکیشن شیئر ہو رہی ہے۔',
+  'Your rider is on the way. Live location is not available for this order.':
+      'آپ کا رائیڈر راستے میں ہے۔ اس آرڈر کے لیے لائیو لوکیشن دستیاب نہیں۔',
+  'This order has been delivered.': 'یہ آرڈر پہنچا دیا گیا ہے۔',
   'Live location appears here once the rider is on the way.':
       'رائیڈر کے روانہ ہوتے ہی لائیو لوکیشن یہاں نظر آئے گی۔',
 

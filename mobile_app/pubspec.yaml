@@ -86,15 +86,12 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
+  # Only assets the app actually loads are bundled (each unused PNG here was
+  # 0.75-1 MB in every APK/AAB and web build). The other files in
+  # assets/icon and assets/images stay in the repo for the launcher-icon tool
+  # and store artwork; add them back here only if code starts using them.
   assets:
-    - assets/icon/servenow.jpeg
-    - assets/icon/servenow.png
-    - assets/icon/servenow_food_theme.png
-    - assets/icon/servenow_food_delivery.png
-    - assets/icon/servenow_brand_logo.png
     - assets/icon/servenow_brand_logo_v2.png
-    - assets/images/pizza.jpg
-    - assets/images/login.png
 
   # Bundled fonts (no runtime downloads). Licences: assets/fonts/OFL-*.txt
   fonts:
