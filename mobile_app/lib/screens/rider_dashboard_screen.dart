@@ -12,7 +12,7 @@ import '../services/api_service.dart';
 import '../services/rider_background_tracking_service.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
-import '../widgets/ui/app_version.dart';
+import '../widgets/staff/staff_ui.dart';
 import 'login_screen.dart';
 
 class RiderDashboardScreen extends StatefulWidget {
@@ -62,11 +62,137 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Rider': 'رائیڈر',
       'Vehicle': 'گاڑی',
       'ID': 'شناخت',
+      'Rider ID': 'رائیڈر شناخت',
+      'Deliveries': 'ڈیلیوریز',
+      'Active': 'جاری',
+      'Delivered': 'پہنچا دیے',
+      'Today': 'آج',
+      'Yesterday': 'کل',
+      'order': 'آرڈر',
+      'orders': 'آرڈرز',
+      'item': 'آئٹم',
+      'items': 'آئٹمز',
+      'entry': 'اندراج',
+      'entries': 'اندراجات',
+      'Collect cash': 'نقد رقم وصول کریں',
+      'Cash on delivery': 'کیش آن ڈیلیوری',
+      'Cash collected': 'نقد رقم وصول ہو گئی',
+      'Now mark the order delivered': 'اب آرڈر کو پہنچا دیا گیا مارک کریں',
+      'PAID — do not collect': 'ادائیگی ہو چکی — رقم نہ لیں',
+      'Paid online': 'آن لائن ادائیگی ہو چکی',
+      'Paid by': 'ادائیگی بذریعہ',
+      'Card': 'کارڈ',
+      'Call': 'کال',
+      'SMS': 'ایس ایم ایس',
+      'WhatsApp': 'واٹس ایپ',
+      'Maps': 'نقشہ',
+      'Could not open maps': 'نقشہ نہیں کھل سکا',
+      'Pick up': 'پک اپ',
+      'Drop off': 'ڈراپ',
+      'Customer': 'گاہک',
+      'Store': 'دکان',
+      'Summary': 'خلاصہ',
+      'Swipe: cash received': 'سوائپ کریں: رقم وصول',
+      'Swipe to mark delivered': 'پہنچانے کے لیے سوائپ کریں',
+      'Waiting for pickup': 'پک اپ کا انتظار',
+      'Deliver': 'ڈیلیوری',
+      'Special Instructions': 'خصوصی ہدایات',
+      'No active deliveries': 'کوئی جاری ڈیلیوری نہیں',
+      'New orders assigned to you appear here automatically.': 'آپ کو دیے گئے نئے آرڈرز یہاں خود بخود نظر آئیں گے۔',
+      'No completed deliveries yet': 'ابھی تک کوئی مکمل ڈیلیوری نہیں',
+      'Delivered orders will be listed here by day.': 'مکمل آرڈرز یہاں دن کے حساب سے نظر آئیں گے۔',
+      'Paid': 'ادا شدہ',
+      'Not paid': 'ادا نہیں ہوا',
+      'Payment failed': 'ادائیگی ناکام',
+      'Customer Details': 'گاہک کی تفصیل',
+      'Items by Store': 'دکان کے حساب سے آئٹمز',
+      'No items': 'کوئی آئٹم نہیں',
+      'Subtotal': 'ذیلی کل',
+      'Items subtotal': 'آئٹمز کا کل',
+      'Pricing Breakdown': 'قیمت کی تفصیل',
+      'stores': 'دکانیں',
+      'Wallet balance': 'والیٹ بیلنس',
+      'Total earnings account': 'کل آمدنی کا اکاؤنٹ',
+      'Wallet & cash flow refreshed': 'والیٹ اور کیش اپ ڈیٹ ہو گئے',
+      'Daily cash': 'روزانہ کیش',
+      'Advance, store payments and cash in your pocket': 'ایڈوانس، دکانوں کو ادائیگی اور آپ کی جیب میں رقم',
+      'Cash in pocket': 'جیب میں رقم',
+      'Shift active': 'شفٹ جاری',
+      'Shift closed': 'شفٹ بند',
+      'Shift advance': 'شفٹ ایڈوانس',
+      'Cash taken from office': 'دفتر سے لی گئی رقم',
+      'Customer cash (COD)': 'گاہک سے وصول نقد',
+      'Delivered orders cash': 'مکمل آرڈرز کی نقد رقم',
+      'Paid at stores': 'دکانوں کو ادا',
+      'Cash paid for pickups': 'پک اپ کے لیے ادا کی گئی رقم',
+      'Fuel & expenses': 'پیٹرول اور اخراجات',
+      'Returned to office': 'دفتر کو واپس',
+      'Return Cash to Admin': 'رقم دفتر کو واپس کریں',
+      'Day Slip': 'دن کی رسید',
+      'Cash movements': 'رقم کی آمد و رفت',
+      'No cash movements logged for this day yet.': 'اس دن کی کوئی رقم درج نہیں ہوئی۔',
+      'Store payment': 'دکان کو ادائیگی',
+      'Fuel expense': 'پیٹرول خرچ',
+      'Cash returned to office': 'رقم دفتر کو واپس',
+      'Cash movement': 'رقم کا اندراج',
+      'Delivered orders': 'مکمل آرڈرز',
+      'COD': 'نقد',
+      'Store paid': 'دکان کو ادا',
+      'Return cash to office': 'رقم دفتر کو واپس کریں',
+      'Hand the cash to your dispatch manager or cashier.': 'رقم اپنے ڈسپیچ مینیجر یا کیشیئر کے حوالے کریں۔',
+      'The office records it in Rider Day Transactions.': 'دفتر اسے رائیڈر کے روزانہ لین دین میں درج کرے گا۔',
+      'Once verified, your cash in pocket updates automatically.': 'تصدیق کے بعد آپ کی جیب کی رقم خود اپ ڈیٹ ہو جائے گی۔',
+      'View full statement': 'مکمل اسٹیٹمنٹ دیکھیں',
+      'Financial Statistics': 'مالی اعداد و شمار',
+      'Daily': 'روزانہ',
+      'Weekly': 'ہفتہ وار',
+      'Monthly': 'ماہانہ',
+      'No stats available': 'کوئی اعداد و شمار نہیں',
+      'Cash received (net)': 'وصول نقد (خالص)',
+      'Delivery fees': 'ڈیلیوری فیس',
+      'Payment Summary': 'ادائیگی کا خلاصہ',
+      'Unknown': 'نامعلوم',
+      'Current location': 'موجودہ مقام',
+      'ID card': 'شناختی کارڈ',
+      'Day Transactions': 'روزانہ لین دین',
+      'Not submitted cash': 'جمع نہ کرائی گئی رقم',
+      'Cash orders not yet handed to the office': 'نقد آرڈرز جن کی رقم ابھی دفتر میں جمع نہیں ہوئی',
+      'All cash submitted': 'تمام رقم جمع ہو چکی',
+      'No unsubmitted cash orders for this day.': 'اس دن کوئی غیر جمع شدہ نقد آرڈر نہیں۔',
+      'Delivery fee': 'ڈیلیوری فیس',
+      'Close day': 'دن بند کریں',
+      'Close the day for': 'دن بند کریں:',
+      'You can still view the summary after closing.': 'بند کرنے کے بعد بھی خلاصہ دیکھ سکتے ہیں۔',
+      'Day closed successfully': 'دن کامیابی سے بند ہو گیا',
+      'Could not close the day. Please try again.': 'دن بند نہیں ہو سکا۔ دوبارہ کوشش کریں۔',
+      'Expected cash with you': 'آپ کے پاس متوقع رقم',
+      'Advance + customer cash − store paid − fuel − submitted': 'ایڈوانس + گاہک کی رقم − دکان کو ادا − پیٹرول − جمع شدہ',
+      'Customer cash': 'گاہک کی رقم',
+      'Not submitted': 'جمع نہیں ہوئی',
+      'Fuel': 'پیٹرول',
+      'Office advance': 'دفتری ایڈوانس',
+      'Submitted to office': 'دفتر میں جمع',
+      'Daily Summary': 'روزانہ خلاصہ',
+      'Delivery fees earned': 'کمائی گئی ڈیلیوری فیس',
+      'Day closed at': 'دن بند ہوا',
+      'Could not load stats. Pull to refresh.': 'اعداد و شمار لوڈ نہیں ہو سکے۔ ریفریش کریں۔',
+      'Could not load day transactions.': 'روزانہ لین دین لوڈ نہیں ہو سکا۔',
+      'Order marked as delivered': 'آرڈر پہنچا دیا گیا',
+      'Could not mark delivered. Please try again.': 'ڈیلیوری مارک نہیں ہو سکی۔ دوبارہ کوشش کریں۔',
+      'Could not update payment. Please try again.': 'ادائیگی اپ ڈیٹ نہیں ہو سکی۔ دوبارہ کوشش کریں۔',
+      'Location updated': 'مقام اپ ڈیٹ ہو گیا',
     };
     if (_isUrdu && localTranslations.containsKey(text)) {
       return localTranslations[text]!;
     }
     return CustomerLanguage.tr(_isUrdu, text);
+  }
+
+  /// `3 orders` / Urdu `3 آرڈرز` with the number isolated for RTL.
+  String _count(int n, String singular, String plural) {
+    final word = _tr(n == 1 ? singular : plural);
+    final number = Fmt.number(n);
+    return _isUrdu ? '${Fmt.isolate(number)} $word' : '$number $word';
   }
 
   Future<void> _makeCall(String phoneNumber) async {
@@ -315,7 +441,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: Color(0xFFE65100),
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
             showCloseIcon: true,
@@ -566,9 +691,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     } catch (e) {
       _logger.e('Error loading wallet stats: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load stats: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_tr('Could not load stats. Pull to refresh.'))),
+        );
       }
     } finally {
       if (mounted) {
@@ -582,23 +707,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final m = dt.month.toString().padLeft(2, '0');
     final d = dt.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
-  }
-
-  String _fmtDateTime(dynamic raw) {
-    if (raw == null) return '-';
-    final value = raw.toString().trim();
-    if (value.isEmpty) return '-';
-    final parsed =
-        DateTime.tryParse(value) ??
-        DateTime.tryParse(value.replaceFirst(' ', 'T'));
-    if (parsed == null) return value;
-    final dt = parsed.isUtc ? parsed.toLocal() : parsed;
-    final y = dt.year.toString().padLeft(4, '0');
-    final m = dt.month.toString().padLeft(2, '0');
-    final d = dt.day.toString().padLeft(2, '0');
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final mm = dt.minute.toString().padLeft(2, '0');
-    return '$y-$m-$d $hh:$mm';
   }
 
   DateTime? _parseOrderTimestamp(dynamic raw) {
@@ -617,19 +725,16 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   }
 
   String _deliveryDateKey(Map<String, dynamic> delivery) {
-    return DateFormat('yyyy-MM-dd').format(_deliverySortDate(delivery));
+    // Group by the rider's local calendar day.
+    return DateFormat(
+      'yyyy-MM-dd',
+    ).format(_deliverySortDate(delivery).toLocal());
   }
 
   String _deliveryDateLabel(String dateKey) {
     final date = DateTime.tryParse(dateKey);
     if (date == null) return dateKey;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final orderDay = DateTime(date.year, date.month, date.day);
-
-    if (orderDay == today) return 'Today';
-    if (orderDay == today.subtract(const Duration(days: 1))) return 'Yesterday';
-    return DateFormat('EEE, MMM d, yyyy').format(orderDay);
+    return StaffDates.dayLabel(DateTime(date.year, date.month, date.day));
   }
 
   Future<void> _openRiderFinancialHistory() async {
@@ -722,212 +827,102 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           fuelPayment -
           totalSubmitted;
 
-      Widget summaryTile({
-        required String label,
-        required dynamic value,
-        required IconData icon,
-        required Color color,
-        VoidCallback? onTap,
-      }) {
-        final amount = _parseDouble(value).toStringAsFixed(2);
-        return Expanded(
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: color.withValues(alpha: 0.25)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(icon, color: color, size: 14),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 9.5,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w600,
-                            height: 1.0,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'PKR $amount',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                      height: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }
-
       void showNotSubmittedCashOrders() {
         showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
-          backgroundColor: Colors.transparent,
           builder: (ctx) {
-            return SafeArea(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.78,
-                ),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Not Submitted Cash Orders',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            'PKR ${unsettledCollection.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              color: Color(0xFFE65100),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: unsubmittedCashOrders.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No unsubmitted cash orders found.',
-                                ),
-                              )
-                            : ListView.separated(
-                                itemCount: unsubmittedCashOrders.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (_, i) {
-                                  final order =
-                                      (unsubmittedCashOrders[i] as Map?)
-                                          ?.cast<String, dynamic>() ??
-                                      {};
-                                  final orderNumber =
-                                      (order['order_number'] ??
-                                              '#${order['id'] ?? '-'}')
-                                          .toString();
-                                  final totalAmount = _parseDouble(
-                                    order['unsubmitted_amount'] ??
-                                        order['remaining_amount'] ??
-                                        order['total_amount'],
-                                  );
-                                  final deliveryFee = _parseDouble(
-                                    order['delivery_fee'],
-                                  );
-                                  return Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF7ED),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: const Color(0xFFFED7AA),
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                orderNumber,
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                            ),
-                                            Text(
-                                              'PKR ${totalAmount.toStringAsFixed(2)}',
-                                              style: const TextStyle(
-                                                color: Color(0xFFE65100),
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          _fmtDateTime(order['created_at']),
-                                          style: const TextStyle(
-                                            color: Colors.black54,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          'Payment: ${(order['payment_method'] ?? '-').toString().toUpperCase()}  |  Status: ${(order['payment_status'] ?? '-').toString().toUpperCase()}',
-                                          style: const TextStyle(
-                                            color: Colors.black87,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Delivery Fee: PKR ${deliveryFee.toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            color: Colors.black54,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
+            return StaffSheet(
+              title: _tr('Not submitted cash'),
+              subtitle: _tr('Cash orders not yet handed to the office'),
+              maxHeightFactor: 0.8,
+              trailing: Padding(
+                padding: const EdgeInsetsDirectional.only(end: 4),
+                child: Text(
+                  Fmt.money(unsettledCollection),
+                  style: AppText.price.copyWith(color: AppColors.warning),
                 ),
               ),
+              child: unsubmittedCashOrders.isEmpty
+                  ? EmptyState(
+                      icon: Icons.task_alt_rounded,
+                      title: _tr('All cash submitted'),
+                      message: _tr('No unsubmitted cash orders for this day.'),
+                      compact: true,
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                      itemCount: unsubmittedCashOrders.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: AppSpace.sm),
+                      itemBuilder: (_, i) {
+                        final order =
+                            (unsubmittedCashOrders[i] as Map?)
+                                ?.cast<String, dynamic>() ??
+                            {};
+                        final orderNumber = Fmt.orderNumber(
+                          order['order_number'],
+                          fallbackId: order['id'],
+                        );
+                        final totalAmount = _parseDouble(
+                          order['unsubmitted_amount'] ??
+                              order['remaining_amount'] ??
+                              order['total_amount'],
+                        );
+                        final deliveryFee = _parseDouble(
+                          order['delivery_fee'],
+                        );
+                        final method = Fmt.paymentMethod(
+                          order['payment_method'],
+                        );
+                        return AppCard(
+                          padding: const EdgeInsets.all(AppSpace.md),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      orderNumber.isEmpty ? '-' : orderNumber,
+                                      style: AppText.bodyStrong,
+                                    ),
+                                  ),
+                                  Text(
+                                    Fmt.money(totalAmount),
+                                    style: AppText.price,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                Fmt.dateTime(
+                                  order['created_at'],
+                                  fallback: '-',
+                                ),
+                                style: AppText.caption,
+                              ),
+                              const SizedBox(height: AppSpace.sm),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  if (method.isNotEmpty)
+                                    TonePill.neutral(method),
+                                  _paymentStatusPill(order['payment_status']),
+                                  Text(
+                                    '${_tr('Delivery fee')} ${Fmt.money(deliveryFee)}',
+                                    style: AppText.caption,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             );
           },
         );
@@ -936,7 +931,6 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.transparent,
         builder: (ctx) {
           bool isClosingDay = false;
           return StatefulBuilder(
@@ -951,358 +945,186 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 });
               }
 
-              return SafeArea(
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(ctx).size.height * 0.9,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
+              Future<void> closeDay() async {
+                final confirmed =
+                    await showDialog<bool>(
+                      context: context,
+                      builder: (dialogCtx) {
+                        return AlertDialog(
+                          title: Text(_tr('Close day')),
+                          content: Text(
+                            '${_tr('Close the day for')} ${StaffDates.dateOnly(summaryDate, fallback: summaryDate)}? ${_tr('You can still view the summary after closing.')}',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogCtx).pop(false),
+                              child: Text(_tr('Cancel')),
+                            ),
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogCtx).pop(true),
+                              child: Text(_tr('Close day')),
+                            ),
+                          ],
+                        );
+                      },
+                    ) ??
+                    false;
+                if (!confirmed) return;
+                setModalState(() => isClosingDay = true);
+                try {
+                  final closeData = await ApiService.closeRiderDay(
+                    token,
+                    date: summaryDate,
+                  );
+                  dayClosing = (closeData['day_closing'] as Map<String, dynamic>?)
+                      ?.cast<String, dynamic>();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(_tr('Day closed successfully'))),
+                    );
+                  }
+                } catch (e) {
+                  _logger.w('Close day failed: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          _tr('Could not close the day. Please try again.'),
+                        ),
+                      ),
+                    );
+                  }
+                } finally {
+                  setModalState(() => isClosingDay = false);
+                }
+              }
+
+              return StaffSheet(
+                title: _tr('Day Transactions'),
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  children: [
+                    DayStepper(
+                      date: fromDate,
+                      onPrevious: () => openDayOffset(-1),
+                      onNext: canGoNext ? () => openDayOffset(1) : null,
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                    child: Column(
+                    const SizedBox(height: AppSpace.md),
+                    _cashHeroBox(
+                      label: _tr('Expected cash with you'),
+                      amount: expectedCashWithRider,
+                      note: _tr(
+                        'Advance + customer cash − store paid − fuel − submitted',
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    StaffStatGrid(
                       children: [
-                        Container(
-                          width: 42,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(100),
-                          ),
+                        StaffStat(
+                          label: _tr('Customer cash'),
+                          value: Fmt.money(cashInCustomer),
+                          icon: Icons.payments_outlined,
+                          tone: StaffTone.primary,
                         ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Day Transactions',
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        StaffStat(
+                          label: _tr('Not submitted'),
+                          value: Fmt.money(unsettledCollection),
+                          icon: Icons.account_balance_wallet_outlined,
+                          tone: unsettledCollection > 0
+                              ? StaffTone.warning
+                              : StaffTone.neutral,
+                          onTap: showNotSubmittedCashOrders,
                         ),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 9,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF3E0),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              IconButton(
-                                onPressed: () => openDayOffset(-1),
-                                icon: const Icon(Icons.chevron_left),
-                                color: const Color(0xFFE65100),
-                                tooltip: 'Previous day',
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      _deliveryDateLabel(_dateOnly(fromDate)),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Color(0xFFE65100),
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _dateOnly(fromDate),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.black54,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                onPressed: canGoNext
-                                    ? () => openDayOffset(1)
-                                    : null,
-                                icon: const Icon(Icons.chevron_right),
-                                color: const Color(0xFFE65100),
-                                tooltip: 'Next day',
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ],
-                          ),
+                        StaffStat(
+                          label: _tr('Store paid'),
+                          value: Fmt.money(cashOutStore),
+                          icon: Icons.storefront_outlined,
                         ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: ListView(
-                            padding: EdgeInsets.zero,
-                            children: [
-                              Row(
-                                children: [
-                                  summaryTile(
-                                    label: 'Customer Cash',
-                                    value: cashInCustomer,
-                                    icon: Icons.payments_outlined,
-                                    color: const Color(0xFF15803D),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  summaryTile(
-                                    label: 'Not Submitted',
-                                    value: unsettledCollection,
-                                    icon: Icons.account_balance_wallet_outlined,
-                                    color: const Color(0xFFE65100),
-                                    onTap: showNotSubmittedCashOrders,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  summaryTile(
-                                    label: 'Expected Cash',
-                                    value: expectedCashWithRider,
-                                    icon: Icons.savings_outlined,
-                                    color: const Color(0xFF0F766E),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  summaryTile(
-                                    label: 'Store Paid Now',
-                                    value: cashOutStore,
-                                    icon: Icons.storefront_outlined,
-                                    color: const Color(0xFF1D4ED8),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  summaryTile(
-                                    label: 'Fuel Payment',
-                                    value: summary['fuel_payment'],
-                                    icon: Icons.local_gas_station_outlined,
-                                    color: const Color(0xFFD97706),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  summaryTile(
-                                    label: 'Office Advance',
-                                    value: summary['office_advance'],
-                                    icon: Icons.request_page_outlined,
-                                    color: const Color(0xFF7C3AED),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(0xFFE2E8F0),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Expanded(
-                                          child: Text(
-                                            'Daily Summary',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ),
-                                        Text(
-                                          summaryDate,
-                                          style: const TextStyle(
-                                            color: Colors.black54,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Cash PKR ${_parseDouble(dailySummary['cash_collection']).toStringAsFixed(2)}  |  Store Paid PKR ${_parseDouble(dailySummary['store_payment']).toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Fuel PKR ${_parseDouble(dailySummary['fuel_payment']).toStringAsFixed(2)}  |  Delivery Fee PKR ${_parseDouble(dailySummary['delivery_fee_earned']).toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    if (isDayClosed)
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFDCFCE7),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'Day closed at ${_fmtDateTime(dayClosing?['closed_at'])}',
-                                          style: const TextStyle(
-                                            color: Color(0xFF166534),
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: FilledButton.icon(
-                                          onPressed: isClosingDay
-                                              ? null
-                                              : () async {
-                                                  final confirmed =
-                                                      await showDialog<bool>(
-                                                        context: context,
-                                                        builder: (dialogCtx) {
-                                                          return AlertDialog(
-                                                            title: const Text(
-                                                              'Close Day',
-                                                            ),
-                                                            content: Text(
-                                                              'Confirm day close for $summaryDate? You can still view the summary after closing.',
-                                                            ),
-                                                            actions: [
-                                                              TextButton(
-                                                                onPressed: () =>
-                                                                    Navigator.of(
-                                                                      dialogCtx,
-                                                                    ).pop(
-                                                                      false,
-                                                                    ),
-                                                                child:
-                                                                    const Text(
-                                                                      'Cancel',
-                                                                    ),
-                                                              ),
-                                                              FilledButton(
-                                                                onPressed: () =>
-                                                                    Navigator.of(
-                                                                      dialogCtx,
-                                                                    ).pop(true),
-                                                                child:
-                                                                    const Text(
-                                                                      'Confirm',
-                                                                    ),
-                                                              ),
-                                                            ],
-                                                          );
-                                                        },
-                                                      ) ??
-                                                      false;
-                                                  if (!confirmed) return;
-                                                  setModalState(
-                                                    () => isClosingDay = true,
-                                                  );
-                                                  try {
-                                                    final closeData =
-                                                        await ApiService.closeRiderDay(
-                                                          token,
-                                                          date: summaryDate,
-                                                        );
-                                                    dayClosing =
-                                                        (closeData['day_closing']
-                                                                as Map<
-                                                                  String,
-                                                                  dynamic
-                                                                >?)
-                                                            ?.cast<
-                                                              String,
-                                                              dynamic
-                                                            >();
-                                                    if (mounted) {
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Text(
-                                                            'Day closed successfully',
-                                                          ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  } catch (e) {
-                                                    if (mounted) {
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        SnackBar(
-                                                          content: Text(
-                                                            'Failed to close day: $e',
-                                                          ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  } finally {
-                                                    setModalState(
-                                                      () =>
-                                                          isClosingDay = false,
-                                                    );
-                                                  }
-                                                },
-                                          icon: isClosingDay
-                                              ? const SizedBox(
-                                                  width: 14,
-                                                  height: 14,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                      ),
-                                                )
-                                              : const Icon(
-                                                  Icons.task_alt_outlined,
-                                                ),
-                                          label: Text(
-                                            isClosingDay
-                                                ? 'Closing...'
-                                                : 'Close Day',
-                                          ),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFFE65100,
-                                            ),
-                                            foregroundColor: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                        StaffStat(
+                          label: _tr('Fuel'),
+                          value: Fmt.money(_parseDouble(summary['fuel_payment'])),
+                          icon: Icons.local_gas_station_outlined,
+                        ),
+                        StaffStat(
+                          label: _tr('Office advance'),
+                          value: Fmt.money(
+                            _parseDouble(summary['office_advance']),
                           ),
+                          icon: Icons.request_page_outlined,
+                        ),
+                        StaffStat(
+                          label: _tr('Submitted to office'),
+                          value: Fmt.money(totalSubmitted),
+                          icon: Icons.assignment_turned_in_outlined,
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: AppSpace.md),
+                    StaffSection(
+                      title: _tr('Daily Summary'),
+                      trailing: Text(
+                        StaffDates.dateOnly(summaryDate, fallback: summaryDate),
+                        style: AppText.caption,
+                      ),
+                      children: [
+                        MoneyRow(
+                          label: _tr('Cash collected'),
+                          amount: dailySummary['cash_collection'],
+                        ),
+                        MoneyRow(
+                          label: _tr('Store paid'),
+                          amount: dailySummary['store_payment'],
+                        ),
+                        MoneyRow(
+                          label: _tr('Fuel'),
+                          amount: dailySummary['fuel_payment'],
+                        ),
+                        MoneyRow(
+                          label: _tr('Delivery fees earned'),
+                          amount: dailySummary['delivery_fee_earned'],
+                          tone: StaffTone.primary,
+                        ),
+                        const SizedBox(height: AppSpace.md),
+                        if (isDayClosed)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppSpace.md),
+                            decoration: const BoxDecoration(
+                              color: AppColors.successBg,
+                              borderRadius: AppRadius.controlAll,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.lock_clock_rounded,
+                                  color: AppColors.success,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: AppSpace.sm),
+                                Expanded(
+                                  child: Text(
+                                    '${_tr('Day closed at')} ${Fmt.dateTime(dayClosing?['closed_at'], fallback: '-')}',
+                                    style: AppText.bodyStrong.copyWith(
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          PrimaryButton(
+                            label: _tr('Close day'),
+                            icon: Icons.task_alt_rounded,
+                            loading: isClosingDay,
+                            onPressed: closeDay,
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               );
             },
@@ -1311,8 +1133,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       );
     } catch (e) {
       if (!mounted) return;
+      _logger.w('Rider financial history failed: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load financial history: $e')),
+        SnackBar(content: Text(_tr('Could not load day transactions.'))),
       );
     }
   }
@@ -1322,7 +1145,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     await _getCurrentLocation();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Location updated successfully!')),
+        SnackBar(content: Text(_tr('Location updated'))),
       );
     }
   }
@@ -1463,16 +1286,18 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       await ApiService.markOrderAsDelivered(token, orderId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order marked as delivered!')),
+          SnackBar(content: Text(_tr('Order marked as delivered'))),
         );
         _loadAllData(); // Refresh list
       }
     } catch (e) {
       _logger.e('Error marking delivered: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update status: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('Could not mark delivered. Please try again.')),
+          ),
+        );
       }
     }
   }
@@ -1485,8 +1310,8 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       await ApiService.updatePaymentStatus(token, orderId, 'paid');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment marked as received! Wallet updated.'),
+          SnackBar(
+            content: Text(_tr('Payment marked as received! Wallet updated.')),
           ),
         );
         _loadAllData();
@@ -1498,9 +1323,11 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     } catch (e) {
       _logger.e('Error updating payment: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update payment: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_tr('Could not update payment. Please try again.')),
+          ),
+        );
       }
     }
   }
@@ -1520,146 +1347,224 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: CustomerLanguage.textDirection(_isUrdu),
-      child: Scaffold(
-        drawer: _buildRiderDrawer(),
-        appBar: AppBar(
-          toolbarHeight: 44,
-          leadingWidth: 42,
-          title: Text(_tr('Rider Dashboard')),
-          actions: [
-            const SizedBox(
-              width: 38,
-              height: 38,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: NotificationBellWidget(),
-              ),
-            ),
-          ],
-        ),
-        bottomNavigationBar: _buildBottomNavigationBar(),
-        body: RefreshIndicator(
-          onRefresh: _loadAllData,
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                  children: [
-                    // Rider Info Section
-                    _buildRiderInfoCard(),
+  // ---------------------------------------------------------------------------
+  // UI (phase B redesign). Everything below is presentation only; data loading,
+  // location tracking and status updates are the methods above.
+  // ---------------------------------------------------------------------------
 
-                    // Tab Content
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _buildDeliveriesList(_assignedDeliveries, true),
-                          _buildDeliveriesList(_completedDeliveries, false),
-                          _buildWalletTab(),
-                          _buildProfileTab(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
+  static const List<String> _tabTitles = [
+    'Deliveries',
+    'History',
+    'Wallet',
+    'Profile',
+  ];
+
+  String get _riderName {
+    final first = (_riderProfile?['first_name'] ?? '').toString().trim();
+    final last = (_riderProfile?['last_name'] ?? '').toString().trim();
+    final full = '$first $last'.trim();
+    return full.isEmpty ? _tr('Rider') : full;
   }
 
-  Widget _buildRiderInfoCard() {
-    final name = _riderProfile == null
-        ? _tr('Rider')
-        : '${_riderProfile?['first_name'] ?? ''} ${_riderProfile?['last_name'] ?? ''}'
-              .trim()
-              .isEmpty
-        ? (_riderProfile?['first_name'] ?? _tr('Rider'))
-        : '${_riderProfile?['first_name'] ?? ''} ${_riderProfile?['last_name'] ?? ''}'
-              .trim();
-    final vehicle = _riderProfile?['vehicle_type'] ?? 'N/A';
-    final riderId = (_riderProfile?['id'] ?? '-').toString();
+  Future<void> _openMaps(String address) async {
+    final query = address.trim();
+    if (query.isEmpty) return;
+    final uri = Uri.https('www.google.com', '/maps/search/', {
+      'api': '1',
+      'query': query,
+    });
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_tr('Could not open maps'))));
+    }
+  }
 
+  Widget _paymentStatusPill(dynamic raw) {
+    final value = (raw ?? '').toString().trim().toLowerCase();
+    switch (value) {
+      case 'paid':
+        return TonePill.success(_tr('Paid'));
+      case 'failed':
+        return TonePill.danger(_tr('Payment failed'));
+      case '':
+        return const SizedBox.shrink();
+      default:
+        return TonePill.warning(_tr('Not paid'));
+    }
+  }
+
+  /// Big green-tinted amount box used for "cash with you" figures.
+  Widget _cashHeroBox({
+    required String label,
+    required double amount,
+    String? note,
+    Widget? trailing,
+  }) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(6, 8, 6, 8),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(AppSpace.lg),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: LinearGradient(
-          colors: [Color(0xFFE65100), Color(0xFFBF360C)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: AppColors.tint50,
+        borderRadius: AppRadius.cardAll,
+        border: Border.all(color: AppColors.tint200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _tr('Welcome Rider'),
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.badge, color: Colors.white70, size: 16),
-              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  '${_tr('ID')}: $riderId  |  ${_tr('Vehicle')}: $vehicle',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                  label,
+                  style: AppText.bodyStrong.copyWith(
+                    color: AppColors.primaryDeep,
                   ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            Fmt.money(amount),
+            style: AppText.price.copyWith(
+              fontSize: 30,
+              color: AppColors.primaryDeep,
+              letterSpacing: -0.5,
+            ),
+          ),
+          if (note != null) ...[
+            const SizedBox(height: AppSpace.xs),
+            Text(note, style: AppText.caption),
+          ],
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LanguageScope(
+      isUrdu: _isUrdu,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        drawer: _buildRiderDrawer(),
+        appBar: AppBar(
+          title: Text(_tr(_tabTitles[_selectedTabIndex.clamp(0, 3)])),
+          actions: const [NotificationBellWidget(), SizedBox(width: 4)],
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
+        body: _isLoading
+            ? const StaffListSkeleton()
+            : TabBarView(
+                controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  RefreshIndicator(
+                    onRefresh: _loadAllData,
+                    child: _buildDeliveriesList(_assignedDeliveries, true),
+                  ),
+                  RefreshIndicator(
+                    onRefresh: _loadAllData,
+                    child: _buildDeliveriesList(_completedDeliveries, false),
+                  ),
+                  RefreshIndicator(
+                    onRefresh: _loadAllData,
+                    child: _buildWalletTab(),
+                  ),
+                  RefreshIndicator(
+                    onRefresh: _loadAllData,
+                    child: _buildProfileTab(),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// Compact rider strip shown once, at the top of the Deliveries tab.
+  Widget _buildRiderInfoCard() {
+    final vehicle = (_riderProfile?['vehicle_type'] ?? '').toString().trim();
+    final riderId = (_riderProfile?['id'] ?? '').toString();
+    final name = _riderName;
+    final sub = [
+      if (riderId.isNotEmpty) '${_tr('ID')} $riderId',
+      if (vehicle.isNotEmpty) vehicle,
+    ].join(' · ');
+
+    Widget stat(String value, String label, {Color? color}) {
+      return Expanded(
+        child: Column(
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: AppText.price.copyWith(
+                  fontSize: 16,
+                  color: color ?? AppColors.text,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(label, style: AppText.caption, maxLines: 1),
+          ],
+        ),
+      );
+    }
+
+    Widget divider() =>
+        Container(width: 1, height: 28, color: AppColors.border);
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.tint100,
+                child: Text(
+                  name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'R',
+                  style: AppText.title.copyWith(color: AppColors.primaryDeep),
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.title,
+                    ),
+                    if (sub.isNotEmpty)
+                      Text(sub, style: AppText.caption, maxLines: 1),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Row(
             children: [
-              _buildRiderMiniStat(
-                label: _tr('Assigned'),
-                value: _assignedDeliveries.length.toString(),
+              stat(
+                Fmt.number(_assignedDeliveries.length),
+                _tr('Active'),
+                color: _assignedDeliveries.isEmpty
+                    ? AppColors.text
+                    : AppColors.primaryPressed,
               ),
-              const SizedBox(width: 8),
-              _buildRiderMiniStat(
-                label: _tr('Completed'),
-                value: _completedDeliveries.length.toString(),
-              ),
-              const SizedBox(width: 8),
-              _buildRiderMiniStat(
-                label: _tr('Wallet'),
-                value: 'PKR ${_walletBalance.toStringAsFixed(0)}',
-              ),
+              divider(),
+              stat(Fmt.number(_completedDeliveries.length), _tr('Delivered')),
+              divider(),
+              stat(Fmt.money(_walletBalance.roundToDouble()), _tr('Wallet')),
             ],
           ),
         ],
@@ -1668,214 +1573,209 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   }
 
   Widget _buildRiderDrawer() {
-    final name = _riderProfile == null
-        ? _tr('Rider')
-        : '${_riderProfile?['first_name'] ?? ''} ${_riderProfile?['last_name'] ?? ''}'
-              .trim()
-              .isEmpty
-        ? (_riderProfile?['first_name'] ?? _tr('Rider'))
-        : '${_riderProfile?['first_name'] ?? ''} ${_riderProfile?['last_name'] ?? ''}'
-              .trim();
+    final name = _riderName;
     final email = (_riderProfile?['email'] ?? '').toString();
+
+    Widget item(
+      IconData icon,
+      String label,
+      VoidCallback onTap, {
+      bool selected = false,
+      bool destructive = false,
+    }) {
+      final color = destructive ? AppColors.danger : AppColors.text;
+      return ListTile(
+        minTileHeight: 52,
+        selected: selected,
+        selectedTileColor: AppColors.tint50,
+        selectedColor: AppColors.primaryDeep,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.controlAll),
+        leading: Icon(icon, color: selected ? AppColors.primaryPressed : color),
+        title: Text(
+          label,
+          style: AppText.bodyStrong.copyWith(
+            color: selected ? AppColors.primaryDeep : color,
+          ),
+        ),
+        onTap: () {
+          Navigator.of(context).pop();
+          onTap();
+        },
+      );
+    }
+
     return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          UserAccountsDrawerHeader(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFE65100), Color(0xFFBF360C)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+      backgroundColor: AppColors.surface,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: AppColors.tint100,
+                    child: Text(
+                      name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'R',
+                      style: AppText.h2.copyWith(color: AppColors.primaryDeep),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: AppText.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (email.isNotEmpty)
+                          Text(
+                            email,
+                            style: AppText.caption,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            accountName: Text(name),
-            accountEmail: Text(email),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'R',
-                style: const TextStyle(
-                  color: Colors.indigo,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpace.sm),
+                children: [
+                  item(
+                    Icons.delivery_dining_outlined,
+                    _tr('Home'),
+                    () => _switchToTab(0),
+                    selected: _selectedTabIndex == 0,
+                  ),
+                  item(
+                    Icons.history_rounded,
+                    _tr('History'),
+                    () => _switchToTab(1),
+                    selected: _selectedTabIndex == 1,
+                  ),
+                  item(
+                    Icons.account_balance_wallet_outlined,
+                    _tr('Wallet'),
+                    () => _switchToTab(2),
+                    selected: _selectedTabIndex == 2,
+                  ),
+                  item(
+                    Icons.query_stats_rounded,
+                    _tr('Day Transactions'),
+                    _openRiderFinancialHistory,
+                  ),
+                  item(
+                    Icons.person_outline_rounded,
+                    _tr('Profile'),
+                    () => _switchToTab(3),
+                    selected: _selectedTabIndex == 3,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpace.sm),
+                    child: Divider(height: 1),
+                  ),
+                  item(Icons.refresh_rounded, _tr('Refresh'), _loadAllData),
+                  item(
+                    Icons.key_outlined,
+                    _tr('Change Password'),
+                    () => Navigator.of(context).pushNamed('/change-password'),
+                  ),
+                  item(
+                    Icons.logout_rounded,
+                    _tr('Logout'),
+                    _logout,
+                    destructive: true,
+                  ),
+                ],
               ),
             ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.home_outlined),
-            title: Text(_tr('Home')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _switchToTab(0);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.history),
-            title: Text(_tr('History')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _switchToTab(1);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.account_balance_wallet_outlined),
-            title: Text(_tr('Wallet')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _switchToTab(2);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.query_stats),
-            title: Text(_tr('Day Transactions')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _openRiderFinancialHistory();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: Text(_tr('Profile')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _switchToTab(3);
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.refresh),
-            title: Text(_tr('Refresh')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _loadAllData();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.key),
-            title: Text(_tr('Change Password')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/change-password');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: Text(
-              _tr('Logout'),
-              style: const TextStyle(color: Colors.red),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: AppVersionText(),
             ),
-            onTap: () {
-              Navigator.of(context).pop();
-              _logout();
-            },
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: NavigationBar(
+        selectedIndex: _selectedTabIndex.clamp(0, 3),
+        onDestinationSelected: _switchToTab,
+        destinations: [
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: _assignedDeliveries.isNotEmpty,
+              label: Text('${_assignedDeliveries.length}'),
+              child: const Icon(Icons.delivery_dining_outlined),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: _assignedDeliveries.isNotEmpty,
+              label: Text('${_assignedDeliveries.length}'),
+              child: const Icon(Icons.delivery_dining_rounded),
+            ),
+            label: _tr('Home'),
+            tooltip: _tr('Deliveries'),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: AppVersionText(),
+          NavigationDestination(
+            icon: const Icon(Icons.history_rounded),
+            label: _tr('History'),
+            tooltip: _tr('History'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: const Icon(Icons.account_balance_wallet_rounded),
+            label: _tr('Wallet'),
+            tooltip: _tr('Wallet'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline_rounded),
+            selectedIcon: const Icon(Icons.person_rounded),
+            label: _tr('Profile'),
+            tooltip: _tr('Profile'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomNavigationBar() {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(6, 0, 6, 4),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        constraints: const BoxConstraints(minHeight: 50),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildBottomNavItem(0, Icons.home_filled, _tr('Home')),
-            _buildBottomNavItem(1, Icons.history, _tr('History')),
-            _buildBottomNavItem(2, Icons.account_balance_wallet, _tr('Wallet')),
-            _buildBottomNavItem(3, Icons.person, _tr('Profile')),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem(int index, IconData icon, String label) {
-    final active = _selectedTabIndex == index;
-    return InkWell(
-      onTap: () => _switchToTab(index),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: active ? Color(0xFFE65100) : Colors.grey.shade600,
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                color: active ? Color(0xFFE65100) : Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRiderMiniStat({required String label, required String value}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 1),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white70, fontSize: 10),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildDeliveriesList(List<dynamic> deliveries, bool isAssigned) {
     if (deliveries.isEmpty) {
-      return const Center(child: Text('No deliveries found.'));
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpace.lg),
+        children: [
+          if (isAssigned) _buildRiderInfoCard(),
+          EmptyState(
+            icon: isAssigned
+                ? Icons.delivery_dining_outlined
+                : Icons.history_rounded,
+            title: isAssigned
+                ? _tr('No active deliveries')
+                : _tr('No completed deliveries yet'),
+            message: isAssigned
+                ? _tr('New orders assigned to you appear here automatically.')
+                : _tr('Delivered orders will be listed here by day.'),
+            actionLabel: _tr('Refresh'),
+            actionIcon: Icons.refresh_rounded,
+            onAction: _loadAllData,
+          ),
+        ],
+      );
     }
 
     final sortedDeliveries =
@@ -1905,88 +1805,166 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
 
     final dateKeys = deliveriesByDate.keys.toList()
       ..sort((a, b) => b.compareTo(a));
-    int totalItems = dateKeys.length;
+
+    // Flatten into header / card rows once (not per item build).
+    final rows = <Object>[];
     for (final dateKey in dateKeys) {
-      totalItems += deliveriesByDate[dateKey]!.length;
+      rows.add(dateKey);
+      rows.addAll(deliveriesByDate[dateKey]!);
     }
+    final headerCount = isAssigned ? 1 : 0;
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: totalItems,
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      itemCount: rows.length + headerCount,
       itemBuilder: (context, index) {
-        int currentIndex = 0;
-
-        for (int i = 0; i < dateKeys.length; i++) {
-          final dateKey = dateKeys[i];
-          final dateDeliveries = deliveriesByDate[dateKey]!;
-
-          if (currentIndex == index) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _deliveryDateLabel(dateKey),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFFF7043),
-                    ),
+        if (isAssigned && index == 0) return _buildRiderInfoCard();
+        final row = rows[index - headerCount];
+        if (row is String) {
+          final count = deliveriesByDate[row]!.length;
+          return Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _tr(_deliveryDateLabel(row)),
+                    style: AppText.title,
                   ),
-                  Text(
-                    '${dateDeliveries.length} order${dateDeliveries.length == 1 ? '' : 's'}',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-          currentIndex++;
-
-          for (int j = 0; j < dateDeliveries.length; j++) {
-            if (currentIndex == index) {
-              return _buildDeliveryCard(dateDeliveries[j], isAssigned);
-            }
-            currentIndex++;
-          }
+                ),
+                Text(
+                  _count(count, 'order', 'orders'),
+                  style: AppText.caption,
+                ),
+              ],
+            ),
+          );
         }
-
-        return const SizedBox.shrink();
+        final delivery = row as Map<String, dynamic>;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpace.md),
+          child: isAssigned
+              ? _buildDeliveryCard(delivery, isAssigned)
+              : _buildHistoryCard(delivery),
+        );
       },
     );
   }
 
+  Widget _routeStop({
+    required IconData icon,
+    required Color color,
+    required Color background,
+    required String label,
+    required String title,
+    String? subtitle,
+    String? extra,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+          child: Icon(icon, size: 18, color: color),
+        ),
+        const SizedBox(width: AppSpace.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label.toUpperCase(), style: AppText.caption.copyWith(
+                fontSize: 11,
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w700,
+              )),
+              Text(title, style: AppText.bodyStrong.copyWith(fontSize: 15)),
+              if (subtitle != null && subtitle.isNotEmpty)
+                Text(subtitle, style: AppText.bodySecondary),
+              if (extra != null && extra.isNotEmpty)
+                Text(extra, style: AppText.caption),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDeliveryCard(Map<String, dynamic> delivery, bool isAssigned) {
-    final status = delivery['status'] ?? 'unknown';
-    final paymentStatus = delivery['payment_status'] ?? 'pending';
-    final customerPhone = (delivery['phone'] ?? '').toString();
+    final status = (delivery['status'] ?? 'unknown').toString();
+    final paymentStatus = (delivery['payment_status'] ?? 'pending').toString();
+    final isPaid = paymentStatus == 'paid';
+    final isCash = Fmt.isCashPayment(delivery['payment_method']);
+    final cashState = !isPaid
+        ? CashState.collect
+        : (isCash ? CashState.collected : CashState.prepaid);
+    final customerPhone = (delivery['phone'] ?? '').toString().trim();
     final instructions = (delivery['special_instructions'] ?? '')
         .toString()
         .trim();
     final preferredTime = (delivery['delivery_time'] ?? '').toString().trim();
-    final hasNotice = instructions.isNotEmpty || preferredTime.isNotEmpty;
-    final statusColor = _getStatusColor(status);
+    final preferredIsAsap =
+        preferredTime.isEmpty || preferredTime.toLowerCase() == 'asap';
+    final hasNotice = instructions.isNotEmpty || !preferredIsAsap;
+    final statusKey = status.toLowerCase();
     final shouldBlink =
-        hasNotice &&
-        status.toString().toLowerCase() != 'delivered' &&
-        status.toString().toLowerCase() != 'cancelled';
+        hasNotice && statusKey != 'delivered' && statusKey != 'cancelled';
+    final customerName =
+        '${delivery['first_name'] ?? ''} ${delivery['last_name'] ?? ''}'.trim();
+    final address = (delivery['delivery_address'] ?? '').toString().trim();
+    final storeName = (delivery['store_name'] ?? _tr('Store')).toString();
+    final storeLocation = (delivery['store_location'] ?? '').toString().trim();
+    final itemCount = ((delivery['items'] as List?) ?? const []).length;
+    final total = delivery['total_amount'];
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    Widget primaryAction() {
+      if (!isAssigned) return const SizedBox.shrink();
+      if (status == 'out_for_delivery') {
+        if (!isPaid) {
+          return SwipeToConfirm(
+            label: '${_tr('Swipe: cash received')} ${Fmt.money(total)}',
+            color: AppColors.warning,
+            onConfirmed: () => _markPaymentReceived(delivery['id']),
+          );
+        }
+        return SwipeToConfirm(
+          label: _tr('Swipe to mark delivered'),
+          onConfirmed: () => _markAsDelivered(delivery['id']),
+        );
+      }
+      final style = OrderStatusStyle.of(status);
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpace.md),
+        decoration: const BoxDecoration(
+          color: AppColors.surface3,
+          borderRadius: AppRadius.controlAll,
+        ),
+        child: Row(
           children: [
-            // Header
-            Row(
+            const Icon(Icons.hourglass_top_rounded, color: AppColors.text2),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Text(
+                '${_tr('Waiting for pickup')} · ${_isUrdu ? style.urduLabel : style.label}',
+                style: AppText.bodyStrong.copyWith(color: AppColors.text2),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
@@ -1994,296 +1972,232 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Order #${delivery['order_number']}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        Fmt.orderNumber(
+                          delivery['order_number'],
+                          fallbackId: delivery['id'],
                         ),
+                        style: AppText.title,
                       ),
-                      if (shouldBlink)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              FadeTransition(
-                                opacity: _blinkAnimation,
-                                child: Icon(
-                                  Icons.circle,
-                                  size: 10,
-                                  color: statusColor,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Special Instructions',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: statusColor),
-                        ),
-                        child: Text(
-                          status.toUpperCase(),
-                          style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
+                      Text(
+                        Fmt.dateTime(delivery['created_at'], fallback: '-'),
+                        style: AppText.caption,
                       ),
                     ],
                   ),
                 ),
+                StatusPill(status: status, urdu: _isUrdu),
               ],
             ),
-            const Divider(),
-
-            // Details
-            _buildDetailRow(
-              'Customer',
-              '${delivery['first_name']} ${delivery['last_name']}',
-            ),
-            _buildDetailRow(
-              'Store',
-              '${delivery['store_name'] ?? 'Unknown Store'}',
-            ),
-            _buildDetailRow('Order Time', _fmtDateTime(delivery['created_at'])),
-
-            // Simplified Summary Card
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Color(0xFFFFF3E0).withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Color(0xFFFFE0B2)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Grand Total',
-                        style: TextStyle(fontSize: 12, color: Colors.brown),
-                      ),
-                      Text(
-                        'PKR ${delivery['total_amount']}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFE65100),
-                        ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () => _showOrderInfo(delivery),
-                    icon: const Icon(Icons.receipt_long, size: 16),
-                    label: const Text('Summary'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFFE65100),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildDetailRow('Address', '${delivery['delivery_address']}'),
-            _buildDetailRow('Phone', '${delivery['phone'] ?? 'N/A'}'),
-            if (preferredTime.isNotEmpty)
-              _buildDetailRow(
-                'Preferred',
-                preferredTime,
-                valueColor: const Color(0xFF2563EB),
-              ),
-            if (instructions.isNotEmpty)
-              _buildDetailRow(
-                'Notes',
-                instructions,
-                valueColor: const Color(0xFFE65100),
-              ),
-            if (customerPhone.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
+          ),
+          if (hasNotice)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.all(AppSpace.md),
+                decoration: const BoxDecoration(
+                  color: AppColors.warningBg,
+                  borderRadius: AppRadius.controlAll,
+                ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _contactAction(
-                      icon: Icons.phone,
-                      color: Color(0xFFE65100),
-                      label: 'Call',
-                      onTap: () => _makeCall(customerPhone),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: shouldBlink
+                          ? FadeTransition(
+                              opacity: _blinkAnimation,
+                              child: const Icon(
+                                Icons.circle,
+                                size: 10,
+                                color: AppColors.warning,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.circle,
+                              size: 10,
+                              color: AppColors.warning,
+                            ),
                     ),
-                    _contactAction(
-                      icon: Icons.message,
-                      color: Colors.orange,
-                      label: 'SMS',
-                      onTap: () => _sendSms(customerPhone),
-                    ),
-                    _contactAction(
-                      icon: Icons.chat,
-                      color: Colors.green,
-                      label: 'WhatsApp',
-                      onTap: () => _openWhatsApp(customerPhone),
+                    const SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (!preferredIsAsap)
+                            Text(
+                              '${_tr('Deliver')}: ${Fmt.deliveryTime(preferredTime)}',
+                              style: AppText.bodyStrong.copyWith(
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          if (instructions.isNotEmpty) ...[
+                            Text(
+                              _tr('Special Instructions'),
+                              style: AppText.label.copyWith(
+                                color: AppColors.warning,
+                              ),
+                            ),
+                            Text(instructions, style: AppText.body),
+                          ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            _buildDetailRow(
-              'Payment',
-              paymentStatus,
-              valueColor: paymentStatus == 'paid'
-                  ? Colors.green
-                  : Colors.orange,
             ),
-
-            if (delivery['rider_location'] != null)
-              _buildDetailRow('My Location', '${delivery['rider_location']}'),
-
-            // Actions
-            if (isAssigned && status == 'out_for_delivery') ...[
-              Row(
-                children: [
-                  if (paymentStatus != 'paid')
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => _markPaymentReceived(delivery['id']),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFE65100),
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Payment Recvd'),
-                      ),
-                    ),
-                  if (paymentStatus != 'paid') const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: paymentStatus == 'paid'
-                          ? () => _markAsDelivered(delivery['id'])
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Mark Delivered'),
-                    ),
-                  ),
-                ],
-              ),
-              if (paymentStatus != 'paid')
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Mark payment received first to enable delivery.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.orange,
-                      fontWeight: FontWeight.w600,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Column(
+              children: [
+                _routeStop(
+                  icon: Icons.storefront_rounded,
+                  color: AppColors.primaryPressed,
+                  background: AppColors.tint100,
+                  label: _tr('Pick up'),
+                  title: storeName,
+                  subtitle: storeLocation,
+                ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 17),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Container(
+                      width: 2,
+                      height: 14,
+                      color: AppColors.border,
                     ),
                   ),
                 ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                _routeStop(
+                  icon: Icons.location_on_rounded,
+                  color: AppColors.danger,
+                  background: AppColors.dangerBg,
+                  label: _tr('Drop off'),
+                  title: customerName.isEmpty ? _tr('Customer') : customerName,
+                  subtitle: address,
+                  extra: customerPhone,
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: CashCallout(
+              state: cashState,
+              amount: total,
+              methodLabel: Fmt.paymentMethod(delivery['payment_method']),
+              tr: _tr,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ContactButton(
+                    icon: Icons.call_rounded,
+                    label: _tr('Call'),
+                    onTap: customerPhone.isEmpty
+                        ? null
+                        : () => _makeCall(customerPhone),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: ContactButton(
+                    icon: Icons.chat_rounded,
+                    label: _tr('WhatsApp'),
+                    color: const Color(0xFF128C7E),
+                    onTap: customerPhone.isEmpty
+                        ? null
+                        : () => _openWhatsApp(customerPhone),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: ContactButton(
+                    icon: Icons.map_rounded,
+                    label: _tr('Maps'),
+                    color: AppColors.info,
+                    onTap: address.isEmpty ? null : () => _openMaps(address),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => _showOrderInfo(delivery),
+                icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                label: Text(
+                  itemCount > 0
+                      ? '${_tr('Summary')} · ${_count(itemCount, 'item', 'items')}'
+                      : _tr('Summary'),
+                ),
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                color: valueColor ?? Colors.black87,
-                fontWeight: valueColor != null
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: primaryAction(),
           ),
         ],
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'delivered':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.red;
-      case 'out_for_delivery':
-        return Color(0xFFE65100);
-      case 'preparing':
-        return Colors.orange;
-      case 'pending':
-        return Colors.amber;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Widget _contactAction({
-    required IconData icon,
-    required Color color,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      height: 36,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          side: BorderSide(color: color.withValues(alpha: 0.6)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+  /// Completed delivery: compact, no contact buttons.
+  Widget _buildHistoryCard(Map<String, dynamic> delivery) {
+    final status = (delivery['status'] ?? '').toString();
+    final customerName =
+        '${delivery['first_name'] ?? ''} ${delivery['last_name'] ?? ''}'.trim();
+    final storeName = (delivery['store_name'] ?? '').toString();
+    final method = Fmt.paymentMethod(delivery['payment_method']);
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      onTap: () => _showOrderInfo(delivery),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  Fmt.orderNumber(
+                    delivery['order_number'],
+                    fallbackId: delivery['id'],
+                  ),
+                  style: AppText.bodyStrong,
+                ),
+              ),
+              StatusPill(status: status, urdu: _isUrdu, dense: true),
+            ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-        ),
-        icon: Icon(icon, size: 18),
-        label: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        ),
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            [
+              Fmt.time(delivery['created_at']),
+              if (storeName.isNotEmpty) storeName,
+              if (customerName.isNotEmpty) customerName,
+            ].where((s) => s.isNotEmpty).join(' · '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.small,
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Row(
+            children: [
+              if (method.isNotEmpty)
+                Text(_tr(method), style: AppText.caption),
+              const Spacer(),
+              PriceText(delivery['total_amount']),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -2301,293 +2215,230 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       itemsByStore[storeName]!.add(item);
     }
 
-    showModalBottomSheet(
+    // Pricing breakdown (same maths as before).
+    double itemsSubtotal = 0;
+    final storeIds = <int>{};
+    for (var item in items) {
+      itemsSubtotal +=
+          (double.tryParse(item['price']?.toString() ?? '0') ?? 0) *
+          (int.tryParse(item['quantity']?.toString() ?? '1') ?? 1);
+      final storeId = item['store_id'] as int?;
+      if (storeId != null) storeIds.add(storeId);
+    }
+    final deliveryFee =
+        double.tryParse(delivery['delivery_fee']?.toString() ?? '0') ?? 0;
+    final grandTotal = itemsSubtotal + deliveryFee;
+    final numStores = storeIds.isNotEmpty ? storeIds.length : 1;
+
+    final customerPhone = (delivery['phone'] ?? '').toString().trim();
+    final customerName =
+        '${delivery['first_name'] ?? ''} ${delivery['last_name'] ?? ''}'.trim();
+    final method = Fmt.paymentMethod(delivery['payment_method']);
+
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (ctx) {
-        return SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: SafeArea(
-              top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.receipt_long, color: Colors.brown),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Order #${delivery['order_number']}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(ctx).pop(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDetailRow('Status', '${delivery['status']}'),
-                  _buildDetailRow(
-                    'Payment',
-                    '${delivery['payment_status'] ?? 'unknown'}',
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const Text(
-                    'Customer Details',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.brown,
+        return LanguageScope(
+          isUrdu: _isUrdu,
+          child: StaffSheet(
+            title: Fmt.orderNumber(
+              delivery['order_number'],
+              fallbackId: delivery['id'],
+            ),
+            subtitle: Fmt.dateTime(delivery['created_at']),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+              children: [
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    StatusPill(status: delivery['status'], urdu: _isUrdu),
+                    _paymentStatusPill(delivery['payment_status']),
+                    if (method.isNotEmpty) TonePill.neutral(_tr(method)),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.lg),
+                StaffSection(
+                  title: _tr('Customer Details'),
+                  children: [
+                    Text(
+                      customerName.isEmpty ? '-' : customerName,
+                      style: AppText.bodyStrong,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildDetailRow(
-                    'Name',
-                    '${delivery['first_name'] ?? ''} ${delivery['last_name'] ?? ''}',
-                  ),
-                  _buildDetailRow('Phone', '${delivery['phone'] ?? 'N/A'}'),
-                  _buildDetailRow(
-                    'Delivery Address',
-                    '${delivery['delivery_address'] ?? 'N/A'}',
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const Text(
-                    'Items by Store',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.brown,
+                    if (customerPhone.isNotEmpty)
+                      Text(customerPhone, style: AppText.bodySecondary),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      (delivery['delivery_address'] ?? '-').toString(),
+                      style: AppText.body,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...itemsByStore.entries.map((entry) {
-                    final storeName = entry.key;
-                    final storeItems = entry.value;
-                    double storeSubtotal = 0;
-                    for (var item in storeItems) {
-                      final price =
-                          double.tryParse(item['price']?.toString() ?? '0') ??
-                          0;
-                      final quantity =
-                          int.tryParse(item['quantity']?.toString() ?? '1') ??
-                          1;
-                      storeSubtotal += price * quantity;
-                    }
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Color(
-                              0xFFE65100,
-                            ).withAlpha((0.15 * 255).round()),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border(
-                              left: BorderSide(
-                                color: Color(0xFFE65100),
-                                width: 3,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            storeName,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Color(0xFFE65100),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        ...storeItems.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 4, left: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '${item['quantity']}x ${item['product_name'] ?? 'Product'}${item['variant_label'] != null ? ' (${item['variant_label']})' : ''}',
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                ),
-                                Text(
-                                  'PKR ${(double.tryParse(item['price']?.toString() ?? '0') ?? 0) * (int.tryParse(item['quantity']?.toString() ?? '1') ?? 1)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: 4,
-                            bottom: 12,
-                            left: 8,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Subtotal ($storeName):',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'PKR ${storeSubtotal.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const Text(
-                    'Pricing Breakdown',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.brown,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Builder(
-                    builder: (ctx) {
-                      double itemsSubtotal = 0;
-                      final storeIds = <int>{};
-                      final allItems = (delivery['items'] as List?) ?? [];
-
-                      for (var item in allItems) {
-                        itemsSubtotal +=
-                            (double.tryParse(
-                                  item['price']?.toString() ?? '0',
-                                ) ??
-                                0) *
-                            (int.tryParse(
-                                  item['quantity']?.toString() ?? '1',
-                                ) ??
-                                1);
-                        final storeId = item['store_id'] as int?;
-                        if (storeId != null) storeIds.add(storeId);
-                      }
-
-                      final deliveryFee =
-                          double.tryParse(
-                            delivery['delivery_fee']?.toString() ?? '0',
-                          ) ??
-                          0;
-                      final grandTotal = itemsSubtotal + deliveryFee;
-                      final numStores = storeIds.isNotEmpty
-                          ? storeIds.length
-                          : 1;
-
-                      return Column(
+                    if (customerPhone.isNotEmpty) ...[
+                      const SizedBox(height: AppSpace.md),
+                      Row(
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Items Subtotal:',
-                                style: TextStyle(fontSize: 13),
-                              ),
-                              Flexible(
-                                child: Text(
-                                  'PKR ${itemsSubtotal.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                          Expanded(
+                            child: ContactButton(
+                              icon: Icons.call_rounded,
+                              label: _tr('Call'),
+                              onTap: () => _makeCall(customerPhone),
+                            ),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Delivery Fee ($numStores store${numStores > 1 ? 's' : ''}):',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              Flexible(
-                                child: Text(
-                                  'PKR ${deliveryFee.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: AppSpace.sm),
+                          Expanded(
+                            child: ContactButton(
+                              icon: Icons.sms_outlined,
+                              label: _tr('SMS'),
+                              color: AppColors.text2,
+                              onTap: () => _sendSms(customerPhone),
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          Divider(color: Colors.grey[400]),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Grand Total:',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Flexible(
-                                child: Text(
-                                  'PKR ${grandTotal.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFE65100),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: AppSpace.sm),
+                          Expanded(
+                            child: ContactButton(
+                              icon: Icons.chat_rounded,
+                              label: _tr('WhatsApp'),
+                              color: const Color(0xFF128C7E),
+                              onTap: () => _openWhatsApp(customerPhone),
+                            ),
                           ),
                         ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppSpace.md),
+                StaffSection(
+                  title: _tr('Items by Store'),
+                  children: [
+                    if (itemsByStore.isEmpty)
+                      Text(_tr('No items'), style: AppText.bodySecondary),
+                    for (final entry in itemsByStore.entries) ...[
+                      Builder(
+                        builder: (_) {
+                          double storeSubtotal = 0;
+                          for (var item in entry.value) {
+                            final price =
+                                double.tryParse(
+                                  item['price']?.toString() ?? '0',
+                                ) ??
+                                0;
+                            final quantity =
+                                int.tryParse(
+                                  item['quantity']?.toString() ?? '1',
+                                ) ??
+                                1;
+                            storeSubtotal += price * quantity;
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.storefront_outlined,
+                                    size: 16,
+                                    color: AppColors.primaryPressed,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      entry.key.toString(),
+                                      style: AppText.bodyStrong.copyWith(
+                                        color: AppColors.primaryDeep,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              for (final item in entry.value)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 32,
+                                        child: Text(
+                                          '${item['quantity']}×',
+                                          style: AppText.bodyStrong,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          [
+                                            (item['product_name'] ?? 'Product')
+                                                .toString(),
+                                            Fmt.unit(
+                                              item['variant_label']?.toString(),
+                                            ),
+                                          ].where((s) => s.isNotEmpty).join(' · '),
+                                          style: AppText.body,
+                                        ),
+                                      ),
+                                      Text(
+                                        Fmt.money(
+                                          (double.tryParse(
+                                                    item['price']
+                                                            ?.toString() ??
+                                                        '0',
+                                                  ) ??
+                                                  0) *
+                                              (int.tryParse(
+                                                    item['quantity']
+                                                            ?.toString() ??
+                                                        '1',
+                                                  ) ??
+                                                  1),
+                                        ),
+                                        style: AppText.price.copyWith(
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (itemsByStore.length > 1)
+                                MoneyRow(
+                                  label: _tr('Subtotal'),
+                                  amount: storeSubtotal,
+                                ),
+                              const SizedBox(height: AppSpace.sm),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppSpace.md),
+                StaffSection(
+                  title: _tr('Pricing Breakdown'),
+                  children: [
+                    MoneyRow(
+                      label: _tr('Items subtotal'),
+                      amount: itemsSubtotal,
+                    ),
+                    MoneyRow(
+                      label: numStores > 1
+                          ? '${_tr('Delivery Fee')} ($numStores ${_tr('stores')})'
+                          : _tr('Delivery Fee'),
+                      amount: deliveryFee,
+                    ),
+                    const Divider(height: 16),
+                    MoneyRow(
+                      label: _tr('Grand Total'),
+                      amount: grandTotal,
+                      strong: true,
+                      tone: StaffTone.primary,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         );
@@ -2688,312 +2539,141 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     );
     final canGoForward = selectedDay.isBefore(today);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      children: [
+        _buildWalletBalanceCard(),
+        const SizedBox(height: AppSpace.xl),
+        _buildDailyCashFlowHeader(canGoForward),
+        const SizedBox(height: AppSpace.md),
+        if (_isLoadingCashFlow)
+          const Shimmer(
+            child: Column(
+              children: [
+                SkeletonBox(height: 220, radius: AppRadius.card),
+                SizedBox(height: AppSpace.md),
+                SkeletonBox(height: 120, radius: AppRadius.card),
+              ],
+            ),
+          )
+        else ...[
+          _buildHeroCashInHandCard(
+            officeAdvance: officeAdvance,
+            codCollected: codCollected,
+            paidAtStores: paidAtStores,
+            fuelExpenses: fuelExpenses,
+            returnedToAdmin: returnedToAdmin,
+            cashInHand: cashInHand,
+            dayClosing: dayClosing,
+          ),
+          const SizedBox(height: AppSpace.md),
+          _buildCashFlowMovementsTimeline(movements),
+          if (orderLedger.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.md),
+            _buildOrdersDeliveredCashSummary(orderLedger),
+          ],
+        ],
+        const SizedBox(height: AppSpace.xl),
+        Text(_tr('Financial Statistics'), style: AppText.h2),
+        const SizedBox(height: AppSpace.md),
+        _buildPeriodSelector(),
+        const SizedBox(height: AppSpace.md),
+        if (_isLoadingStats)
+          const Shimmer(
+            child: Row(
+              children: [
+                Expanded(child: SkeletonBox(height: 72, radius: 12)),
+                SizedBox(width: AppSpace.sm),
+                Expanded(child: SkeletonBox(height: 72, radius: 12)),
+              ],
+            ),
+          )
+        else if (_walletStats != null)
+          _buildStatsCards()
+        else
+          AppCard(
+            child: Text(
+              _tr('No stats available'),
+              style: AppText.bodySecondary,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildWalletBalanceCard() {
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildWalletBalanceCard(),
-          const SizedBox(height: 20),
-          _buildDailyCashFlowHeader(canGoForward),
-          const SizedBox(height: 12),
-          if (_isLoadingCashFlow)
-            Container(
-              height: 180,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
+          Row(
+            children: [
+              const Icon(
+                Icons.account_balance_wallet_rounded,
+                color: AppColors.primaryPressed,
+                size: 20,
               ),
-              child: const Center(child: CircularProgressIndicator()),
-            )
-          else ...[
-            _buildHeroCashInHandCard(
-              officeAdvance: officeAdvance,
-              codCollected: codCollected,
-              paidAtStores: paidAtStores,
-              fuelExpenses: fuelExpenses,
-              returnedToAdmin: returnedToAdmin,
-              cashInHand: cashInHand,
-              dayClosing: dayClosing,
-            ),
-            const SizedBox(height: 16),
-            _buildCashFlowBreakdownGrid(
-              officeAdvance: officeAdvance,
-              codCollected: codCollected,
-              paidAtStores: paidAtStores,
-              fuelExpenses: fuelExpenses,
-              returnedToAdmin: returnedToAdmin,
-            ),
-            const SizedBox(height: 16),
-            _buildCashFlowMovementsTimeline(movements),
-            if (orderLedger.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _buildOrdersDeliveredCashSummary(orderLedger),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: Text(_tr('Wallet balance'), style: AppText.bodyStrong),
+              ),
+              IconButton(
+                tooltip: _tr('Refresh'),
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: () async {
+                  final token = Provider.of<AuthProvider>(
+                    context,
+                    listen: false,
+                  ).token;
+                  if (token != null) {
+                    await _loadWalletBalance(token);
+                    await _loadCashFlowDataForDate(_selectedCashFlowDate);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(_tr('Wallet & cash flow refreshed')),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
             ],
-          ],
-          const SizedBox(height: 24),
-          const Text(
-            'Financial Statistics',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 12),
-          _buildPeriodSelector(),
-          const SizedBox(height: 16),
-          if (_isLoadingStats)
-            const Center(child: CircularProgressIndicator())
-          else if (_walletStats != null)
-            _buildStatsCards()
-          else
-            Card(
-              color: Colors.grey.shade50,
-              child: const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: Text('No stats available')),
-              ),
-            ),
-          const SizedBox(height: 16),
+          Text(
+            Fmt.money(_walletBalance),
+            style: AppText.price.copyWith(fontSize: 30, letterSpacing: -0.5),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            _tr('Total earnings account'),
+            style: AppText.caption,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildWalletBalanceCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFE06A2E), Color(0xFFC2410C)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFE06A2E).withValues(alpha: 0.35),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Rider Digital Wallet',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white70,
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.refresh, color: Colors.white),
-                      onPressed: () async {
-                        final token = Provider.of<AuthProvider>(
-                          context,
-                          listen: false,
-                        ).token;
-                        if (token != null) {
-                          await _loadWalletBalance(token);
-                          await _loadCashFlowDataForDate(
-                            _selectedCashFlowDate,
-                          );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Wallet & Cash Flow refreshed'),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      iconSize: 22,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'PKR ${_walletBalance.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 5,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.verified_user, color: Colors.white, size: 14),
-                  SizedBox(width: 6),
-                  Text(
-                    'Active Earning Account',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildDailyCashFlowHeader(bool canGoForward) {
-    final dateLabel = _friendlyCashFlowDateLabel(_selectedCashFlowDate);
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE0F2FE),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.account_balance_wallet_rounded,
-            color: Color(0xFF0284C7),
-            size: 22,
-          ),
+        Text(_tr('Daily cash'), style: AppText.h2),
+        Text(
+          _tr('Advance, store payments and cash in your pocket'),
+          style: AppText.caption,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                'Daily Cash Flow & Shift',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              Text(
-                'Advance, Store Paid & In-Pocket Cash',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Date Switcher Controls
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InkWell(
-              onTap: () => _changeCashFlowDate(-1),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: const Icon(
-                  Icons.chevron_left_rounded,
-                  size: 20,
-                  color: Color(0xFF334155),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            InkWell(
-              onTap: _pickCashFlowDate,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_rounded,
-                      size: 14,
-                      color: Color(0xFFE06A2E),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      dateLabel,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E293B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            InkWell(
-              onTap: canGoForward ? () => _changeCashFlowDate(1) : null,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: canGoForward ? Colors.white : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: canGoForward
-                        ? const Color(0xFFE2E8F0)
-                        : Colors.transparent,
-                  ),
-                ),
-                child: Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: canGoForward
-                      ? const Color(0xFF334155)
-                      : Colors.grey.shade400,
-                ),
-              ),
-            ),
-          ],
+        const SizedBox(height: AppSpace.md),
+        DayStepper(
+          date: _selectedCashFlowDate,
+          onPrevious: () => _changeCashFlowDate(-1),
+          onNext: canGoForward ? () => _changeCashFlowDate(1) : null,
+          onPick: _pickCashFlowDate,
         ),
       ],
     );
-  }
-
-  String _friendlyCashFlowDateLabel(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final target = DateTime(date.year, date.month, date.day);
-    if (target == today) return 'Today';
-    if (target == today.subtract(const Duration(days: 1))) return 'Yesterday';
-    return _dateOnly(date);
   }
 
   Widget _buildHeroCashInHandCard({
@@ -3006,429 +2686,168 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     required Map<String, dynamic>? dayClosing,
   }) {
     final isClosed = dayClosing != null;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F766E), Color(0xFF115E59)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F766E).withValues(alpha: 0.28),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return AppCard(
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: const [
-                  Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Net Cash In Pocket',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.md),
+            child: _cashHeroBox(
+              label: _tr('Cash in pocket'),
+              amount: cashInHand,
+              trailing: isClosed
+                  ? TonePill.neutral(
+                      _tr('Shift closed'),
+                      icon: Icons.lock_rounded,
+                    )
+                  : TonePill.success(
+                      _tr('Shift active'),
+                      icon: Icons.circle,
                     ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isClosed
-                      ? const Color(0xFF064E3B)
-                      : const Color(0xFF14B8A6).withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isClosed
-                            ? const Color(0xFF34D399)
-                            : const Color(0xFF5EEAD4),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      isClosed ? 'Shift Closed' : 'Shift Active',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'PKR ${cashInHand.toStringAsFixed(0)}',
-            style: const TextStyle(
-              fontSize: 34,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Advance (+${officeAdvance.toInt()}) + COD (+${codCollected.toInt()}) - Store (-${paidAtStores.toInt()}) - Fuel (-${fuelExpenses.toInt()}) - Returned (-${returnedToAdmin.toInt()})',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-              color: Colors.white.withValues(alpha: 0.85),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Column(
+              children: [
+                MoneyRow(
+                  label: _tr('Shift advance'),
+                  note: _tr('Cash taken from office'),
+                  amount: officeAdvance,
+                  sign: '+',
+                ),
+                MoneyRow(
+                  label: _tr('Customer cash (COD)'),
+                  note: _tr('Delivered orders cash'),
+                  amount: codCollected,
+                  sign: '+',
+                  tone: StaffTone.primary,
+                ),
+                MoneyRow(
+                  label: _tr('Paid at stores'),
+                  note: _tr('Cash paid for pickups'),
+                  amount: paidAtStores,
+                  sign: '-',
+                ),
+                MoneyRow(
+                  label: _tr('Fuel & expenses'),
+                  amount: fuelExpenses,
+                  sign: '-',
+                ),
+                MoneyRow(
+                  label: _tr('Returned to office'),
+                  amount: returnedToAdmin,
+                  sign: '-',
+                ),
+                const Divider(height: 16),
+                MoneyRow(
+                  label: _tr('Cash in pocket'),
+                  amount: cashInHand,
+                  strong: true,
+                  tone: StaffTone.primary,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _showSubmitCashToAdminDialog(cashInHand),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF0F766E),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: FilledButton.icon(
+                    onPressed: () => _showSubmitCashToAdminDialog(cashInHand),
+                    icon: const Icon(
+                      Icons.assignment_turned_in_rounded,
+                      size: 18,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  icon: const Icon(
-                    Icons.assignment_turned_in_rounded,
-                    size: 16,
-                  ),
-                  label: const Text(
-                    'Return Cash to Admin',
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                    label: Text(
+                      _tr('Return Cash to Admin'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: () => _openRiderFinancialHistoryForDate(
-                  _selectedCashFlowDate,
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.18),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 12,
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  flex: 2,
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        _openRiderFinancialHistoryForDate(_selectedCashFlowDate),
+                    icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                    label: Text(
+                      _tr('Day Slip'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
-                icon: const Icon(Icons.receipt_long_rounded, size: 16),
-                label: const Text(
-                  'Day Slip',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCashFlowBreakdownGrid({
-    required double officeAdvance,
-    required double codCollected,
-    required double paidAtStores,
-    required double fuelExpenses,
-    required double returnedToAdmin,
-  }) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildCashFlowMetricTile(
-                title: 'Shift Advance (Float)',
-                amount: officeAdvance,
-                isPositive: true,
-                badgeLabel: '+ INFLOW',
-                icon: Icons.account_balance_wallet_outlined,
-                accentColor: const Color(0xFF16A34A),
-                description: 'Cash taken from office',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildCashFlowMetricTile(
-                title: 'Customer COD',
-                amount: codCollected,
-                isPositive: true,
-                badgeLabel: '+ INFLOW',
-                icon: Icons.payments_outlined,
-                accentColor: const Color(0xFF0284C7),
-                description: 'Delivered orders cash',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildCashFlowMetricTile(
-                title: 'Paid at Stores',
-                amount: paidAtStores,
-                isPositive: false,
-                badgeLabel: '- OUTFLOW',
-                icon: Icons.storefront_outlined,
-                accentColor: const Color(0xFFEA580C),
-                description: 'Cash paid for food pickup',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildCashFlowMetricTile(
-                title: 'Fuel & Expenses',
-                amount: fuelExpenses,
-                isPositive: false,
-                badgeLabel: '- OUTFLOW',
-                icon: Icons.local_gas_station_outlined,
-                accentColor: const Color(0xFFD97706),
-                description: 'Petrol & travel costs',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _buildCashFlowMetricTile(
-          title: 'Returned / Submitted to Admin',
-          amount: returnedToAdmin,
-          isPositive: false,
-          badgeLabel: '- DEPOSIT',
-          icon: Icons.assignment_turned_in_outlined,
-          accentColor: const Color(0xFF7C3AED),
-          description: 'Cash handed over or deposited back to office',
-        ),
-      ],
-    );
+  String _movementTypeLabel(String type) {
+    switch (type) {
+      case 'advance':
+        return 'Shift advance';
+      case 'store_payment':
+        return 'Store payment';
+      case 'fuel_payment':
+        return 'Fuel expense';
+      case 'cash_submission':
+        return 'Cash returned to office';
+      case 'cash_collection':
+        return 'Cash collected';
+      default:
+        final t = type.replaceAll('_', ' ').trim();
+        if (t.isEmpty) return 'Cash movement';
+        return t[0].toUpperCase() + t.substring(1);
+    }
   }
 
-  Widget _buildCashFlowMetricTile({
-    required String title,
-    required double amount,
-    required bool isPositive,
-    required String badgeLabel,
-    required IconData icon,
-    required Color accentColor,
-    required String description,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: accentColor, size: 18),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  badgeLabel,
-                  style: TextStyle(
-                    color: accentColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF334155),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${isPositive ? '+' : '-'} PKR ${amount.toStringAsFixed(0)}',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: accentColor,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            description,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF94A3B8),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _titleCase(String raw) {
+    final t = raw.replaceAll('_', ' ').trim().toLowerCase();
+    if (t.isEmpty) return t;
+    return t[0].toUpperCase() + t.substring(1);
   }
 
   Widget _buildCashFlowMovementsTimeline(List<dynamic> movements) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Shift Movements Timeline',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${movements.length} events',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF475569),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (movements.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: Text(
-                  'No cash movements logged for this shift yet.',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: Color(0xFF94A3B8),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: movements.length,
-              separatorBuilder: (context, index) => const Divider(height: 16),
-              itemBuilder: (context, index) {
-                final raw = movements[index];
-                final m = (raw as Map?)?.cast<String, dynamic>() ?? {};
+    return StaffSection(
+      title: _tr('Cash movements'),
+      trailing: TonePill.neutral(_count(movements.length, 'entry', 'entries')),
+      children: [
+        if (movements.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+            child: Text(
+              _tr('No cash movements logged for this day yet.'),
+              style: AppText.bodySecondary,
+            ),
+          )
+        else
+          for (var index = 0; index < movements.length; index++) ...[
+            if (index > 0) const Divider(height: 20),
+            Builder(
+              builder: (_) {
+                final m =
+                    (movements[index] as Map?)?.cast<String, dynamic>() ?? {};
                 final type = (m['movement_type'] ?? '')
                     .toString()
                     .toLowerCase();
                 final amount = _parseDouble(m['amount']);
                 final description = (m['description'] ?? '').toString();
-                final timeStr = (m['movement_at'] ??
-                        m['created_at'] ??
-                        m['movement_date'] ??
-                        '')
-                    .toString();
-                final status = (m['status'] ?? '').toString().toUpperCase();
-
-                Color badgeColor = const Color(0xFF0284C7);
-                String typeLabel = 'Cash Collection';
-                bool isAdd = true;
-                if (type == 'advance') {
-                  badgeColor = const Color(0xFF16A34A);
-                  typeLabel = 'Shift Advance';
-                  isAdd = true;
-                } else if (type == 'store_payment') {
-                  badgeColor = const Color(0xFFEA580C);
-                  typeLabel = 'Store Payment';
-                  isAdd = false;
-                } else if (type == 'fuel_payment') {
-                  badgeColor = const Color(0xFFD97706);
-                  typeLabel = 'Fuel Expense';
-                  isAdd = false;
-                } else if (type == 'cash_submission') {
-                  badgeColor = const Color(0xFF7C3AED);
-                  typeLabel = 'Cash Returned to Admin';
-                  isAdd = false;
-                }
-
+                final when =
+                    m['movement_at'] ?? m['created_at'] ?? m['movement_date'];
+                final status = (m['status'] ?? '').toString();
+                final isAdd = type == 'advance' || type == 'cash_collection' ||
+                    !(type == 'store_payment' ||
+                        type == 'fuel_payment' ||
+                        type == 'cash_submission');
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -3436,201 +2855,101 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: badgeColor.withValues(alpha: 0.12),
+                        color: isAdd ? AppColors.tint100 : AppColors.surface3,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         isAdd
-                            ? Icons.arrow_downward_rounded
-                            : Icons.arrow_upward_rounded,
-                        color: badgeColor,
+                            ? Icons.south_west_rounded
+                            : Icons.north_east_rounded,
+                        color: isAdd
+                            ? AppColors.primaryPressed
+                            : AppColors.text2,
                         size: 16,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: AppSpace.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                typeLabel,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1E293B),
-                                ),
-                              ),
-                              Text(
-                                '${isAdd ? '+' : '-'} PKR ${amount.toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: isAdd
-                                      ? const Color(0xFF16A34A)
-                                      : const Color(0xFFDC2626),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            _tr(_movementTypeLabel(type)),
+                            style: AppText.bodyStrong,
                           ),
+                          if (description.isNotEmpty)
+                            Text(description, style: AppText.small),
                           const SizedBox(height: 2),
                           Text(
-                            description.isNotEmpty
-                                ? description
-                                : 'Shift ledger entry',
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Text(
-                                timeStr.length >= 16
-                                    ? timeStr.substring(0, 16)
-                                    : timeStr,
-                                style: const TextStyle(
-                                  fontSize: 10.5,
-                                  color: Color(0xFF94A3B8),
-                                ),
-                              ),
-                              if (status.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 5,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    status,
-                                    style: const TextStyle(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
+                            [
+                              Fmt.dateTime(when),
+                              if (status.isNotEmpty) _titleCase(status),
+                            ].where((s) => s.isNotEmpty).join(' · '),
+                            style: AppText.caption,
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.sm),
+                    Text(
+                      '${isAdd ? '+' : '−'} ${Fmt.money(amount)}',
+                      style: AppText.price.copyWith(
+                        fontSize: 14,
+                        color: isAdd
+                            ? AppColors.primaryPressed
+                            : AppColors.text,
                       ),
                     ),
                   ],
                 );
               },
             ),
-        ],
-      ),
+          ],
+      ],
     );
   }
 
   Widget _buildOrdersDeliveredCashSummary(List<dynamic> orderLedger) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return StaffSection(
+      title: _tr('Delivered orders'),
+      trailing: TonePill.neutral(
+        _count(orderLedger.length, 'order', 'orders'),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Delivered Orders Breakdown',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              Text(
-                '${orderLedger.length} Orders',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFE06A2E),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: orderLedger.length,
-            separatorBuilder: (context, index) => const Divider(height: 14),
-            itemBuilder: (context, index) {
-              final o = (orderLedger[index] as Map?)?.cast<String, dynamic>() ??
-                  {};
-              final orderNumber = o['order_number'] ?? '#${o['order_id']}';
+      children: [
+        for (var index = 0; index < orderLedger.length; index++) ...[
+          if (index > 0) const Divider(height: 16),
+          Builder(
+            builder: (_) {
+              final o =
+                  (orderLedger[index] as Map?)?.cast<String, dynamic>() ?? {};
+              final orderNumber = Fmt.orderNumber(
+                o['order_number'],
+                fallbackId: o['order_id'],
+              );
               final collected = _parseDouble(o['customer_cash_collected']);
               final paidStore = _parseDouble(o['rider_store_paid']);
               final netEffect = _parseDouble(o['expected_rider_cash_effect']);
-
               return Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Text(
-                      orderNumber.toString(),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(orderNumber, style: AppText.bodyStrong),
                         Text(
-                          'COD: PKR ${collected.toStringAsFixed(0)} | Store Paid: PKR ${paidStore.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF475569),
-                          ),
+                          '${_tr('COD')} ${Fmt.money(collected)} · ${_tr('Store paid')} ${Fmt.money(paidStore)}',
+                          style: AppText.caption,
                         ),
                       ],
                     ),
                   ),
                   Text(
-                    '${netEffect >= 0 ? '+' : ''}PKR ${netEffect.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
+                    '${netEffect >= 0 ? '+' : '−'} ${Fmt.money(netEffect.abs())}',
+                    style: AppText.price.copyWith(
+                      fontSize: 14,
                       color: netEffect >= 0
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFDC2626),
+                          ? AppColors.primaryPressed
+                          : AppColors.danger,
                     ),
                   ),
                 ],
@@ -3638,7 +2957,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
             },
           ),
         ],
-      ),
+      ],
     );
   }
 
@@ -3646,120 +2965,85 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: const [
-              Icon(
-                Icons.assignment_turned_in_rounded,
-                color: Color(0xFF0F766E),
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Submit Cash to Admin',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+        Widget step(String n, String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDFA),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFCCFBF1)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Cash Currently in Pocket:',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F766E),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'PKR ${currentCashInHand.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF115E59),
-                      ),
-                    ),
-                  ],
+              CircleAvatar(
+                radius: 11,
+                backgroundColor: AppColors.tint100,
+                child: Text(
+                  n,
+                  style: AppText.label.copyWith(color: AppColors.primaryDeep),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Shift Submission Instructions:\n'
-                '1. Hand over collected cash to your dispatch manager or cashier.\n'
-                '2. Admin will record a "Receipt Voucher" / verify in Rider Day Transactions.\n'
-                '3. Once verified, your cash in hand updates automatically.',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.4,
-                  color: Color(0xFF475569),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(child: Text(text, style: AppText.small)),
+            ],
+          ),
+        );
+        return LanguageScope(
+          isUrdu: _isUrdu,
+          child: AlertDialog(
+            title: Text(_tr('Return cash to office')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _cashHeroBox(
+                  label: _tr('Cash in pocket'),
+                  amount: currentCashInHand,
                 ),
+                const SizedBox(height: AppSpace.lg),
+                step('1', _tr('Hand the cash to your dispatch manager or cashier.')),
+                step(
+                  '2',
+                  _tr('The office records it in Rider Day Transactions.'),
+                ),
+                step(
+                  '3',
+                  _tr('Once verified, your cash in pocket updates automatically.'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(_tr('Close')),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _openRiderFinancialHistoryForDate(_selectedCashFlowDate);
+                },
+                child: Text(_tr('View full statement')),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Close'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                _openRiderFinancialHistoryForDate(_selectedCashFlowDate);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F766E),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text('View Full Statement'),
-            ),
-          ],
         );
       },
     );
   }
 
   Widget _buildPeriodSelector() {
-    return Row(
-      children: [
-        Expanded(
-          child: SegmentedButton<String>(
-            segments: const <ButtonSegment<String>>[
-              ButtonSegment<String>(value: 'daily', label: Text('Daily')),
-              ButtonSegment<String>(value: 'weekly', label: Text('Weekly')),
-              ButtonSegment<String>(value: 'monthly', label: Text('Monthly')),
-            ],
-            selected: <String>{_selectedStatsPeriod},
-            onSelectionChanged: (Set<String> newSelection) async {
-              final token = Provider.of<AuthProvider>(
-                context,
-                listen: false,
-              ).token;
-              if (token != null) {
-                await _loadWalletStats(token, newSelection.first);
-              }
-            },
-          ),
-        ),
-      ],
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<String>(
+        showSelectedIcon: false,
+        segments: <ButtonSegment<String>>[
+          ButtonSegment<String>(value: 'daily', label: Text(_tr('Daily'))),
+          ButtonSegment<String>(value: 'weekly', label: Text(_tr('Weekly'))),
+          ButtonSegment<String>(value: 'monthly', label: Text(_tr('Monthly'))),
+        ],
+        selected: <String>{_selectedStatsPeriod},
+        onSelectionChanged: (Set<String> newSelection) async {
+          final token = Provider.of<AuthProvider>(context, listen: false).token;
+          if (token != null) {
+            await _loadWalletStats(token, newSelection.first);
+          }
+        },
+      ),
     );
   }
 
@@ -3779,131 +3063,64 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
 
     return Column(
       children: [
-        Row(
+        StaffStatGrid(
           children: [
-            Expanded(
-              child: _buildStatCard(
-                title: 'Cash Received (Net)',
-                value: 'PKR ${netCashReceived.toStringAsFixed(2)}',
-                icon: Icons.payments_outlined,
-                backgroundColor: Colors.green.shade50,
-                iconColor: Colors.green,
-              ),
+            StaffStat(
+              label: _tr('Cash received (net)'),
+              value: Fmt.money(netCashReceived),
+              icon: Icons.payments_outlined,
+              tone: StaffTone.primary,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                title: 'Delivery Fees',
-                value: 'PKR ${deliveryFees.toStringAsFixed(2)}',
-                icon: Icons.local_shipping,
-                backgroundColor: Color(0xFFFFF3E0),
-                iconColor: Color(0xFFE65100),
-              ),
+            StaffStat(
+              label: _tr('Delivery fees'),
+              value: Fmt.money(deliveryFees),
+              icon: Icons.local_shipping_outlined,
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        if (paymentSummary.isNotEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Payment Summary',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  ...paymentSummary.map((summary) {
-                    final method = summary['payment_method'] ?? 'Unknown';
-                    final count = summary['order_count'] ?? 0;
-                    final amount = _parseDouble(summary['total_amount']);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                method.replaceFirst(
-                                  method[0],
-                                  method[0].toUpperCase(),
-                                ),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+        if (paymentSummary.isNotEmpty) ...[
+          const SizedBox(height: AppSpace.md),
+          StaffSection(
+            title: _tr('Payment Summary'),
+            children: [
+              for (final summary in paymentSummary)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _tr(
+                                Fmt.paymentMethod(summary['payment_method'])
+                                        .isEmpty
+                                    ? 'Unknown'
+                                    : Fmt.paymentMethod(
+                                        summary['payment_method'],
+                                      ),
                               ),
-                              Text(
-                                '$count order${count != 1 ? 's' : ''}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            'PKR ${amount.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              style: AppText.bodyStrong,
                             ),
-                          ),
-                        ],
+                            Text(
+                              _count(int.tryParse('${summary['order_count'] ?? 0}') ?? 0, 'order', 'orders'),
+                              style: AppText.caption,
+                            ),
+                          ],
+                        ),
                       ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color backgroundColor,
-    required Color iconColor,
-  }) {
-    return Card(
-      color: backgroundColor,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
+                      Text(
+                        Fmt.money(_parseDouble(summary['total_amount'])),
+                        style: AppText.price,
+                      ),
+                    ],
                   ),
                 ),
-                Icon(icon, color: iconColor, size: 20),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: iconColor,
-              ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 
@@ -3911,54 +3128,33 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     final r = _riderProfile;
     final photoUrl = (r?['image_url'] as String?) ?? '';
     final idCardUrl = (r?['id_card_url'] as String?) ?? '';
+    final resolvedPhoto = photoUrl.isEmpty
+        ? ''
+        : ApiService.getImageUrl(photoUrl);
+    final resolvedIdCard = idCardUrl.isEmpty
+        ? ''
+        : ApiService.getImageUrl(idCardUrl);
+    final sameImage = resolvedPhoto.isNotEmpty && resolvedPhoto == resolvedIdCard;
 
-    // Image tile without label (clean top row)
-    Widget imageTile(String? url) {
-      final resolved = (url == null || url.isEmpty)
-          ? null
-          : ApiService.getImageUrl(url);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 162,
-          color: Colors.grey[200],
-          child: resolved == null
-              ? _imagePlaceholder()
-              : Image.network(
-                  resolved,
-                  fit: BoxFit.fill,
-                  errorBuilder: (ctx, err, stack) => _imagePlaceholder(),
-                ),
-        ),
-      );
-    }
-
-    // Two-column detail row (label left, value right)
-    Widget detail2Col(String label, String value, {Color? valueColor}) {
+    Widget field(IconData icon, String label, String value) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Icon(icon, size: 20, color: AppColors.muted),
+            const SizedBox(width: AppSpace.md),
             Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: valueColor ?? Colors.black87,
-                  fontWeight: valueColor != null
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: AppText.caption),
+                  Text(
+                    value,
+                    style: AppText.bodyStrong,
+                    softWrap: true,
+                  ),
+                ],
               ),
             ),
           ],
@@ -3966,71 +3162,160 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       );
     }
 
-    final fullName = '${r?['first_name'] ?? ''} ${r?['last_name'] ?? ''}'
-        .trim();
+    final vehicle = (r?['vehicle_type'] ?? '').toString().trim();
+    final riderId = (r?['id'] ?? '').toString();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      children: [
+        AppCard(
+          child: Row(
             children: [
-              // Images row at top: user image (left), ID card (right)
-              Row(
-                children: [
-                  Expanded(flex: 4, child: imageTile(photoUrl)),
-                  const SizedBox(width: 12),
-                  Expanded(flex: 6, child: imageTile(idCardUrl)),
-                ],
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: ClipOval(
+                  child: resolvedPhoto.isEmpty
+                      ? Container(
+                          color: AppColors.tint100,
+                          alignment: Alignment.center,
+                          child: Text(
+                            _riderName.substring(0, 1).toUpperCase(),
+                            style: AppText.h1.copyWith(
+                              color: AppColors.primaryDeep,
+                            ),
+                          ),
+                        )
+                      : AppNetworkImage(
+                          url: resolvedPhoto,
+                          width: 64,
+                          height: 64,
+                          placeholderIcon: Icons.person_rounded,
+                        ),
+                ),
               ),
-              const SizedBox(height: 16),
-              // Details with label left, value right
-              detail2Col('Name', fullName.isEmpty ? 'N/A' : fullName),
-              detail2Col('Email', '${r?['email'] ?? 'N/A'}'),
-              detail2Col('Phone', '${r?['phone'] ?? 'N/A'}'),
-              detail2Col('Vehicle', '${r?['vehicle_type'] ?? 'N/A'}'),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.location_on,
-                    color: Color(0xFFE65100),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      _currentLocation,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+              const SizedBox(width: AppSpace.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_riderName, style: AppText.h2),
+                    Text(
+                      [
+                        if (riderId.isNotEmpty) '${_tr('Rider ID')} $riderId',
+                        if (vehicle.isNotEmpty) vehicle,
+                      ].join(' · '),
+                      style: AppText.caption,
                     ),
-                  ),
-                  TextButton(
-                    onPressed: _refreshLocation,
-                    child: const Text('Refresh'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _imagePlaceholder() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.image_not_supported, color: Colors.grey, size: 36),
-          SizedBox(height: 6),
-          Text('No image', style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: AppSpace.md),
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Column(
+            children: [
+              field(
+                Icons.mail_outline_rounded,
+                _tr('Email'),
+                (r?['email'] ?? '-').toString(),
+              ),
+              const Divider(height: 1),
+              field(
+                Icons.phone_outlined,
+                _tr('Phone'),
+                (r?['phone'] ?? '-').toString(),
+              ),
+              const Divider(height: 1),
+              field(
+                Icons.two_wheeler_rounded,
+                _tr('Vehicle'),
+                vehicle.isEmpty ? '-' : vehicle,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpace.md),
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.my_location_rounded,
+                color: AppColors.primaryPressed,
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_tr('Current location'), style: AppText.caption),
+                    Text(_currentLocation, style: AppText.bodyStrong),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: _refreshLocation,
+                child: Text(_tr('Refresh')),
+              ),
+            ],
+          ),
+        ),
+        if (resolvedIdCard.isNotEmpty && !sameImage) ...[
+          const SizedBox(height: AppSpace.md),
+          StaffSection(
+            title: _tr('ID card'),
+            children: [
+              AspectRatio(
+                aspectRatio: 16 / 10,
+                child: AppNetworkImage(
+                  url: resolvedIdCard,
+                  fit: BoxFit.contain,
+                  borderRadius: AppRadius.controlAll,
+                  placeholderIcon: Icons.badge_outlined,
+                ),
+              ),
+            ],
+          ),
         ],
-      ),
+        const SizedBox(height: AppSpace.md),
+        AppCard(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.query_stats_rounded),
+                title: Text(_tr('Day Transactions'), style: AppText.bodyStrong),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _openRiderFinancialHistory,
+              ),
+              ListTile(
+                leading: const Icon(Icons.key_outlined),
+                title: Text(_tr('Change Password'), style: AppText.bodyStrong),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).pushNamed('/change-password'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.logout_rounded,
+                  color: AppColors.danger,
+                ),
+                title: Text(
+                  _tr('Logout'),
+                  style: AppText.bodyStrong.copyWith(color: AppColors.danger),
+                ),
+                onTap: _logout,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpace.lg),
+        const AppVersionText(),
+      ],
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
@@ -14,15 +15,15 @@ import 'package:servenow/services/notifier.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
+import '../widgets/admin/admin_ui.dart';
+import '../widgets/ui/ui.dart';
 import 'admin_rider_day_transactions_screen.dart';
-import 'customer_tile_demo_screen.dart';
 import 'customer_dashboard_test_screen.dart';
 import 'manage_stores_screen.dart';
 import 'manage_riders_screen.dart';
 import 'offer_campaigns_screen.dart';
 import 'rider_dashboard_screen.dart';
 import 'store_balances_screen.dart';
-import '../widgets/ui/app_version.dart';
 import 'store_owner_dashboard_screen.dart';
 
 class _LiveRiderTrackerPayload {
@@ -60,9 +61,12 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
+  // Map centre used only when no rider/store coordinates are known: the
+  // stores' service area (Kot Addu). With riders on the map the camera fits
+  // their positions instead.
   static const latlng.LatLng _defaultTrackerCenter = latlng.LatLng(
-    31.5204,
-    74.3587,
+    30.4686,
+    70.9661,
   );
   static const Set<String> _liveRiderTrackerEmails = {
     'admin@servenow.com',
@@ -133,6 +137,54 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   bool _showStandbyRiders = false;
   int _selectedAdminTab = 0;
 
+  /// Whether the server lets this account open rider day transactions.
+  /// The client allowlist is not enough: the server checks its own
+  /// PRIVILEGED_ADMIN_EMAILS list. `null` = not checked yet (entry shown);
+  /// `false` = refused once, entry hidden for this session.
+  bool? _riderDayAllowed;
+
+  /// '' when unknown (callers show "Live"), otherwise the shared status label.
+  String _riderStatusLabel(dynamic raw) {
+    final text = (raw ?? '').toString().trim();
+    return text.isEmpty ? '' : adminStatusLabel(text);
+  }
+
+  bool _showRiderDayEntry(String? email) =>
+      _canViewRestrictedFinancialReports(email) && _riderDayAllowed != false;
+
+  /// One read-only request to learn whether the server allows rider day
+  /// transactions for this account, so the menu can hide the entry instead
+  /// of opening a screen that only says "Permission denied".
+  Future<void> _probeRiderDayAccess() async {
+    if (_riderDayAllowed != null) return;
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final token = auth.token;
+    if (token == null || !_canViewRestrictedFinancialReports(auth.user?.email)) {
+      return;
+    }
+    final today = _dateKey(DateTime.now());
+    try {
+      await ApiService.getRiderFinancialHistory(token, from: today, to: today);
+      if (mounted) setState(() => _riderDayAllowed = true);
+    } catch (e) {
+      if (!mounted) return;
+      if (adminIsPermissionError(e)) {
+        setState(() => _riderDayAllowed = false);
+      }
+    }
+  }
+
+  Future<void> _showRiderDayUnavailable() {
+    return showAdminAccessNotice(
+      context,
+      title: 'Rider day not available',
+      message:
+          'Rider day transactions are limited to the owner accounts set on '
+          'the server. Ask the owner to add your e-mail to the privileged '
+          'admin list if you need them.',
+    );
+  }
+
   Future<void> _loadLanguagePreference() async {
     final isUrdu = await CustomerLanguage.loadIsUrdu();
     if (!mounted) return;
@@ -185,9 +237,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return 0;
   }
 
-  String _formatPkr(dynamic value) {
-    return 'PKR ${_toDouble(value).toStringAsFixed(0)}';
-  }
+  /// `Rs 1,160` - thousands separators, same as every other screen.
+  String _formatPkr(dynamic value) => Fmt.money(_toDouble(value).round());
 
   DateTime? _parseServerDateTime(dynamic value) {
     if (value == null) return null;
@@ -281,10 +332,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final token = Provider.of<AuthProvider>(context, listen: false).token;
     final email = Provider.of<AuthProvider>(context, listen: false).user?.email;
     if (token == null) return;
-    if (!_canViewRestrictedFinancialReports(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rider day transactions access denied')),
-      );
+    if (!_canViewRestrictedFinancialReports(email) ||
+        _riderDayAllowed == false) {
+      await _showRiderDayUnavailable();
       return;
     }
     try {
@@ -298,6 +348,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       }
       final initialRider = (riders.first as Map).cast<String, dynamic>();
       final now = DateTime.now();
+      if (_riderDayAllowed == null) {
+        // Ask the server once before opening a screen it would refuse.
+        await _probeRiderDayAccess();
+        if (!mounted) return;
+        if (_riderDayAllowed == false) {
+          await _showRiderDayUnavailable();
+          return;
+        }
+      }
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => AdminRiderDayTransactionsScreen(
@@ -309,9 +368,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to load riders: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not load riders. Please try again.'),
+        ),
+      );
     }
   }
 
@@ -377,11 +438,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       Color movementColor(String type) {
         final t = type.toLowerCase();
-        if (t.contains('cash_collection')) return const Color(0xFF15803D);
-        if (t.contains('store_payment')) return const Color(0xFF1D4ED8);
+        if (t.contains('cash_collection')) return AppColors.primary;
+        if (t.contains('store_payment')) return AppColors.info;
         if (t.contains('fuel')) return const Color(0xFFD97706);
         if (t.contains('advance')) return const Color(0xFF7C3AED);
-        if (t.contains('settlement')) return const Color(0xFF0F766E);
+        if (t.contains('settlement')) return AppColors.ready;
         return Colors.grey;
       }
 
@@ -406,7 +467,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
               Text(
-                'PKR ${_toDouble(value).toStringAsFixed(2)}',
+                Fmt.money(_toDouble(value)),
                 style: TextStyle(
                   fontSize: 12,
                   color: color ?? Colors.black87,
@@ -423,8 +484,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         required bool expanded,
         required VoidCallback onToggle,
         required List<Widget> children,
-        Color color = const Color(0xFFF8FAFC),
-        Color borderColor = const Color(0xFFE2E8F0),
+        Color color = AppColors.surface2,
+        Color borderColor = AppColors.border,
         Widget? trailing,
       }) {
         return Container(
@@ -478,7 +539,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(color: AppColors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,9 +554,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     ),
                   ),
                   Text(
-                    'Cash PKR ${_toDouble(order['expected_rider_cash_effect']).toStringAsFixed(2)}',
+                    'Cash ${Fmt.money(_toDouble(order['expected_rider_cash_effect']))}',
                     style: const TextStyle(
-                      color: Color(0xFF0F766E),
+                      color: AppColors.ready,
                       fontSize: 11.5,
                       fontWeight: FontWeight.w900,
                     ),
@@ -511,17 +572,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               amountRow(
                 'Customer cash collected',
                 order['customer_cash_collected'],
-                color: const Color(0xFF15803D),
+                color: AppColors.primary,
               ),
               amountRow(
                 'Store paid by rider',
                 order['rider_store_paid'],
-                color: const Color(0xFFB91C1C),
+                color: AppColors.danger,
               ),
               amountRow(
                 'Store payable later',
                 order['store_payable_later'],
-                color: const Color(0xFF1D4ED8),
+                color: AppColors.info,
               ),
               if (stores.isNotEmpty) ...[
                 const SizedBox(height: 6),
@@ -661,7 +722,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3E0),
+                          color: AppColors.warningBg,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
@@ -669,14 +730,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             IconButton(
                               onPressed: () => openOffset(-1),
                               icon: const Icon(Icons.chevron_left),
-                              color: const Color(0xFFE65100),
+                              color: AppColors.warning,
                             ),
                             Expanded(
                               child: Text(
                                 '${_friendlyDateLabel(day)}  ${_dateKey(day)}',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  color: Color(0xFFE65100),
+                                  color: AppColors.warning,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
@@ -684,7 +745,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             IconButton(
                               onPressed: canGoNext ? () => openOffset(1) : null,
                               icon: const Icon(Icons.chevron_right),
-                              color: const Color(0xFFE65100),
+                              color: AppColors.warning,
                             ),
                           ],
                         ),
@@ -710,12 +771,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                 amountRow(
                                   'Customer cash collected',
                                   cashInCustomer,
-                                  color: const Color(0xFF15803D),
+                                  color: AppColors.primary,
                                 ),
                                 amountRow(
                                   'Store paid by rider',
                                   cashOutStore,
-                                  color: const Color(0xFFB91C1C),
+                                  color: AppColors.danger,
                                 ),
                                 amountRow(
                                   'Fuel / expense',
@@ -725,19 +786,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                 amountRow(
                                   'Submitted to office',
                                   totalSubmitted,
-                                  color: const Color(0xFF475569),
+                                  color: AppColors.text2,
                                 ),
                                 const Divider(height: 14),
                                 amountRow(
                                   'Expected cash with rider',
                                   expectedCashWithRider,
-                                  color: const Color(0xFF0F766E),
+                                  color: AppColors.ready,
                                   strong: true,
                                 ),
                                 amountRow(
                                   'Unsubmitted cash',
                                   summary['unsubmitted_cash_received'],
-                                  color: const Color(0xFFE65100),
+                                  color: AppColors.warning,
                                 ),
                               ],
                             ),
@@ -868,7 +929,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                                         ),
                                                       ),
                                                       Text(
-                                                        'PKR ${_toDouble(m['amount']).toStringAsFixed(2)}',
+                                                        Fmt.money(_toDouble(m['amount'])),
                                                         style: TextStyle(
                                                           color: clr,
                                                           fontWeight:
@@ -2283,6 +2344,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     _loadLanguagePreference();
     _loadStats();
     _setupLiveRefresh();
+    unawaited(_probeRiderDayAccess());
   }
 
   @override
@@ -2435,7 +2497,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       notificationProvider.addNotification(
         title: 'Store Due Alert',
         message:
-            '$storeName: $lead | Due: $dueDate | Pending: PKR ${pending.toStringAsFixed(2)}',
+            '$storeName: $lead | Due: $dueDate | Pending: ${Fmt.money(pending)}',
         type: 'warning',
         icon: 'warning',
         persistUntilDismissed: true,
@@ -2821,43 +2883,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final authProvider = Provider.of<AuthProvider>(context);
     final mediaWidth = MediaQuery.of(context).size.width;
     final useBottomQuickMenu = mediaWidth < 920;
+    final firstName = (authProvider.user?.firstName ?? '').trim();
+    final initial = firstName.isEmpty ? 'A' : firstName[0].toUpperCase();
 
     return Directionality(
       textDirection: CustomerLanguage.textDirection(_isUrdu),
       child: Scaffold(
-        backgroundColor: CustomerPalette.background,
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          toolbarHeight: 44,
-          leadingWidth: 42,
-          elevation: 0,
-          backgroundColor: Colors.white.withValues(alpha: 0.78),
-          iconTheme: const IconThemeData(color: Colors.black87),
-          title: Text(
-            _tr('Admin Dashboard'),
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          title: Text(_tr('Admin Dashboard')),
           actions: [
             const SizedBox(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: NotificationBellWidget(),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: CircleAvatar(
-                radius: 15,
-                backgroundColor: Colors.indigo,
-                child: Text(
-                  authProvider.user?.firstName.substring(0, 1).toUpperCase() ??
-                      'A',
-                  style: const TextStyle(color: Colors.white),
+              padding: const EdgeInsetsDirectional.only(end: 12, start: 4),
+              child: Semantics(
+                label: 'Signed in as ${authProvider.user?.email ?? 'admin'}',
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.tint100,
+                  child: Text(
+                    initial,
+                    style: AppText.label.copyWith(color: AppColors.primaryDeep),
+                  ),
                 ),
               ),
             ),
@@ -2865,154 +2919,103 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ),
         drawer: _buildDrawer(context, authProvider),
         bottomNavigationBar: useBottomQuickMenu
-            ? SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 2, 6, 4),
-                  child: _buildQuickMenu(context),
-                ),
-              )
+            ? _buildQuickMenu(context)
             : null,
         body: _isLoading
-            ? Stack(
-                children: [
-                  _buildDashboardBackdrop(),
-                  const Center(child: CircularProgressIndicator()),
-                ],
-              )
+            ? _buildDashboardSkeleton()
             : RefreshIndicator(
                 onRefresh: _loadStats,
-                child: Stack(
-                  children: [
-                    _buildDashboardBackdrop(),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isWide = constraints.maxWidth >= 1080;
-                        final isMedium = constraints.maxWidth >= 760;
-                        return SingleChildScrollView(
-                          padding: EdgeInsets.fromLTRB(
-                            isWide ? 20 : 6,
-                            12,
-                            isWide ? 20 : 6,
-                            useBottomQuickMenu ? 70 : 20,
-                          ),
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 1320),
-                              child: Container(
-                                padding: EdgeInsets.all(isWide ? 16 : 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.4),
-                                  borderRadius: BorderRadius.circular(34),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: CustomerPalette.primary.withValues(
-                                        alpha: 0.16,
-                                      ),
-                                      blurRadius: 36,
-                                      offset: const Offset(0, 18),
-                                    ),
-                                  ],
-                                ),
-                                child: isWide
-                                    ? Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          SizedBox(
-                                            width: 236,
-                                            child: _buildAdminSidePanel(
-                                              context,
-                                              authProvider,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 18),
-                                          Expanded(
-                                            child: _buildAdminOverviewContent(
-                                              context,
-                                              authProvider,
-                                              isWide: true,
-                                              isMedium: true,
-                                              showInlineQuickMenu: false,
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : _buildAdminOverviewContent(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 1080;
+                    final isMedium = constraints.maxWidth >= 760;
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        isWide ? 24 : AppSpace.gutter,
+                        AppSpace.md,
+                        isWide ? 24 : AppSpace.gutter,
+                        AppSpace.xxl,
+                      ),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1320),
+                          child: isWide
+                              ? Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 236,
+                                      child: _buildAdminSidePanel(
                                         context,
                                         authProvider,
-                                        isWide: false,
-                                        isMedium: isMedium,
-                                        showInlineQuickMenu:
-                                            !useBottomQuickMenu,
                                       ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                                    ),
+                                    const SizedBox(width: 18),
+                                    Expanded(
+                                      child: _buildAdminOverviewContent(
+                                        context,
+                                        authProvider,
+                                        isWide: true,
+                                        isMedium: true,
+                                        showInlineQuickMenu: false,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : _buildAdminOverviewContent(
+                                  context,
+                                  authProvider,
+                                  isWide: false,
+                                  isMedium: isMedium,
+                                  showInlineQuickMenu: !useBottomQuickMenu,
+                                ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
       ),
     );
   }
 
-  Widget _buildDashboardBackdrop() {
-    return Stack(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFFFF4E8), Color(0xFFFFF9F4), Color(0xFFFBE4D1)],
+  /// Loading state: skeleton of the dashboard instead of a bare spinner.
+  Widget _buildDashboardSkeleton() {
+    return const Shimmer(
+      child: SingleChildScrollView(
+        physics: NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.all(AppSpace.gutter),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SkeletonBox(height: 56, radius: AppRadius.card),
+            SizedBox(height: AppSpace.lg),
+            SkeletonBox(width: 160, height: 14),
+            SizedBox(height: AppSpace.sm),
+            SkeletonBox(width: 220, height: 22),
+            SizedBox(height: AppSpace.lg),
+            SkeletonBox(height: 200, radius: AppRadius.card),
+            SizedBox(height: AppSpace.lg),
+            Row(
+              children: [
+                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+                SizedBox(width: AppSpace.md),
+                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+              ],
             ),
-          ),
+            SizedBox(height: AppSpace.md),
+            Row(
+              children: [
+                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+                SizedBox(width: AppSpace.md),
+                Expanded(child: SkeletonBox(height: 92, radius: AppRadius.card)),
+              ],
+            ),
+            SizedBox(height: AppSpace.lg),
+            SkeletonBox(height: 48, radius: AppRadius.control),
+          ],
         ),
-        Positioned(
-          top: -90,
-          left: -60,
-          child: _buildBackdropOrb(
-            size: 240,
-            colors: const [Color(0x66E9B44C), Color(0x00E9B44C)],
-          ),
-        ),
-        Positioned(
-          top: 120,
-          right: -40,
-          child: _buildBackdropOrb(
-            size: 220,
-            colors: const [Color(0x55D9783A), Color(0x00D9783A)],
-          ),
-        ),
-        Positioned(
-          bottom: -30,
-          right: 30,
-          child: _buildBackdropOrb(
-            size: 180,
-            colors: const [Color(0x44B75B27), Color(0x00B75B27)],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBackdropOrb({
-    required double size,
-    required List<Color> colors,
-  }) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(colors: colors),
       ),
     );
   }
@@ -3029,11 +3032,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       children: [
         _buildRoleSwitcherRibbon(context),
         _buildHeroHeader(),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         _buildHeroLiveRadarCard(),
-        const SizedBox(height: 14),
+        const SizedBox(height: AppSpace.md),
         _buildHeroFleetOversightGrid(context),
-        const SizedBox(height: 20),
+        const SizedBox(height: AppSpace.xl),
         _buildAdminSegmentedTabs(
           authProvider,
           isWide: isWide,
@@ -3045,19 +3048,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Widget _buildRoleSwitcherRibbon(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      margin: const EdgeInsets.only(bottom: AppSpace.lg),
+      padding: const EdgeInsets.all(AppSpace.xs),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF2E7DC)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF7A4A28).withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: AppRadius.cardAll,
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -3109,7 +3105,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           Expanded(
             child: _buildRoleItem(
               icon: Icons.shield_outlined,
-              label: 'Mobile Admin',
+              label: 'Admin',
               isActive: true,
               onTap: () {},
             ),
@@ -3125,94 +3121,100 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required bool isActive,
     required VoidCallback onTap,
   }) {
+    final fg = isActive ? Colors.white : AppColors.text2;
+    final content = Container(
+      constraints: const BoxConstraints(minHeight: AppSpace.tapTarget),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primary : Colors.transparent,
+        borderRadius: AppRadius.controlAll,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: fg, size: 20),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: AppText.caption.copyWith(
+                color: fg,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
     if (isActive) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE06A2E),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFE06A2E).withValues(alpha: 0.35),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: 20),
-            const SizedBox(height: 3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
+      return Semantics(selected: true, label: '$label view', child: content);
     }
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: const Color(0xFF4A4036), size: 20),
-            const SizedBox(height: 3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF4A4036),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
+    return Semantics(
+      button: true,
+      label: 'Open $label view',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.controlAll,
+        child: content,
       ),
     );
   }
 
   Widget _buildHeroHeader() {
+    final now = DateTime.now();
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Text(
-            'SERVENOW.PK MOBILE ADMIN',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF8C705F),
+            'SERVENOW ADMIN',
+            style: AppText.caption.copyWith(
+              fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
             ),
           ),
-          SizedBox(height: 4),
-          Text(
-            'Live Radar & Fleet Oversight',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF261D17),
-              letterSpacing: -0.3,
-            ),
+          const SizedBox(height: 2),
+          Semantics(
+            header: true,
+            child: Text('Operations overview', style: AppText.h1),
           ),
+          const SizedBox(height: 2),
+          Text(Fmt.date(now), style: AppText.small),
         ],
+      ),
+    );
+  }
+
+  /// Points the live map should show: riders' current positions (or their
+  /// start points when no live fix yet).
+  List<latlng.LatLng> _heroMapPoints(List<Map<String, dynamic>> riders) {
+    return riders
+        .map(
+          (rider) =>
+              _displayPointForRider(rider) ?? _resolveRiderStartPoint(rider),
+        )
+        .whereType<latlng.LatLng>()
+        .toList(growable: false);
+  }
+
+  void _recentreHeroMap(List<latlng.LatLng> points) {
+    if (points.isEmpty) {
+      _liveRiderMapController.move(_defaultTrackerCenter, 13.0);
+      return;
+    }
+    if (points.length == 1) {
+      _liveRiderMapController.move(points.first, 14.0);
+      return;
+    }
+    _liveRiderMapController.fitCamera(
+      CameraFit.coordinates(
+        coordinates: points,
+        padding: const EdgeInsets.fromLTRB(40, 56, 40, 56),
+        maxZoom: 15,
       ),
     );
   }
@@ -3231,23 +3233,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               )
               .toList(growable: false)
         : allRiders;
+    final points = _heroMapPoints(riders);
+    final hasRiders = riders.isNotEmpty;
+    final title = hasRiders
+        ? 'Live riders · ${Fmt.count(allRiders.length, 'on the road', 'on the road')}'
+        : 'Live riders';
 
     return Container(
       height: 230,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: AppColors.surface3,
+        borderRadius: AppRadius.cardAll,
+        border: Border.all(color: AppColors.border),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: AppRadius.cardAll,
         child: Stack(
           children: [
             Positioned.fill(
@@ -3257,8 +3258,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
                 mapController: _liveRiderMapController,
                 options: MapOptions(
-                  initialCenter: _defaultTrackerCenter,
-                  initialZoom: 12.0,
+                  initialCenter: points.isNotEmpty
+                      ? points.first
+                      : _defaultTrackerCenter,
+                  initialZoom: points.length == 1 ? 14.0 : 13.0,
+                  initialCameraFit: points.length > 1
+                      ? CameraFit.coordinates(
+                          coordinates: points,
+                          padding: const EdgeInsets.fromLTRB(40, 56, 40, 56),
+                          maxZoom: 15,
+                        )
+                      : null,
                   interactionOptions: const InteractionOptions(
                     flags:
                         InteractiveFlag.drag |
@@ -3273,108 +3283,141 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     userAgentPackageName: 'com.onenetsol.servenow',
                     maxZoom: 19,
                   ),
-                  Container(
-                    color: const Color(0xFF1E293B).withValues(alpha: 0.78),
-                  ),
+                  // Light wash so the green markers and labels stay readable.
+                  Container(color: Colors.white.withValues(alpha: 0.18)),
                   MarkerLayer(
-                    markers: riders.isNotEmpty
-                        ? riders.map((rider) {
-                            final trackingKey = _trackingKeyForRider(rider);
-                            final pt =
-                                _displayPointForRider(rider) ??
-                                _resolveRiderStartPoint(rider) ??
-                                _defaultTrackerCenter;
-                            return Marker(
-                              point: pt,
-                              width: 64,
-                              height: 64,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedLiveRiderId = trackingKey;
-                                  });
-                                  _showLiveRiderDetails(rider);
-                                },
-                                child: _buildGlowingRadarPin(
-                                  label: _riderDisplayName(rider),
-                                ),
-                              ),
-                            );
-                          }).toList()
-                        : [
-                            Marker(
-                              point: _defaultTrackerCenter,
-                              width: 64,
-                              height: 64,
+                    markers: riders
+                        .map((rider) {
+                          final trackingKey = _trackingKeyForRider(rider);
+                          final pt =
+                              _displayPointForRider(rider) ??
+                              _resolveRiderStartPoint(rider);
+                          if (pt == null) return null;
+                          return Marker(
+                            point: pt,
+                            width: 64,
+                            height: 64,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedLiveRiderId = trackingKey;
+                                });
+                                _showLiveRiderDetails(rider);
+                              },
                               child: _buildGlowingRadarPin(
-                                label: 'Lahore Fleet Active',
+                                label: _riderDisplayName(rider),
                               ),
                             ),
-                          ],
+                          );
+                        })
+                        .whereType<Marker>()
+                        .toList(growable: false),
                   ),
                 ],
               ),
             ),
-            Positioned(
-              top: 12,
-              left: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xCC0F172A),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFF38BDF8).withValues(alpha: 0.45),
+            PositionedDirectional(
+              top: 10,
+              start: 10,
+              end: 10,
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF38BDF8),
-                        shape: BoxShape.circle,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: AppRadius.pillAll,
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: hasRiders
+                              ? AppColors.primaryBright
+                              : AppColors.borderStrong,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Live Radar: Lahore Fleet (flutter_map)',
-                      style: TextStyle(
-                        color: Color(0xFF38BDF8),
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.label.copyWith(color: AppColors.text),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-            Positioned(
+            if (!hasRiders)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 32),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface.withValues(alpha: 0.94),
+                        borderRadius: AppRadius.controlAll,
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.two_wheeler_rounded,
+                            size: 18,
+                            color: AppColors.muted,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'No riders on a delivery right now',
+                              style: AppText.small.copyWith(
+                                color: AppColors.text2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            PositionedDirectional(
               bottom: 10,
-              right: 10,
+              end: 10,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildMapPillAction(
                     icon: Icons.my_location_rounded,
-                    label: 'Lahore',
-                    onTap: () {
-                      _liveRiderMapController.move(_defaultTrackerCenter, 12.0);
-                    },
+                    label: 'Recentre',
+                    onTap: () => _recentreHeroMap(points),
                   ),
-                  const SizedBox(width: 6),
-                  _buildMapPillAction(
-                    icon: Icons.open_in_full_rounded,
-                    label: 'Full Tracker',
-                    onTap: () {
-                      _openFullScreenLiveRiderTracker(riders);
-                    },
-                  ),
+                  if (hasRiders) ...[
+                    const SizedBox(width: 6),
+                    _buildMapPillAction(
+                      icon: Icons.open_in_full_rounded,
+                      label: 'Full map',
+                      onTap: () {
+                        _openFullScreenLiveRiderTracker(riders);
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -3386,46 +3429,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Widget _buildGlowingRadarPin({required String label}) {
     return Center(
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFE06A2E).withValues(alpha: 0.28),
+      child: Tooltip(
+        message: label,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary.withValues(alpha: 0.22),
+              ),
             ),
-          ),
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFE06A2E).withValues(alpha: 0.55),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(
+                Icons.two_wheeler_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
             ),
-          ),
-          Container(
-            width: 26,
-            height: 26,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFFE06A2E),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFFE06A2E),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.two_wheeler_rounded,
-              color: Colors.white,
-              size: 15,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3435,174 +3467,119 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required String label,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xCC0F172A),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white70, size: 14),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+    return Material(
+      color: AppColors.surface,
+      shape: const StadiumBorder(side: BorderSide(color: AppColors.border)),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const StadiumBorder(),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 36),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: AppColors.primary, size: 16),
+              const SizedBox(width: 6),
+              Text(label, style: AppText.label.copyWith(color: AppColors.text)),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildHeroFleetOversightGrid(BuildContext context) {
-    final activeStoresCount = _recentStoresList.isNotEmpty
-        ? _recentStoresList.length
-        : 18;
-    final onlineRidersCount = _liveRiderLocations.isNotEmpty
-        ? _liveRiderLocations.length
-        : 12;
+    final email = Provider.of<AuthProvider>(context, listen: false).user?.email;
+    // Real values only: the live count is known only to accounts that can
+    // see the live tracker; otherwise the card just describes itself.
+    final ridersSubtitle = _canViewLiveRiderTracker(email)
+        ? (_liveRiderLocations.isEmpty
+              ? 'None on the road'
+              : '${Fmt.number(_liveRiderLocations.length)} on the road')
+        : 'Riders & availability';
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildMockupActionCard(
-                icon: Icons.storefront_rounded,
-                iconColor: const Color(0xFFE06A2E),
-                title: 'Manage Stores',
-                subtitle: '$activeStoresCount Active',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ManageStoresScreen(),
-                    ),
-                  );
-                },
-              ),
+    final cards = <Widget>[
+      _buildMockupActionCard(
+        icon: Icons.storefront_rounded,
+        title: 'Manage Stores',
+        subtitle: 'Hours, status & contacts',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ManageStoresScreen()),
+          );
+        },
+      ),
+      _buildMockupActionCard(
+        icon: Icons.two_wheeler_rounded,
+        title: 'Manage Riders',
+        subtitle: ridersSubtitle,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ManageRidersScreen()),
+          );
+        },
+      ),
+      _buildMockupActionCard(
+        icon: Icons.local_offer_rounded,
+        title: 'Offer Campaigns',
+        subtitle: 'Buy X get Y & discounts',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const OfferCampaignsScreen(isAdmin: true),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMockupActionCard(
-                icon: Icons.two_wheeler_rounded,
-                iconColor: const Color(0xFF0D9488),
-                title: 'Manage Riders',
-                subtitle: '$onlineRidersCount Online',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ManageRidersScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMockupActionCard(
-                icon: Icons.local_offer_rounded,
-                iconColor: const Color(0xFFD97706),
-                title: 'Offer Campaigns',
-                subtitle: 'BXGY & Discounts',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const OfferCampaignsScreen(isAdmin: true),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildMockupActionCard(
-                icon: Icons.receipt_long_rounded,
-                iconColor: const Color(0xFFDB2777),
-                title: 'Store Balances',
-                subtitle: 'Settlements',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const StoreBalancesScreen(),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+          );
+        },
+      ),
+      _buildMockupActionCard(
+        icon: Icons.account_balance_wallet_rounded,
+        title: 'Store Balances',
+        subtitle: 'Settlements',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const StoreBalancesScreen()),
+          );
+        },
+      ),
+    ];
+
+    return AdminTileGrid(columns: 2, spacing: AppSpace.md, children: cards);
   }
 
   Widget _buildMockupActionCard({
     required IconData icon,
-    required Color iconColor,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return AppCard(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFEFE4D6)),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF7A4A28).withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: iconColor, size: 28),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1E1B18),
-                letterSpacing: -0.2,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF64748B),
-              ),
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.all(AppSpace.md + 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AdminIconBadge(icon: icon, size: 38),
+          const SizedBox(height: AppSpace.md),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.title.copyWith(fontSize: 15),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.small,
+          ),
+        ],
       ),
     );
   }
@@ -3616,65 +3593,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.all(AppSpace.xs),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFF0E5D8)),
+            color: AppColors.surface,
+            borderRadius: AppRadius.cardAll,
+            border: Border.all(color: AppColors.border),
           ),
           child: Row(
             children: [
               Expanded(
                 child: _buildAdminTabButton(
                   index: 0,
-                  label: 'Orders & Dispatch',
+                  label: 'Dispatch',
                   icon: Icons.local_shipping_outlined,
                 ),
               ),
               Expanded(
                 child: _buildAdminTabButton(
                   index: 1,
-                  label: 'Daily Sales & Closing',
+                  label: 'Daily sales',
                   icon: Icons.payments_outlined,
                 ),
               ),
               Expanded(
                 child: _buildAdminTabButton(
                   index: 2,
-                  label: 'Admin Tools',
+                  label: 'Tools',
                   icon: Icons.tune_rounded,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpace.lg),
         if (_selectedAdminTab == 0) ...[
           _buildRecentActivityPanel(),
         ] else if (_selectedAdminTab == 1) ...[
           if (_canViewRestrictedFinancialReports(authProvider.user?.email))
             _buildDailySalesSummaryPanel()
           else
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Center(
-                child: Text(
-                  'Financial report access restricted.',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+            const AdminPanel(
+              child: EmptyState(
+                compact: true,
+                icon: Icons.lock_outline_rounded,
+                title: 'Daily sales are limited',
+                message:
+                    'Only the owner accounts can see daily sales and closing.',
               ),
             ),
         ] else ...[
           _buildOverviewSummaryGrid(isWide: isWide, isMedium: isMedium),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           _buildAdminMiniActions(context),
           if (_canViewLiveRiderTracker(authProvider.user?.email)) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             _buildSoftPanel(child: _buildLiveRiderTrackerSection()),
           ],
         ],
@@ -3688,42 +3660,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required IconData icon,
   }) {
     final isSelected = _selectedAdminTab == index;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedAdminTab = index;
-        });
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE06A2E) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  color: isSelected ? Colors.white : const Color(0xFF4A4036),
+    final fg = isSelected ? Colors.white : AppColors.text2;
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedAdminTab = index;
+          });
+        },
+        borderRadius: AppRadius.controlAll,
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : Colors.transparent,
+            borderRadius: AppRadius.controlAll,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 17, color: fg),
+              const SizedBox(width: 6),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: AppText.label.copyWith(
+                      fontSize: 13,
+                      color: fg,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -3758,155 +3737,121 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             DateTime.now().day,
           ),
         );
+    final dateText = selectedDateLabel == _dateKey(_selectedDailySalesDate)
+        ? Fmt.date(_selectedDailySalesDate)
+        : '$selectedDateLabel · ${Fmt.date(_selectedDailySalesDate)}';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.90),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: CustomerPalette.primaryDark.withValues(alpha: 0.07),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return AdminPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE9F8EF),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.payments_rounded,
-                  color: Color(0xFF15803D),
-                ),
-              ),
-              const SizedBox(width: 12),
+              const AdminIconBadge(icon: Icons.payments_rounded, size: 42),
+              const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Daily Sale Summary',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: CustomerPalette.textDark,
-                      ),
+                    Semantics(
+                      header: true,
+                      child: Text('Daily sale summary', style: AppText.h2),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      '$deliveredOrders of $totalOrders orders delivered',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.blueGrey.shade600,
-                      ),
+                      totalOrders == 0
+                          ? 'No orders on this day'
+                          : '${Fmt.number(deliveredOrders)} of ${Fmt.count(totalOrders, 'order')} delivered',
+                      style: AppText.small,
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Row(
             children: [
               _buildDateNavButton(
                 icon: Icons.chevron_left_rounded,
+                tooltip: 'Previous day',
                 onTap: controlsEnabled ? () => _changeDailySalesDate(-1) : null,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
-                child: InkWell(
-                  onTap: controlsEnabled ? _pickDailySalesDate : null,
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7FAFC),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.calendar_today_rounded,
-                          size: 16,
-                          color: Color(0xFF475569),
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            '$selectedDateLabel  ${_dateKey(_selectedDailySalesDate)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              color: CustomerPalette.textDark,
+                child: Material(
+                  color: AppColors.surface2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadius.controlAll,
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                  child: InkWell(
+                    onTap: controlsEnabled ? _pickDailySalesDate : null,
+                    borderRadius: AppRadius.controlAll,
+                    child: SizedBox(
+                      height: 44,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 16,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: AppSpace.sm),
+                          Flexible(
+                            child: Text(
+                              dateText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.bodyStrong,
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               _buildDateNavButton(
                 icon: Icons.chevron_right_rounded,
+                tooltip: 'Next day',
                 onTap: canGoForward ? () => _changeDailySalesDate(1) : null,
               ),
             ],
           ),
           if (_isDailySalesLoading) ...[
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
+            const SizedBox(height: AppSpace.md),
+            const ClipRRect(
+              borderRadius: AppRadius.pillAll,
               child: LinearProgressIndicator(
                 minHeight: 4,
-                backgroundColor: const Color(0xFFE2E8F0),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  CustomerPalette.primary,
-                ),
+                backgroundColor: AppColors.border,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
             ),
           ],
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpace.lg),
           _buildSalesSummaryTileGrid([
-            ('Gross Sale', _formatPkr(grossSales)),
+            ('Gross sale', _formatPkr(grossSales)),
             ('Delivered', _formatPkr(deliveredSales)),
-            ('Rider Cash', _formatPkr(riderCash)),
-            ('Delivery Fee', _formatPkr(deliveryFees)),
-            ('Cash Sale', _formatPkr(cashSales)),
-            ('Total Store Credit', _formatPkr(totalStoreCredit)),
+            ('Rider cash', _formatPkr(riderCash)),
+            ('Delivery fee', _formatPkr(deliveryFees)),
+            ('Cash sale', _formatPkr(cashSales)),
+            ('Total store credit', _formatPkr(totalStoreCredit)),
           ]),
           if (riderRows.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Rider cash today',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: CustomerPalette.textDark,
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.lg),
+            Text('Rider cash today', style: AppText.title),
+            const SizedBox(height: AppSpace.sm),
             ...riderRows.map((row) {
               final data = row is Map ? row : const {};
               final riderName = (data['rider_name'] ?? 'Rider').toString();
               final orders = _toInt(data['orders']);
               final amount = _formatPkr(data['rider_cash']);
               return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
                     Expanded(
@@ -3914,24 +3859,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         riderName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        style: AppText.bodyStrong,
                       ),
                     ),
-                    Text(
-                      '$orders orders',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blueGrey.shade600,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
+                    Text(Fmt.count(orders, 'order'), style: AppText.small),
+                    const SizedBox(width: AppSpace.md),
                     Text(
                       amount,
-                      style: const TextStyle(
-                        color: Color(0xFF15803D),
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: AppText.price.copyWith(color: AppColors.primary),
                     ),
                   ],
                 ),
@@ -3939,24 +3874,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             }),
           ],
           if (travelRows.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Rider km reconciliation',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: CustomerPalette.textDark,
-              ),
-            ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.lg),
+            Text('Rider km reconciliation', style: AppText.title),
+            const SizedBox(height: AppSpace.xs),
             Text(
               'Live GPS km is calculated from full-day rider movement logs and compared with manual fuel km.',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.blueGrey.shade600,
-              ),
+              style: AppText.small,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             ...travelRows.map((row) {
               final data = row is Map ? row : const {};
               final riderName = (data['rider_name'] ?? 'Rider').toString();
@@ -3964,15 +3889,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               final manualKm = _toDouble(data['manual_km']);
               final diffKm = _toDouble(data['km_difference']);
               final diffColor = diffKm.abs() <= 1
-                  ? const Color(0xFF15803D)
-                  : const Color(0xFFB45309);
+                  ? AppColors.success
+                  : AppColors.warning;
               return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: AppSpace.sm),
+                padding: const EdgeInsets.all(AppSpace.md - 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  color: AppColors.surface2,
+                  borderRadius: AppRadius.controlAll,
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Row(
                   children: [
@@ -3981,20 +3906,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         riderName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        style: AppText.bodyStrong,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.sm),
                     _buildKmMiniStat('GPS', gpsKm),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.sm),
                     _buildKmMiniStat('Manual', manualKm),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.sm),
                     Text(
                       '${diffKm >= 0 ? '+' : ''}${diffKm.toStringAsFixed(1)} km',
-                      style: TextStyle(
+                      style: AppText.label.copyWith(
                         color: diffColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
+                        fontFeatures: AppText.tabular,
                       ),
                     ),
                   ],
@@ -4012,20 +3936,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 9.5,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Text(label, style: AppText.caption.copyWith(fontSize: 11)),
         Text(
           '${value.toStringAsFixed(value >= 10 ? 0 : 1)} km',
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w900,
+          style: AppText.label.copyWith(
+            color: AppColors.text,
+            fontFeatures: AppText.tabular,
           ),
         ),
       ],
@@ -4035,176 +3951,104 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Widget _buildDateNavButton({
     required IconData icon,
     required VoidCallback? onTap,
+    String? tooltip,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: onTap == null ? const Color(0xFFF1F5F9) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Icon(
-          icon,
-          color: onTap == null
-              ? Colors.blueGrey.shade200
-              : CustomerPalette.primaryDark,
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: IconButton.outlined(
+        tooltip: tooltip,
+        onPressed: onTap,
+        icon: Icon(icon),
+        style: IconButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          disabledForegroundColor: AppColors.borderStrong,
+          side: const BorderSide(color: AppColors.border),
+          shape: const RoundedRectangleBorder(
+            borderRadius: AppRadius.controlAll,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSalesSummaryTileGrid(List<(String, String)> tiles) {
-    return Column(
+    return AdminTileGrid(
+      columns: 2,
       children: [
-        for (var i = 0; i < tiles.length; i += 2) ...[
-          Row(
-            children: [
-              Expanded(child: _buildSalesSummaryTile(tiles[i].$1, tiles[i].$2)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: i + 1 < tiles.length
-                    ? _buildSalesSummaryTile(tiles[i + 1].$1, tiles[i + 1].$2)
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-          if (i + 2 < tiles.length) const SizedBox(height: 10),
-        ],
+        for (final tile in tiles) _buildSalesSummaryTile(tile.$1, tile.$2),
       ],
     );
   }
 
   Widget _buildSalesSummaryTile(String label, String value) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              color: Colors.blueGrey.shade600,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: CustomerPalette.textDark,
-            ),
-          ),
-        ],
-      ),
-    );
+    return AdminStatTile(label: label, value: value);
   }
 
   Widget _buildAdminSidePanel(BuildContext context, AuthProvider authProvider) {
-    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
-      authProvider.user?.email,
-    );
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.85)),
-      ),
+    final showRiderDay = _showRiderDayEntry(authProvider.user?.email);
+    return AdminPanel(
+      padding: const EdgeInsets.all(AppSpace.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 8),
-          Text(
-            'ServeNow',
-            style: TextStyle(
-              fontSize: 26,
-              height: 0.95,
-              fontWeight: FontWeight.w900,
-              color: CustomerPalette.textDark,
-            ),
-          ),
-          const SizedBox(height: 6),
+          Text('ServeNow', style: AppText.h1),
+          const SizedBox(height: 2),
           Text(
             'ADMIN CONTROL',
-            style: TextStyle(
-              fontSize: 11,
+            style: AppText.caption.copyWith(
               letterSpacing: 1.1,
-              fontWeight: FontWeight.w800,
-              color: Colors.blueGrey.shade500,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: AppSpace.lg),
           _buildSideMenuEntry(
             icon: Icons.dashboard_rounded,
             label: 'Dashboard',
             selected: true,
             onTap: () {},
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.sm),
           _buildSideMenuEntry(
             icon: Icons.receipt_long_rounded,
             label: 'Orders',
             onTap: _openManageOrdersForAssignment,
           ),
-          if (canViewRestrictedReports) ...[
-            const SizedBox(height: 10),
+          if (showRiderDay) ...[
+            const SizedBox(height: AppSpace.sm),
             _buildSideMenuEntry(
               icon: Icons.delivery_dining_rounded,
               label: 'Rider Day',
               onTap: _openAdminRiderDayPicker,
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.sm),
           _buildSideMenuEntry(
             icon: Icons.inventory_2_rounded,
             label: 'Products',
             onTap: () => Navigator.of(context).pushNamed('/manage-products'),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.sm),
           _buildSideMenuEntry(
             icon: Icons.storefront_rounded,
             label: 'Stores',
             onTap: () => Navigator.of(context).pushNamed('/manage-stores'),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.sm),
           _buildSideMenuEntry(
             icon: Icons.bar_chart_rounded,
             label: 'Reports',
             onTap: () => Navigator.of(context).pushNamed('/inventory-report'),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.sm),
           _buildSideMenuEntry(
             icon: Icons.settings_rounded,
             label: 'Settings',
             onTap: _openStoreStatusMessageDialog,
           ),
-          const SizedBox(height: 18),
-          Text(
-            'Quick access',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: Colors.blueGrey.shade700,
-            ),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.lg),
+          Text('Quick access', style: AppText.label),
+          const SizedBox(height: AppSpace.md),
           _buildAdminMiniActions(context),
         ],
       ),
@@ -4217,53 +4061,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required VoidCallback onTap,
     bool selected = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: selected
-              ? LinearGradient(
-                  colors: [CustomerPalette.accent, CustomerPalette.primary],
-                )
-              : null,
-          color: selected ? null : Colors.white.withValues(alpha: 0.72),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected
-                ? CustomerPalette.primaryDark
-                : const Color(0xFFDDE5EA),
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: CustomerPalette.primary.withValues(alpha: 0.22),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 19,
-              color: selected ? Colors.white : CustomerPalette.primaryDark,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : CustomerPalette.textDark,
+    final fg = selected ? AppColors.primaryDeep : AppColors.text;
+    return Material(
+      color: selected ? AppColors.tint100 : Colors.transparent,
+      borderRadius: AppRadius.controlAll,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.controlAll,
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected ? AppColors.primary : AppColors.text2,
+              ),
+              const SizedBox(width: AppSpace.md - 2),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppText.bodyStrong.copyWith(color: fg),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -4271,9 +4095,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Widget _buildAdminMiniActions(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
-      auth.user?.email,
-    );
+    final showRiderDay = _showRiderDayEntry(auth.user?.email);
     final actions = [
       (
         icon: Icons.store_mall_directory_rounded,
@@ -4290,7 +4112,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         label: 'Orders',
         onTap: _openManageOrdersForAssignment,
       ),
-      if (canViewRestrictedReports)
+      if (showRiderDay)
         (
           icon: Icons.delivery_dining_rounded,
           label: 'Rider Day',
@@ -4304,41 +4126,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     ];
 
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: AppSpace.sm + 2,
+      runSpacing: AppSpace.sm + 2,
       children: actions.map((action) {
-        return InkWell(
-          onTap: action.onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            width: 104,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.86),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFDDE5EA)),
+        return SizedBox(
+          width: 100,
+          child: AppCard(
+            onTap: action.onTap,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.sm,
+              vertical: AppSpace.md,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFE8D2),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(action.icon, color: CustomerPalette.primaryDark),
-                ),
-                const SizedBox(height: 8),
+                AdminIconBadge(icon: action.icon, size: 38),
+                const SizedBox(height: AppSpace.sm),
                 Text(
                   action.label,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: CustomerPalette.textDark,
-                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.label.copyWith(color: AppColors.text),
                 ),
               ],
             ),
@@ -4356,14 +4165,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       0,
       _allTotal,
     );
+    final todayOther = (_todayPending - _todayOutForDelivery).clamp(
+      0,
+      _todayPending,
+    );
     final cards = [
       _buildOverviewMetricCard(
-        title: "Today's Orders",
-        value: _todayTotal.toString(),
-        accent: CustomerPalette.primary,
-        icon: Icons.show_chart_rounded,
-        subtitle: '$_todayDelivered delivered today',
-        trendLabel: '+$_todayPending pending',
+        title: "Today's orders",
+        value: Fmt.number(_todayTotal),
+        icon: Icons.today_rounded,
+        subtitle: _todayTotal == 0
+            ? 'No orders yet today'
+            : '${Fmt.number(_todayDelivered)} delivered · ${Fmt.number(_todayPending)} open',
         orderDetails: [
           {
             'label': 'Delivered',
@@ -4387,15 +4200,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           },
         ],
         onOrderDetailTap: _showTodayOrderDetails,
-        visual: _buildMiniTrendLine(CustomerPalette.primary),
+        visual: AdminBreakdownBar(
+          emptyLabel: 'No orders yet today',
+          segments: [
+            AdminBreakdownSegment(
+              'Delivered',
+              _todayDelivered,
+              AppColors.primary,
+            ),
+            AdminBreakdownSegment(
+              'Out for delivery',
+              _todayOutForDelivery,
+              AppColors.outForDelivery,
+            ),
+            AdminBreakdownSegment('Open', todayOther, AppColors.warning),
+            AdminBreakdownSegment(
+              'Cancelled',
+              _todayCancelled,
+              AppColors.danger,
+            ),
+          ],
+        ),
       ),
       _buildOverviewMetricCard(
-        title: 'All Orders',
-        value: _allTotal.toString(),
-        accent: CustomerPalette.primaryDark,
-        icon: Icons.bar_chart_rounded,
-        subtitle: '$_allCancelled cancelled overall',
-        trendLabel: '$_allDelivered delivered',
+        title: 'All orders',
+        value: Fmt.number(_allTotal),
+        icon: Icons.receipt_long_rounded,
+        subtitle: _allTotal == 0
+            ? 'No orders yet'
+            : '${Fmt.number(_allCancelled)} cancelled overall',
         orderDetails: [
           {
             'label': 'Delivered',
@@ -4413,68 +4246,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             'tone': 'cancelled',
           },
         ],
-        visual: _buildMiniBarChart(CustomerPalette.primaryDark),
-      ),
-      _buildOverviewMetricCard(
-        title: 'Active Users',
-        value: _activeUsers.toString(),
-        accent: CustomerPalette.accent,
-        icon: Icons.pie_chart_outline_rounded,
-        subtitle: '$_todayLogins logged in today',
-        trendLabel: '$_todayPending awaiting attention',
-        visual: _buildMiniDonut(
-          primary: CustomerPalette.accent,
-          secondary: CustomerPalette.primary,
-          tertiary: const Color(0xFFFFE5BF),
+        visual: AdminBreakdownBar(
+          segments: [
+            AdminBreakdownSegment(
+              'Delivered',
+              _allDelivered,
+              AppColors.primary,
+            ),
+            AdminBreakdownSegment('Open', allPending, AppColors.warning),
+            AdminBreakdownSegment(
+              'Cancelled',
+              _allCancelled,
+              AppColors.danger,
+            ),
+          ],
         ),
       ),
       _buildOverviewMetricCard(
-        title: 'Operations Pulse',
-        value: '${_recentOrdersList.length}',
-        accent: const Color(0xFFC96A2B),
+        title: 'Active users',
+        value: Fmt.number(_activeUsers),
+        icon: Icons.people_alt_rounded,
+        subtitle: '${Fmt.number(_todayLogins)} logged in today',
+      ),
+      _buildOverviewMetricCard(
+        title: 'Open orders',
+        value: Fmt.number(_assignableOrdersList.length),
         icon: Icons.local_shipping_rounded,
-        subtitle:
-            '${_recentUsersList.length} new users | ${_recentStoresList.length} stores',
-        trendLabel: '${_assignableOrdersList.length} orders need assignment',
-        visual: _buildMiniLeaderboard(),
+        subtitle: _assignableOrdersList.isEmpty
+            ? 'Nothing waiting right now'
+            : 'Not yet delivered or cancelled',
+        footer:
+            '${Fmt.count(_recentUsersList.length, 'new user')} · ${Fmt.count(_recentStoresList.length, 'new store')} recently',
       ),
     ];
 
-    if (isWide) {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: cards.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 2.45,
-        ),
-        itemBuilder: (_, index) => cards[index],
-      );
-    }
-
-    if (isMedium) {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: cards.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.85,
-        ),
-        itemBuilder: (_, index) => cards[index],
-      );
+    if (isWide || isMedium) {
+      return AdminTileGrid(columns: 2, spacing: AppSpace.md, children: cards);
     }
 
     return Column(
       children: [
         for (var i = 0; i < cards.length; i++) ...[
           cards[i],
-          if (i != cards.length - 1) const SizedBox(height: 8),
+          if (i != cards.length - 1) const SizedBox(height: AppSpace.md),
         ],
       ],
     );
@@ -4483,235 +4297,121 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Widget _buildOverviewMetricCard({
     required String title,
     required String value,
-    required Color accent,
     required IconData icon,
     required String subtitle,
-    required String trendLabel,
-    required Widget visual,
+    Widget? visual,
+    String? footer,
     List<Map<String, String>>? orderDetails,
     ValueChanged<String>? onOrderDetailTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.10),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+    return AdminPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF334155),
-                  ),
-                ),
-              ),
-              Icon(icon, color: accent, size: 16),
+              Expanded(child: Text(title, style: AppText.label)),
+              Icon(icon, color: AppColors.primary, size: 18),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 24,
-              height: 1,
-              fontWeight: FontWeight.w900,
-              color: accent,
+            style: AppText.display.copyWith(
+              fontSize: 28,
+              height: 1.1,
+              color: AppColors.text,
+              fontFeatures: AppText.tabular,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             subtitle,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: Colors.blueGrey.shade600,
-            ),
+            style: AppText.small,
           ),
+          if (visual != null) ...[
+            const SizedBox(height: AppSpace.md),
+            visual,
+          ],
           if (orderDetails != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.md),
             _buildOrderDetailsSubCard(
-              accent: accent,
               details: orderDetails,
               onDetailTap: onOrderDetailTap,
             ),
           ],
-          const SizedBox(height: 4),
-          SizedBox(height: 38, child: visual),
-          const SizedBox(height: 3),
-          Row(
-            children: [
-              Icon(Icons.arrow_upward_rounded, size: 12, color: accent),
-              const SizedBox(width: 3),
-              Expanded(
-                child: Text(
-                  trendLabel,
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          if (footer != null) ...[
+            const SizedBox(height: AppSpace.sm),
+            Text(footer, style: AppText.caption),
+          ],
         ],
       ),
     );
   }
 
+  /// Count chips under the order metric cards. Four chips go in a 2 x 2
+  /// grid so "Out for delivery" is never cut to "Out Delive...".
   Widget _buildOrderDetailsSubCard({
-    required Color accent,
     required List<Map<String, String>> details,
     ValueChanged<String>? onDetailTap,
   }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accent.withValues(alpha: 0.12)),
-      ),
-      child: Row(
-        children: details.map((detail) {
-          final isLast = detail == details.last;
-          final label = detail['label'] ?? '';
-          final tone = _orderDetailTone(detail['tone'] ?? label);
-          final isInteractive = onDetailTap != null;
-          final chip = AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.symmetric(
-              horizontal: isInteractive ? 7 : 0,
-              vertical: isInteractive ? 5 : 0,
-            ),
-            decoration: BoxDecoration(
-              color: isInteractive
-                  ? tone.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-              border: isInteractive
-                  ? Border.all(color: tone.withValues(alpha: 0.22))
-                  : null,
-              boxShadow: [
-                if (isInteractive)
-                  BoxShadow(
-                    color: tone.withValues(alpha: 0.12),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        detail['value'] ?? '0',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: tone,
-                          fontSize: isInteractive ? 12.5 : 12,
-                          height: 1,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: tone.withValues(alpha: 0.82),
-                          fontSize: 8,
-                          height: 1,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isInteractive) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: tone,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.white,
-                      size: 13,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-          return Expanded(
-            child: Container(
-              padding: EdgeInsets.only(right: isLast ? 0 : 5),
-              decoration: BoxDecoration(
-                border: isLast
-                    ? null
-                    : Border(
-                        right: BorderSide(
-                          color: accent.withValues(alpha: 0.12),
-                        ),
-                      ),
-              ),
-              child: isInteractive
-                  ? Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(9),
-                        onTap: () => onDetailTap(label),
-                        child: chip,
-                      ),
-                    )
-                  : chip,
-            ),
-          );
-        }).toList(),
-      ),
+    final chips = details.map((detail) {
+      final label = detail['label'] ?? '';
+      final toneKey = detail['tone'] ?? label;
+      final style = OrderStatusStyle.of(
+        toneKey == 'pending' ? 'pending' : toneKey,
+      );
+      // 'Out Delivery' is the key used by the tap handler; show the full
+      // status name instead.
+      final displayLabel = toneKey == 'out_for_delivery'
+          ? style.label
+          : label;
+      return AdminCountChip(
+        label: displayLabel,
+        value: int.tryParse(detail['value'] ?? '0') ?? 0,
+        foreground: _orderDetailTone(toneKey),
+        background: _orderDetailToneBg(toneKey),
+        onTap: onDetailTap == null ? null : () => onDetailTap(label),
+      );
+    }).toList();
+    return AdminTileGrid(
+      columns: chips.length == 4 ? 2 : chips.length,
+      spacing: AppSpace.sm,
+      children: chips,
     );
   }
 
   Color _orderDetailTone(String tone) {
     switch (tone.toLowerCase().trim()) {
       case 'delivered':
-        return const Color(0xFF16A34A);
+        return AppColors.success;
       case 'pending':
-        return const Color(0xFFF59E0B);
+        return AppColors.warning;
       case 'cancelled':
-        return const Color(0xFFDC2626);
+        return AppColors.danger;
       case 'out_for_delivery':
       case 'out delivery':
-        return const Color(0xFF2563EB);
+        return AppColors.outForDelivery;
       default:
-        return CustomerPalette.primary;
+        return AppColors.primary;
+    }
+  }
+
+  Color _orderDetailToneBg(String tone) {
+    switch (tone.toLowerCase().trim()) {
+      case 'delivered':
+        return AppColors.successBg;
+      case 'pending':
+        return AppColors.warningBg;
+      case 'cancelled':
+        return AppColors.dangerBg;
+      case 'out_for_delivery':
+      case 'out delivery':
+        return AppColors.outForDeliveryBg;
+      default:
+        return AppColors.tint50;
     }
   }
 
@@ -4736,40 +4436,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Close order details',
-      barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 2500),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      transitionDuration: AppMotion.medium,
       pageBuilder: (dialogContext, animation, secondaryAnimation) =>
           _buildHangingOrderDetailsPanel(dialogContext, label, orders, tone),
       transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-        final drop = CurvedAnimation(
+        final curved = CurvedAnimation(
           parent: animation,
-          curve: Curves.easeInOutSine,
-          reverseCurve: Curves.easeInOutSine,
-        );
-        final fade = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-          reverseCurve: Curves.easeIn,
+          curve: AppMotion.curve,
         );
         return FadeTransition(
-          opacity: Tween<double>(begin: 0.08, end: 1).animate(fade),
+          opacity: curved,
           child: SlideTransition(
-            position: TweenSequence<Offset>([
-              TweenSequenceItem(
-                tween: Tween<Offset>(
-                  begin: const Offset(0, -0.75),
-                  end: const Offset(0, 0.12),
-                ).chain(CurveTween(curve: Curves.easeInCubic)),
-                weight: 65,
-              ),
-              TweenSequenceItem(
-                tween: Tween<Offset>(
-                  begin: const Offset(0, 0.12),
-                  end: Offset.zero,
-                ).chain(CurveTween(curve: Curves.easeOutCubic)),
-                weight: 35,
-              ),
-            ]).animate(drop),
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.04),
+              end: Offset.zero,
+            ).animate(curved),
             child: child,
           ),
         );
@@ -4798,22 +4480,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(left: 42, top: -18, child: _buildRope(tone)),
-                  Positioned(right: 42, top: -18, child: _buildRope(tone)),
                   Container(
-                    margin: const EdgeInsets.only(top: 12),
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: tone.withValues(alpha: 0.18)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 28,
-                          offset: const Offset(0, 14),
-                        ),
-                      ],
+                      color: AppColors.surface,
+                      borderRadius: AppRadius.cardAll,
+                      boxShadow: AppColors.floatingShadow,
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -4837,13 +4509,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                "Today's $label Orders",
-                                maxLines: 1,
+                                "Today's ${label == 'Out Delivery' ? 'out for delivery' : label.toLowerCase()} orders",
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                                style: AppText.title,
                               ),
                             ),
                             Container(
@@ -4871,7 +4540,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                 width: 30,
                                 height: 30,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF1F5F9),
+                                  color: AppColors.surface3,
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: const Icon(
@@ -4889,14 +4558,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             width: double.infinity,
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
+                              color: AppColors.surface2,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: const Color(0xFFE5E7EB),
+                                color: AppColors.border,
                               ),
                             ),
                             child: Text(
-                              'No ${label.toLowerCase()} orders found for today.',
+                              label == 'Out Delivery'
+                                  ? 'No orders out for delivery today.'
+                                  : 'No ${label.toLowerCase()} orders today.',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: CustomerPalette.textMuted,
@@ -4929,30 +4600,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildRope(Color tone) {
-    return Column(
-      children: [
-        Container(
-          width: 4,
-          height: 22,
-          decoration: BoxDecoration(
-            color: tone.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        ),
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: tone.withValues(alpha: 0.5), width: 2),
-          ),
-        ),
-      ],
     );
   }
 
@@ -5159,21 +4806,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: AppColors.surface2,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: const Color(0xFFE5E7EB),
+                                  color: AppColors.border,
                                 ),
                               ),
                               child: Column(
                                 children: [
-                                  detailRow('Status', status),
+                                  detailRow('Status', adminStatusLabel(status)),
                                   detailRow('Customer', customer),
                                   detailRow('Created', createdAt),
                                   detailRow('Rider', riderName),
                                   detailRow(
                                     'Payment',
-                                    '$paymentMethod ($paymentStatus)',
+                                    '${Fmt.paymentMethod(paymentMethod)} (${adminHumanize(paymentStatus)})',
                                   ),
                                   detailRow(
                                     'Delivery Fee',
@@ -5223,7 +4870,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
                                     border: Border.all(
-                                      color: const Color(0xFFE5E7EB),
+                                      color: AppColors.border,
                                     ),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -5405,9 +5052,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: AppColors.surface2,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
@@ -5528,14 +5175,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               )
             else
-              Text(
-                status,
-                style: TextStyle(
-                  color: statusTone,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+              StatusPill(status: status, dense: true),
           ],
         ),
       ),
@@ -5695,165 +5335,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (value == null) return 'Today';
     final parsed = _parseServerDateTime(value);
     if (parsed == null) return value.toString();
-    final local = parsed;
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+    return Fmt.time(parsed);
   }
 
   String _formatOrderDateLabel(dynamic value) {
     if (value == null) return '-';
     final parsed = _parseServerDateTime(value);
     if (parsed == null) return value.toString();
-    final date = _dateKey(parsed);
-    final hour = parsed.hour.toString().padLeft(2, '0');
-    final minute = parsed.minute.toString().padLeft(2, '0');
-    return '$date $hour:$minute';
-  }
-
-  Widget _buildMiniTrendLine(Color color) {
-    return CustomPaint(
-      painter: _SimpleTrendPainter(color: color),
-      child: const SizedBox.expand(),
-    );
-  }
-
-  Widget _buildMiniBarChart(Color color) {
-    final bars = [0.18, 0.34, 0.26, 0.42, 0.57, 0.35, 0.48, 0.74];
-    return Align(
-      alignment: Alignment.bottomLeft,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: bars.map((heightFactor) {
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: Container(
-                height: 34 * heightFactor,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildMiniDonut({
-    required Color primary,
-    required Color secondary,
-    required Color tertiary,
-  }) {
-    return Center(
-      child: SizedBox(
-        width: 38,
-        height: 38,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CircularProgressIndicator(
-              value: 0.78,
-              strokeWidth: 6,
-              backgroundColor: secondary.withValues(alpha: 0.14),
-              valueColor: AlwaysStoppedAnimation<Color>(primary),
-            ),
-            Center(
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: tertiary.withValues(alpha: 0.24),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMiniLeaderboard() {
-    final bars = [0.72, 0.48, 0.83, 0.34];
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: bars.map((value) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: CustomerPalette.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: value,
-                    minHeight: 5,
-                    backgroundColor: const Color(0xFFE8EDF2),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      CustomerPalette.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
+    return Fmt.dateTime(parsed);
   }
 
   Widget _buildRecentActivityPanel() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+    return AdminPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Recent Activity',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: CustomerPalette.textDark,
-            ),
+          Semantics(
+            header: true,
+            child: Text('Recent activity', style: AppText.h2),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 2),
           Text(
-            'Review the latest operations and jump directly into order management.',
-            style: TextStyle(
-              color: Colors.blueGrey.shade600,
-              fontWeight: FontWeight.w600,
-            ),
+            'Latest orders, users and stores. Tap an order to assign a rider.',
+            style: AppText.small,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpace.md),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: _buildActivityFilter(),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpace.md),
           _buildRecentActivityList(),
         ],
       ),
@@ -5861,171 +5372,187 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildSoftPanel({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: child,
-    );
+    return AdminPanel(child: child);
   }
 
   Widget _buildDrawer(BuildContext context, AuthProvider authProvider) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
-      authProvider.user?.email,
-    );
+    final showRiderDay = _showRiderDayEntry(authProvider.user?.email);
+    final firstName = (authProvider.user?.firstName ?? '').trim();
+    final lastName = (authProvider.user?.lastName ?? '').trim();
+    final fullName = '$firstName $lastName'.trim();
+    final initial = firstName.isEmpty ? 'A' : firstName[0].toUpperCase();
+
+    Widget item({
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+      bool selected = false,
+    }) {
+      return ListTile(
+        leading: Icon(icon),
+        title: Text(label),
+        selected: selected,
+        selectedColor: AppColors.primary,
+        selectedTileColor: AppColors.tint50,
+        iconColor: AppColors.text2,
+        minVerticalPadding: 12,
+        onTap: onTap,
+      );
+    }
+
+    Widget sectionLabel(String text) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+        child: Text(
+          text.toUpperCase(),
+          style: AppText.caption.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
+        ),
+      );
+    }
+
+    void go(String route) {
+      Navigator.of(context).pop();
+      Navigator.of(context).pushNamed(route);
+    }
+
     return Drawer(
+      backgroundColor: AppColors.surface,
       child: ListView(
         padding: EdgeInsets.only(bottom: bottomInset + 12),
         children: [
-          UserAccountsDrawerHeader(
+          Container(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              MediaQuery.of(context).padding.top + 20,
+              20,
+              18,
+            ),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.indigo, Colors.blueAccent],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: AppColors.tint50,
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
-            accountName: Text(
-              '${authProvider.user?.firstName} ${authProvider.user?.lastName}',
-            ),
-            accountEmail: Text(authProvider.user?.email ?? ''),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                authProvider.user?.firstName.substring(0, 1).toUpperCase() ??
-                    'A',
-                style: const TextStyle(fontSize: 24, color: Colors.indigo),
-              ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: AppColors.primary,
+                  child: Text(
+                    initial,
+                    style: AppText.h2.copyWith(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fullName.isEmpty ? 'Admin' : fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.title,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        authProvider.user?.email ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.small,
+                      ),
+                      const SizedBox(height: 6),
+                      const TonePill.success('Admin'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.dashboard),
-            title: Text(_tr('Dashboard')),
+          const SizedBox(height: AppSpace.sm),
+          item(
+            icon: Icons.dashboard_rounded,
+            label: _tr('Dashboard'),
             selected: true,
             onTap: () => Navigator.of(context).pop(),
           ),
-          ListTile(
-            leading: const Icon(Icons.store),
-            title: Text(_tr('Manage Stores')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/manage-stores');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.storefront),
-            title: Text(_tr('Store Balances')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/store-balances');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.campaign),
-            title: Text(_tr('Store Status')),
-            onTap: () {
-              Navigator.of(context).pop();
-              _openStoreStatusMessageDialog();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.shopping_bag),
-            title: Text(_tr('Products & Variants')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/manage-products');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.view_carousel),
-            title: Text(_tr('Customer Tile Demo')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/customer-tile-demo');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.people),
-            title: Text(_tr('Manage Users')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/manage-users');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.account_balance_wallet),
-            title: Text(_tr('Wallet')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/wallet');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delivery_dining),
-            title: Text(_tr('Riders')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/manage-riders');
-            },
-          ),
-          if (canViewRestrictedReports)
-            ListTile(
-              leading: const Icon(Icons.receipt_long),
-              title: const Text('Rider Day Transactions'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _openAdminRiderDayPicker();
-              },
-            ),
-          ListTile(
-            leading: const Icon(Icons.route),
-            title: const Text('Ride History'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/rider-history');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.inventory),
-            title: Text(_tr('Inventory Reports')),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/inventory-report');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.receipt_long),
-            title: Text(_tr('Manage Orders')),
+          sectionLabel('Orders'),
+          item(
+            icon: Icons.receipt_long_rounded,
+            label: _tr('Manage Orders'),
             onTap: () {
               Navigator.of(context).pop();
               _openManageOrdersForAssignment();
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.key),
-            title: Text(_tr('Change Password')),
+          sectionLabel('Stores'),
+          item(
+            icon: Icons.store_rounded,
+            label: _tr('Manage Stores'),
+            onTap: () => go('/manage-stores'),
+          ),
+          item(
+            icon: Icons.account_balance_wallet_rounded,
+            label: _tr('Store Balances'),
+            onTap: () => go('/store-balances'),
+          ),
+          item(
+            icon: Icons.campaign_rounded,
+            label: _tr('Store Status'),
             onTap: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/change-password');
+              _openStoreStatusMessageDialog();
             },
           ),
-          const Divider(),
+          item(
+            icon: Icons.shopping_bag_rounded,
+            label: _tr('Products & Variants'),
+            onTap: () => go('/manage-products'),
+          ),
+          item(
+            icon: Icons.inventory_2_rounded,
+            label: _tr('Inventory Reports'),
+            onTap: () => go('/inventory-report'),
+          ),
+          sectionLabel('Riders'),
+          item(
+            icon: Icons.delivery_dining_rounded,
+            label: _tr('Riders'),
+            onTap: () => go('/manage-riders'),
+          ),
+          if (showRiderDay)
+            item(
+              icon: Icons.request_quote_rounded,
+              label: 'Rider Day Transactions',
+              onTap: () {
+                Navigator.of(context).pop();
+                _openAdminRiderDayPicker();
+              },
+            ),
+          item(
+            icon: Icons.route_rounded,
+            label: 'Ride History',
+            onTap: () => go('/rider-history'),
+          ),
+          sectionLabel('Account'),
+          item(
+            icon: Icons.people_rounded,
+            label: _tr('Manage Users'),
+            onTap: () => go('/manage-users'),
+          ),
+          item(
+            icon: Icons.key_rounded,
+            label: _tr('Change Password'),
+            onTap: () => go('/change-password'),
+          ),
+          const Divider(height: 24),
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
+            leading: const Icon(Icons.logout_rounded, color: AppColors.danger),
             title: Text(
               _tr('Logout'),
-              style: const TextStyle(color: Colors.red),
+              style: const TextStyle(color: AppColors.danger),
             ),
             onTap: () {
               authProvider.logout();
@@ -6075,81 +5602,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _tr('Live Rider Tracker'),
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        Semantics(
+          header: true,
+          child: Text(_tr('Live Rider Tracker'), style: AppText.h2),
         ),
-        const SizedBox(height: 10),
-        Container(
+        const SizedBox(height: AppSpace.md),
+        SizedBox(
           width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFFFFFFF), Color(0xFFF8FBFF)],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFD7E3F4)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1D4ED8).withValues(alpha: 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF59E0B), Color(0xFFEA580C)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.two_wheeler,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF16A34A),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
+                  const AdminIconBadge(icon: Icons.two_wheeler, size: 40),
+                  const SizedBox(width: AppSpace.md),
                   Expanded(
                     child: Text(
                       _tr(
                         'Auto-refreshing rider positions for active deliveries',
                       ),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
+                      style: AppText.bodyStrong,
                     ),
                   ),
-                  Text(
-                    '${allRiders.length} ${_tr('live')}',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  const SizedBox(width: AppSpace.sm),
+                  TonePill.success('${allRiders.length} ${_tr('live')}'),
                 ],
               ),
               const SizedBox(height: 8),
@@ -6160,55 +5636,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   _buildTrackingMetricPill(
                     icon: Icons.two_wheeler,
                     label: '${allRiders.length} rides live',
-                    backgroundColor: const Color(0xFFECFDF5),
-                    borderColor: const Color(0xFF86EFAC),
-                    textColor: const Color(0xFF166534),
+                    backgroundColor: AppColors.tint50,
+                    borderColor: AppColors.tint200,
+                    textColor: AppColors.success,
                   ),
                   _buildTrackingMetricPill(
                     icon: Icons.route_rounded,
                     label: '$totalTrailPoints route points',
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    borderColor: const Color(0xFFBFDBFE),
-                    textColor: const Color(0xFF1D4ED8),
+                    backgroundColor: AppColors.infoBg,
+                    borderColor: AppColors.infoBg,
+                    textColor: AppColors.info,
                   ),
                   _buildTrackingMetricPill(
                     icon: Icons.update_rounded,
                     label: _formatTrackerMoment(latestUpdate),
-                    backgroundColor: const Color(0xFFFFFBEB),
-                    borderColor: const Color(0xFFFCD34D),
-                    textColor: const Color(0xFFB45309),
+                    backgroundColor: AppColors.warningBg,
+                    borderColor: AppColors.warningBg,
+                    textColor: AppColors.warning,
                   ),
                   if (delayedRiders > 0)
                     _buildTrackingMetricPill(
                       icon: Icons.warning_amber_rounded,
                       label: '$delayedRiders delayed',
-                      backgroundColor: const Color(0xFFFEE2E2),
-                      borderColor: const Color(0xFFFCA5A5),
-                      textColor: const Color(0xFFB91C1C),
+                      backgroundColor: AppColors.dangerBg,
+                      borderColor: AppColors.dangerBg,
+                      textColor: AppColors.danger,
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFD7E3F4)),
-                ),
-                child: Text(
-                  _liveTrackerDebugSummary,
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF475569),
-                  ),
-                ),
-              ),
+              // Tracker diagnostics ("Orders n | Trackable n | Visible n")
+              // are for developers only.
+              if (kDebugMode) ...[
+                const SizedBox(height: 8),
+                Text(_liveTrackerDebugSummary, style: AppText.caption),
+              ],
               const SizedBox(height: 8),
               CheckboxListTile(
                 value: _showStandbyRiders,
@@ -6244,18 +5705,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   decoration: InputDecoration(
                     labelText: 'Select Ride',
                     filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
+                    fillColor: AppColors.surface2,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
                       vertical: 12,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFD7E3F4)),
+                      borderSide: const BorderSide(color: AppColors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: Color(0xFFD7E3F4)),
+                      borderSide: const BorderSide(color: AppColors.border),
                     ),
                   ),
                   items: [
@@ -6325,24 +5786,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ],
               if (allRiders.isEmpty)
                 Container(
-                  height: 220,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF8FAFC), Color(0xFFEFF6FF)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(color: const Color(0xFFD7E3F4)),
+                    color: AppColors.surface2,
+                    borderRadius: AppRadius.cardAll,
+                    border: Border.all(color: AppColors.border),
                   ),
-                  child: Center(
-                    child: Text(
-                      _tr('No riders are currently sharing live locations'),
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  child: EmptyState(
+                    compact: true,
+                    icon: Icons.location_off_rounded,
+                    title: _tr(
+                      'No riders are currently sharing live locations',
                     ),
+                    message:
+                        'Riders appear here while they are on a delivery.',
                   ),
                 )
               else
@@ -6611,7 +6067,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.94),
                             borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: const Color(0xFFD7E3F4)),
+                            border: Border.all(color: AppColors.border),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.08),
@@ -6761,7 +6217,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       const Icon(
                         Icons.two_wheeler,
                         size: 10,
-                        color: Color(0xFF0F766E),
+                        color: AppColors.ready,
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -6769,7 +6225,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF111827),
+                          color: AppColors.text,
                         ),
                       ),
                     ],
@@ -6815,7 +6271,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const LinearGradient(
-                  colors: [Color(0xFFFFA000), Color(0xFFFF6F00)],
+                  colors: [AppColors.primaryBright, AppColors.primary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -6876,7 +6332,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               width: 14,
               height: 14,
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981),
+                color: AppColors.primaryBright,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 1.2),
               ),
@@ -6935,7 +6391,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF111827),
+                        color: AppColors.text,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -6944,7 +6400,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B7280),
+                        color: AppColors.muted,
                       ),
                     ),
                   ],
@@ -6979,7 +6435,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
+              color: AppColors.text,
             ),
           ),
           const SizedBox(height: 4),
@@ -6990,7 +6446,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF6B7280),
+              color: AppColors.muted,
             ),
           ),
           const SizedBox(height: 14),
@@ -7001,7 +6457,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               _buildTrackingMetricPill(
                 icon: Icons.play_circle_outline_rounded,
                 label: 'Started ${_formatTrackerMoment(startedAt)}',
-                backgroundColor: const Color(0xFFFFFBEB),
+                backgroundColor: AppColors.warningBg,
                 borderColor: const Color(0xFFFDE68A),
                 textColor: const Color(0xFF92400E),
               ),
@@ -7010,7 +6466,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 label: 'Updated ${_formatTrackerMoment(updatedAt)}',
                 backgroundColor: const Color(0xFFEFF6FF),
                 borderColor: const Color(0xFFBFDBFE),
-                textColor: const Color(0xFF1D4ED8),
+                textColor: AppColors.info,
               ),
             ],
           ),
@@ -7041,14 +6497,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     : Icons.timelapse_rounded,
                 label: _formatTravelMinutes(travelMinutes),
                 backgroundColor: pickupWarning
-                    ? const Color(0xFFFEE2E2)
-                    : const Color(0xFFF8FAFC),
+                    ? AppColors.dangerBg
+                    : AppColors.surface2,
                 borderColor: pickupWarning
                     ? const Color(0xFFFCA5A5)
-                    : const Color(0xFFE5E7EB),
+                    : AppColors.border,
                 textColor: pickupWarning
-                    ? const Color(0xFFB91C1C)
-                    : const Color(0xFF1F2937),
+                    ? AppColors.danger
+                    : AppColors.text,
               ),
             ],
           ),
@@ -7060,9 +6516,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Widget _buildTrackingMetricPill({
     required IconData icon,
     required String label,
-    Color backgroundColor = const Color(0xFFF8FAFC),
-    Color borderColor = const Color(0xFFE5E7EB),
-    Color textColor = const Color(0xFF1F2937),
+    Color backgroundColor = AppColors.surface2,
+    Color borderColor = AppColors.border,
+    Color textColor = AppColors.text,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -7095,7 +6551,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required Color accentColor,
   }) {
     final riderName = (rider['riderName'] ?? 'Rider').toString();
-    final status = (rider['status'] ?? '').toString().replaceAll('_', ' ');
+    final status = _riderStatusLabel(rider['status']);
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 96),
       child: Column(
@@ -7208,7 +6664,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final riderName = (rider['riderName'] ?? 'Rider').toString();
     final orderNumber = (rider['orderNumber'] ?? '-').toString();
     final storeName = (rider['storeName'] ?? 'Unknown Store').toString();
-    final status = (rider['status'] ?? '').toString().replaceAll('_', ' ');
+    final status = _riderStatusLabel(rider['status']);
     final livePoint = _displayPointForRider(rider);
     final liveLocation = _liveLocationLabelForRider(rider);
     final trailPoints = _liveRiderTrails[trackingKey]?.length ?? 1;
@@ -7306,7 +6762,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: const Color(0xFFB45309)),
+          Icon(icon, size: 18, color: AppColors.warning),
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
@@ -7437,7 +6893,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               'Travel: ${_formatTravelMinutes(travelMinutes)}',
               style: TextStyle(
                 fontSize: 10.5,
-                color: pickupWarning ? const Color(0xFFB91C1C) : Colors.black54,
+                color: pickupWarning ? AppColors.danger : Colors.black54,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -7961,136 +7417,61 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Widget _buildQuickMenu(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final canViewRestrictedReports = _canViewRestrictedFinancialReports(
-      auth.user?.email,
-    );
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white70),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.store,
-              label: _tr('Stores'),
-              route: '/manage-stores',
-            ),
-            const SizedBox(width: 6),
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.shopping_bag,
-              label: _tr('Products'),
-              route: '/manage-products',
-            ),
-            const SizedBox(width: 6),
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.receipt_long,
-              label: _tr('Orders'),
-              onTap: _openManageOrdersForAssignment,
-            ),
-            if (canViewRestrictedReports) ...[
-              const SizedBox(width: 6),
-              _buildQuickMenuItem(
-                context: context,
-                icon: Icons.delivery_dining,
-                label: 'Rider Day',
-                onTap: _openAdminRiderDayPicker,
-              ),
-            ],
-            const SizedBox(width: 6),
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.inventory_2,
-              label: _tr('Inventory'),
-              route: '/inventory-report',
-            ),
-            const SizedBox(width: 6),
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.campaign,
-              label: _tr('Status'),
-              onTap: _openStoreStatusMessageDialog,
-            ),
-            const SizedBox(width: 6),
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.local_offer_outlined,
-              label: _tr('Offers'),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => OfferCampaignsScreen(isAdmin: true),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            _buildQuickMenuItem(
-              context: context,
-              icon: Icons.view_carousel_outlined,
-              label: _tr('Tile Demo'),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const CustomerTileDemoScreen(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 2),
-          ],
+    final showRiderDay = _showRiderDayEntry(auth.user?.email);
+    return AdminQuickMenuBar(
+      entries: [
+        AdminQuickMenuEntry(
+          icon: Icons.store_rounded,
+          label: _tr('Stores'),
+          onTap: () => Navigator.of(context).pushNamed('/manage-stores'),
         ),
-      ),
-    );
-  }
-
-  Widget _buildQuickMenuItem({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    String? route,
-    VoidCallback? onTap,
-  }) {
-    final VoidCallback handleTap =
-        onTap ?? () => Navigator.of(context).pushNamed(route!);
-    return InkWell(
-      onTap: handleTap,
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 50,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.indigo, size: 17),
-            const SizedBox(height: 1),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 8.5,
-              ),
-            ),
-          ],
+        AdminQuickMenuEntry(
+          icon: Icons.shopping_bag_rounded,
+          label: _tr('Products'),
+          onTap: () => Navigator.of(context).pushNamed('/manage-products'),
         ),
-      ),
+        AdminQuickMenuEntry(
+          icon: Icons.receipt_long_rounded,
+          label: _tr('Orders'),
+          onTap: _openManageOrdersForAssignment,
+        ),
+        if (showRiderDay)
+          AdminQuickMenuEntry(
+            icon: Icons.delivery_dining_rounded,
+            label: 'Rider Day',
+            onTap: _openAdminRiderDayPicker,
+          ),
+        AdminQuickMenuEntry(
+          icon: Icons.inventory_2_rounded,
+          label: _tr('Inventory'),
+          onTap: () => Navigator.of(context).pushNamed('/inventory-report'),
+        ),
+        AdminQuickMenuEntry(
+          icon: Icons.campaign_rounded,
+          label: _tr('Status'),
+          onTap: _openStoreStatusMessageDialog,
+        ),
+        AdminQuickMenuEntry(
+          icon: Icons.local_offer_rounded,
+          label: _tr('Offers'),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const OfferCampaignsScreen(isAdmin: true),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildActivityFilter() {
     return Row(
       children: [
-        _buildFilterChip('New Orders', 'orders'),
-        const SizedBox(width: 8),
-        _buildFilterChip('New Users', 'users'),
-        const SizedBox(width: 8),
-        _buildFilterChip('New Stores', 'stores'),
+        _buildFilterChip('New orders', 'orders'),
+        const SizedBox(width: AppSpace.sm),
+        _buildFilterChip('New users', 'users'),
+        const SizedBox(width: AppSpace.sm),
+        _buildFilterChip('New stores', 'stores'),
       ],
     );
   }
@@ -8104,16 +7485,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         if (!selected) return;
         setState(() => _selectedActivityType = value);
       },
-      selectedColor: Colors.indigo.withValues(alpha: 0.2),
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.indigo : Colors.grey[700],
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: isSelected ? Colors.indigo : Colors.grey[300]!),
-      ),
     );
   }
 
@@ -8136,107 +7507,97 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
 
     if (list.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text('No recent activity'),
-        ),
+      return EmptyState(
+        compact: true,
+        icon: _selectedActivityType == 'users'
+            ? Icons.person_add_alt_rounded
+            : Icons.storefront_rounded,
+        title: _selectedActivityType == 'users'
+            ? 'No new users'
+            : 'No new stores',
       );
     }
 
+    return _buildActivityListShell(
+      children: [
+        for (final activity in list) ...[
+          InkWell(
+            onTap: () => _showActivityDetails(activity),
+            child: _buildActivityItem(
+              title: activity['title'] ?? '',
+              subtitle: activity['subtitle'] ?? '',
+              icon: _getIconData(activity['icon']),
+              color: _getColor(activity['color']),
+            ),
+          ),
+          if (activity != list.last) const Divider(height: 1),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildActivityListShell({required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: AppRadius.controlAll,
+        border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        children: [
-          ...list.map((activity) {
-            return Column(
-              children: [
-                InkWell(
-                  onTap: () => _showActivityDetails(activity),
-                  child: _buildActivityItem(
-                    title: activity['title'] ?? '',
-                    subtitle: activity['subtitle'] ?? '',
-                    icon: _getIconData(activity['icon']),
-                    color: _getColor(activity['color']),
-                  ),
-                ),
-                if (activity != list.last) const Divider(height: 1),
-              ],
-            );
-          }),
-        ],
-      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
     );
   }
 
   Widget _buildNewOrdersList() {
     if (_assignableOrdersList.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text('No new orders to assign'),
-        ),
+      return const EmptyState(
+        compact: true,
+        icon: Icons.task_alt_rounded,
+        title: 'No orders waiting',
+        message: 'New orders that need a rider will show up here.',
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          ..._assignableOrdersList.map((raw) {
-            if (raw is! Map) return const SizedBox.shrink();
-            final order = raw.cast<String, dynamic>();
-            final id = int.tryParse((order['id'] ?? '').toString()) ?? 0;
-            final orderNo = (order['order_number'] ?? '#$id').toString();
-            final status = (order['status'] ?? 'pending').toString();
-            final riderId = int.tryParse((order['rider_id'] ?? '').toString());
-            final total =
-                double.tryParse((order['total_amount'] ?? '0').toString()) ?? 0;
-            final subtitle =
-                'PKR ${total.toStringAsFixed(0)} | ${riderId == null ? "Unassigned" : "Assigned"} | $status';
+    return _buildActivityListShell(
+      children: [
+        ..._assignableOrdersList.map((raw) {
+          if (raw is! Map) return const SizedBox.shrink();
+          final order = raw.cast<String, dynamic>();
+          final id = int.tryParse((order['id'] ?? '').toString()) ?? 0;
+          final orderNo = (order['order_number'] ?? '#$id').toString();
+          final status = (order['status'] ?? 'pending').toString();
+          final riderId = int.tryParse((order['rider_id'] ?? '').toString());
+          final total =
+              double.tryParse((order['total_amount'] ?? '0').toString()) ?? 0;
+          final created = _formatOrderDateLabel(order['created_at']);
+          final subtitle = [
+            Fmt.money(total),
+            riderId == null ? 'No rider yet' : 'Rider assigned',
+            if (created != '-') created,
+          ].join(' · ');
 
-            return Column(
-              children: [
-                InkWell(
-                  onTap: id > 0
-                      ? () => _openOrderAssignmentDialog({
-                          'type': 'order',
-                          'order_id': id,
-                        })
-                      : null,
-                  child: _buildActivityItem(
-                    title: 'Order $orderNo',
-                    subtitle: subtitle,
-                    icon: Icons.receipt_long,
-                    color: riderId == null ? Colors.orange : Colors.blue,
-                  ),
+          return Column(
+            children: [
+              InkWell(
+                onTap: id > 0
+                    ? () => _openOrderAssignmentDialog({
+                        'type': 'order',
+                        'order_id': id,
+                      })
+                    : null,
+                child: _buildActivityItem(
+                  title: 'Order $orderNo',
+                  subtitle: subtitle,
+                  icon: Icons.receipt_long_rounded,
+                  color: riderId == null ? AppColors.warning : AppColors.primary,
+                  trailing: StatusPill(status: status, dense: true),
                 ),
-                if (raw != _assignableOrdersList.last) const Divider(height: 1),
-              ],
-            );
-          }),
-        ],
-      ),
+              ),
+              if (raw != _assignableOrdersList.last) const Divider(height: 1),
+            ],
+          );
+        }),
+      ],
     );
   }
 
@@ -8245,16 +7606,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     required String subtitle,
     required IconData icon,
     required Color color,
+    Widget? trailing,
   }) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       leading: CircleAvatar(
         backgroundColor: color.withValues(alpha: 0.12),
-        child: Icon(icon, color: color),
+        child: Icon(icon, color: color, size: 20),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600])),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppText.bodyStrong,
+      ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: AppText.small,
+      ),
+      trailing:
+          trailing ??
+          const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
     );
   }
 
@@ -8274,13 +7648,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   Color _getColor(String? colorName) {
     switch (colorName) {
       case 'blue':
-        return Colors.blue;
+        return AppColors.info;
       case 'green':
-        return Colors.green;
+        return AppColors.primary;
       case 'orange':
-        return Colors.orange;
+        return AppColors.warning;
       default:
-        return Colors.grey;
+        return AppColors.muted;
     }
   }
 
@@ -8381,7 +7755,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           return StatefulBuilder(
             builder: (ctx, setModalState) {
               return AlertDialog(
-                title: Text('Order #$orderNumber Assignment'),
+                title: Text('Order #$orderNumber'),
                 content: SizedBox(
                   width: 420,
                   child: SingleChildScrollView(
@@ -8390,7 +7764,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Total: PKR ${totalAmount.toStringAsFixed(2)}',
+                          'Total: ${Fmt.money(totalAmount)}',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
@@ -8441,7 +7815,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               .map(
                                 (s) => DropdownMenuItem<String>(
                                   value: s,
-                                  child: Text(s),
+                                  child: Text(
+                                    s == 'ready_for_pickup'
+                                        ? 'Ready for pickup'
+                                        : adminStatusLabel(s),
+                                  ),
                                 ),
                               )
                               .toList(),
@@ -8682,7 +8060,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 final showResetOrders = _canResetTerminalOrders(
                   authProvider.user?.email,
                 );
-                final dateText = _dateKey(selectedOrderDate);
 
                 Widget orderTile(
                   Map<String, dynamic> order, {
@@ -8704,9 +8081,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         leading: CircleAvatar(
                           backgroundColor: terminal
                               ? (isCancelled
-                                    ? const Color(0x1ADC2626)
-                                    : const Color(0x1A16A34A))
-                              : const Color(0x1AF57C00),
+                                    ? AppColors.dangerBg
+                                    : AppColors.successBg)
+                              : AppColors.warningBg,
                           child: Icon(
                             terminal
                                 ? (isCancelled
@@ -8714,16 +8091,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                       : Icons.check_circle_outline)
                                 : Icons.receipt_long,
                             color: terminal
-                                ? (isCancelled ? Colors.red : Colors.green)
-                                : Colors.orange,
+                                ? (isCancelled
+                                      ? AppColors.danger
+                                      : AppColors.success)
+                                : AppColors.warning,
                           ),
                         ),
                         title: Text(
                           'Order $orderNo',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: AppText.bodyStrong,
                         ),
                         subtitle: Text(
-                          'PKR ${total.toStringAsFixed(0)} | $status | $createdAt',
+                          '${Fmt.money(total)} · $createdAt',
+                          style: AppText.small,
                         ),
                         trailing: terminal
                             ? TextButton.icon(
@@ -8736,7 +8116,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                 icon: const Icon(Icons.undo, size: 18),
                                 label: const Text('Reset'),
                               )
-                            : const Icon(Icons.chevron_right),
+                            : StatusPill(status: status, dense: true),
                         onTap: id <= 0
                             ? null
                             : () => _showAdminOrderDetails(
@@ -8751,7 +8131,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 }
 
                 return Scaffold(
-                  backgroundColor: Colors.white,
+                  backgroundColor: AppColors.surface,
                   body: SafeArea(
                     child: Column(
                       children: [
@@ -8759,16 +8139,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           padding: const EdgeInsets.fromLTRB(16, 14, 10, 8),
                           child: Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Manage Orders',
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                                  style: AppText.h2,
                                 ),
                               ),
                               IconButton(
+                                tooltip: 'Close',
                                 onPressed: () => Navigator.of(ctx).pop(),
                                 icon: const Icon(Icons.close),
                               ),
@@ -8782,8 +8160,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               TextField(
                                 controller: orderSearchController,
                                 decoration: InputDecoration(
-                                  labelText:
-                                      'Search loaded date by order number / ID',
+                                  hintText: 'Search by order number or ID',
                                   prefixIcon: const Icon(Icons.search),
                                   suffixIcon: orderSearchController.text.isEmpty
                                       ? null
@@ -8794,8 +8171,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                             setPageState(() {});
                                           },
                                         ),
-                                  border: const OutlineInputBorder(),
-                                  isDense: true,
                                 ),
                                 onChanged: (_) => setPageState(() {}),
                               ),
@@ -8834,7 +8209,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                         Icons.calendar_today,
                                         size: 18,
                                       ),
-                                      label: Text('Date: $dateText'),
+                                      label: Text(Fmt.date(selectedOrderDate)),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
@@ -8858,14 +8233,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           const LinearProgressIndicator(minHeight: 2),
                         Expanded(
                           child: loadError != null
-                              ? Center(
-                                  child: Text(
-                                    'Failed to load orders: $loadError',
+                              ? EmptyState(
+                                  isError: true,
+                                  icon: Icons.cloud_off_rounded,
+                                  title: 'Could not load orders',
+                                  message: 'Check the connection and try again.',
+                                  actionLabel: 'Retry',
+                                  actionIcon: Icons.refresh_rounded,
+                                  onAction: () => loadOrdersForDate(
+                                    selectedOrderDate,
+                                    setPageState,
                                   ),
                                 )
                               : filteredOrders.isEmpty && !isLoadingOrders
-                              ? Center(
-                                  child: Text('No orders found for $dateText'),
+                              ? EmptyState(
+                                  icon: Icons.receipt_long_rounded,
+                                  title: 'No orders on ${Fmt.date(selectedOrderDate)}',
+                                  message: 'Pick another date to see its orders.',
                                 )
                               : ListView(
                                   children: [
@@ -8964,60 +8348,5 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       '${activity['title'] ?? "Activity Details"}\n$detailsStr',
       duration: const Duration(seconds: 5),
     );
-  }
-}
-
-class _SimpleTrendPainter extends CustomPainter {
-  _SimpleTrendPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withValues(alpha: 0.24), color.withValues(alpha: 0.02)],
-      ).createShader(Offset.zero & size);
-
-    final strokePaint = Paint()
-      ..color = color
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final points = <Offset>[
-      Offset(size.width * 0.05, size.height * 0.72),
-      Offset(size.width * 0.26, size.height * 0.44),
-      Offset(size.width * 0.46, size.height * 0.56),
-      Offset(size.width * 0.66, size.height * 0.74),
-      Offset(size.width * 0.84, size.height * 0.48),
-      Offset(size.width * 0.95, size.height * 0.18),
-    ];
-
-    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
-    for (var i = 1; i < points.length; i++) {
-      linePath.lineTo(points[i].dx, points[i].dy);
-    }
-
-    final fillPath = Path.from(linePath)
-      ..lineTo(points.last.dx, size.height)
-      ..lineTo(points.first.dx, size.height)
-      ..close();
-
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(linePath, strokePaint);
-
-    final pointPaint = Paint()..color = color;
-    for (final point in points) {
-      canvas.drawCircle(point, 3.5, pointPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SimpleTrendPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }
