@@ -165,8 +165,8 @@ class CustomerLanguage {
       'Full name is too short': 'پورا نام بہت مختصر ہے',
       'Email is required': 'ای میل ضروری ہے',
       'Password is required': 'پاس ورڈ ضروری ہے',
-      'Password must be at least 6 characters':
-          'پاس ورڈ کم از کم 6 حروف پر مشتمل ہو',
+      'Password must be at least 8 characters':
+          'پاس ورڈ کم از کم 8 حروف پر مشتمل ہو',
       'Date of Birth': 'تاریخ پیدائش',
       'Date of birth is required': 'تاریخ پیدائش ضروری ہے',
       'Phone number is required': 'فون نمبر ضروری ہے',

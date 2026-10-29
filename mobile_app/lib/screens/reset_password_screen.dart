@@ -135,7 +135,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       autofillHints: const [AutofillHints.newPassword],
                       decoration: InputDecoration(
                         labelText: _tr('New Password'),
-                        helperText: _tr('At least 6 characters'),
+                        helperText: _tr('At least 8 characters'),
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: _toggle(
                           _obscurePassword,
@@ -148,8 +148,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         if (value == null || value.isEmpty) {
                           return _tr('Please enter password');
                         }
-                        if (value.length < 6) {
-                          return _tr('Minimum 6 characters');
+                        if (value.length < 8) {
+                          return _tr('Minimum 8 characters');
                         }
                         return null;
                       },

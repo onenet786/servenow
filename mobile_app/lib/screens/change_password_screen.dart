@@ -130,7 +130,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           Expanded(
                             child: Text(
                               _tr(
-                                'Use at least 6 characters. A mix of letters and numbers is safer.',
+                                'Use at least 8 characters. A mix of letters and numbers is safer.',
                               ),
                               style: AppText.small,
                             ),
@@ -178,8 +178,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           if (value == null || value.isEmpty) {
                             return _tr('Please enter new password');
                           }
-                          if (value.length < 6) {
-                            return _tr('Password must be at least 6 characters');
+                          if (value.length < 8) {
+                            return _tr('Password must be at least 8 characters');
                           }
                           return null;
                         },

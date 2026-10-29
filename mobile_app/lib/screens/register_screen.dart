@@ -211,7 +211,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       autofillHints: const [AutofillHints.newPassword],
                       decoration: InputDecoration(
                         labelText: _tr('Password'),
-                        helperText: _tr('At least 6 characters'),
+                        helperText: _tr('At least 8 characters'),
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
                           tooltip: _obscurePassword
@@ -232,8 +232,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (trimmed.isEmpty) {
                           return _tr('Password is required');
                         }
-                        if (trimmed.length < 6) {
-                          return _tr('Password must be at least 6 characters');
+                        if (trimmed.length < 8) {
+                          return _tr('Password must be at least 8 characters');
                         }
                         return null;
                       },

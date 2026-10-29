@@ -19,7 +19,7 @@ const Map<String, String> urAuth = <String, String>{
   // Register
   'Create account': 'اکاؤنٹ بنائیں',
   'It takes less than a minute.': 'اس میں ایک منٹ سے بھی کم وقت لگتا ہے۔',
-  'At least 6 characters': 'کم از کم 6 حروف',
+  'At least 8 characters': 'کم از کم 8 حروف',
   'Select date of birth': 'تاریخ پیدائش منتخب کریں',
   'Cancel': 'منسوخ',
   'Select': 'منتخب کریں',
@@ -47,7 +47,7 @@ const Map<String, String> urAuth = <String, String>{
   'Confirm Password': 'پاس ورڈ کی تصدیق کریں',
   'Confirm New Password': 'نئے پاس ورڈ کی تصدیق کریں',
   'Current Password': 'موجودہ پاس ورڈ',
-  'Minimum 6 characters': 'کم از کم 6 حروف',
+  'Minimum 8 characters': 'کم از کم 8 حروف',
   'Please confirm password': 'براہ کرم پاس ورڈ کی تصدیق کریں',
   'Please enter current password': 'براہ کرم موجودہ پاس ورڈ درج کریں',
   'Please enter new password': 'براہ کرم نیا پاس ورڈ درج کریں',
@@ -55,6 +55,6 @@ const Map<String, String> urAuth = <String, String>{
   'Password reset successfully!': 'پاس ورڈ کامیابی سے ری سیٹ ہو گیا!',
   'Password changed successfully': 'پاس ورڈ کامیابی سے تبدیل ہو گیا',
   'Update Password': 'پاس ورڈ اپ ڈیٹ کریں',
-  'Use at least 6 characters. A mix of letters and numbers is safer.':
-      'کم از کم 6 حروف استعمال کریں۔ حروف اور ہندسوں کا مجموعہ زیادہ محفوظ ہے۔',
+  'Use at least 8 characters. A mix of letters and numbers is safer.':
+      'کم از کم 8 حروف استعمال کریں۔ حروف اور ہندسوں کا مجموعہ زیادہ محفوظ ہے۔',
 };
