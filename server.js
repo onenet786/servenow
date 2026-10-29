@@ -458,10 +458,16 @@ const staticAssetOptions = {
 
 // Only serve image files from /uploads, so any non-image uploaded before
 // signature checks existed (e.g. .html/.svg) can never render on this origin.
+// .jfif (a JPEG saved by Windows/phones) and .avif are not in the static MIME
+// table, so set their type explicitly: with nosniff, browsers would refuse them.
+const UPLOAD_IMAGE_TYPES = { jfif: "image/jpeg", avif: "image/avif" };
 app.use("/uploads", (req, res, next) => {
-  if (!/\.(jpe?g|png|gif|webp)$/i.test(req.path)) {
+  const match = /\.(jpe?g|jfif|png|gif|webp|avif|bmp)$/i.exec(req.path);
+  if (!match) {
     return res.status(404).end();
   }
+  const explicitType = UPLOAD_IMAGE_TYPES[match[1].toLowerCase()];
+  if (explicitType) res.setHeader("Content-Type", explicitType);
   next();
 });
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), staticMediaOptions));

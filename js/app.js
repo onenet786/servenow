@@ -2172,7 +2172,22 @@ function validateForm(formId) {
 }
 
 function logout() {
+  // The auth keys live in sessionStorage (see the storage shim at the top of
+  // this file), which localStorage.clear() does not touch: remove them
+  // explicitly or the login page sends the user straight back in.
+  try {
+    localStorage.removeItem("serveNowToken");
+    localStorage.removeItem("serveNowUser");
+    sessionStorage.removeItem("serveNowToken");
+    sessionStorage.removeItem("serveNowUser");
+  } catch (_) {}
   localStorage.clear();
+  // Don't let Google sign the same account back in automatically.
+  try {
+    if (window.google && google.accounts && google.accounts.id) {
+      google.accounts.id.disableAutoSelect();
+    }
+  } catch (_) {}
   window.location.href = "login.html";
 }
 
