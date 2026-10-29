@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/notification_provider.dart' as app_notif;
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import 'ui/ui.dart';
 
 class NotificationBellWidget extends StatefulWidget {
   const NotificationBellWidget({super.key});
@@ -35,7 +36,10 @@ class _NotificationBellWidgetState extends State<NotificationBellWidget> {
             onTap: () {},
             child: Material(
               elevation: 8,
-              borderRadius: BorderRadius.circular(12),
+              color: AppColors.surface,
+              shadowColor: const Color(0x33111827),
+              borderRadius: AppRadius.cardAll,
+              clipBehavior: Clip.antiAlias,
               child: _NotificationPanel(
                 onClose: _hideNotificationPanel,
               ),
@@ -94,8 +98,9 @@ class _NotificationBellWidgetState extends State<NotificationBellWidget> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.red,
+                          color: AppColors.danger,
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.surface, width: 1.5),
                         ),
                         constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
                         child: Center(
@@ -103,8 +108,9 @@ class _NotificationBellWidgetState extends State<NotificationBellWidget> {
                             unreadCount > 99 ? '99+' : unreadCount.toString(),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: AppText.tabular,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -177,75 +183,57 @@ class _NotificationPanelState extends State<_NotificationPanel> {
         return Container(
           constraints: const BoxConstraints(maxHeight: 500),
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.surface,
+            borderRadius: AppRadius.cardAll,
+            border: Border.all(color: AppColors.border),
           ),
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 8, 10),
+                decoration: const BoxDecoration(
                   border: Border(
-                    bottom: BorderSide(
-                      color: Colors.grey[300]!,
-                    ),
+                    bottom: BorderSide(color: AppColors.border),
                   ),
                 ),
                 child: Row(
                   children: [
-                    const SizedBox(width: 40),
-                    const Expanded(
-                      child: Text(
-                        'Notifications',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    Expanded(
+                      child: Semantics(
+                        header: true,
+                        child: Text('Notifications', style: AppText.title),
                       ),
                     ),
                     if (notifications.isNotEmpty)
                       IconButton(
-                        icon: const Icon(Icons.delete_sweep),
+                        icon: const Icon(
+                          Icons.delete_sweep_outlined,
+                          color: AppColors.text2,
+                        ),
                         onPressed: () {
                           notificationProvider.clearNotifications();
                           widget.onClose();
                         },
                         tooltip: 'Clear all',
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                        padding: EdgeInsets.zero,
                       ),
-                    if (notifications.isEmpty) const SizedBox(width: 40),
+                    if (notifications.isEmpty) const SizedBox(height: 40),
                   ],
                 ),
               ),
               Expanded(
                 child: notifications.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.notifications_none,
-                              size: 48,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No notifications',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
+                    ? const SingleChildScrollView(
+                        child: EmptyState(
+                          compact: true,
+                          icon: Icons.notifications_none_rounded,
+                          title: 'No notifications',
+                          message:
+                              'Order updates and offers will show up here.',
                         ),
                       )
                     : ListView.builder(
                         shrinkWrap: true,
+                        padding: EdgeInsets.zero,
                         itemCount: notifications.length,
                         itemBuilder: (context, index) {
                           final notification = notifications[index];
@@ -329,14 +317,28 @@ class _NotificationItemState extends State<_NotificationItem> {
   Color _getIconColor(String type) {
     switch (type) {
       case 'success':
-        return Colors.green;
+        return AppColors.success;
       case 'error':
-        return Colors.red;
+        return AppColors.danger;
       case 'warning':
-        return Colors.orange;
+        return AppColors.warning;
       case 'info':
       default:
-        return Colors.blue;
+        return AppColors.primaryPressed;
+    }
+  }
+
+  Color _getIconBackground(String type) {
+    switch (type) {
+      case 'success':
+        return AppColors.successBg;
+      case 'error':
+        return AppColors.dangerBg;
+      case 'warning':
+        return AppColors.warningBg;
+      case 'info':
+      default:
+        return AppColors.tint100;
     }
   }
 
@@ -351,7 +353,7 @@ class _NotificationItemState extends State<_NotificationItem> {
     } else if (difference.inHours < 24) {
       return '${difference.inHours}h ago';
     } else {
-      return '${difference.inDays}d ago';
+      return Fmt.dateTime(dateTime);
     }
   }
 
@@ -390,7 +392,11 @@ class _NotificationItemState extends State<_NotificationItem> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to mute alert: $e')),
+        SnackBar(
+          content: Text(
+            'Failed to mute alert: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isMuting = false);
@@ -476,7 +482,7 @@ class _NotificationItemState extends State<_NotificationItem> {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: Colors.blue,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -484,19 +490,15 @@ class _NotificationItemState extends State<_NotificationItem> {
           )
         : const SizedBox.shrink();
 
-    return GestureDetector(
+    return InkWell(
       onTap: widget.onTap,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Colors.grey[200]!,
-            ),
+          border: const Border(
+            bottom: BorderSide(color: AppColors.border),
           ),
-          color: notification.unread
-              ? Colors.blue[50]
-              : Colors.transparent,
+          color: notification.unread ? AppColors.tint50 : Colors.transparent,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,13 +506,13 @@ class _NotificationItemState extends State<_NotificationItem> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _getIconColor(notification.type).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                color: _getIconBackground(notification.type),
+                shape: BoxShape.circle,
               ),
               child: Icon(
                 _getIconData(notification.icon),
                 color: _getIconColor(notification.type),
-                size: 24,
+                size: 20,
               ),
             ),
             const SizedBox(width: 12),
@@ -520,11 +522,10 @@ class _NotificationItemState extends State<_NotificationItem> {
                 children: [
                   Text(
                     notification.title,
-                    style: TextStyle(
+                    style: AppText.bodyStrong.copyWith(
                       fontWeight: notification.unread
-                          ? FontWeight.bold
+                          ? FontWeight.w700
                           : FontWeight.w600,
-                      fontSize: 14,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -532,20 +533,14 @@ class _NotificationItemState extends State<_NotificationItem> {
                   const SizedBox(height: 4),
                   Text(
                     notification.message,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                    maxLines: 2,
+                    style: AppText.small,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _getTimeAgo(notification.timestamp),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[500],
-                    ),
+                    style: AppText.caption,
                   ),
                 ],
               ),

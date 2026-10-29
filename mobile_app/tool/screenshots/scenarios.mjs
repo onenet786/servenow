@@ -43,20 +43,24 @@ export const ROLES = {
 //    them can be reached; all other writes are blocked by capture.mjs
 // Steps: see runSteps() in capture.mjs.
 //
-// Coordinates (CSS px in the 390x844 viewport) are used only where the widget
-// has no semantics label (customer dashboard hamburger, top-bar cart and its
-// custom bottom nav). Update them if the redesign moves those widgets.
-const DASH_MENU = 'xy:28,48';
-const DASH_CART = 'xy:357,48';
-const DASH_STORES_TAB = 'xy:149,815';
-const DASH_ORDERS_TAB = 'xy:241,815';
-// The auto-scrolling Featured carousel also contains store names, so a store is opened by
-// searching for it and tapping the single remaining "View" button (works in EN and UR).
-const OPEN_STORE = ['xy:195,470', 'type:Imran', 'wait:1000', 'tapx:View'];
-// Urdu is RTL: the dashboard top bar and bottom nav are mirrored.
-const UR_MENU = 'xy:362,48';
-const UR_CART = 'xy:33,48';
-const UR_ORDERS_TAB = 'xy:149,815';
+// The customer home (redesign 2026-10-29) has semantics labels on every
+// control, so no coordinate taps are needed any more:
+//   top bar: "Menu" (quick actions), "Language", "Notifications", "Open cart"
+//   bottom nav: Home, Stores, Cart, Orders, Account (tapx = exact label)
+const DASH_MENU = 'tap:Menu';
+const DASH_CART = 'tap:Open cart';
+const DASH_STORES_TAB = 'tapx:Stores';
+const DASH_ORDERS_TAB = 'tapx:Orders';
+const DASH_ACCOUNT_TAB = 'tapx:Account';
+// A store is opened by searching for it; while searching only the results list
+// is shown, so the store card label is unique.
+const OPEN_STORE = ['tap:Search stores or areas', 'type:Imran', 'wait:1000', 'tap:Imran Broast'];
+// Urdu (RTL) labels for the same controls.
+const UR_MENU = 'tap:مینو';
+const UR_CART = 'tap:کارٹ کھولیں';
+const UR_ORDERS_TAB = 'tapx:آرڈرز';
+const UR_ACCOUNT_TAB = 'tapx:اکاؤنٹ';
+const UR_OPEN_STORE = ['tap:دکان یا علاقہ تلاش کریں', 'type:Imran', 'wait:1000', 'tap:Imran Broast'];
 const OK_MOCK = { success: true, message: 'ok (mocked by screenshot tool)' };
 
 // Urdu labels (from lib/utils/customer_language.dart) for taps in customer_ur
@@ -72,7 +76,7 @@ SCENARIOS.guest = [
   { name: '01_splash', session: 'customer', raw: true, bootWait: 0, wait: 0 },
   { name: '02_login', session: 'guest_anon' },
   { name: '03_login_language_sheet', session: 'guest_anon', steps: ['tapx:EN'] },
-  { name: '04_login_validation_errors', session: 'guest_anon', steps: ['tapx:LOGIN'] },
+  { name: '04_login_validation_errors', session: 'guest_anon', steps: ['tapx:Log in'] },
   { name: '05_register', session: 'guest_anon', steps: ['tap:Register Here'] },
   { name: '06_register_scrolled', session: 'guest_anon', steps: ['tap:Register Here', 'scroll:700'] },
   { name: '07_register_dob_picker', session: 'guest_anon', steps: ['tap:Register Here', 'tap:Date of Birth'] },
@@ -84,11 +88,11 @@ SCENARIOS.guest = [
   { name: '09_forgot_password', session: 'guest_anon', steps: ['tap:Forgot Password?'] },
   { name: '10_reset_otp', session: 'guest_anon',
     mock: { 'POST /api/auth/forgot-password': OK_MOCK },
-    steps: ['tap:Forgot Password?', 'tap:Email', 'type:demo.customer@example.com', 'tap:SEND CODE'] },
+    steps: ['tap:Forgot Password?', 'tap:Email', 'type:demo.customer@example.com', 'tap:Send code'] },
   { name: '11_reset_password', session: 'guest_anon',
     mock: { 'POST /api/auth/forgot-password': OK_MOCK, 'POST /api/auth/verify-reset-otp': { success: true, reset_token: 'mock-token' } },
-    steps: ['tap:Forgot Password?', 'tap:Email', 'type:demo.customer@example.com', 'tap:SEND CODE', 'wait:1500',
-      'tap:000000', 'type:123456', 'tap:VERIFY OTP'] },
+    steps: ['tap:Forgot Password?', 'tap:Email', 'type:demo.customer@example.com', 'tap:Send code', 'wait:1500',
+      'tap:000000', 'type:123456', 'tap:Verify code'] },
   { name: '12_guest_home' },
   { name: '13_guest_menu', steps: [DASH_MENU] },
   { name: '14_guest_store', steps: [...OPEN_STORE], expect: 'Store Details' },
@@ -101,42 +105,46 @@ SCENARIOS.customer = [
   { name: '01_home', wait: 3500 },
   { name: '02_home_scrolled', steps: ['scroll:900'] },
   { name: '03_quick_actions_menu', steps: [DASH_MENU] },
-  { name: '04_language_sheet', steps: ['tapx:EN'] },
-  { name: '05_contact_us', steps: ['tapx:Contact Us'] },
+  { name: '04_language_sheet', steps: ['tap:Language'] },
+  { name: '05_contact_us', steps: [DASH_MENU, 'tap:Contact Us'] },
   { name: '06_notifications', steps: ['tapx:Notifications'] },
-  { name: '07_stores_tab_noop', steps: [DASH_STORES_TAB] },
-  { name: '08_search_stores', steps: ['tap:Search store by name or area', 'type:broast', 'wait:800'] },
+  { name: '07_stores_tab', steps: [DASH_STORES_TAB] },
+  { name: '08_search_stores', steps: ['tap:Search stores or areas', 'type:broast', 'wait:800'] },
   { name: '09_store', steps: [...OPEN_STORE], expect: 'Store Details' },
   { name: '10_store_products', steps: [...OPEN_STORE, 'scroll:700'], expect: 'Store Details' },
   { name: '11_product_detail', steps: [...OPEN_STORE, 'tap:Chicken Chest Broast'], expect: 'Add to Cart', wait: 6000 },
   { name: '12_product_detail_scrolled', steps: [...OPEN_STORE, 'tap:Chicken Chest Broast', 'wait:4000', 'scroll:600'] },
   { name: '13_cart', steps: [DASH_CART] },
-  { name: '14_clear_cart_dialog', steps: [DASH_CART, 'xy:357,28'] },
+  { name: '14_clear_cart_dialog', steps: [DASH_CART, 'tap:Clear Cart?'] },
   { name: '15_checkout', steps: [DASH_CART, 'tap:Proceed to Checkout'] },
   { name: '16_checkout_payment', steps: [DASH_CART, 'tap:Proceed to Checkout', 'scroll:700'] },
   { name: '17_orders', steps: [DASH_ORDERS_TAB] },
   { name: '18_orders_history_filter', steps: [DASH_ORDERS_TAB, 'tapx:History'] },
-  { name: '19_order_details', steps: ['tap:My Orders', 'tapx:View details'] },
-  { name: '20_order_details_actions', steps: ['tap:My Orders', 'tapx:View details', 'scroll:800'] },
-  { name: '21_track_order', steps: ['tap:My Orders', 'tapx:View details', 'tap:Track Order'] },
-  { name: '22_order_contact_support', steps: ['tap:My Orders', 'tapx:View details', 'tap:Contact Support'] },
+  { name: '19_order_details', steps: [DASH_ORDERS_TAB, 'tapx:View details'] },
+  { name: '20_order_details_actions', steps: [DASH_ORDERS_TAB, 'tapx:View details', 'scroll:800'] },
+  { name: '21_track_order', steps: [DASH_ORDERS_TAB, 'tapx:View details', 'wait:1500', 'scroll:2500', 'tap:Track Order'] },
+  { name: '22_order_contact_support', steps: [DASH_ORDERS_TAB, 'tapx:View details', 'wait:1500', 'scroll:2500', 'tap:Contact Support'] },
   { name: '23_change_password', steps: [DASH_MENU, 'tap:Change Password'] },
+  { name: '24_account', steps: [DASH_ACCOUNT_TAB] },
+  { name: '25_store_add_item', steps: [...OPEN_STORE, 'wait:2500', 'scroll:400', 'wait:800', 'tapx:Add Chicken Leg Piece'], wait: 1500 },
 ];
 
 SCENARIOS.customer_ur = [
   { name: '01_home', wait: 3500 },
   { name: '02_home_scrolled', steps: ['scroll:900'] },
   { name: '03_quick_actions_menu', steps: [UR_MENU] },
-  { name: '04_language_sheet', steps: ['tapx:اردو'] },
+  { name: '04_language_sheet', steps: ['tap:زبان'] },
   { name: '05_login_urdu', session: 'guest_anon_ur' },
-  { name: '06_store', steps: [...OPEN_STORE] },
-  { name: '07_product_detail', steps: [...OPEN_STORE, 'tap:Chicken Chest Broast'], wait: 6000 },
+  { name: '06_store', steps: [...UR_OPEN_STORE] },
+  { name: '07_product_detail', steps: [...UR_OPEN_STORE, 'tap:Chicken Chest Broast'], wait: 6000 },
   { name: '08_cart', steps: [UR_CART] },
   { name: '09_checkout', steps: [UR_CART, `tap:${UR.checkout}`] },
   { name: '10_checkout_payment', steps: [UR_CART, `tap:${UR.checkout}`, 'scroll:700'] },
   { name: '11_orders', steps: [UR_ORDERS_TAB] },
   { name: '12_order_details', steps: [UR_ORDERS_TAB, `tapx:${UR.viewDetails}`] },
-  { name: '13_change_password_not_translated', steps: [UR_MENU, `tap:${UR.changePassword}`] },
+  { name: '13_change_password', steps: [UR_MENU, `tap:${UR.changePassword}`] },
+  { name: '14_account', steps: [UR_ACCOUNT_TAB] },
+  { name: '15_stores_tab', steps: ['tapx:دکانیں'] },
 ];
 
 SCENARIOS.rider = [

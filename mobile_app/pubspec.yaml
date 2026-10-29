@@ -52,6 +52,8 @@ dependencies:
   package_info_plus: ^9.0.1
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
+  cached_network_image: ^3.4.1
+  in_app_review: ^2.0.12
 
 dev_dependencies:
   flutter_test:
@@ -93,6 +95,27 @@ flutter:
     - assets/icon/servenow_brand_logo_v2.png
     - assets/images/pizza.jpg
     - assets/images/login.png
+
+  # Bundled fonts (no runtime downloads). Licences: assets/fonts/OFL-*.txt
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
+    - family: NotoNastaliqUrdu
+      fonts:
+        - asset: assets/fonts/NotoNastaliqUrdu-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/NotoNastaliqUrdu-Bold.ttf
+          weight: 700
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 

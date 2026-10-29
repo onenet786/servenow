@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../models/cart_item.dart';
 import '../providers/cart_provider.dart';
 import '../services/api_service.dart';
 import 'package:servenow/services/notifier.dart';
-import '../theme/customer_palette.dart';
+import '../utils/cart_counts.dart';
 import '../utils/customer_language.dart';
+import '../widgets/ui/ui.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
@@ -194,6 +196,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return [...sameCategory, ...otherCategory];
   }
 
+  /// True when the text is mostly Latin (e.g. an English description shown
+  /// in Urdu mode) so punctuation does not flip.
+  bool _isMostlyLatin(String text) {
+    var latin = 0;
+    var arabic = 0;
+    for (final rune in text.runes) {
+      if ((rune >= 0x41 && rune <= 0x5A) || (rune >= 0x61 && rune <= 0x7A)) {
+        latin++;
+      } else if (rune >= 0x0600 && rune <= 0x06FF) {
+        arabic++;
+      }
+    }
+    return latin >= arabic;
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasPromo =
@@ -212,603 +229,206 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final totalPrice = _currentEffectivePrice * _quantity;
     final isStoreOpen = widget.isOpen;
     final canAddToCart =
-        isStoreOpen && !widget.isGlobalBlocked && widget.product.isCurrentlyAvailable && _availableStock > 0;
+        isStoreOpen &&
+        !widget.isGlobalBlocked &&
+        widget.product.isCurrentlyAvailable &&
+        _availableStock > 0;
 
     final relatedItems = _relatedProducts;
+    final units = context.select<CartProvider, int>((c) => c.totalUnits);
+    final storeName = (widget.store['name'] ?? '').toString();
 
-    return Directionality(
-      textDirection: CustomerLanguage.textDirection(_isUrdu),
+    return LanguageScope(
+      isUrdu: _isUrdu,
       child: Scaffold(
-        backgroundColor: CustomerPalette.background,
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: CustomerPalette.background,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          surfaceTintColor: Colors.transparent,
-          foregroundColor: CustomerPalette.textDark,
           title: Text(
-            widget.product.name,
+            storeName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
-              color: CustomerPalette.textDark,
-            ),
+            style: AppText.title,
           ),
           actions: [
-            Consumer<CartProvider>(
-              builder: (ctx, cart, child) => Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.95),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: CustomerPalette.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.shopping_cart_outlined),
-                      color: CustomerPalette.textDark,
-                      onPressed: () {
-                        Navigator.of(context).pushNamed('/cart');
-                      },
-                    ),
-                  ),
-                  if (cart.itemCount > 0)
-                    Positioned(
-                      right: 10,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: CustomerPalette.primary,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          '${cart.itemCount}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+            IconButton(
+              tooltip: _tr('Open cart'),
+              onPressed: () => Navigator.of(context).pushNamed('/cart'),
+              icon: Badge(
+                isLabelVisible: units > 0,
+                label: Text(units > 99 ? '99+' : '$units'),
+                child: const Icon(Icons.shopping_cart_outlined),
               ),
             ),
+            const SizedBox(width: AppSpace.xs),
           ],
         ),
-        body: Stack(
+        bottomNavigationBar: _buildBottomBar(canAddToCart, totalPrice),
+        body: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpace.xxl),
           children: [
-            _buildBackdrop(),
-            SafeArea(
+            _buildImageCard(context, discountPercent),
+            Container(
+              color: AppColors.surface,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.gutter,
+                AppSpace.lg,
+                AppSpace.gutter,
+                AppSpace.lg,
+              ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // 1. Hero Image Card
-                          _buildImageCard(context),
-                          const SizedBox(height: 16),
-
-                          // 2. Product Header & Badges
-                          _buildHeaderSection(hasPromo, discountPercent),
-                          const SizedBox(height: 16),
-
-                          // 3. Price Card
-                          _buildPriceCard(hasPromo, savingsAmount, discountPercent),
-                          const SizedBox(height: 18),
-
-                          // 4. Description if available
-                          if (widget.product.description != null &&
-                              widget.product.description!.trim().isNotEmpty) ...[
-                            _buildDescriptionCard(),
-                            const SizedBox(height: 18),
-                          ],
-
-                          // 5. Variants Selector Section
-                          if (widget.product.sizeVariants.isNotEmpty) ...[
-                            _buildVariantsSection(),
-                            const SizedBox(height: 18),
-                          ],
-
-                          // 6. Quantity Selector
-                          _buildQuantitySection(),
-                          const SizedBox(height: 24),
-
-                          // 7. Related Items Section
-                          if (relatedItems.isNotEmpty) ...[
-                            _buildRelatedItemsSection(relatedItems),
-                            const SizedBox(height: 20),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Fixed Bottom Add to Cart Bar
-                  _buildBottomBar(canAddToCart, totalPrice),
+                  _buildHeaderSection(hasPromo, savingsAmount),
+                  if (widget.product.description != null &&
+                      widget.product.description!.trim().isNotEmpty) ...[
+                    const SizedBox(height: AppSpace.md),
+                    _buildDescription(),
+                  ],
                 ],
               ),
             ),
+            if (widget.product.sizeVariants.isNotEmpty) ...[
+              const SizedBox(height: AppSpace.sm),
+              _buildVariantsSection(),
+            ],
+            const SizedBox(height: AppSpace.sm),
+            _buildQuantitySection(),
+            if (relatedItems.isNotEmpty) ...[
+              const SizedBox(height: AppSpace.sm),
+              _buildRelatedItemsSection(relatedItems),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBackdrop() {
-    return Stack(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFF6EC),
-                Color(0xFFFFE8D6),
-                Color(0xFFFFF4EA),
-              ],
+  Widget _buildImageCard(BuildContext context, int discountPercent) {
+    final badge = _currentOfferBadge;
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Hero(
+            tag: 'product_image_${widget.product.id}',
+            child: AppNetworkImage(
+              url: ApiService.getImageUrl(widget.product.imageUrl),
+              placeholderIcon: Icons.fastfood_outlined,
             ),
           ),
-        ),
-        Positioned(
-          left: -80,
-          top: 30,
-          child: IgnorePointer(
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [Color(0x3DF2B134), Color(0x00F2B134)],
-                ),
+          if (badge.isNotEmpty || discountPercent > 0)
+            PositionedDirectional(
+              top: AppSpace.md,
+              start: AppSpace.md,
+              child: TonePill.warning(
+                badge.isNotEmpty ? badge : '$discountPercent% OFF',
+                icon: Icons.local_offer_outlined,
               ),
             ),
-          ),
-        ),
-        Positioned(
-          right: -60,
-          top: 200,
-          child: IgnorePointer(
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [Color(0x3D147D7E), Color(0x00147D7E)],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildImageCard(BuildContext context) {
-    final imageUrl = ApiService.getImageUrl(widget.product.imageUrl);
-    final offerBadge = _currentOfferBadge;
-
-    return Container(
-      width: double.infinity,
-      height: 240,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: CustomerPalette.border.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: imageUrl.isNotEmpty
-                  ? Hero(
-                      tag: 'product_image_${widget.product.id}',
-                      child: Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (ctx, err, _) => Container(
-                          color: const Color(0xFFF7EFE9),
-                          child: const Center(
-                            child: Icon(
-                              Icons.fastfood_rounded,
-                              size: 72,
-                              color: Colors.black26,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  : Container(
-                      color: const Color(0xFFF7EFE9),
-                      child: const Center(
-                        child: Icon(
-                          Icons.fastfood_rounded,
-                          size: 72,
-                          color: Colors.black26,
-                        ),
-                      ),
-                    ),
-            ),
-
-            // Top Badges
-            Positioned(
-              top: 14,
-              left: 14,
-              right: 14,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (offerBadge.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            CustomerPalette.primary,
-                            CustomerPalette.primaryDark,
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: CustomerPalette.primary.withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.local_offer_rounded,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            offerBadge,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    const SizedBox.shrink(),
-
-                  // Stock Status Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _availableStock > 0
-                          ? Colors.green.shade50
-                          : Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _availableStock > 0
-                            ? Colors.green.shade300
-                            : Colors.red.shade300,
-                      ),
-                    ),
-                    child: Text(
-                      _availableStock > 0
-                          ? '${_tr('In Stock')} ($_availableStock)'
-                          : _tr('Out of stock'),
-                      style: TextStyle(
-                        color: _availableStock > 0
-                            ? Colors.green.shade800
-                            : Colors.red.shade800,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  Widget _buildHeaderSection(bool hasPromo, int discountPercent) {
-    final storeName = (widget.store['name'] ?? widget.product.storeName ?? '').toString();
-    final categoryName = widget.product.categoryName ?? '';
+  Widget _buildHeaderSection(bool hasPromo, double savingsAmount) {
+    final product = widget.product;
+    final String? stockNote;
+    if (!widget.isOpen) {
+      stockNote = _tr('Store is closed');
+    } else if (!product.isAvailable || _availableStock <= 0) {
+      stockNote = _tr('Out of stock');
+    } else if (!product.isTimeAvailable) {
+      stockNote = product.availabilityWindow != null
+          ? '${_tr('Available only during')} ${product.availabilityWindow}'
+          : _tr('Outside Hours');
+    } else if (_availableStock <= 10) {
+      stockNote = '${_tr('Only')} $_availableStock ${_tr('left')}';
+    } else {
+      stockNote = null;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(product.name, style: AppText.h1),
+        if ((product.categoryName ?? '').trim().isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(product.categoryName!.trim(), style: AppText.small),
+        ],
+        const SizedBox(height: AppSpace.md),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (storeName.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: CustomerPalette.secondary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.storefront_rounded,
-                      size: 14,
-                      color: CustomerPalette.secondaryDark,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      storeName,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: CustomerPalette.secondaryDark,
-                      ),
-                    ),
-                  ],
-                ),
+            Expanded(
+              child: PriceText(
+                _currentEffectivePrice,
+                original: hasPromo ? _currentOriginalPrice : null,
+                urdu: _isUrdu,
+                style: AppText.h2.copyWith(fontWeight: FontWeight.w800),
               ),
-            if (storeName.isNotEmpty && categoryName.isNotEmpty)
-              const SizedBox(width: 8),
-            if (categoryName.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: CustomerPalette.border.withValues(alpha: 0.6),
-                  ),
-                ),
-                child: Text(
-                  categoryName,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: CustomerPalette.textMuted,
-                  ),
-                ),
+            ),
+            if (hasPromo)
+              TonePill.success(
+                '${_tr('You save')} ${Fmt.money(savingsAmount, urdu: _isUrdu)}',
               ),
           ],
         ),
-        const SizedBox(height: 10),
-        Text(
-          widget.product.name,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-            color: CustomerPalette.textDark,
-            height: 1.25,
+        if (_isBxgyOffer) ...[
+          const SizedBox(height: AppSpace.sm),
+          TonePill.success(
+            _currentOfferBadge.isNotEmpty
+                ? _currentOfferBadge
+                : _tr('Bundle offer'),
+            icon: Icons.redeem_outlined,
           ),
-        ),
-        if (widget.product.hasTimeConstraint && widget.product.availabilityWindow != null) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: widget.product.isTimeAvailable
-                  ? CustomerPalette.primary.withValues(alpha: 0.1)
-                  : Colors.amber.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: widget.product.isTimeAvailable
-                    ? CustomerPalette.primary.withValues(alpha: 0.3)
-                    : Colors.amber.shade700.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  widget.product.isTimeAvailable
-                      ? Icons.access_time_filled_rounded
-                      : Icons.hourglass_bottom_rounded,
-                  size: 14,
-                  color: widget.product.isTimeAvailable
-                      ? CustomerPalette.primary
-                      : Colors.amber.shade800,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${_tr("Available:")} ${widget.product.availabilityWindow}${widget.product.isTimeAvailable ? '' : " (${_tr('Outside Hours')})"}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: widget.product.isTimeAvailable
-                        ? CustomerPalette.primaryDark
-                        : Colors.amber.shade900,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        ],
+        if (stockNote != null) ...[
+          const SizedBox(height: AppSpace.sm),
+          TonePill.warning(stockNote),
         ],
       ],
     );
   }
 
-  Widget _buildPriceCard(
-    bool hasPromo,
-    double savingsAmount,
-    int discountPercent,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: CustomerPalette.border.withValues(alpha: 0.6)),
-        boxShadow: [
-          BoxShadow(
-            color: CustomerPalette.primaryDark.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _tr('Price'),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: CustomerPalette.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    'PKR ${_currentEffectivePrice.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: CustomerPalette.primaryDark,
-                    ),
-                  ),
-                  if (hasPromo) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      'PKR ${_currentOriginalPrice.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                        decoration: TextDecoration.lineThrough,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-          if (hasPromo && discountPercent > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.red.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '$discountPercent% OFF',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.red.shade800,
-                    ),
-                  ),
-                  Text(
-                    'Save PKR ${savingsAmount.toStringAsFixed(0)}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red.shade700,
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildDescription() {
+    final text = widget.product.description!.trim();
+    final latin = _isMostlyLatin(text);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(_tr('Description'), style: AppText.label),
+        const SizedBox(height: 4),
+        Directionality(
+          textDirection: latin ? TextDirection.ltr : TextDirection.rtl,
+          child: SizedBox(
+            width: double.infinity,
+            child: Text(
+              text,
+              textAlign: _isUrdu && latin ? TextAlign.end : TextAlign.start,
+              style: AppText.bodySecondary,
             ),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildDescriptionCard() {
+  Widget _sectionCard({required String title, required Widget child}) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: CustomerPalette.border.withValues(alpha: 0.6)),
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        AppSpace.lg,
+        AppSpace.gutter,
+        AppSpace.lg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: CustomerPalette.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _tr('Description'),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: CustomerPalette.textDark,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.product.description!.trim(),
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: CustomerPalette.textDark,
-              height: 1.5,
-            ),
-          ),
+          Text(title, style: AppText.title),
+          const SizedBox(height: AppSpace.md),
+          child,
         ],
       ),
     );
@@ -816,359 +436,151 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Widget _buildVariantsSection() {
     final variants = widget.product.sizeVariants;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: CustomerPalette.border.withValues(alpha: 0.6)),
-        boxShadow: [
-          BoxShadow(
-            color: CustomerPalette.primaryDark.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return _sectionCard(
+      title: _tr('Select Variant / Size'),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.tune_rounded,
-                    size: 18,
-                    color: CustomerPalette.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _tr('Select Variant / Size'),
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: CustomerPalette.textDark,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: CustomerPalette.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${variants.length} ${_tr('Options')}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: CustomerPalette.primaryDark,
-                  ),
+        children: variants.map((variant) {
+          final isSelected =
+              _selectedVariant?.sizeId == variant.sizeId &&
+              _selectedVariant?.unitId == variant.unitId;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.sm),
+            child: Material(
+              color: isSelected ? AppColors.tint50 : AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: AppRadius.controlAll,
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : AppColors.border,
+                  width: isSelected ? 1.5 : 1,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Variant Cards Grid/Wrap
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: variants.map((variant) {
-              final isSelected = _selectedVariant?.sizeId == variant.sizeId &&
-                  _selectedVariant?.unitId == variant.unitId;
-              final variantEffectivePrice = variant.effectivePrice;
-              final variantOriginalPrice =
-                  variant.originalPrice ?? variant.price;
-              final hasVariantPromo =
-                  variantEffectivePrice < variantOriginalPrice;
-
-              return InkWell(
+              child: InkWell(
+                borderRadius: AppRadius.controlAll,
                 onTap: () {
                   setState(() {
                     _selectedVariant = variant;
+                    final step = _isBxgyOffer && _bxgyBundleQty > 1
+                        ? _bxgyBundleQty
+                        : 1;
+                    _quantity = step;
                   });
                 },
-                borderRadius: BorderRadius.circular(14),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? CustomerPalette.primary.withValues(alpha: 0.10)
-                        : Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSelected
-                          ? CustomerPalette.primary
-                          : Colors.grey.shade300,
-                      width: isSelected ? 2 : 1,
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: CustomerPalette.primary.withValues(alpha: 0.15),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
+                    horizontal: AppSpace.md,
+                    vertical: AppSpace.md,
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         isSelected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                        size: 18,
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_off_rounded,
                         color: isSelected
-                            ? CustomerPalette.primary
-                            : Colors.grey.shade400,
+                            ? AppColors.primary
+                            : AppColors.muted,
+                        size: 22,
                       ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            variant.displayLabel,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: isSelected
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
-                              color: isSelected
-                                  ? CustomerPalette.primaryDark
-                                  : CustomerPalette.textDark,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Text(
-                                'PKR ${variantEffectivePrice.toStringAsFixed(0)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected
-                                      ? CustomerPalette.primary
-                                      : CustomerPalette.textMuted,
-                                ),
-                              ),
-                              if (hasVariantPromo) ...[
-                                const SizedBox(width: 4),
-                                Text(
-                                  'PKR ${variantOriginalPrice.toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey.shade500,
-                                    decoration: TextDecoration.lineThrough,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                      if (variant.offerBadge != null &&
-                          variant.offerBadge!.trim().isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: CustomerPalette.secondary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            variant.offerBadge!,
-                            style: const TextStyle(
-                              fontSize: 9.5,
-                              color: CustomerPalette.secondaryDark,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                      const SizedBox(width: AppSpace.md),
+                      Expanded(
+                        child: Text(
+                          Fmt.unit(variant.displayLabel).isEmpty
+                              ? variant.displayLabel
+                              : Fmt.unit(variant.displayLabel),
+                          style: AppText.bodyStrong,
                         ),
-                      ],
+                      ),
+                      PriceText(
+                        variant.effectivePrice,
+                        original: variant.isBxgyOffer
+                            ? null
+                            : (variant.originalPrice ?? variant.price),
+                        urdu: _isUrdu,
+                        style: AppText.bodyStrong,
+                      ),
                     ],
                   ),
                 ),
-              );
-            }).toList(),
-          ),
-        ],
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
 
   Widget _buildQuantitySection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: CustomerPalette.border.withValues(alpha: 0.6)),
-      ),
+    final step = _isBxgyOffer && _bxgyBundleQty > 1 ? _bxgyBundleQty : 1;
+    return _sectionCard(
+      title: _tr('Quantity'),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _tr('Quantity'),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: CustomerPalette.textDark,
-                ),
+          QuantityStepper(
+            quantity: _quantity,
+            onDecrement: _quantity - step >= 1 ? _decrementQuantity : null,
+            onIncrement: _incrementQuantity,
+          ),
+          const SizedBox(width: AppSpace.md),
+          if (step > 1)
+            Expanded(
+              child: Text(
+                '${_tr('Sold in bundles of')} $step',
+                style: AppText.small,
               ),
-              if (_isBxgyOffer)
-                Text(
-                  'Bundle: $_bxgyBundleQty pcs',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: CustomerPalette.secondaryDark,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-            ],
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: CustomerPalette.background,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: CustomerPalette.border),
             ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_rounded),
-                  color: _quantity > 1 ? CustomerPalette.primary : Colors.grey,
-                  iconSize: 20,
-                  onPressed: _quantity > 1 ? _decrementQuantity : null,
-                ),
-                Container(
-                  constraints: const BoxConstraints(minWidth: 36),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$_quantity',
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                      color: CustomerPalette.textDark,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_rounded),
-                  color: _quantity < _availableStock
-                      ? CustomerPalette.primary
-                      : Colors.grey,
-                  iconSize: 20,
-                  onPressed: _quantity < _availableStock
-                      ? _incrementQuantity
-                      : null,
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildRelatedItemsSection(List<Product> relatedItems) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.auto_awesome_rounded,
-                  size: 18,
-                  color: CustomerPalette.secondary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _tr('Related Items'),
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: CustomerPalette.textDark,
-                  ),
-                ),
-              ],
-            ),
-            Text(
-              '${relatedItems.length} ${_tr('Items')}',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: CustomerPalette.textMuted,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Horizontal scrolling related cards
-        SizedBox(
-          height: 190,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: relatedItems.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemBuilder: (ctx, index) {
-              final item = relatedItems[index];
-              return _buildRelatedProductCard(item);
-            },
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.only(top: AppSpace.lg, bottom: AppSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
+            child: Text(_tr('Related Items'), style: AppText.title),
           ),
-        ),
-      ],
+          const SizedBox(height: AppSpace.md),
+          SizedBox(
+            height: _isUrdu ? 236 : 214,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.gutter),
+              itemCount: relatedItems.length,
+              separatorBuilder: (_, _) => const SizedBox(width: AppSpace.md),
+              itemBuilder: (context, index) =>
+                  _buildRelatedProductCard(relatedItems[index]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildRelatedProductCard(Product item) {
-    final itemImage = ApiService.getImageUrl(item.imageUrl);
-    final variantCount = item.sizeVariants.length;
-
-    return Container(
-      width: 130,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: CustomerPalette.border.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(
-            color: CustomerPalette.primaryDark.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+    final variants = item.sizeVariants;
+    final price = variants.isEmpty
+        ? item.effectivePrice
+        : variants.map((v) => v.effectivePrice).reduce((a, b) => a < b ? a : b);
+    final priceLabel = variants.length > 1
+        ? '${_tr('from')} ${Fmt.money(price, urdu: _isUrdu)}'
+        : Fmt.money(price, urdu: _isUrdu);
+    return SizedBox(
+      width: 148,
       child: Material(
-        color: Colors.transparent,
+        color: AppColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppRadius.cardAll,
+          side: BorderSide(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
           onTap: () {
-            // Push detail screen for related item
-            Navigator.of(context).push(
+            Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (ctx) => ProductDetailScreen(
                   product: item,
@@ -1183,87 +595,36 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: SizedBox(
-                  height: 85,
-                  width: double.infinity,
-                  child: itemImage.isNotEmpty
-                      ? Image.network(
-                          itemImage,
-                          fit: BoxFit.cover,
-                          errorBuilder: (ctx, err, _) => Container(
-                            color: Colors.grey.shade200,
-                            child: const Icon(
-                              Icons.fastfood_rounded,
-                              size: 28,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey.shade200,
-                          child: const Icon(
-                            Icons.fastfood_rounded,
-                            size: 28,
-                            color: Colors.grey,
-                          ),
-                        ),
+              AspectRatio(
+                aspectRatio: 4 / 3,
+                child: AppNetworkImage(
+                  url: ApiService.getImageUrl(item.imageUrl),
+                  placeholderIcon: Icons.fastfood_outlined,
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(AppSpace.sm + 2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       item.name,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: CustomerPalette.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'PKR ${item.effectivePrice.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        color: CustomerPalette.primary,
+                      style: AppText.small.copyWith(
+                        color: AppColors.text,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (variantCount > 1)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: CustomerPalette.secondary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '$variantCount ${_tr('Options')}',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: CustomerPalette.secondaryDark,
-                          ),
-                        ),
-                      )
-                    else
-                      Text(
-                        _tr('View Details'),
-                        style: const TextStyle(
-                          fontSize: 9.5,
-                          color: CustomerPalette.textMuted,
-                        ),
+                    Text(
+                      priceLabel,
+                      maxLines: 1,
+                      style: AppText.bodyStrong.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: AppText.tabular,
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -1275,81 +636,62 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildBottomBar(bool canAddToCart, double totalPrice) {
+    String? reason;
+    if (!canAddToCart) {
+      if (widget.isGlobalBlocked) {
+        reason = _tr('Ordering is temporarily unavailable.');
+      } else if (!widget.isOpen) {
+        reason = _tr('Store is closed');
+      } else if (!widget.product.isTimeAvailable) {
+        reason = _tr('Outside Hours');
+      } else {
+        reason = _tr('Out of stock');
+      }
+    }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
-        children: [
-          // Total price section
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _tr('Total'),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: CustomerPalette.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'PKR ${totalPrice.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: CustomerPalette.primaryDark,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 20),
-
-          // Add to Cart Button
-          Expanded(
-            child: SizedBox(
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: canAddToCart ? _addToCart : null,
-                icon: const Icon(Icons.add_shopping_cart_rounded, size: 20),
-                label: Text(
-                  widget.isGlobalBlocked
-                      ? _tr('Unavailable')
-                      : (!widget.isOpen
-                          ? _tr('CLOSED')
-                          : (_availableStock > 0
-                              ? _tr('Add to Cart')
-                              : _tr('Out of stock'))),
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(
+          AppSpace.gutter,
+          AppSpace.md,
+          AppSpace.gutter,
+          AppSpace.md,
+        ),
+        child: Row(
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_tr('Total'), style: AppText.caption),
+                Text(
+                  Fmt.money(totalPrice, urdu: _isUrdu),
+                  style: AppText.h2.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: AppText.tabular,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: CustomerPalette.primary,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  disabledForegroundColor: Colors.grey.shade600,
-                  elevation: canAddToCart ? 2 : 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+              ],
+            ),
+            const SizedBox(width: AppSpace.lg),
+            Expanded(
+              child: PrimaryButton(
+                label: canAddToCart ? _tr('Add to Cart') : reason!,
+                icon: canAddToCart ? Icons.add_shopping_cart_rounded : null,
+                onPressed: canAddToCart
+                    ? () {
+                        HapticFeedback.lightImpact();
+                        _addToCart();
+                      }
+                    : null,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

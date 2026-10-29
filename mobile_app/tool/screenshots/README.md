@@ -135,15 +135,15 @@ tool scrolls it into view first.
 A scenario can also set `expect: 'Label'`. The run then fails, instead of
 silently saving the wrong screen, when that label is not visible at the end.
 
-A store is opened by typing "Imran" into the dashboard search and tapping
-the single remaining `View` button. The auto-scrolling Featured carousel also
-contains store names, so tapping a name directly is unreliable.
+A store is opened by typing "Imran" into the home search and tapping the
+`Imran Broast` card. While a search is active the home shows only the results
+list, so the label is unique (the Featured carousel is hidden).
 
-Coordinate taps are used only on the customer dashboard. Its hamburger,
-top-bar cart icon and custom bottom nav have no semantics labels. If the
-redesign moves them, update `DASH_*` in `scenarios.mjs`. Urdu is RTL, so
-there are mirrored `UR_*` coordinates for it. Better still, give
-those widgets a `tooltip` or `Semantics(label:)` and switch to `tap:` steps.
+Since the 2026-10-29 redesign the customer home has semantics labels on every
+control (`Menu`, `Language`, `Notifications`, `Open cart`, and the bottom nav
+`Home` / `Stores` / `Cart` / `Orders` / `Account`), so no coordinate taps are
+needed. Bottom-nav items are tapped with `tapx:` (exact) because section titles
+such as "Popular Stores" also contain the word.
 
 After a redesign that renames labels, run `--dump` on the affected screen and
 update the step labels.
@@ -184,7 +184,7 @@ Each entry is `NN_name`: the steps from a fresh load of that role's session.
 | 04 | language_sheet | `EN` |
 | 05 | contact_us | `Contact Us` |
 | 06 | notifications | bell |
-| 07 | stores_tab_noop | bottom-nav Stores, which does nothing |
+| 07 | stores_tab | bottom-nav Stores |
 | 08 | search_stores | type `broast` |
 | 09 | store | `Imran Broast` |
 | 10 | store_products | `Imran Broast`, then scroll |

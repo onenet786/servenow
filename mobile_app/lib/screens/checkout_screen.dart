@@ -6,8 +6,9 @@ import '../models/cart_item.dart';
 import '../providers/wallet_provider.dart';
 import '../services/api_service.dart';
 import 'package:servenow/services/notifier.dart';
-import '../theme/customer_palette.dart';
+import '../utils/cart_counts.dart';
 import '../utils/customer_language.dart';
+import '../widgets/ui/ui.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -25,6 +26,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _instructionsController = TextEditingController();
+  // Cash on delivery is the default payment method.
   String _paymentMethod = 'cash';
   String? _selectedDeliveryTime = 'asap';
   bool _isLoading = false;
@@ -60,48 +62,46 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   String _tr(String text) => CustomerLanguage.tr(_isUrdu, text);
 
-  OutlineInputBorder _fieldBorder([Color? color]) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(
-        color: color ?? CustomerPalette.primary.withValues(alpha: 0.18),
-      ),
-    );
-  }
-
-  Widget _sectionCard({required Widget child}) {
-    return Card(
-      elevation: 2,
-      color: Colors.white.withValues(alpha: 0.98),
-      shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: child,
-      ),
-    );
-  }
+  String _money(num value) => Fmt.money(value, urdu: _isUrdu);
 
   Future<void> _promptGuestRegistration() async {
     final shouldRegister = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(_tr('Register Required')),
-        content: Text(
-          _tr(
-            'You are using guest mode. Please register your account before placing an order.',
+      builder: (dialogContext) => LanguageScope(
+        isUrdu: _isUrdu,
+        child: AlertDialog(
+          icon: Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: AppColors.tint100,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.person_add_alt_1_outlined,
+              color: AppColors.primary,
+              size: 28,
+            ),
           ),
+          title: Text(_tr('Register Required'), textAlign: TextAlign.center),
+          content: Text(
+            _tr(
+              'You are using guest mode. Please register your account before placing an order.',
+            ),
+            textAlign: TextAlign.center,
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(_tr('Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(_tr('Register')),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(_tr('Cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(_tr('Register')),
-          ),
-        ],
       ),
     );
 
@@ -125,8 +125,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         }
         _isDeliveryFeeConfigLoading = false;
       });
-    } catch (e) {
-      debugPrint('Error loading delivery fee config: $e');
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _isDeliveryFeeConfigLoading = false;
@@ -141,7 +140,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   int _getStoreCount(CartProvider cart) {
     return cart.items
-        .map((item) => item.product.storeId ?? item.product.storeName ?? item.product.id)
+        .map(
+          (item) =>
+              item.product.storeId ?? item.product.storeName ?? item.product.id,
+        )
         .toSet()
         .length;
   }
@@ -180,79 +182,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _addressController.dispose();
     _instructionsController.dispose();
     super.dispose();
-  }
-
-  Widget _buildPaymentOption({
-    required String title,
-    required String value,
-    required IconData icon,
-    String? subtitle,
-  }) {
-    final isSelected = _paymentMethod == value;
-    return InkWell(
-      onTap: () => setState(() => _paymentMethod = value),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color:
-                isSelected
-                    ? CustomerPalette.secondary
-                    : CustomerPalette.border,
-            width: isSelected ? 2 : 1,
-          ),
-          color: isSelected
-              ? CustomerPalette.secondary.withValues(alpha: 0.1)
-              : Colors.white.withValues(alpha: 0.92),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color:
-                  isSelected
-                      ? CustomerPalette.secondaryDark
-                      : CustomerPalette.textDark,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _tr(title),
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color:
-                          isSelected
-                              ? CustomerPalette.secondaryDark
-                              : CustomerPalette.textDark,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        _tr(subtitle),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: CustomerPalette.textMuted,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Radio<String>(
-              value: value,
-              activeColor: CustomerPalette.secondary,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   bool _checkIsOpen(dynamic openTimeStr, dynamic closeTimeStr) {
@@ -352,13 +281,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         final status = (data['status'] is Map<String, dynamic>)
             ? (data['status'] as Map<String, dynamic>)
             : (data['global_status'] is Map<String, dynamic>)
-                ? (data['global_status'] as Map<String, dynamic>)
-                : data;
+            ? (data['global_status'] as Map<String, dynamic>)
+            : data;
 
         if (_isGlobalOrderingBlocked(status)) {
           final title = (status['title'] ?? '').toString().trim();
           final message = (status['status_message'] ?? '').toString().trim();
-          final when = _formatDeliveryWindow(status['start_at'], status['end_at']);
+          final when = _formatDeliveryWindow(
+            status['start_at'],
+            status['end_at'],
+          );
           final displayMessage = message.isNotEmpty
               ? (when.isNotEmpty ? '$message ($when)' : message)
               : (title.isNotEmpty
@@ -393,7 +325,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (data['success'] == true) {
           final store = data['store'];
           final bool isOpen = store['is_open'] == true || store['is_open'] == 1;
-          if (!isOpen || !_checkIsOpen(store['opening_time'], store['closing_time'])) {
+          if (!isOpen ||
+              !_checkIsOpen(store['opening_time'], store['closing_time'])) {
             final reason = (store['status_message'] ?? '').toString().trim();
             if (!mounted) return;
             setState(() {
@@ -421,9 +354,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (_paymentMethod == 'wallet' && _walletBalance != null) {
       if (_walletBalance! < grandTotal) {
         if (!mounted) return;
+        setState(() => _isLoading = false);
         Notifier.error(
           context,
-          '${_tr('Insufficient wallet balance. Need')} ${_tr('PKR')} ${(grandTotal - _walletBalance!).toStringAsFixed(2)} ${_tr('more.')}',
+          '${_tr('Insufficient wallet balance. Need')} ${_money(grandTotal - _walletBalance!)} ${_tr('more.')}',
           sanitize: false,
         );
         return;
@@ -502,61 +436,544 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  Widget _buildBackdrop() {
-    return Stack(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFF6EC),
-                Color(0xFFFFD8B5),
-                Color(0xFFF7B070),
+  // ---------------------------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------------------------
+
+  Widget _section({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    Widget? trailing,
+  }) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: AppColors.primary),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(child: Text(title, style: AppText.title)),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentOption({
+    required String title,
+    required String value,
+    required IconData icon,
+    String? subtitle,
+    Widget? extra,
+  }) {
+    final isSelected = _paymentMethod == value;
+    return Semantics(
+      selected: isSelected,
+      button: true,
+      child: Material(
+        color: isSelected ? AppColors.tint50 : AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.controlAll,
+          side: BorderSide(
+            color: isSelected ? AppColors.primary : AppColors.border,
+            width: isSelected ? 1.6 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => setState(() => _paymentMethod = value),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.tint100 : AppColors.surface3,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: isSelected
+                        ? AppColors.primaryPressed
+                        : AppColors.text2,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_tr(title), style: AppText.bodyStrong),
+                      if (subtitle != null)
+                        Text(_tr(subtitle), style: AppText.caption),
+                      ?extra,
+                    ],
+                  ),
+                ),
+                Radio<String>(value: value),
               ],
             ),
           ),
         ),
-        Positioned(
-          left: -80,
-          top: 70,
-          child: _buildBlurOrb(
-            size: 220,
-            colors: const [Color(0x66F2B134), Color(0x00F2B134)],
-          ),
-        ),
-        Positioned(
-          right: -40,
-          top: 130,
-          child: _buildBlurOrb(
-            size: 180,
-            colors: const [Color(0x55147D7E), Color(0x00147D7E)],
-          ),
-        ),
-        Positioned(
-          right: -100,
-          bottom: 30,
-          child: _buildBlurOrb(
-            size: 280,
-            colors: const [Color(0x55C9475B), Color(0x00C9475B)],
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildBlurOrb({
-    required double size,
-    required List<Color> colors,
-  }) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(colors: colors),
+  Widget _amountRow(String label, num value, {bool strong = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: strong ? AppText.title : AppText.bodySecondary,
+            ),
+          ),
+          Text(
+            _money(value),
+            style: strong
+                ? AppText.price.copyWith(fontSize: 17, color: AppColors.text)
+                : AppText.bodyStrong.copyWith(fontFeatures: AppText.tabular),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderSummary(CartProvider cart) {
+    final Map<String, List<CartItem>> itemsByStore = {};
+    for (var item in cart.items) {
+      final store = item.product.storeName ?? _tr('Unknown Store');
+      itemsByStore.putIfAbsent(store, () => []).add(item);
+    }
+
+    final numStores = itemsByStore.length;
+    final deliveryFee = _calculateDeliveryFee(numStores);
+    final grandTotal = cart.totalAmount + deliveryFee;
+    final units = cart.totalUnits;
+
+    final children = <Widget>[];
+    for (final entry in itemsByStore.entries) {
+      final storeSubtotal = entry.value.fold<double>(
+        0.0,
+        (sum, item) => sum + item.total,
+      );
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.storefront_outlined,
+                size: 16,
+                color: AppColors.muted,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  entry.key,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.label.copyWith(color: AppColors.text),
+                ),
+              ),
+              if (itemsByStore.length > 1)
+                Text(
+                  _money(storeSubtotal),
+                  style: AppText.caption.copyWith(
+                    fontFeatures: AppText.tabular,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+      for (final item in entry.value) {
+        final variant = Fmt.unit(item.variantLabel);
+        final hasVariant = variant.isNotEmpty && variant != 'Default';
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.bodyStrong,
+                      ),
+                      Text(
+                        hasVariant
+                            ? '${_isUrdu ? Fmt.isolate(variant) : variant} · ${_money(item.unitPrice)} ${_tr('each')}'
+                            : '${_money(item.unitPrice)} ${_tr('each')}',
+                        style: AppText.caption,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    QuantityStepper(
+                      quantity: item.quantity,
+                      compact: true,
+                      incrementTooltip: _tr('Increase quantity'),
+                      decrementTooltip: _tr('Decrease quantity'),
+                      onIncrement: () {
+                        final warning = cart.updateCartItemQuantity(
+                          item,
+                          item.quantity + 1,
+                        );
+                        if (warning != null) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text(warning)));
+                        }
+                      },
+                      onDecrement: () {
+                        if (item.quantity > 1) {
+                          cart.updateCartItemQuantity(item, item.quantity - 1);
+                        } else {
+                          cart.removeCartItem(item);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _money(item.total),
+                      style: AppText.bodyStrong.copyWith(
+                        fontFeatures: AppText.tabular,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      children.add(const Divider(height: 16));
+    }
+
+    final feeLabel = numStores > 1
+        ? '${_tr('Delivery Fee')} (${Fmt.isolate('$numStores')} ${_tr('stores')})'
+        : _tr('Delivery Fee');
+    final itemsLabel = _isUrdu
+        ? '${_tr('Subtotal')} (${Fmt.isolate('$units')} ${_tr('items')})'
+        : '${_tr('Subtotal')} (${Fmt.count(units, 'item')})';
+
+    children
+      ..add(_amountRow(itemsLabel, cart.totalAmount))
+      ..add(_amountRow(feeLabel, deliveryFee))
+      ..add(
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 6),
+          child: Divider(),
+        ),
+      )
+      ..add(_amountRow(_tr('Grand Total'), grandTotal, strong: true))
+      ..add(const SizedBox(height: 4))
+      ..add(
+        Row(
+          children: [
+            const Icon(
+              Icons.verified_outlined,
+              size: 16,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _tr('All-in price. No hidden charges at checkout.'),
+                style: AppText.caption,
+              ),
+            ),
+          ],
+        ),
+      );
+
+    return _section(
+      icon: Icons.receipt_long_outlined,
+      title: _tr('Order Summary'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildDeliveryDetails() {
+    return _section(
+      icon: Icons.local_shipping_outlined,
+      title: _tr('Delivery Details'),
+      child: Column(
+        children: [
+          TextFormField(
+            controller: _nameController,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              labelText: _tr('Full Name'),
+              prefixIcon: const Icon(Icons.person_outline_rounded),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return _tr('Full Name');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppSpace.md),
+          TextFormField(
+            controller: _phoneController,
+            textInputAction: TextInputAction.next,
+            decoration: InputDecoration(
+              labelText: _tr('Phone Number'),
+              prefixIcon: const Icon(Icons.phone_outlined),
+            ),
+            keyboardType: TextInputType.phone,
+            textDirection: TextDirection.ltr,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return _tr('Phone Number');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppSpace.md),
+          TextFormField(
+            controller: _addressController,
+            decoration: InputDecoration(
+              labelText: _tr('Delivery Address'),
+              prefixIcon: const Icon(Icons.location_on_outlined),
+            ),
+            minLines: 1,
+            maxLines: 3,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return _tr('Delivery Address');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: AppSpace.md),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedDeliveryTime,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: _tr('Preferred Delivery Time'),
+              prefixIcon: const Icon(Icons.schedule_rounded),
+            ),
+            items: [
+              DropdownMenuItem(
+                value: 'asap',
+                child: Text(_tr('ASAP (30-45 mins)')),
+              ),
+              DropdownMenuItem(
+                value: '1hour',
+                child: Text(_tr('Within 1 hour')),
+              ),
+              DropdownMenuItem(
+                value: '2hours',
+                child: Text(_tr('Within 2 hours')),
+              ),
+              DropdownMenuItem(value: 'tomorrow', child: Text(_tr('Tomorrow'))),
+            ],
+            onChanged: (value) {
+              setState(() {
+                _selectedDeliveryTime = value;
+              });
+            },
+          ),
+          const SizedBox(height: AppSpace.md),
+          TextFormField(
+            controller: _instructionsController,
+            decoration: InputDecoration(
+              labelText: _tr('Special Instructions'),
+              hintText: _tr('e.g. Ring the bell, leave at the gate'),
+              prefixIcon: const Icon(Icons.sticky_note_2_outlined),
+            ),
+            minLines: 1,
+            maxLines: 3,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPayment(CartProvider cart) {
+    final grandTotal = _calculateGrandTotal(cart);
+    Widget? walletExtra;
+    if (_walletBalance != null) {
+      final enough = _walletBalance! >= grandTotal;
+      walletExtra = Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          enough
+              ? '${_tr('Balance')}: ${_money(_walletBalance!)}'
+              : '${_tr('Balance')}: ${_money(_walletBalance!)} · ${_tr('Insufficient wallet balance. Need')} ${_money(grandTotal - _walletBalance!)} ${_tr('more.')}',
+          style: AppText.caption.copyWith(
+            color: enough ? AppColors.success : AppColors.danger,
+            fontWeight: FontWeight.w600,
+            fontFeatures: AppText.tabular,
+          ),
+        ),
+      );
+    }
+
+    return _section(
+      icon: Icons.payments_outlined,
+      title: _tr('Payment Method'),
+      child: RadioGroup<String>(
+        groupValue: _paymentMethod,
+        onChanged: (newValue) {
+          if (newValue != null) {
+            setState(() => _paymentMethod = newValue);
+          }
+        },
+        child: Column(
+          children: [
+            _buildPaymentOption(
+              title: 'Cash on Delivery',
+              value: 'cash',
+              icon: Icons.payments_outlined,
+              subtitle: 'Pay with cash at delivery',
+            ),
+            const SizedBox(height: AppSpace.sm),
+            _buildPaymentOption(
+              title: 'Credit/Debit Card',
+              value: 'card',
+              icon: Icons.credit_card_rounded,
+              subtitle: 'Pay securely with your card',
+            ),
+            const SizedBox(height: AppSpace.sm),
+            _buildPaymentOption(
+              title: 'Wallet',
+              value: 'wallet',
+              icon: Icons.account_balance_wallet_outlined,
+              subtitle: 'Use your in-app wallet',
+              extra: _paymentMethod == 'wallet' ? walletExtra : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuestNotice() {
+    return Selector<AuthProvider, bool>(
+      selector: (_, auth) => auth.isGuest,
+      builder: (context, isGuest, child) {
+        if (!isGuest) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpace.md),
+          child: AppCard(
+            color: AppColors.warningBg,
+            borderColor: AppColors.warningBg,
+            padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.warning,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _tr(
+                      'Guest mode is for browsing only. Register to place your order.',
+                    ),
+                    style: AppText.small.copyWith(
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _promptGuestRegistration,
+                  child: Text(_tr('Register')),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomBar(CartProvider cart) {
+    final grandTotal = _calculateGrandTotal(cart);
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.gutter,
+            AppSpace.md,
+            AppSpace.gutter,
+            AppSpace.md,
+          ),
+          child: Row(
+            children: [
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_tr('Total'), style: AppText.caption),
+                  Text(
+                    _money(grandTotal),
+                    style: AppText.price.copyWith(fontSize: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: PrimaryButton(
+                  label: _tr('Place Order'),
+                  icon: Icons.lock_outline_rounded,
+                  loading: _isLoading,
+                  onPressed: _isDeliveryFeeConfigLoading ? null : _submitOrder,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return const Shimmer(
+      child: SingleChildScrollView(
+        physics: NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.all(AppSpace.gutter),
+        child: Column(
+          children: [
+            SkeletonCard(),
+            SizedBox(height: AppSpace.md),
+            SkeletonCard(),
+            SizedBox(height: AppSpace.md),
+            SkeletonCard(),
+          ],
         ),
       ),
     );
@@ -567,755 +984,65 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final cart = Provider.of<CartProvider>(context);
 
     if (cart.items.isEmpty) {
-      return Directionality(
-        textDirection: CustomerLanguage.textDirection(_isUrdu),
+      return LanguageScope(
+        isUrdu: _isUrdu,
         child: Scaffold(
-          backgroundColor: const Color(0xFFFFF6EC),
-          appBar: AppBar(
-            backgroundColor: const Color(0xFFFFF6EC),
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            surfaceTintColor: Colors.transparent,
-            foregroundColor: CustomerPalette.textDark,
-            title: Text(
-              _tr('Checkout'),
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                color: CustomerPalette.textDark,
-              ),
-            ),
+          appBar: AppBar(title: Text(_tr('Checkout'))),
+          body: EmptyState(
+            icon: Icons.shopping_cart_outlined,
+            title: _tr('Your cart is empty'),
+            actionLabel: _tr('Browse stores'),
+            actionIcon: Icons.storefront_outlined,
+            onAction: () => Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/home', (route) => false),
           ),
-          body: Center(child: Text(_tr('Your cart is empty'))),
         ),
       );
     }
 
-    return Directionality(
-      textDirection: CustomerLanguage.textDirection(_isUrdu),
+    return LanguageScope(
+      isUrdu: _isUrdu,
       child: Scaffold(
-      backgroundColor: const Color(0xFFFFF6EC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF6EC),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        foregroundColor: CustomerPalette.textDark,
-        title: Row(
-          children: [
-            const Icon(
-              Icons.shopping_cart_outlined,
-              size: 22,
-              color: CustomerPalette.textDark,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              _tr('Checkout'),
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                color: CustomerPalette.textDark,
-              ),
-            ),
-          ],
-        ),
-      ),
-      resizeToAvoidBottomInset: true,
-      body: Stack(
-        children: [
-          _buildBackdrop(),
-          (_isLoading || _isDeliveryFeeConfigLoading)
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: LayoutBuilder(
+        appBar: AppBar(title: Text(_tr('Checkout'))),
+        resizeToAvoidBottomInset: true,
+        bottomNavigationBar: _buildBottomBar(cart),
+        body: _isDeliveryFeeConfigLoading
+            ? _buildLoadingSkeleton()
+            : LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 760;
                   final sidePadding = isWide
                       ? (constraints.maxWidth - 620) / 2
                       : 0.0;
-
-                  final content = Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Selector<AuthProvider, bool>(
-                          selector: (_, auth) => auth.isGuest,
-                          builder: (context, isGuest, child) {
-                            if (!isGuest) return const SizedBox.shrink();
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.orange.shade200,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline,
-                                      color: Colors.orange.shade800,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        _tr(
-                                          'Guest mode is for browsing only. Register to place your order.',
-                                        ),
-                                        style: TextStyle(
-                                          color: Colors.orange.shade900,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: _promptGuestRegistration,
-                                      child: Text(_tr('Register')),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        // Order Summary Card
-                        _sectionCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.receipt_long, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _tr('Order Summary'),
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Builder(
-                                  builder: (context) {
-                                    final Map<String, List<CartItem>>
-                                    itemsByStore = {};
-                                    for (var item in cart.items) {
-                                      final store =
-                                          item.product.storeName ??
-                                          _tr('Unknown Store');
-                                      if (!itemsByStore.containsKey(store)) {
-                                        itemsByStore[store] = [];
-                                      }
-                                      itemsByStore[store]!.add(item);
-                                    }
-
-                                    final numStores = itemsByStore.length;
-                                    final deliveryFee =
-                                        _calculateDeliveryFee(numStores);
-                                    double grandTotal =
-                                        cart.totalAmount + deliveryFee;
-
-                                    List<Widget> allChildren = [];
-
-                                    for (var entry in itemsByStore.entries) {
-                                      double storeSubtotal = entry.value.fold(
-                                        0.0,
-                                        (sum, item) => sum + item.total,
-                                      );
-
-                                      allChildren.add(
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 8.0,
-                                            bottom: 8.0,
-                                          ),
-                                          child: Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: Theme.of(context)
-                                                  .primaryColor
-                                                  .withAlpha(
-                                                    (0.15 * 255).round(),
-                                                  ),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                              border: Border(
-                                                left: BorderSide(
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).primaryColor,
-                                                  width: 3,
-                                                ),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              entry.key,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                                color: Theme.of(
-                                                  context,
-                                                ).primaryColor,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-
-                                      for (var item in entry.value) {
-                                        allChildren.add(
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 6.0,
-                                            ),
-                                            child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        item.product.name,
-                                                        style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                      Text(
-                                                        item.variantLabel !=
-                                                                null
-                                                            ? '${item.variantLabel} • ${item.quantity} x PKR ${item.unitPrice}'
-                                                            : '${item.quantity} x PKR ${item.unitPrice}',
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          color:
-                                                              Colors.grey[600],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  'PKR ${item.total.toStringAsFixed(2)}',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      allChildren.add(
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 8.0,
-                                            bottom: 4.0,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  '${_tr('Subtotal')} (${entry.key}):',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  maxLines: 2,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                'PKR ${storeSubtotal.toStringAsFixed(2)}',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-
-                                      allChildren.add(
-                                        const Divider(height: 12),
-                                      );
-                                    }
-
-                                    allChildren.add(const SizedBox(height: 8));
-
-                                    allChildren.add(
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 8.0,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                '${_tr('Delivery Fee')} ($numStores ${_tr('Stores')}):',
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                                maxLines: 2,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'PKR ${deliveryFee.toStringAsFixed(2)}',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-
-                                    allChildren.add(
-                                      Container(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        decoration: BoxDecoration(
-                                          border: Border(
-                                            top: BorderSide(
-                                              color: Colors.grey[300]!,
-                                              width: 2,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                _tr('Grand Total'),
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                                maxLines: 2,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'PKR ${grandTotal.toStringAsFixed(2)}',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-
-                                    return Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: allChildren,
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Delivery Details Card
-                        _sectionCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.local_shipping, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _tr('Delivery Details'),
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _nameController,
-                                  decoration: InputDecoration(
-                                    label: Text(
-                                      _tr('Full Name'),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 2,
-                                    ),
-                                    filled: true,
-                                    fillColor: CustomerPalette.background,
-                                    border: _fieldBorder(),
-                                    enabledBorder: _fieldBorder(),
-                                    focusedBorder: _fieldBorder(
-                                      CustomerPalette.primary,
-                                    ),
-                                    prefixIcon: const Icon(Icons.person),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return _tr('Full Name');
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _phoneController,
-                                  decoration: InputDecoration(
-                                    label: Text(
-                                      _tr('Phone Number'),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 2,
-                                    ),
-                                    filled: true,
-                                    fillColor: CustomerPalette.background,
-                                    border: _fieldBorder(),
-                                    enabledBorder: _fieldBorder(),
-                                    focusedBorder: _fieldBorder(
-                                      CustomerPalette.primary,
-                                    ),
-                                    prefixIcon: const Icon(Icons.phone),
-                                  ),
-                                  keyboardType: TextInputType.phone,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return _tr('Phone Number');
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _addressController,
-                                  decoration: InputDecoration(
-                                    label: Text(
-                                      _tr('Delivery Address'),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 2,
-                                    ),
-                                    filled: true,
-                                    fillColor: CustomerPalette.background,
-                                    border: _fieldBorder(),
-                                    enabledBorder: _fieldBorder(),
-                                    focusedBorder: _fieldBorder(
-                                      CustomerPalette.primary,
-                                    ),
-                                    prefixIcon: const Icon(Icons.location_on),
-                                  ),
-                                  maxLines: 2,
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return _tr('Delivery Address');
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedDeliveryTime,
-                                  decoration: InputDecoration(
-                                    label: Text(
-                                      _tr('Preferred Delivery Time'),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 2,
-                                    ),
-                                    filled: true,
-                                    fillColor: CustomerPalette.background,
-                                    border: _fieldBorder(),
-                                    enabledBorder: _fieldBorder(),
-                                    focusedBorder: _fieldBorder(
-                                      CustomerPalette.primary,
-                                    ),
-                                    prefixIcon: const Icon(Icons.access_time),
-                                  ),
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: 'asap',
-                                      child: Text(_tr('ASAP (30-45 mins)')),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: '1hour',
-                                      child: Text(_tr('Within 1 hour')),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: '2hours',
-                                      child: Text(_tr('Within 2 hours')),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'tomorrow',
-                                      child: Text(_tr('Tomorrow')),
-                                    ),
-                                  ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _selectedDeliveryTime = value;
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _instructionsController,
-                                  decoration: InputDecoration(
-                                    label: Text(
-                                      _tr('Special Instructions'),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 2,
-                                    ),
-                                    filled: true,
-                                    fillColor: CustomerPalette.background,
-                                    border: _fieldBorder(),
-                                    enabledBorder: _fieldBorder(),
-                                    focusedBorder: _fieldBorder(
-                                      CustomerPalette.primary,
-                                    ),
-                                    prefixIcon: const Icon(Icons.note),
-                                  ),
-                                  maxLines: 2,
-                                ),
-                              ],
-                            ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Payment Method Card
-                        _sectionCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.payment, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _tr('Payment Method'),
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                RadioGroup<String>(
-                                  groupValue: _paymentMethod,
-                                  onChanged: (newValue) {
-                                    if (newValue != null) {
-                                      setState(() => _paymentMethod = newValue);
-                                    }
-                                  },
-                                  child: Column(
-                                    children: [
-                                      _buildPaymentOption(
-                                        title: 'Cash on Delivery',
-                                        value: 'cash',
-                                        icon: Icons.delivery_dining,
-                                        subtitle: 'Pay with cash at delivery',
-                                      ),
-                                      const SizedBox(height: 8),
-                                      _buildPaymentOption(
-                                        title: 'Credit/Debit Card',
-                                        value: 'card',
-                                        icon: Icons.credit_card,
-                                        subtitle: 'Pay securely with your card',
-                                      ),
-                                      const SizedBox(height: 8),
-                                      _buildPaymentOption(
-                                        title: 'Wallet',
-                                        value: 'wallet',
-                                        icon: Icons.account_balance_wallet,
-                                        subtitle: 'Use your in-app wallet',
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (_paymentMethod == 'wallet' &&
-                                    _walletBalance != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      top: 12,
-                                      left: 4,
-                                      right: 4,
-                                    ),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        color:
-                                            _walletBalance! >=
-                                                _calculateGrandTotal(cart)
-                                            ? Colors.green.shade50
-                                            : Colors.red.shade50,
-                                        border: Border.all(
-                                          color:
-                                              _walletBalance! >=
-                                                  _calculateGrandTotal(cart)
-                                              ? Colors.green
-                                              : Colors.red,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            _walletBalance! >=
-                                                    _calculateGrandTotal(cart)
-                                                ? Icons.check_circle
-                                                : Icons.error,
-                                            color:
-                                                _walletBalance! >=
-                                                    _calculateGrandTotal(cart)
-                                                ? Colors.green
-                                                : Colors.red,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  '${_tr('Wallet')}: ${_tr('PKR')} ${_walletBalance!.toStringAsFixed(2)}',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color:
-                                                        _walletBalance! >=
-                                                            _calculateGrandTotal(
-                                                              cart,
-                                                            )
-                                                        ? Colors.green
-                                                        : Colors.red,
-                                                  ),
-                                                ),
-                                                if (_walletBalance! <
-                                                    _calculateGrandTotal(cart))
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          top: 4,
-                                                        ),
-                                                    child: Text(
-                                                      '${_tr('Insufficient wallet balance. Need')} ${_tr('PKR')} ${(_calculateGrandTotal(cart) - _walletBalance!).toStringAsFixed(2)} ${_tr('more.')}',
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.red,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                        ),
-
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.lock_outline),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              backgroundColor: CustomerPalette.primary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            ),
-                            onPressed: _submitOrder,
-                            label: Text(
-                              _tr('Place Order'),
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                      ],
-                    ),
-                  );
-
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      16 + sidePadding,
-                      18,
-                      16 + sidePadding,
-                      28,
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(34),
-                        color: Colors.white.withValues(alpha: 0.9),
-                        border: Border.all(
-                          color: CustomerPalette.border,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: CustomerPalette.primaryDark.withValues(
-                              alpha: 0.14,
-                            ),
-                            blurRadius: 26,
-                            offset: const Offset(0, 18),
-                          ),
-                        ],
+                  return AbsorbPointer(
+                    absorbing: _isLoading,
+                    child: SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        AppSpace.gutter + sidePadding,
+                        AppSpace.md,
+                        AppSpace.gutter + sidePadding,
+                        AppSpace.xxl,
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
-                        child: content,
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildGuestNotice(),
+                            _buildOrderSummary(cart),
+                            const SizedBox(height: AppSpace.md),
+                            _buildDeliveryDetails(),
+                            const SizedBox(height: AppSpace.md),
+                            _buildPayment(cart),
+                          ],
+                        ),
                       ),
                     ),
                   );
                 },
               ),
-            ),
-        ],
       ),
-    ));
+    );
   }
 }

@@ -1,10 +1,11 @@
-﻿import 'dart:ui';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/auth_provider.dart';
 import '../services/notifier.dart';
-import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
+import '../widgets/ui/ui.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String email;
@@ -31,16 +32,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     setState(() => _isUrdu = isUrdu);
   }
 
-  String _tr(String text) {
-    const localTranslations = <String, String>{
-      'Please enter the 6-digit code sent to':
-          'براہ کرم 6 ہندسوں کا کوڈ درج کریں جو بھیجا گیا تھا',
-    };
-    if (_isUrdu && localTranslations.containsKey(text)) {
-      return localTranslations[text]!;
-    }
-    return CustomerLanguage.tr(_isUrdu, text);
-  }
+  String _tr(String text) => CustomerLanguage.tr(_isUrdu, text);
 
   @override
   void dispose() {
@@ -63,15 +55,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
         _codeController.text,
       );
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('Email verified! Please login.'))),
       );
-      
-      // Navigate to login screen or pop until root
+
       Navigator.of(context).popUntil((route) => route.isFirst);
-      // Assuming route '/' is login or landing
-      
     } catch (e) {
       if (mounted) {
         Notifier.error(context, e.toString());
@@ -84,7 +73,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Future<void> _resend() async {
     setState(() => _isLoading = true);
     try {
-      await Provider.of<AuthProvider>(context, listen: false).resendCode(widget.email);
+      await Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).resendCode(widget.email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('Verification code sent!'))),
@@ -100,136 +92,63 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Directionality(
-      textDirection: CustomerLanguage.textDirection(_isUrdu),
+    return LanguageScope(
+      isUrdu: _isUrdu,
       child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                CustomerPalette.primary,
-                CustomerPalette.primaryDark,
-                CustomerPalette.accent,
-              ],
-            ),
-          ),
+        backgroundColor: AppColors.surface,
+        appBar: AppBar(shape: const Border()),
+        body: SafeArea(
+          top: false,
           child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.xxl,
+                  AppSpace.sm,
+                  AppSpace.xxl,
+                  AppSpace.xxl,
+                ),
                 children: [
-                  _buildBrandHeader(),
-                  const SizedBox(height: 18),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(40),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 350),
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: CustomerPalette.card.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(40),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _tr('Verify Email'),
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: CustomerPalette.textDark,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              '${_tr('Please enter the 6-digit code sent to')}\n${widget.email}',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            TextField(
-                              controller: _codeController,
-                              keyboardType: TextInputType.number,
-                              maxLength: 6,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                letterSpacing: 5,
-                                color: CustomerPalette.textDark,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: '000000',
-                                counterText: '',
-                                hintStyle: TextStyle(
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide(color: Colors.orange.shade200),
-                                ),
-                                focusedBorder: const OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: CustomerPalette.primary,
-                                    width: 1.4,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: _isLoading ? null : _verify,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: CustomerPalette.primary,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: _isLoading
-                                    ? const CircularProgressIndicator(color: Colors.white)
-                                    : Text(
-                                        _tr('Verify'),
-                                        style: const TextStyle(color: Colors.white),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            TextButton(
-                              onPressed: _isLoading ? null : _resend,
-                              child: Text(
-                                _tr('Resend Code'),
-                                style: TextStyle(
-                                  color: theme.colorScheme.primary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                  const _CodeIcon(icon: Icons.mark_email_read_outlined),
+                  const SizedBox(height: AppSpace.xl),
+                  Text(_tr('Verify Email'), style: AppText.h1),
+                  const SizedBox(height: AppSpace.sm),
+                  Text(
+                    _tr('Please enter the 6-digit code sent to'),
+                    style: AppText.bodySecondary,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    Fmt.isolate(widget.email),
+                    style: AppText.bodyStrong,
+                  ),
+                  const SizedBox(height: AppSpace.xxl),
+                  _CodeField(
+                    controller: _codeController,
+                    label: _tr('Verification code'),
+                    onSubmitted: _isLoading ? null : _verify,
+                  ),
+                  const SizedBox(height: AppSpace.xl),
+                  PrimaryButton(
+                    label: _tr('Verify'),
+                    loading: _isLoading,
+                    onPressed: _verify,
+                  ),
+                  const SizedBox(height: AppSpace.md),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        _tr("Didn't receive the code?"),
+                        style: AppText.bodySecondary,
                       ),
-                    ),
+                      TextButton(
+                        onPressed: _isLoading ? null : _resend,
+                        child: Text(_tr('Resend Code')),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -239,44 +158,66 @@ class _VerificationScreenState extends State<VerificationScreen> {
       ),
     );
   }
+}
 
-  Widget _buildBrandHeader() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-            ),
-          ),
-          child: Image.asset(
-            'assets/icon/servenow_brand_logo.png',
-            height: 84,
-            fit: BoxFit.contain,
-            errorBuilder: (ctx, err, stack) => const Text(
-              'ServeNow',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
+/// Tinted circle with an icon at the top of code-entry screens.
+class _CodeIcon extends StatelessWidget {
+  final IconData icon;
+  const _CodeIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: const BoxDecoration(
+          color: AppColors.tint100,
+          shape: BoxShape.circle,
         ),
-        const SizedBox(height: 12),
-        Text(
-          _tr('Confirm your email'),
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+        child: Icon(icon, color: AppColors.primaryPressed, size: 30),
+      ),
     );
   }
 }
 
+/// Large, spaced 6-digit code input.
+class _CodeField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final VoidCallback? onSubmitted;
+
+  const _CodeField({
+    required this.controller,
+    required this.label,
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      maxLength: 6,
+      autofillHints: const [AutofillHints.oneTimeCode],
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      onSubmitted: (_) => onSubmitted?.call(),
+      style: AppText.h1.copyWith(
+        letterSpacing: 10,
+        fontFeatures: AppText.tabular,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: '000000',
+        counterText: '',
+        hintStyle: AppText.h1.copyWith(
+          letterSpacing: 10,
+          color: AppColors.borderStrong,
+        ),
+      ),
+    );
+  }
+}

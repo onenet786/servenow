@@ -22,6 +22,7 @@ import 'manage_riders_screen.dart';
 import 'offer_campaigns_screen.dart';
 import 'rider_dashboard_screen.dart';
 import 'store_balances_screen.dart';
+import '../widgets/ui/app_version.dart';
 import 'store_owner_dashboard_screen.dart';
 
 class _LiveRiderTrackerPayload {
@@ -6030,6 +6031,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               authProvider.logout();
               Navigator.of(context).pushReplacementNamed('/login');
             },
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: AppVersionText(),
           ),
         ],
       ),

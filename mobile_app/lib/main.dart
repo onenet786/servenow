@@ -31,10 +31,10 @@ import 'screens/splash_screen.dart';
 import 'screens/store_balances_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/forgot_password_screen.dart';
-import 'screens/ui_test_home_screen.dart';
 import 'screens/customer_dashboard_test_screen.dart';
 import 'screens/customer_tile_demo_screen.dart';
-import 'theme/customer_palette.dart';
+import 'theme/app_colors.dart';
+import 'theme/app_theme.dart';
 import 'package:servenow/services/notifier.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -123,19 +123,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseScheme =
-        ColorScheme.fromSeed(
-          seedColor: CustomerPalette.primary,
-          brightness: Brightness.light,
-        ).copyWith(
-          primary: CustomerPalette.primary,
-          secondary: CustomerPalette.accent,
-          surface: CustomerPalette.card,
-          onPrimary: Colors.white,
-          onSecondary: CustomerPalette.textDark,
-          onSurface: CustomerPalette.textDark,
-        );
-
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
@@ -159,123 +146,12 @@ class MyApp extends StatelessWidget {
             bottom: true,
             child: _SessionGuard(
               child: _AppUpdateOverlay(
-                child: Stack(
-                  children: [
-                    ?child,
-                    const Positioned(
-                      right: 6,
-                      bottom: 4,
-                      child: _VersionBadge(),
-                    ),
-                  ],
-                ),
+                child: child ?? const SizedBox.shrink(),
               ),
             ),
           );
         },
-        theme: ThemeData(
-          colorScheme: baseScheme,
-          fontFamily: 'Roboto',
-          scaffoldBackgroundColor: CustomerPalette.background,
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: CustomerPalette.primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: false,
-          ),
-          cardTheme: CardThemeData(
-            color: CustomerPalette.card,
-            elevation: 1,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: CustomerPalette.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          filledButtonTheme: FilledButtonThemeData(
-            style: FilledButton.styleFrom(
-              backgroundColor: CustomerPalette.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.orange.shade200),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.orange.shade200),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: CustomerPalette.primary,
-                width: 1.4,
-              ),
-            ),
-          ),
-          chipTheme: ChipThemeData(
-            backgroundColor: Colors.white,
-            selectedColor: CustomerPalette.primaryDark,
-            secondarySelectedColor: CustomerPalette.primaryDark,
-            side: BorderSide(color: Colors.orange.shade200),
-            labelStyle: const TextStyle(
-              color: CustomerPalette.textDark,
-              fontWeight: FontWeight.w600,
-            ),
-            secondaryLabelStyle: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          bottomNavigationBarTheme: BottomNavigationBarThemeData(
-            backgroundColor: Colors.white,
-            selectedItemColor: CustomerPalette.primaryDark,
-            unselectedItemColor: Colors.brown.shade300,
-            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
-            type: BottomNavigationBarType.fixed,
-          ),
-          dialogTheme: DialogThemeData(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          snackBarTheme: const SnackBarThemeData(
-            behavior: SnackBarBehavior.floating,
-            elevation: 2,
-            showCloseIcon: true,
-            backgroundColor: CustomerPalette.primaryDark,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-            ),
-            contentTextStyle: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
+        theme: AppTheme.light(),
         home: const AuthWrapper(),
         routes: {
           '/login': (context) => const LoginScreen(),
@@ -297,68 +173,10 @@ class MyApp extends StatelessWidget {
           '/rider-history': (context) => const RiderHistoryScreen(),
           '/change-password': (context) => const ChangePasswordScreen(),
           '/forgot-password': (context) => const ForgotPasswordScreen(),
-          '/ui-test-home': (context) => const UiTestHomeScreen(),
           '/customer-test-dashboard': (context) =>
               const CustomerDashboardTestScreen(),
           '/customer-tile-demo': (context) => const CustomerTileDemoScreen(),
         },
-      ),
-    );
-  }
-}
-
-class _VersionBadge extends StatefulWidget {
-  const _VersionBadge();
-
-  @override
-  State<_VersionBadge> createState() => _VersionBadgeState();
-}
-
-class _VersionBadgeState extends State<_VersionBadge> {
-  static const String _envTag = String.fromEnvironment(
-    'APP_VERSION_TAG',
-    defaultValue: '',
-  );
-  String _tag = _envTag;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVersionTag();
-  }
-
-  Future<void> _loadVersionTag() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      final version = info.version.trim();
-      final build = info.buildNumber.trim();
-      if (!mounted) return;
-      if (version.isNotEmpty) {
-        setState(() {
-          _tag = build.isNotEmpty ? 'v$version+$build' : 'v$version';
-        });
-      }
-    } catch (_) {
-      // Keep environment tag fallback if package info is unavailable.
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_tag.trim().isEmpty) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        _tag,
-        style: const TextStyle(
-          fontSize: 10,
-          color: Colors.black54,
-          fontWeight: FontWeight.w500,
-        ),
       ),
     );
   }
@@ -672,9 +490,9 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF4E8),
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFFFD5A8)),
+                  border: Border.all(color: AppColors.border),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.12),
@@ -690,7 +508,7 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
                       children: [
                         const Icon(
                           Icons.system_update_alt,
-                          color: Color(0xFFB45309),
+                          color: AppColors.primary,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -735,7 +553,7 @@ class _AppUpdateOverlayState extends State<_AppUpdateOverlay>
                       '   Latest: ${(status['latest_version'] ?? '').toString()}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Colors.black54,
+                        color: AppColors.muted,
                       ),
                     ),
                     const SizedBox(height: 10),

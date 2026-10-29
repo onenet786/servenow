@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 
+import 'app_colors.dart';
+
+/// Legacy palette, kept as a thin alias so screens that still reference it
+/// (admin, rider history, ...) pick up the unified green design system.
+/// New code should use [AppColors] or `Theme.of(context).colorScheme`.
 class CustomerPalette {
-  static const Color primary = Color(0xFFE06A2E);
-  static const Color primaryDark = Color(0xFF9E4318);
-  static const Color accent = Color(0xFFF2B134);
-  static const Color secondary = Color(0xFF147D7E);
-  static const Color secondaryDark = Color(0xFF0D5556);
-  static const Color highlight = Color(0xFFC9475B);
-  static const Color background = Color(0xFFFFF4EA);
-  static const Color card = Color(0xFFFFFFFF);
-  static const Color textDark = Color(0xFF2F221A);
-  static const Color textMuted = Color(0xFF6F5A4A);
-  static const Color border = Color(0xFFE8C39F);
+  CustomerPalette._();
+
+  static const Color primary = AppColors.primary;
+  static const Color primaryDark = AppColors.primaryPressed;
+  static const Color accent = AppColors.tint200;
+  static const Color secondary = AppColors.primary;
+  static const Color secondaryDark = AppColors.primaryDeep;
+  static const Color highlight = AppColors.danger;
+  static const Color background = AppColors.background;
+  static const Color card = AppColors.surface;
+  static const Color textDark = AppColors.text;
+  static const Color textMuted = AppColors.text2;
+  static const Color border = AppColors.border;
 }

@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
+import '../services/notifier.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
-import '../theme/customer_palette.dart';
+import '../utils/cart_counts.dart';
 import '../utils/customer_language.dart';
+import '../widgets/ui/ui.dart';
 import 'product_detail_screen.dart';
 
 class StoreScreen extends StatefulWidget {
@@ -24,14 +27,7 @@ class _StoreScreenState extends State<StoreScreen> {
   Map<String, dynamic>? _globalStatus;
   Timer? _globalStatusRefreshTimer;
   bool _isUrdu = false;
-
-  int _crossAxisCountFor(double width, Orientation orientation) {
-    if (orientation == Orientation.landscape) {
-      if (width >= 1000) return 3;
-      return 2;
-    }
-    return 2;
-  }
+  String? _category;
 
   @override
   void initState() {
@@ -150,20 +146,651 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   String _formatDeliveryWindow(dynamic startRaw, dynamic endRaw) {
-    final start = DateTime.tryParse((startRaw ?? '').toString());
-    final end = DateTime.tryParse((endRaw ?? '').toString());
-    if (start == null || end == null) return '';
-    final startLocal = start.toLocal();
-    final endLocal = end.toLocal();
-    return '${startLocal.toString().substring(0, 16)} - ${endLocal.toString().substring(0, 16)}';
+    final start = Fmt.dateTime(startRaw);
+    final end = Fmt.dateTime(endRaw);
+    if (start.isEmpty || end.isEmpty) return '';
+    final window = '$start - $end';
+    return _isUrdu ? Fmt.isolate(window) : window;
   }
 
-  List<List<T>> _chunk<T>(List<T> list, int size) {
-    return List.generate(
-      (list.length / size).ceil(),
-      (i) => list.sublist(
-        i * size,
-        (i + 1) * size > list.length ? list.length : (i + 1) * size,
+  // ---------------------------------------------------------------------------
+  // Cart actions (same checks as ProductDetailScreen._addToCart)
+  // ---------------------------------------------------------------------------
+
+  int _stepFor(Product product, ProductVariant? variant) {
+    final isBxgy = variant?.isBxgyOffer ?? product.isBxgyOffer;
+    final bundle = variant?.bxgyBundleQty ?? product.bxgyBundleQty;
+    return isBxgy && bundle > 1 ? bundle : 1;
+  }
+
+  /// Why a product cannot be ordered right now, or null when it can.
+  String? _blockReason(Product product, bool storeOpen, bool globalBlocked) {
+    if (globalBlocked) return _tr('Unavailable');
+    if (!storeOpen) return _tr('Closed');
+    if (!product.isAvailable) return _tr('Unavailable');
+    if (!product.isTimeAvailable) return _tr('Outside Hours');
+    if (product.stockQuantity <= 0) return _tr('Out of stock');
+    return null;
+  }
+
+  bool _guardCanAdd(Product product, bool storeOpen, bool globalBlocked) {
+    if (globalBlocked) {
+      Notifier.error(
+        context,
+        _tr('Ordering is temporarily unavailable.'),
+        duration: const Duration(seconds: 4),
+        sanitize: false,
+      );
+      return false;
+    }
+    if (!storeOpen) {
+      Notifier.error(
+        context,
+        _tr(
+          'This store is currently closed. You cannot place orders at this time.',
+        ),
+        duration: const Duration(seconds: 4),
+        sanitize: false,
+      );
+      return false;
+    }
+    if (!product.isTimeAvailable) {
+      final window = product.availabilityWindow;
+      Notifier.info(
+        context,
+        window != null
+            ? '${_tr("Available only during")} $window'
+            : _tr('Item is currently outside available hours'),
+      );
+      return false;
+    }
+    if (product.stockQuantity <= 0 || !product.isAvailable) {
+      Notifier.info(context, _tr('Out of stock'));
+      return false;
+    }
+    return true;
+  }
+
+  void _addToCart(
+    Product product,
+    ProductVariant? variant,
+    int quantity, {
+    required bool storeOpen,
+    required bool globalBlocked,
+  }) {
+    if (!_guardCanAdd(product, storeOpen, globalBlocked)) return;
+    final cart = Provider.of<CartProvider>(context, listen: false);
+    final existing = cart.items.firstWhere(
+      (item) =>
+          item.product.id == product.id &&
+          item.variant?.sizeId == variant?.sizeId &&
+          item.variant?.unitId == variant?.unitId,
+      orElse: () => CartItem(product: product, quantity: 0),
+    );
+    if (existing.quantity + quantity > product.stockQuantity) {
+      Notifier.info(
+        context,
+        '${_tr('Only')} ${product.stockQuantity} ${_tr('available')}',
+      );
+      return;
+    }
+    try {
+      final warning = cart.addItem(product, quantity, variant: variant);
+      if (warning != null) Notifier.info(context, warning);
+    } catch (e) {
+      Notifier.error(context, e.toString());
+    }
+  }
+
+  void _decrementInCart(Product product) {
+    final cart = Provider.of<CartProvider>(context, listen: false);
+    final lines = cart.items.where((i) => i.product.id == product.id).toList();
+    if (lines.isEmpty) return;
+    final line = lines.last;
+    final step = _stepFor(product, line.variant);
+    cart.updateCartItemQuantity(line, line.quantity - step);
+  }
+
+  Future<void> _openOptionsSheet(
+    Product product, {
+    required bool storeOpen,
+    required bool globalBlocked,
+  }) async {
+    final variants = product.sizeVariants;
+    var selected = variants.isNotEmpty ? variants.first : null;
+    var quantity = _stepFor(product, selected);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return LanguageScope(
+          isUrdu: _isUrdu,
+          child: StatefulBuilder(
+            builder: (context, setSheet) {
+              final step = _stepFor(product, selected);
+              final unit = selected?.effectivePrice ?? product.effectivePrice;
+              return SafeArea(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpace.gutter,
+                        ),
+                        child: Row(
+                          children: [
+                            AppNetworkImage(
+                              url: ApiService.getImageUrl(product.imageUrl),
+                              width: 64,
+                              height: 64,
+                              borderRadius: AppRadius.controlAll,
+                              placeholderIcon: Icons.fastfood_outlined,
+                            ),
+                            const SizedBox(width: AppSpace.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    product.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppText.title,
+                                  ),
+                                  Text(
+                                    _tr('Choose a size'),
+                                    style: AppText.small,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpace.md),
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.sm,
+                          ),
+                          children: variants.map((v) {
+                            final isSel =
+                                v.sizeId == selected?.sizeId &&
+                                v.unitId == selected?.unitId;
+                            return ListTile(
+                              minTileHeight: 52,
+                              onTap: () => setSheet(() {
+                                selected = v;
+                                quantity = _stepFor(product, v);
+                              }),
+                              leading: Icon(
+                                isSel
+                                    ? Icons.radio_button_checked_rounded
+                                    : Icons.radio_button_off_rounded,
+                                color: isSel
+                                    ? AppColors.primary
+                                    : AppColors.muted,
+                              ),
+                              title: Text(
+                                Fmt.unit(v.displayLabel).isEmpty
+                                    ? v.displayLabel
+                                    : Fmt.unit(v.displayLabel),
+                              ),
+                              trailing: PriceText(
+                                v.effectivePrice,
+                                original: v.isBxgyOffer
+                                    ? null
+                                    : (v.originalPrice ?? v.price),
+                                urdu: _isUrdu,
+                                style: AppText.bodyStrong,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const Divider(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpace.gutter,
+                          AppSpace.sm,
+                          AppSpace.gutter,
+                          AppSpace.md,
+                        ),
+                        child: Row(
+                          children: [
+                            QuantityStepper(
+                              quantity: quantity,
+                              onDecrement: quantity - step >= 1
+                                  ? () => setSheet(() => quantity -= step)
+                                  : null,
+                              onIncrement:
+                                  quantity + step <= product.stockQuantity
+                                  ? () => setSheet(() => quantity += step)
+                                  : null,
+                            ),
+                            const SizedBox(width: AppSpace.md),
+                            Expanded(
+                              child: PrimaryButton(
+                                label:
+                                    '${_tr('Add')} · ${Fmt.money(unit * quantity, urdu: _isUrdu)}',
+                                onPressed: () {
+                                  Navigator.of(sheetContext).pop();
+                                  _addToCart(
+                                    product,
+                                    selected,
+                                    quantity,
+                                    storeOpen: storeOpen,
+                                    globalBlocked: globalBlocked,
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = context.watch<CartProvider>();
+    final units = cart.totalUnits;
+
+    return LanguageScope(
+      isUrdu: _isUrdu,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(_tr('Store Details')),
+          actions: [
+            IconButton(
+              tooltip: _tr('Open cart'),
+              onPressed: () => Navigator.of(context).pushNamed('/cart'),
+              icon: Badge(
+                isLabelVisible: units > 0,
+                label: Text(units > 99 ? '99+' : '$units'),
+                child: const Icon(Icons.shopping_cart_outlined),
+              ),
+            ),
+            const SizedBox(width: AppSpace.xs),
+          ],
+        ),
+        bottomNavigationBar: units > 0
+            ? CartBar(
+                itemCount: units,
+                total: cart.totalAmount,
+                label: _tr('View cart'),
+                itemsLabel: _isUrdu
+                    ? ''
+                    : Fmt.count(units, 'item'),
+                urdu: _isUrdu,
+                onTap: () => Navigator.of(context).pushNamed('/cart'),
+              )
+            : null,
+        body: FutureBuilder<Map<String, dynamic>>(
+          future: _storeDetailsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildSkeleton();
+            } else if (snapshot.hasError) {
+              return EmptyState(
+                icon: Icons.wifi_off_rounded,
+                isError: true,
+                title: _tr('Could not load this store'),
+                message: _tr('Check your connection and try again.'),
+                actionLabel: _tr('Retry'),
+                actionIcon: Icons.refresh_rounded,
+                onAction: _refresh,
+              );
+            }
+
+            final data = snapshot.data;
+            if (data == null || data['success'] != true) {
+              return EmptyState(
+                icon: Icons.storefront_outlined,
+                title: _tr('Store not found'),
+                actionLabel: _tr('Back'),
+                actionIcon: Icons.arrow_back_rounded,
+                onAction: () => Navigator.of(context).maybePop(),
+              );
+            }
+
+            final store = Map<String, dynamic>.from(data['store'] as Map);
+            final bool isOpen =
+                store['is_open'] == true || store['is_open'] == 1;
+            final productsList = data['products'] as List<dynamic>? ?? [];
+            final activeCampaigns =
+                data['active_store_campaigns'] as List<dynamic>? ?? [];
+            final products = productsList
+                .map((json) => Product.fromJson(json))
+                .toList();
+            final isGlobalBlocked = _isGlobalOrderingBlocked(_globalStatus);
+            final showGlobalBanner = _isGlobalStatusVisible(_globalStatus);
+
+            final categories = <String>[];
+            for (final p in products) {
+              final c = (p.categoryName ?? '').trim();
+              if (c.isNotEmpty && !categories.contains(c)) categories.add(c);
+            }
+            final visible = _category == null
+                ? products
+                : products
+                      .where((p) => (p.categoryName ?? '').trim() == _category)
+                      .toList();
+
+            final width = MediaQuery.sizeOf(context).width;
+            final columns = width >= 1000 ? 4 : (width >= 700 ? 3 : 2);
+            final tileWidth =
+                (width - AppSpace.gutter * 2 - AppSpace.md * (columns - 1)) /
+                columns;
+            final tileExtent = tileWidth * 3 / 4 + (_isUrdu ? 150 : 118);
+
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: _buildStoreHeader(
+                      store,
+                      isOpen,
+                      showGlobalBanner,
+                      isGlobalBlocked,
+                      activeCampaigns,
+                    ),
+                  ),
+                  if (categories.length > 1)
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _CategoryTabsDelegate(
+                        height: _isUrdu ? 64 : 56,
+                        child: _buildCategoryTabs(categories),
+                      ),
+                    ),
+                  SliverToBoxAdapter(
+                    child: SectionHeader(
+                      title: _category ?? _tr('Menu'),
+                      subtitle: _isUrdu
+                          ? '${Fmt.isolate('${visible.length}')} ${_tr('Items')}'
+                          : Fmt.count(visible.length, 'item'),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpace.gutter,
+                        AppSpace.lg,
+                        AppSpace.gutter,
+                        AppSpace.md,
+                      ),
+                    ),
+                  ),
+                  if (visible.isEmpty)
+                    SliverToBoxAdapter(
+                      child: EmptyState(
+                        compact: true,
+                        icon: Icons.inventory_2_outlined,
+                        title: _tr('No products yet'),
+                        message: _tr(
+                          'This store has not added products. Please check back later.',
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.gutter,
+                      ),
+                      sliver: SliverGrid.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          crossAxisSpacing: AppSpace.md,
+                          mainAxisSpacing: AppSpace.md,
+                          mainAxisExtent: tileExtent,
+                        ),
+                        itemCount: visible.length,
+                        itemBuilder: (context, index) => _buildProductCard(
+                          context,
+                          visible[index],
+                          isOpen,
+                          isGlobalBlocked,
+                          store: store,
+                          storeProducts: products,
+                        ),
+                      ),
+                    ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: AppSpace.xxxl),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return Shimmer(
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpace.gutter),
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          const Row(
+            children: [
+              SkeletonBox(width: 76, height: 76, radius: AppRadius.control),
+              SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 180, height: 20),
+                    SizedBox(height: AppSpace.sm),
+                    SkeletonBox(width: 140, height: 12),
+                    SizedBox(height: AppSpace.sm),
+                    SkeletonBox(width: 60, height: 20, radius: 999),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.xl),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: AppSpace.md,
+            mainAxisSpacing: AppSpace.md,
+            childAspectRatio: 0.72,
+            children: List.generate(
+              4,
+              (_) => const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: SkeletonBox(radius: AppRadius.card)),
+                  SizedBox(height: AppSpace.sm),
+                  SkeletonBox(width: 120, height: 14),
+                  SizedBox(height: AppSpace.sm),
+                  SkeletonBox(width: 70, height: 14),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStoreHeader(
+    Map<String, dynamic> store,
+    bool isOpen,
+    bool showGlobalBanner,
+    bool isGlobalBlocked,
+    List<dynamic> activeCampaigns,
+  ) {
+    final closedReason = (store['status_message'] ?? '').toString().trim();
+    final rating = Fmt.toDouble(store['rating']);
+    final eta = Fmt.eta(store['delivery_time']);
+    final hours = Fmt.hours(
+      store['opening_time']?.toString(),
+      store['closing_time']?.toString(),
+    );
+    String iso(String s) => _isUrdu ? Fmt.isolate(s) : s;
+
+    Widget meta(IconData icon, String text, {Color? iconColor}) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: iconColor ?? AppColors.muted),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: AppText.small.copyWith(
+              color: AppColors.text,
+              fontWeight: FontWeight.w600,
+              fontFeatures: AppText.tabular,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.gutter,
+        AppSpace.lg,
+        AppSpace.gutter,
+        AppSpace.lg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showGlobalBanner)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: AppSpace.md),
+              padding: const EdgeInsets.all(AppSpace.md),
+              decoration: BoxDecoration(
+                color: isGlobalBlocked
+                    ? AppColors.dangerBg
+                    : AppColors.warningBg,
+                borderRadius: AppRadius.controlAll,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    isGlobalBlocked
+                        ? Icons.block_rounded
+                        : Icons.info_outline_rounded,
+                    color: isGlobalBlocked
+                        ? AppColors.danger
+                        : AppColors.warning,
+                  ),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: Text(
+                      _globalStatusMessage(_globalStatus),
+                      style: AppText.small.copyWith(
+                        color: isGlobalBlocked
+                            ? AppColors.danger
+                            : AppColors.warning,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.cardAll,
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: AppNetworkImage(
+                  url: ApiService.getImageUrl(store['image_url']),
+                  width: 84,
+                  height: 84,
+                  borderRadius: AppRadius.cardAll,
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (store['name'] ?? _tr('Unknown Store')).toString(),
+                      style: AppText.h1,
+                    ),
+                    const SizedBox(height: 2),
+                    if ((store['location'] ?? '').toString().isNotEmpty)
+                      Text(
+                        (store['location'] ?? '').toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.small,
+                      ),
+                    const SizedBox(height: AppSpace.sm),
+                    OpenBadge(
+                      isOpen: isOpen,
+                      openLabel: _tr('Open now'),
+                      closedLabel: _tr('Closed'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!isOpen && closedReason.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.sm),
+            Text(
+              closedReason,
+              style: AppText.small.copyWith(color: AppColors.warning),
+            ),
+          ],
+          const SizedBox(height: AppSpace.md),
+          Wrap(
+            spacing: AppSpace.lg,
+            runSpacing: AppSpace.sm,
+            children: [
+              if (rating > 0)
+                meta(
+                  Icons.star_rounded,
+                  rating.toStringAsFixed(1),
+                  iconColor: AppColors.star,
+                ),
+              if (eta.isNotEmpty)
+                meta(Icons.delivery_dining_outlined, iso(eta)),
+              if (hours.isNotEmpty)
+                meta(Icons.access_time_rounded, iso(hours)),
+            ],
+          ),
+          if (activeCampaigns.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.md),
+            _buildStorePromotionsBanner(activeCampaigns),
+          ],
+        ],
       ),
     );
   }
@@ -173,7 +800,9 @@ class _StoreScreenState extends State<StoreScreen> {
 
     String badgeFor(dynamic campaign) {
       if (campaign is! Map) return _tr('Offer');
-      final rawType = (campaign['campaign_type'] ?? '').toString().toLowerCase();
+      final rawType = (campaign['campaign_type'] ?? '')
+          .toString()
+          .toLowerCase();
       if (rawType == 'bxgy') {
         final buy = int.tryParse((campaign['buy_qty'] ?? '').toString()) ?? 1;
         final get = int.tryParse((campaign['get_qty'] ?? '').toString()) ?? 1;
@@ -181,573 +810,102 @@ class _StoreScreenState extends State<StoreScreen> {
       }
       final value =
           double.tryParse((campaign['discount_value'] ?? '').toString()) ?? 0;
-      final discountType =
-          (campaign['discount_type'] ?? '').toString().toLowerCase();
+      final discountType = (campaign['discount_type'] ?? '')
+          .toString()
+          .toLowerCase();
       if (discountType == 'percent') {
         final text = value.truncateToDouble() == value
             ? value.toStringAsFixed(0)
             : value.toStringAsFixed(1);
         return '$text% OFF';
       }
-      return 'PKR ${value.toStringAsFixed(0)} OFF';
+      return '${Fmt.money(value)} OFF';
     }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpace.md),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.98),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: CustomerPalette.primary.withValues(alpha: 0.22),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: AppColors.tint50,
+        borderRadius: AppRadius.controlAll,
+        border: Border.all(color: AppColors.tint200),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: CustomerPalette.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.local_offer_rounded,
-                  color: CustomerPalette.primary,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _tr('Active Store Promotions'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15,
-                    color: CustomerPalette.textDark,
-                  ),
-                ),
-              ),
-            ],
+          const Icon(
+            Icons.local_offer_outlined,
+            color: AppColors.primaryPressed,
+            size: 20,
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: visibleCampaigns
-                .map(
-                  (campaign) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: CustomerPalette.secondary.withValues(alpha: 0.11),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: CustomerPalette.secondary.withValues(alpha: 0.22),
-                      ),
-                    ),
-                    child: Text(
-                      badgeFor(campaign),
-                      style: const TextStyle(
-                        color: CustomerPalette.secondaryDark,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBackdrop() {
-    return Stack(
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFFF6EC),
-                Color(0xFFFFD8B5),
-                Color(0xFFF7B070),
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          left: -70,
-          top: 40,
-          child: _buildBlurOrb(
-            size: 210,
-            colors: const [Color(0x66F2B134), Color(0x00F2B134)],
-          ),
-        ),
-        Positioned(
-          right: -30,
-          top: 120,
-          child: _buildBlurOrb(
-            size: 170,
-            colors: const [Color(0x55147D7E), Color(0x00147D7E)],
-          ),
-        ),
-        Positioned(
-          right: -90,
-          bottom: 40,
-          child: _buildBlurOrb(
-            size: 240,
-            colors: const [Color(0x55C9475B), Color(0x00C9475B)],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBlurOrb({required double size, required List<Color> colors}) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(colors: colors),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: CustomerLanguage.textDirection(_isUrdu),
-      child: Scaffold(
-      backgroundColor: const Color(0xFFFFF6EC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFFFF6EC),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        foregroundColor: CustomerPalette.textDark,
-        title: Text(
-          _tr('Store Details'),
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            color: CustomerPalette.textDark,
-          ),
-        ),
-        actions: [
-          Consumer<CartProvider>(
-            builder: (ctx, cart, child) => Stack(
-              alignment: Alignment.center,
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Wrap(
+              spacing: AppSpace.sm,
+              runSpacing: AppSpace.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Container(
-                  margin: const EdgeInsets.only(right: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.95),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: CustomerPalette.border),
-                    boxShadow: [
-                      BoxShadow(
-                        color: CustomerPalette.primaryDark.withValues(alpha: 0.08),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.shopping_cart_outlined),
-                    onPressed: () {
-                      Navigator.of(context).pushNamed('/cart');
-                    },
+                Text(
+                  _tr('Offers'),
+                  style: AppText.bodyStrong.copyWith(
+                    color: AppColors.primaryDeep,
                   ),
                 ),
-                if (cart.itemCount > 0)
-                  Positioned(
-                    right: 8,
-                    top: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: CustomerPalette.primaryDark,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        '${cart.itemCount}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
+                ...visibleCampaigns.map(
+                  (c) => TonePill.success(
+                    _isUrdu ? Fmt.isolate(badgeFor(c)) : badgeFor(c),
                   ),
+                ),
               ],
             ),
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          _buildBackdrop(),
-          FutureBuilder<Map<String, dynamic>>(
-        future: _storeDetailsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('${_tr('Error')}: ${snapshot.error}'));
-          }
+    );
+  }
 
-          final data = snapshot.data;
-          if (data == null || data['success'] != true) {
-            return Center(child: Text(_tr('Store not found')));
-          }
-
-          final store = data['store'];
-          final bool isOpen = store['is_open'] == true || store['is_open'] == 1;
-          final String closedReason =
-              (store['status_message'] ?? '').toString().trim();
-          final productsList = data['products'] as List<dynamic>? ?? [];
-          final activeCampaigns =
-              data['active_store_campaigns'] as List<dynamic>? ?? [];
-          final products = productsList
-              .map((json) => Product.fromJson(json))
-              .toList();
-          final media = MediaQuery.of(context);
-          final crossAxisCount = _crossAxisCountFor(
-            media.size.width,
-            media.orientation,
-          );
-
-          final chunkedProducts = _chunk(products, crossAxisCount);
-          final isGlobalBlocked = _isGlobalOrderingBlocked(_globalStatus);
-          final showGlobalBanner = _isGlobalStatusVisible(_globalStatus);
-
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        if (showGlobalBanner)
-                          Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.96),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: isGlobalBlocked
-                                    ? Colors.red.shade200
-                                    : CustomerPalette.secondary.withValues(
-                                        alpha: 0.28,
-                                      ),
-                              ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  isGlobalBlocked
-                                      ? Icons.block
-                                      : Icons.info_outline,
-                                  color: isGlobalBlocked
-                                      ? Colors.red.shade700
-                                      : Colors.orange.shade800,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _globalStatusMessage(_globalStatus),
-                                    style: TextStyle(
-                                      color: isGlobalBlocked
-                                          ? Colors.red.shade800
-                                          : Colors.orange.shade900,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                          color: Colors.white.withValues(alpha: 0.98),
-                          shadowColor: CustomerPalette.primaryDark.withValues(
-                            alpha: 0.12,
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Status indicator on a separate row inside the card
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isOpen
-                                      ? Colors.green.shade100
-                                      : Colors.red.shade100,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    isOpen ? '🟢 ${_tr('OPEN')}' : '🔴 ${_tr('CLOSED')}',
-                                    style: TextStyle(
-                                      color: isOpen
-                                          ? Colors.green.shade800
-                                          : Colors.red.shade800,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (!isOpen && closedReason.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-                                  child: Text(
-                                    closedReason,
-                                    style: TextStyle(
-                                      color: Colors.red.shade700,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              if (ApiService.getImageUrl(
-                                store['image_url'],
-                              ).isNotEmpty)
-                                Image.network(
-                                  ApiService.getImageUrl(store['image_url']),
-                                  height: 140,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (ctx, err, _) => Container(
-                                    height: 140,
-                                    color: Colors.grey[300],
-                                    child: const Icon(
-                                      Icons.store,
-                                      size: 64,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                              Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      store['name'],
-                                      style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.location_on_rounded,
-                                          size: 15,
-                                          color: Colors.grey,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            store['location'],
-                                            style: const TextStyle(
-                                      color: CustomerPalette.textMuted,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.access_time,
-                                          size: 15,
-                                          color: Colors.green,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'Open: ${_formatTimeOnly(store['opening_time'])}',
-                                          style: const TextStyle(
-                                              color: CustomerPalette.textMuted,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Icon(
-                                          Icons.timer_off,
-                                          size: 15,
-                                          color: Colors.red,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'Close: ${_formatTimeOnly(store['closing_time'])}',
-                                          style: const TextStyle(
-                                              color: CustomerPalette.textMuted,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    if (store['rating'] != null)
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.star_rounded,
-                                            size: 15,
-                                            color: Colors.amber,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '${store['rating']}',
-                                            style: const TextStyle(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (activeCampaigns.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          _buildStorePromotionsBanner(activeCampaigns),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Text(
-                      _tr('Products'),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: CustomerPalette.textDark,
-                      ),
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, rowIndex) {
-                      final rowItems = chunkedProducts[rowIndex];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ...rowItems.map((product) {
-                              return Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 5,
-                                  ),
-                                  child: _buildProductCard(
-                                    context,
-                                    product,
-                                    crossAxisCount,
-                                    isOpen,
-                                    isGlobalBlocked,
-                                    store: store,
-                                    storeProducts: products,
-                                  ),
-                                ),
-                              );
-                            }),
-                            // Fill empty slots in the last row
-                            if (rowItems.length < crossAxisCount)
-                              ...List.generate(
-                                crossAxisCount - rowItems.length,
-                                (index) => const Expanded(child: SizedBox()),
-                              ),
-                          ],
-                        ),
-                      );
-                    }, childCount: chunkedProducts.length),
-                  ),
-                ),
-                const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
-              ],
+  Widget _buildCategoryTabs(List<String> categories) {
+    final all = <String?>[null, ...categories];
+    return Container(
+      color: AppColors.background,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.gutter,
+          vertical: AppSpace.sm,
+        ),
+        itemCount: all.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpace.sm),
+        itemBuilder: (context, index) {
+          final value = all[index];
+          final selected = value == _category;
+          return ChoiceChip(
+            selected: selected,
+            label: Text(value ?? _tr('All')),
+            side: BorderSide(
+              color: selected ? AppColors.primary : AppColors.border,
             ),
+            onSelected: (_) => setState(() => _category = value),
           );
         },
       ),
-        ],
-      ),
-    ));
+    );
   }
 
-  String _formatTimeOnly(dynamic time) {
-    if (time == null) return '--:--';
-    final parts = time.toString().split(':');
-    if (parts.length >= 2) {
-      return '${parts[0]}:${parts[1]}';
-    }
-    return time.toString();
-  }  Widget _buildProductCard(
+  Widget _buildProductCard(
     BuildContext context,
     Product product,
-    int crossAxisCount,
     bool isOpen,
     bool isGlobalBlocked, {
     required Map<String, dynamic> store,
     required List<Product> storeProducts,
   }) {
     final variants = product.sizeVariants;
-    final hasVariants = variants.isNotEmpty;
+    final multiVariant = variants.length > 1;
     final offerBadge = (product.offerBadge ?? '').trim();
+    final blockReason = _blockReason(product, isOpen, isGlobalBlocked);
+    final inCart = context.select<CartProvider, int>(
+      (c) => c.quantityOf(product.id),
+    );
 
     void openDetail() {
       Navigator.of(context).push(
@@ -763,346 +921,156 @@ class _StoreScreenState extends State<StoreScreen> {
       );
     }
 
-    if (crossAxisCount == 1) {
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: Colors.white.withValues(alpha: 0.98),
-        shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: openDetail,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Product Image with Offer Badge
-                SizedBox(
-                  width: 115,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ApiService.getImageUrl(product.imageUrl).isNotEmpty
-                          ? Hero(
-                              tag: 'product_image_${product.id}',
-                              child: Image.network(
-                                ApiService.getImageUrl(product.imageUrl),
-                                fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, _) => Container(
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(
-                                    Icons.fastfood,
-                                    size: 30,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : Container(
-                              color: Colors.grey.shade200,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.fastfood,
-                                  size: 30,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                      if (offerBadge.isNotEmpty)
-                        Positioned(
-                          top: 8,
-                          left: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: CustomerPalette.primary,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              offerBadge,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                // Product Details
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          product.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: CustomerPalette.textDark,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            if (hasVariants)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: CustomerPalette.secondary
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.tune_rounded,
-                                      size: 12,
-                                      color: CustomerPalette.secondaryDark,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${variants.length} ${_tr('Options')}',
-                                      style: const TextStyle(
-                                        color: CustomerPalette.secondaryDark,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            const Spacer(),
-                            SizedBox(
-                              height: 30,
-                              child: ElevatedButton(
-                                onPressed: (isGlobalBlocked ||
-                                        !product.isCurrentlyAvailable ||
-                                        product.stockQuantity <= 0)
-                                    ? null
-                                    : openDetail,
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                  ),
-                                  backgroundColor: CustomerPalette.primary,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  textStyle: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                child: Text(
-                                  isGlobalBlocked
-                                      ? _tr('Unavailable')
-                                      : (!product.isAvailable
-                                          ? _tr('Unavailable')
-                                          : (!product.isTimeAvailable
-                                              ? (product.availabilityWindow != null
-                                                  ? product.availabilityWindow!
-                                                  : _tr('Outside Hours'))
-                                              : (product.stockQuantity <= 0
-                                                  ? _tr('Out of stock')
-                                                  : (hasVariants
-                                                      ? _tr('Select')
-                                                      : _tr('Add'))))),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    // Price: single price, or "from" the cheapest option.
+    Widget price;
+    String? hint;
+    if (variants.isEmpty) {
+      price = PriceText(
+        product.effectivePrice,
+        original: product.isBxgyOffer
+            ? null
+            : (product.originalPrice ?? product.price),
+        urdu: _isUrdu,
+        style: AppText.bodyStrong.copyWith(fontWeight: FontWeight.w800),
+      );
+    } else if (!multiVariant) {
+      final v = variants.first;
+      price = PriceText(
+        v.effectivePrice,
+        original: v.isBxgyOffer ? null : (v.originalPrice ?? v.price),
+        urdu: _isUrdu,
+        style: AppText.bodyStrong.copyWith(fontWeight: FontWeight.w800),
+      );
+      final label = Fmt.unit(v.displayLabel);
+      hint = label.isEmpty ? null : (_isUrdu ? Fmt.isolate(label) : label);
+    } else {
+      final cheapest = variants
+          .map((v) => v.effectivePrice)
+          .reduce((a, b) => a < b ? a : b);
+      price = Text(
+        '${_tr('from')} ${Fmt.money(cheapest, urdu: _isUrdu)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppText.bodyStrong.copyWith(
+          fontWeight: FontWeight.w800,
+          fontFeatures: AppText.tabular,
+        ),
+      );
+      hint = _isUrdu
+          ? '${Fmt.isolate('${variants.length}')} ${_tr('sizes')}'
+          : '${variants.length} ${_tr('sizes')}';
+    }
+
+    Widget action;
+    if (blockReason != null) {
+      action = Text(
+        blockReason,
+        style: AppText.caption.copyWith(fontWeight: FontWeight.w700),
+      );
+    } else if (inCart > 0) {
+      action = QuantityStepper(
+        compact: true,
+        quantity: inCart,
+        onDecrement: () => _decrementInCart(product),
+        onIncrement: () {
+          if (multiVariant) {
+            _openOptionsSheet(
+              product,
+              storeOpen: isOpen,
+              globalBlocked: isGlobalBlocked,
+            );
+          } else {
+            final v = variants.isEmpty ? null : variants.first;
+            _addToCart(
+              product,
+              v,
+              _stepFor(product, v),
+              storeOpen: isOpen,
+              globalBlocked: isGlobalBlocked,
+            );
+          }
+        },
+      );
+    } else {
+      action = Semantics(
+        button: true,
+        label: '${_tr('Add')} ${product.name}',
+        excludeSemantics: true,
+        child: SizedBox(
+          height: 36,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(56, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              textStyle: AppText.label.copyWith(fontSize: 13),
             ),
+            onPressed: () {
+              if (multiVariant) {
+                _openOptionsSheet(
+                  product,
+                  storeOpen: isOpen,
+                  globalBlocked: isGlobalBlocked,
+                );
+                return;
+              }
+              final v = variants.isEmpty ? null : variants.first;
+              _addToCart(
+                product,
+                v,
+                _stepFor(product, v),
+                storeOpen: isOpen,
+                globalBlocked: isGlobalBlocked,
+              );
+            },
+            child: Text(_tr('ADD')),
           ),
         ),
       );
     }
 
-    // Grid View Card (crossAxisCount >= 2)
-    return Card(
-      elevation: 2,
-      color: Colors.white.withValues(alpha: 0.98),
-      shadowColor: CustomerPalette.primaryDark.withValues(alpha: 0.12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: openDetail,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image with Offer Badge
-            SizedBox(
-              height: 100,
-              width: double.infinity,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ApiService.getImageUrl(product.imageUrl).isNotEmpty
-                      ? Hero(
-                          tag: 'product_image_${product.id}',
-                          child: Image.network(
-                            ApiService.getImageUrl(product.imageUrl),
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (ctx, err, _) => Container(
-                              color: Colors.grey.shade200,
-                              child: const Icon(
-                                Icons.fastfood,
-                                size: 28,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                            child: Icon(
-                              Icons.fastfood,
-                              size: 28,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                  if (offerBadge.isNotEmpty)
-                    Positioned(
-                      top: 6,
-                      left: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: CustomerPalette.primary,
-                          borderRadius: BorderRadius.circular(6),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          offerBadge,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (hasVariants)
-                    Positioned(
-                      bottom: 6,
-                      right: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${variants.length} ${_tr('Options')}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12.5,
-                      color: CustomerPalette.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 28,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        backgroundColor: CustomerPalette.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: (isGlobalBlocked ||
-                              !product.isCurrentlyAvailable ||
-                              product.stockQuantity <= 0)
-                          ? null
-                          : openDetail,
-                      child: Text(
-                        isGlobalBlocked
-                            ? _tr('Unavailable')
-                            : (!product.isAvailable
-                                ? _tr('Unavailable')
-                                : (!product.isTimeAvailable
-                                    ? (product.availabilityWindow != null
-                                        ? product.availabilityWindow!
-                                        : _tr('Outside Hours'))
-                                    : (product.stockQuantity <= 0
-                                        ? _tr('Out of stock')
-                                        : (hasVariants
-                                            ? _tr('Options')
-                                            : _tr('Add'))))),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ProductCard(
+      name: product.name,
+      imageUrl: ApiService.getImageUrl(product.imageUrl),
+      price: price,
+      hint: hint,
+      badge: offerBadge.isEmpty ? null : offerBadge,
+      action: action,
+      dimmed: blockReason != null,
+      onTap: openDetail,
     );
   }
+}
+
+class _CategoryTabsDelegate extends SliverPersistentHeaderDelegate {
+  final double height;
+  final Widget child;
+
+  _CategoryTabsDelegate({required this.height, required this.child});
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        border: overlapsContent || shrinkOffset > 0
+            ? const Border(bottom: BorderSide(color: AppColors.border))
+            : null,
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_CategoryTabsDelegate oldDelegate) =>
+      oldDelegate.child != child || oldDelegate.height != height;
 }

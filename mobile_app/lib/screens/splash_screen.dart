@@ -1,145 +1,99 @@
 import 'package:flutter/material.dart';
 
-import '../theme/customer_palette.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text.dart';
 
-class SplashScreen extends StatefulWidget {
+/// Start-up screen shown while auto-login runs. The logo is a bundled asset
+/// drawn on the very first frame (no network, no blobs, no fade-in), with a
+/// small green progress indicator below it.
+class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<double> _logoScale;
-  late final Animation<double> _pulse;
-  bool _showLoading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
-    );
-    _logoScale = Tween<double>(begin: 0.78, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-    _pulse = Tween<double>(begin: 0.96, end: 1.04).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-
-    _controller.forward();
-    Future.delayed(const Duration(milliseconds: 420), () {
-      if (mounted) setState(() => _showLoading = true);
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final logo = (width * 0.34).clamp(96.0, 148.0);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+
     return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFFEFE2),
-                  Color(0xFFFFF7F0),
-                  Color(0xFFFFF9F4),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            right: -40,
-            top: -40,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: CustomerPalette.accent.withValues(alpha: 0.16),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Positioned(
-            left: -55,
-            bottom: -55,
-            child: Container(
-              width: 210,
-              height: 210,
-              decoration: BoxDecoration(
-                color: CustomerPalette.primary.withValues(alpha: 0.13),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Center(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ScaleTransition(
-                    scale: _logoScale,
-                    child: AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: _showLoading ? _pulse.value : 1.0,
-                          child: child,
-                        );
-                      },
-                      child: Image.asset(
-                        'assets/icon/servenow_brand_logo.png',
-                        width: 360,
-                        fit: BoxFit.contain,
-                        errorBuilder: (ctx, err, stack) => Text(
-                          'ServeNow',
-                          style: TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.w900,
-                            color: CustomerPalette.primaryDark,
+      backgroundColor: AppColors.surface,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(logo * 0.22),
+                child: Image.asset(
+                  'assets/icon/servenow_brand_logo_v2.png',
+                  width: logo,
+                  height: logo,
+                  cacheWidth: (logo * dpr).round(),
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  frameBuilder: (ctx, child, frame, wasSync) =>
+                      frame == null && !wasSync
+                      ? Container(
+                          width: logo,
+                          height: logo,
+                          color: AppColors.tint100,
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.shopping_basket_rounded,
+                            color: AppColors.primary,
+                            size: 44,
                           ),
-                        ),
-                      ),
+                        )
+                      : child,
+                  errorBuilder: (ctx, err, stack) => Container(
+                    width: logo,
+                    height: logo,
+                    color: AppColors.primary,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.shopping_cart_outlined,
+                      color: Colors.white,
+                      size: 48,
                     ),
                   ),
-                  const SizedBox(height: 30),
-                  if (_showLoading)
-                    SizedBox(
-                      width: 30,
-                      height: 30,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.6,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          CustomerPalette.primaryDark,
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 20),
+              const Text(
+                'ServeNow',
+                textDirection: TextDirection.ltr,
+                style: TextStyle(
+                  fontFamily: AppText.latinFamily,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Groceries, food & more',
+                textDirection: TextDirection.ltr,
+                style: TextStyle(
+                  fontFamily: AppText.latinFamily,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.text2,
+                ),
+              ),
+              const SizedBox(height: 32),
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.6,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
-

@@ -1,13 +1,11 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/notifier.dart';
-import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
+import '../widgets/ui/ui.dart';
 import 'verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -22,23 +20,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _dobController = TextEditingController();
+
+  /// Holds only the 9 digits after the fixed "+92 3" prefix.
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   DateTime? _selectedDob;
-  bool _updatingPhone = false;
+  bool _obscurePassword = true;
   bool _isUrdu = false;
 
   @override
   void initState() {
     super.initState();
     _loadLanguagePreference();
-    _phoneController.text = '+923';
-    _phoneController.selection = TextSelection.collapsed(
-      offset: _phoneController.text.length,
-    );
-    _phoneController.addListener(_enforcePhonePrefix);
   }
 
   Future<void> _loadLanguagePreference() async {
@@ -47,21 +42,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isUrdu = isUrdu);
   }
 
-  String _tr(String text) {
-    const localTranslations = <String, String>{
-      'Select date of birth': 'تاریخ پیدائش منتخب کریں',
-      'Cancel': 'منسوخ',
-      'Select': 'منتخب کریں',
-    };
-    if (_isUrdu && localTranslations.containsKey(text)) {
-      return localTranslations[text]!;
-    }
-    return CustomerLanguage.tr(_isUrdu, text);
+  Future<void> _setLanguage(bool isUrdu) async {
+    await CustomerLanguage.saveIsUrdu(isUrdu);
+    if (!mounted) return;
+    setState(() => _isUrdu = isUrdu);
   }
+
+  String _tr(String text) => CustomerLanguage.tr(_isUrdu, text);
+
+  /// The value sent to the server: "+923" followed by the 9 typed digits
+  /// (same format as before; the prefix is now fixed instead of editable).
+  String get _fullPhone => '+923${_phoneController.text.trim()}';
 
   @override
   void dispose() {
-    _phoneController.removeListener(_enforcePhonePrefix);
     _fullNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -91,7 +85,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         dateOfBirth: _dobController.text,
         email: _emailController.text,
         password: _passwordController.text,
-        phone: _phoneController.text,
+        phone: _fullPhone,
         address: _addressController.text,
       );
 
@@ -111,6 +105,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         Navigator.of(context).pushReplacementNamed('/admin');
       } else if (auth.isRider) {
         Navigator.of(context).pushReplacementNamed('/rider');
+      } else if (auth.isStoreOwner) {
+        Navigator.of(context).pushReplacementNamed('/store_owner');
       } else {
         Navigator.of(context).pushReplacementNamed('/home');
       }
@@ -123,273 +119,214 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isLoading = context.select<AuthProvider, bool>((a) => a.isLoading);
 
-    return Directionality(
-      textDirection: CustomerLanguage.textDirection(_isUrdu),
+    return LanguageScope(
+      isUrdu: _isUrdu,
       child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                CustomerPalette.primary,
-                CustomerPalette.primaryDark,
-                CustomerPalette.accent,
-              ],
-            ),
-          ),
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  top: 36,
-                  bottom: MediaQuery.of(context).size.height * 0.1,
+        backgroundColor: AppColors.surface,
+        appBar: AppBar(
+          title: Text(_tr('Create account')),
+          shape: const Border(),
+          actions: [
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: AppSpace.md),
+              child: Center(
+                child: _LanguageToggle(
+                  isUrdu: _isUrdu,
+                  onChanged: _setLanguage,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.xxl,
+                    AppSpace.sm,
+                    AppSpace.xxl,
+                    AppSpace.xxl,
+                  ),
                   children: [
-                    _buildBrandHeader(),
-                    const SizedBox(height: 18),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(40),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 350),
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: CustomerPalette.card.withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(40),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
+                    Text(_tr('Register for ServeNow'), style: AppText.h1),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      _tr('It takes less than a minute.'),
+                      style: AppText.bodySecondary,
+                    ),
+                    const SizedBox(height: AppSpace.xxl),
+                    TextFormField(
+                      controller: _fullNameController,
+                      textInputAction: TextInputAction.next,
+                      textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.name],
+                      decoration: InputDecoration(
+                        labelText: _tr('Full Name'),
+                        prefixIcon: const Icon(Icons.person_outline_rounded),
+                      ),
+                      validator: (value) {
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) {
+                          return _tr('Full name is required');
+                        }
+                        if (trimmed.length < 2) {
+                          return _tr('Full name is too short');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      textDirection: TextDirection.ltr,
+                      autofillHints: const [AutofillHints.email],
+                      decoration: InputDecoration(
+                        labelText: _tr('Email Address'),
+                        prefixIcon: const Icon(Icons.email_outlined),
+                      ),
+                      validator: (value) {
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) {
+                          return _tr('Email is required');
+                        }
+                        if (!trimmed.contains('@')) {
+                          return _tr('Enter a valid email');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    TextFormField(
+                      controller: _passwordController,
+                      textInputAction: TextInputAction.next,
+                      obscureText: _obscurePassword,
+                      autofillHints: const [AutofillHints.newPassword],
+                      decoration: InputDecoration(
+                        labelText: _tr('Password'),
+                        helperText: _tr('At least 6 characters'),
+                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                        suffixIcon: IconButton(
+                          tooltip: _obscurePassword
+                              ? _tr('Show password')
+                              : _tr('Hide password'),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
                           ),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _tr('Register for ServeNow'),
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: CustomerPalette.textDark,
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                TextFormField(
-                                  controller: _fullNameController,
-                                  textInputAction: TextInputAction.next,
-                                  style: const TextStyle(
-                                    color: CustomerPalette.textDark,
-                                  ),
-                                  decoration: _buildInputDecoration(
-                                    context,
-                                    _tr('Full Name'),
-                                    Icons.person,
-                                  ),
-                                  validator: (value) {
-                                    final trimmed = value?.trim() ?? '';
-                                    if (trimmed.isEmpty) {
-                                      return _tr('Full name is required');
-                                    }
-                                    if (trimmed.length < 2) {
-                                      return _tr('Full name is too short');
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _emailController,
-                                  keyboardType: TextInputType.emailAddress,
-                                  textInputAction: TextInputAction.next,
-                                  style: const TextStyle(
-                                    color: CustomerPalette.textDark,
-                                  ),
-                                  decoration: _buildInputDecoration(
-                                    context,
-                                    _tr('Email Address'),
-                                    Icons.email,
-                                  ),
-                                  validator: (value) {
-                                    final trimmed = value?.trim() ?? '';
-                                    if (trimmed.isEmpty) {
-                                      return _tr('Email is required');
-                                    }
-                                    if (!trimmed.contains('@')) {
-                                      return _tr('Enter a valid email');
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _passwordController,
-                                  textInputAction: TextInputAction.next,
-                                  obscureText: true,
-                                  style: const TextStyle(
-                                    color: CustomerPalette.textDark,
-                                  ),
-                                  decoration: _buildInputDecoration(
-                                    context,
-                                    _tr('Password'),
-                                    Icons.lock,
-                                  ),
-                                  validator: (value) {
-                                    final trimmed = value?.trim() ?? '';
-                                    if (trimmed.isEmpty) {
-                                      return _tr('Password is required');
-                                    }
-                                    if (trimmed.length < 6) {
-                                      return _tr(
-                                        'Password must be at least 6 characters',
-                                      );
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _dobController,
-                                  readOnly: true,
-                                  style: const TextStyle(
-                                    color: CustomerPalette.textDark,
-                                  ),
-                                  decoration: _buildInputDecoration(
-                                    context,
-                                    _tr('Date of Birth'),
-                                    Icons.cake_outlined,
-                                  ).copyWith(
-                                    suffixIcon: IconButton(
-                                      icon: const Icon(
-                                        Icons.calendar_today_outlined,
-                                      ),
-                                      onPressed: () => _selectDob(context),
-                                    ),
-                                  ),
-                                  onTap: () => _selectDob(context),
-                                  validator: (value) {
-                                    final trimmed = value?.trim() ?? '';
-                                    if (trimmed.isEmpty) {
-                                      return _tr('Date of birth is required');
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  textInputAction: TextInputAction.next,
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(
-                                      RegExp(r'[0-9+]'),
-                                    ),
-                                    LengthLimitingTextInputFormatter(13),
-                                  ],
-                                  style: const TextStyle(
-                                    color: CustomerPalette.textDark,
-                                  ),
-                                  decoration: _buildInputDecoration(
-                                    context,
-                                    _tr('Phone Number'),
-                                    Icons.phone,
-                                  ),
-                                  validator: (value) {
-                                    final trimmed = value?.trim() ?? '';
-                                    if (trimmed.isEmpty) {
-                                      return _tr('Phone number is required');
-                                    }
-                                    if (!RegExp(r'^\+923\d{9}$')
-                                        .hasMatch(trimmed)) {
-                                      return _tr(
-                                        'Use +923 followed by 9 digits',
-                                      );
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _addressController,
-                                  textInputAction: TextInputAction.done,
-                                  style: const TextStyle(
-                                    color: CustomerPalette.textDark,
-                                  ),
-                                  decoration: _buildInputDecoration(
-                                    context,
-                                    _tr('Address'),
-                                    Icons.location_on,
-                                  ),
-                                  validator: (value) {
-                                    final trimmed = value?.trim() ?? '';
-                                    if (trimmed.isEmpty) {
-                                      return _tr('Address is required');
-                                    }
-                                    if (trimmed.length < 4) {
-                                      return _tr('Address is too short');
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 24),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 50,
-                                  child: Selector<AuthProvider, bool>(
-                                    selector: (_, auth) => auth.isLoading,
-                                    builder: (context, isLoading, child) {
-                                      return ElevatedButton(
-                                        onPressed: isLoading ? null : _submit,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              CustomerPalette.primary,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        child: isLoading
-                                            ? const CircularProgressIndicator(
-                                                color: Colors.white,
-                                              )
-                                            : Text(
-                                                _tr('Register'),
-                                                style: const TextStyle(
-                                                  fontSize: 18,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  child: Text(
-                                    _tr('Already have an account? Login here'),
-                                    style: TextStyle(
-                                      color: theme.colorScheme.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
                           ),
                         ),
+                      ),
+                      validator: (value) {
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) {
+                          return _tr('Password is required');
+                        }
+                        if (trimmed.length < 6) {
+                          return _tr('Password must be at least 6 characters');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    TextFormField(
+                      controller: _dobController,
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: _tr('Date of Birth'),
+                        prefixIcon: const Icon(Icons.cake_outlined),
+                        suffixIcon: IconButton(
+                          tooltip: _tr('Select date of birth'),
+                          icon: const Icon(Icons.calendar_today_outlined),
+                          onPressed: () => _selectDob(context),
+                        ),
+                      ),
+                      onTap: () => _selectDob(context),
+                      validator: (value) {
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) {
+                          return _tr('Date of birth is required');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      textDirection: TextDirection.ltr,
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      inputFormatters: [_PakistanMobileSuffixFormatter()],
+                      decoration: InputDecoration(
+                        labelText: _tr('Phone Number'),
+                        hintText: '001234567',
+                        prefixIcon: const Icon(Icons.phone_outlined),
+                        prefix: Text(
+                          '+92 3 ',
+                          textDirection: TextDirection.ltr,
+                          style: AppText.body.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        helperText: _tr('Pakistan mobile number'),
+                      ),
+                      validator: (_) {
+                        if (_phoneController.text.trim().isEmpty) {
+                          return _tr('Phone number is required');
+                        }
+                        if (!RegExp(r'^\+923\d{9}$').hasMatch(_fullPhone)) {
+                          return _tr('Use +923 followed by 9 digits');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    TextFormField(
+                      controller: _addressController,
+                      textInputAction: TextInputAction.done,
+                      minLines: 1,
+                      maxLines: 3,
+                      autofillHints: const [AutofillHints.fullStreetAddress],
+                      decoration: InputDecoration(
+                        labelText: _tr('Address'),
+                        prefixIcon: const Icon(Icons.location_on_outlined),
+                      ),
+                      validator: (value) {
+                        final trimmed = value?.trim() ?? '';
+                        if (trimmed.isEmpty) {
+                          return _tr('Address is required');
+                        }
+                        if (trimmed.length < 4) {
+                          return _tr('Address is too short');
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppSpace.xxl),
+                    PrimaryButton(
+                      label: _tr('Register'),
+                      loading: isLoading,
+                      onPressed: _submit,
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text(_tr('Already have an account? Login here')),
                       ),
                     ),
                   ],
@@ -399,45 +336,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildBrandHeader() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-            ),
-          ),
-          child: Image.asset(
-            'assets/icon/servenow_brand_logo.png',
-            height: 84,
-            fit: BoxFit.contain,
-            errorBuilder: (ctx, err, stack) => const Text(
-              'ServeNow',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          _tr('Create your account'),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 
@@ -451,6 +349,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       initialDate: initialDate,
       firstDate: DateTime(1900, 1, 1),
       lastDate: today,
+      initialEntryMode: DatePickerEntryMode.calendar,
       helpText: _tr('Select date of birth'),
       cancelText: _tr('Cancel'),
       confirmText: _tr('Select'),
@@ -468,46 +367,89 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final day = date.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
   }
+}
 
-  void _enforcePhonePrefix() {
-    if (_updatingPhone) return;
-    final text = _phoneController.text;
-    if (text.startsWith('+923')) return;
-
-    _updatingPhone = true;
-    final digitsOnly = text.replaceAll(RegExp(r'\D'), '');
-    var suffix = digitsOnly;
-    if (digitsOnly.startsWith('923')) {
-      suffix = digitsOnly.substring(3);
-    } else if (digitsOnly.startsWith('3')) {
-      suffix = digitsOnly.substring(1);
-    }
-
-    var next = '+923$suffix';
-    if (next.length > 13) {
-      next = next.substring(0, 13);
-    }
-
-    _phoneController.text = next;
-    _phoneController.selection = TextSelection.collapsed(
-      offset: _phoneController.text.length,
-    );
-    _updatingPhone = false;
-  }
-
-  InputDecoration _buildInputDecoration(
-    BuildContext context,
-    String label,
-    IconData icon,
+/// Keeps only the 9 digits after "+92 3". Pasted full numbers such as
+/// "+923001234567", "923001234567" or "03001234567" are reduced to the
+/// suffix, so the submitted value is always "+923" + 9 digits.
+class _PakistanMobileSuffixFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
   ) {
-    final theme = Theme.of(context);
-    final hintColor = theme.colorScheme.onSurface.withValues(alpha: 0.65);
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: hintColor),
-      prefixIcon: Icon(icon, color: theme.colorScheme.primary),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      isDense: true,
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 9) {
+      if (digits.startsWith('923')) {
+        digits = digits.substring(3);
+      } else if (digits.startsWith('03')) {
+        digits = digits.substring(2);
+      } else if (digits.startsWith('3')) {
+        digits = digits.substring(1);
+      }
+    }
+    if (digits.length > 9) digits = digits.substring(0, 9);
+    return TextEditingValue(
+      text: digits,
+      selection: TextSelection.collapsed(offset: digits.length),
+    );
+  }
+}
+
+/// Compact EN / اردو segmented switch.
+class _LanguageToggle extends StatelessWidget {
+  final bool isUrdu;
+  final ValueChanged<bool> onChanged;
+
+  const _LanguageToggle({required this.isUrdu, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget seg(String label, String semantics, bool urdu) {
+      final selected = isUrdu == urdu;
+      return Semantics(
+        button: true,
+        selected: selected,
+        label: semantics,
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: AppRadius.pillAll,
+          onTap: selected ? null : () => onChanged(urdu),
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 36),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.tint100 : Colors.transparent,
+              borderRadius: AppRadius.pillAll,
+            ),
+            child: Text(
+              label,
+              style: AppText.label.copyWith(
+                color: selected ? AppColors.primaryDeep : AppColors.text2,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: AppRadius.pillAll,
+      ),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            seg('EN', 'English', false),
+            seg('اردو', 'Urdu', true),
+          ],
+        ),
+      ),
     );
   }
 }

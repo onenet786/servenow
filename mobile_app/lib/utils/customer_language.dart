@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'i18n/ur_auth.dart';
+import 'i18n/ur_orders.dart';
+import 'i18n/ur_shop.dart';
+
 class CustomerLanguage {
   static const String preferenceKey = 'customer_dashboard_language';
   static const String preferenceInitializedKey =
@@ -259,6 +263,10 @@ class CustomerLanguage {
       'Failed to update status:': 'حیثیت اپ ڈیٹ نہیں ہو سکی:',
     };
 
-    return translations[english] ?? english;
+    return translations[english] ??
+        urShop[english] ??
+        urOrders[english] ??
+        urAuth[english] ??
+        english;
   }
 }

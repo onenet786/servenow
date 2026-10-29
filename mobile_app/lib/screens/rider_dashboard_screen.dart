@@ -12,6 +12,7 @@ import '../services/api_service.dart';
 import '../services/rider_background_tracking_service.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
+import '../widgets/ui/app_version.dart';
 import 'login_screen.dart';
 
 class RiderDashboardScreen extends StatefulWidget {
@@ -1769,6 +1770,10 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
               Navigator.of(context).pop();
               _logout();
             },
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: AppVersionText(),
           ),
         ],
       ),

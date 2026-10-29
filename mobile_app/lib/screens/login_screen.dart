@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/notifier.dart';
-import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
+import '../widgets/ui/ui.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,100 +41,88 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String _tr(String text) => CustomerLanguage.tr(_isUrdu, text);
 
-  String _languageLabel() => _isUrdu ? 'UR' : 'EN';
-
-  Widget _socialSignupButton({
-    required String badge,
-    required Color borderColor,
-    required Color badgeColor,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: 72,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.black87,
-          side: BorderSide(color: borderColor),
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: badgeColor,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            badge,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _showLanguageOptions() async {
     if (!mounted) return;
-    showModalBottomSheet<void>(
+    await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _tr('Select Language'),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+        Widget option(String label, bool urdu, String sample) {
+          final selected = _isUrdu == urdu;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.sm),
+            child: Material(
+              color: selected ? AppColors.tint50 : AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: AppRadius.controlAll,
+                side: BorderSide(
+                  color: selected ? AppColors.primary : AppColors.border,
+                  width: selected ? 1.5 : 1,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _setLanguage(urdu);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.lg,
+                    vertical: AppSpace.md,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(label, style: AppText.bodyStrong),
+                            Text(sample, style: AppText.small),
+                          ],
+                        ),
+                      ),
+                      if (selected) ...[
+                        Text(
+                          _tr('Selected'),
+                          style: AppText.label.copyWith(
+                            color: AppColors.primaryPressed,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpace.xs),
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.language),
-                  title: Text(_tr('English')),
-                  trailing: !_isUrdu
-                      ? const Text(
-                          'Selected',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        )
-                      : null,
-                  onTap: () async {
-                    Navigator.of(sheetContext).pop();
-                    await _setLanguage(false);
-                  },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.translate),
-                  title: Text(_tr('Urdu')),
-                  trailing: _isUrdu
-                      ? const Text(
-                          'Selected',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        )
-                      : null,
-                  onTap: () async {
-                    Navigator.of(sheetContext).pop();
-                    await _setLanguage(true);
-                  },
-                ),
-              ],
+              ),
+            ),
+          );
+        }
+
+        return LanguageScope(
+          isUrdu: _isUrdu,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.gutter,
+                0,
+                AppSpace.gutter,
+                AppSpace.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_tr('Select Language'), style: AppText.h2),
+                  const SizedBox(height: AppSpace.md),
+                  option(_tr('English'), false, 'English'),
+                  option(_tr('Urdu'), true, 'اردو'),
+                ],
+              ),
             ),
           ),
         );
@@ -149,6 +137,19 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _goToRoleHome() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.isAdmin) {
+      Navigator.of(context).pushReplacementNamed('/admin');
+    } else if (auth.isRider) {
+      Navigator.of(context).pushReplacementNamed('/rider');
+    } else if (auth.isStoreOwner) {
+      Navigator.of(context).pushReplacementNamed('/store_owner');
+    } else {
+      Navigator.of(context).pushReplacementNamed('/home');
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -159,17 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ).login(_emailController.text, _passwordController.text);
 
       if (!mounted) return;
-
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-      if (auth.isAdmin) {
-        Navigator.of(context).pushReplacementNamed('/admin');
-      } else if (auth.isRider) {
-        Navigator.of(context).pushReplacementNamed('/rider');
-      } else if (auth.isStoreOwner) {
-        Navigator.of(context).pushReplacementNamed('/store_owner');
-      } else {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
+      _goToRoleHome();
     } catch (e) {
       if (mounted) {
         Notifier.error(context, e.toString());
@@ -195,17 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await Provider.of<AuthProvider>(context, listen: false).loginWithGoogle();
 
       if (!mounted) return;
-
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-      if (auth.isAdmin) {
-        Navigator.of(context).pushReplacementNamed('/admin');
-      } else if (auth.isRider) {
-        Navigator.of(context).pushReplacementNamed('/rider');
-      } else if (auth.isStoreOwner) {
-        Navigator.of(context).pushReplacementNamed('/store_owner');
-      } else {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
+      _goToRoleHome();
     } catch (e) {
       if (mounted) {
         Notifier.error(context, e.toString());
@@ -215,362 +196,269 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final mediaQuery = MediaQuery.of(context);
-    final keyboardInset = mediaQuery.viewInsets.bottom;
-    final isKeyboardOpen = keyboardInset > 0;
-    final heroHeight = mediaQuery.size.height * (isKeyboardOpen ? 0.11 : 0.24);
+    final isLoading = context.select<AuthProvider, bool>((a) => a.isLoading);
 
-    return Directionality(
-      textDirection: CustomerLanguage.textDirection(_isUrdu),
+    return LanguageScope(
+      isUrdu: _isUrdu,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: ListView(
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
-                physics: const ClampingScrollPhysics(),
-                padding: EdgeInsets.only(bottom: keyboardInset + 16),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Column(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.xxl,
+                  AppSpace.lg,
+                  AppSpace.xxl,
+                  AppSpace.xxl,
+                ),
+                children: [
+                  Row(
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOut,
-                        height: heroHeight,
-                        width: double.infinity,
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              CustomerPalette.primary,
-                              CustomerPalette.primaryDark,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(48),
-                          ),
-                        ),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              top: 14,
-                              left: _isUrdu ? 16 : null,
-                              right: _isUrdu ? null : 16,
-                              child: OutlinedButton.icon(
-                                onPressed: _showLanguageOptions,
-                                icon: const Icon(Icons.language, size: 16),
-                                label: Text(
-                                  _languageLabel(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  side: BorderSide(
-                                    color: Colors.white.withValues(alpha: 0.5),
-                                  ),
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Center(
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 140),
-                                opacity: isKeyboardOpen ? 0.0 : 1.0,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(24),
-                                  child: Image.asset(
-                                    'assets/icon/servenow_brand_logo.png',
-                                    height: heroHeight * 0.62,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (ctx, err, stack) =>
-                                        const Text(
-                                          'ServeNow',
-                                          style: TextStyle(
-                                            fontSize: 28,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          24,
-                          isKeyboardOpen ? 10 : 16,
-                          24,
-                          14,
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _tr('Welcome Back'),
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              SizedBox(height: isKeyboardOpen ? 4 : 8),
-                              Text(
-                                _tr('Sign in to continue'),
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: Colors.black54,
-                                ),
-                              ),
-                              SizedBox(height: isKeyboardOpen ? 10 : 16),
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                decoration: InputDecoration(
-                                  labelText: _tr('Email Address'),
-                                  prefixIcon: const Icon(Icons.email_outlined),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return _tr('Please enter email');
-                                  }
-                                  if (!value.contains('@')) {
-                                    return _tr('Enter a valid email');
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 10),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                decoration: InputDecoration(
-                                  labelText: _tr('Password'),
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_off
-                                          : Icons.visibility,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) => value == null || value.isEmpty
-                                    ? _tr('Please enter password')
-                                    : null,
-                              ),
-                              SizedBox(
-                                height: isKeyboardOpen ? 30 : 34,
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () {
-                                      Navigator.of(
-                                        context,
-                                      ).pushNamed('/forgot-password');
-                                    },
-                                    child: Text(
-                                      _tr('Forgot Password?'),
-                                      style: const TextStyle(
-                                        color: CustomerPalette.primaryDark,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: Selector<AuthProvider, bool>(
-                                  selector: (_, auth) => auth.isLoading,
-                                  builder: (context, isLoading, child) {
-                                    return ElevatedButton(
-                                      onPressed: isLoading ? null : _submit,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            CustomerPalette.primary,
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                        ),
-                                        elevation: 2,
-                                      ),
-                                      child: isLoading
-                                          ? const CircularProgressIndicator(
-                                              color: Colors.white,
-                                            )
-                                          : Text(
-                                              _tr('LOGIN'),
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                letterSpacing: 1.2,
-                                              ),
-                                            ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 46,
-                                child: Selector<AuthProvider, bool>(
-                                  selector: (_, auth) => auth.isLoading,
-                                  builder: (context, isLoading, child) {
-                                    return OutlinedButton.icon(
-                                      onPressed: isLoading
-                                          ? null
-                                          : _continueAsGuest,
-                                      icon: const Icon(Icons.person_outline),
-                                      label: Text(
-                                        _tr('Continue as Guest'),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor:
-                                            CustomerPalette.primaryDark,
-                                        side: BorderSide(
-                                          color: CustomerPalette.primary
-                                              .withValues(alpha: 0.45),
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              SizedBox(height: isKeyboardOpen ? 8 : 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Divider(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    child: Text(
-                                      _tr('Or continue with'),
-                                      style: const TextStyle(
-                                        color: Colors.black54,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Divider(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _socialSignupButton(
-                                    badge: 'G',
-                                    borderColor: const Color(0xFFE5E7EB),
-                                    badgeColor: const Color(0xFFDB4437),
-                                    onTap: _continueWithGoogle,
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: isKeyboardOpen ? 14 : 20),
-                              if (!isKeyboardOpen)
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      _tr("Don't have an account? "),
-                                      style: const TextStyle(
-                                        color: Colors.black54,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    GestureDetector(
-                                      onTap: () {
-                                        Navigator.of(
-                                          context,
-                                        ).pushNamed('/register');
-                                      },
-                                      child: Text(
-                                        _tr('Register Here'),
-                                        style: const TextStyle(
-                                          color:
-                                              CustomerPalette.primaryDark,
-                                          fontWeight: FontWeight.bold,
-                                          decoration:
-                                              TextDecoration.underline,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        ),
+                      const _BrandMark(),
+                      const Spacer(),
+                      _LanguagePill(
+                        isUrdu: _isUrdu,
+                        onTap: _showLanguageOptions,
                       ),
                     ],
                   ),
-                ),
-              );
-            },
+                  const SizedBox(height: AppSpace.xxxl),
+                  Text(_tr('Welcome Back'), style: AppText.display),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    _tr('Sign in to order groceries, food and more.'),
+                    style: AppText.bodySecondary,
+                  ),
+                  const SizedBox(height: AppSpace.xxl),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.email],
+                          textDirection: TextDirection.ltr,
+                          decoration: InputDecoration(
+                            labelText: _tr('Email Address'),
+                            prefixIcon: const Icon(Icons.email_outlined),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return _tr('Please enter email');
+                            }
+                            if (!value.contains('@')) {
+                              return _tr('Enter a valid email');
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpace.md),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.password],
+                          onFieldSubmitted: (_) {
+                            if (!isLoading) _submit();
+                          },
+                          decoration: InputDecoration(
+                            labelText: _tr('Password'),
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              tooltip: _obscurePassword
+                                  ? _tr('Show password')
+                                  : _tr('Hide password'),
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                            ),
+                          ),
+                          validator: (value) => value == null || value.isEmpty
+                              ? _tr('Please enter password')
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: TextButton(
+                      onPressed: () =>
+                          Navigator.of(context).pushNamed('/forgot-password'),
+                      child: Text(_tr('Forgot Password?')),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  PrimaryButton(
+                    label: _tr('Log in'),
+                    loading: isLoading,
+                    onPressed: _submit,
+                  ),
+                  const SizedBox(height: AppSpace.xl),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpace.md,
+                        ),
+                        child: Text(_tr('or'), style: AppText.caption),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpace.xl),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: isLoading ? null : _continueWithGoogle,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.text,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 22,
+                            height: 22,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: const Text(
+                              'G',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.info,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpace.sm),
+                          Flexible(
+                            child: Text(
+                              _tr('Continue with Google'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.md),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: isLoading ? null : _continueAsGuest,
+                      icon: const Icon(Icons.person_outline_rounded),
+                      label: Text(_tr('Continue as Guest')),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xxl),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        _tr("Don't have an account? "),
+                        style: AppText.bodySecondary,
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pushNamed('/register'),
+                        child: Text(_tr('Register Here')),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Small app icon + wordmark.
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.asset(
+            'assets/icon/servenow_brand_logo_v2.png',
+            width: 40,
+            height: 40,
+            cacheWidth: 120,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stack) => Container(
+              width: 40,
+              height: 40,
+              color: AppColors.primary,
+              alignment: Alignment.center,
+              child: const Icon(Icons.shopping_cart_outlined,
+                  color: Colors.white, size: 22),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpace.sm),
+        const Text(
+          'ServeNow',
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            fontFamily: AppText.latinFamily,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.text,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Visible language switch: "EN" / "اردو".
+class _LanguagePill extends StatelessWidget {
+  final bool isUrdu;
+  final VoidCallback onTap;
+
+  const _LanguagePill({required this.isUrdu, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.translate_rounded, size: 18),
+      label: Text(isUrdu ? 'اردو' : 'EN'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(48, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        foregroundColor: AppColors.primaryPressed,
+        side: const BorderSide(color: AppColors.border),
+        shape: const StadiumBorder(),
       ),
     );
   }
