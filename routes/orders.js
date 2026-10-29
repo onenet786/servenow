@@ -802,12 +802,39 @@ async function recordPickupPaidStorePaymentsForOrder(db, {
   return recorded;
 }
 
+// Statuses in which the customer may see the rider's live position.
+const CUSTOMER_TRACKABLE_STATUSES = ["picked_up", "out_for_delivery"];
+
+// Optional motion fields sent by newer rider apps. Out-of-range values are
+// clamped; missing or non-numeric values become null (older apps omit them).
+function parseOptionalMotionValue(value, min, max) {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function parseRiderMotion(source = {}) {
+  // Heading: negative means "unknown" on some devices; 360+ wraps around.
+  const rawHeading = parseOptionalMotionValue(source.heading, -1, 720);
+  const heading = rawHeading === null || rawHeading < 0 ? null : rawHeading % 360;
+  return {
+    heading,
+    speed: parseOptionalMotionValue(source.speed, 0, 60),
+    accuracy: parseOptionalMotionValue(source.accuracy, 0, 5000),
+  };
+}
+
 function buildRiderLocationUpdatePayload({
   riderId,
   latitude,
   longitude,
   location,
   orderIds = [],
+  heading = null,
+  speed = null,
+  accuracy = null,
+  updatedAt,
 }) {
   return {
     type: "rider_location_update",
@@ -816,15 +843,42 @@ function buildRiderLocationUpdatePayload({
     longitude: Number.parseFloat(longitude),
     location: location || null,
     order_ids: orderIds,
-    updated_at: new Date().toISOString(),
+    heading,
+    speed,
+    accuracy,
+    updated_at: updatedAt || new Date().toISOString(),
   };
 }
 
-function emitRiderLocationUpdate(io, payload) {
+// Customer-facing payload: one order only, no other orders, riders or labels.
+function buildCustomerRiderLocationPayload(order, payload) {
+  return {
+    type: "rider_location_update",
+    order_id: Number(order.id),
+    rider_id: payload.rider_id,
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+    heading: payload.heading,
+    speed: payload.speed,
+    updated_at: payload.updated_at,
+  };
+}
+
+// customerOrders: rows { id, user_id, status } the rider currently carries.
+function emitRiderLocationUpdate(io, payload, customerOrders = []) {
   if (!io || !payload) return;
   io.to("admins").emit("rider_location_update", payload);
   if (payload.rider_id) {
     io.to(`rider_${payload.rider_id}`).emit("rider_location_update", payload);
+  }
+  for (const order of customerOrders) {
+    const userId = Number(order && order.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) continue;
+    if (!CUSTOMER_TRACKABLE_STATUSES.includes(String(order.status || ""))) continue;
+    io.to(`user_${userId}`).emit(
+      "rider_location_update",
+      buildCustomerRiderLocationPayload(order, payload),
+    );
   }
 }
 
@@ -2840,12 +2894,13 @@ router.put(
       await ensureRiderLocationLogsTable(req.db);
 
       const [activeOrders] = await req.db.execute(
-        `SELECT id
+        `SELECT id, user_id, status
          FROM orders
          WHERE rider_id = ?
            AND status IN (${ACTIVE_RIDER_DELIVERY_STATUS_SQL})`,
         [riderId],
       );
+      const motion = parseRiderMotion(req.body);
 
       const orderIds = activeOrders.map((order) => Number(order.id)).filter(
         (id) => Number.isInteger(id) && id > 0,
@@ -2904,7 +2959,13 @@ router.put(
           longitude,
           location: resolvedLocation,
           orderIds,
+          ...motion,
         }),
+        activeOrders.filter(
+          (order) =>
+            Number(order.id) > 0 &&
+            CUSTOMER_TRACKABLE_STATUSES.includes(String(order.status || "")),
+        ),
       );
 
       if (!location || isCoordinateOnlyLocationLabel(location)) {
@@ -4117,6 +4178,101 @@ router.get(
 );
 
 // Get single order details
+// Live rider position for one order (customer tracking: initial load and
+// fallback when the socket is not connected). Coordinates are only returned
+// while the order is picked up / out for delivery; otherwise { active: false }.
+// Cheap on purpose (two indexed lookups, no schema checks) so a 15 s poll from
+// a visible screen stays well inside the global rate limit.
+router.get("/:id(\\d+)/rider-location", authenticateToken, async (req, res) => {
+  try {
+    const orderId = Number.parseInt(req.params.id, 10);
+    let rows = null;
+    try {
+      [rows] = await req.db.execute(
+        `SELECT id, user_id, rider_id, status, rider_latitude, rider_longitude
+         FROM orders
+         WHERE id = ?
+         LIMIT 1`,
+        [orderId],
+      );
+    } catch (error) {
+      if (!error || error.code !== "ER_BAD_FIELD_ERROR") throw error;
+      // Location columns not created yet: read the order without them.
+      [rows] = await req.db.execute(
+        "SELECT id, user_id, rider_id, status FROM orders WHERE id = ? LIMIT 1",
+        [orderId],
+      );
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    const order = rows[0];
+    const userType = String(req.user.user_type || "");
+    const isStaff = userType === "admin" || userType === "standard_user";
+    const isOrderCustomer =
+      userType === "customer" && Number(req.user.id) === Number(order.user_id);
+    const isAssignedRider =
+      userType === "rider" && Number(req.user.id) === Number(order.rider_id);
+
+    if (!isStaff && !isOrderCustomer && !isAssignedRider) {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    const status = String(order.status || "");
+    if (!order.rider_id || !CUSTOMER_TRACKABLE_STATUSES.includes(status)) {
+      return res.json({ success: true, active: false, order_id: orderId, status });
+    }
+
+    let latitude = Number.parseFloat(order.rider_latitude);
+    let longitude = Number.parseFloat(order.rider_longitude);
+    let updatedAt = null;
+    try {
+      const [logs] = await req.db.execute(
+        `SELECT latitude, longitude, created_at
+         FROM rider_location_logs
+         WHERE order_id = ?
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`,
+        [orderId],
+      );
+      if (logs && logs.length > 0) {
+        const logLat = Number.parseFloat(logs[0].latitude);
+        const logLng = Number.parseFloat(logs[0].longitude);
+        if (Number.isFinite(logLat) && Number.isFinite(logLng)) {
+          latitude = logLat;
+          longitude = logLng;
+        }
+        const created = logs[0].created_at ? new Date(logs[0].created_at) : null;
+        updatedAt =
+          created && !Number.isNaN(created.getTime()) ? created.toISOString() : null;
+      }
+    } catch (_) {
+      // Log table missing: fall back to the order's last coordinates.
+    }
+
+    const hasLocation = Number.isFinite(latitude) && Number.isFinite(longitude);
+    return res.json({
+      success: true,
+      active: true,
+      order_id: orderId,
+      rider_id: Number(order.rider_id),
+      status,
+      latitude: hasLocation ? latitude : null,
+      longitude: hasLocation ? longitude : null,
+      heading: null,
+      speed: null,
+      updated_at: hasLocation ? updatedAt : null,
+    });
+  } catch (error) {
+    console.error("Error fetching order rider location:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to load rider location" });
+  }
+});
+
 router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
   console.log(`[orders] Fetching order details for ID: ${req.params.id}`);
   try {
@@ -5514,6 +5670,7 @@ router.put(
               (value) => Number.isInteger(value) && value > 0,
             ),
           }),
+          order.rider_id ? [order] : [],
         );
 
         if (!location || isCoordinateOnlyLocationLabel(location)) {
@@ -6877,6 +7034,9 @@ router.get(
 );
 
 module.exports = router;
+module.exports.emitRiderLocationUpdate = emitRiderLocationUpdate;
+module.exports.buildRiderLocationUpdatePayload = buildRiderLocationUpdatePayload;
+module.exports.parseRiderMotion = parseRiderMotion;
 
 // Schema helpers run their DDL once per process (see utils/runOnce.js)
 const { runOncePerProcess } = require("../utils/runOnce");

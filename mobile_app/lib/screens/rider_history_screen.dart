@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:provider/provider.dart';
 
+import '../config/map_config.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../theme/customer_palette.dart';
@@ -795,11 +796,7 @@ class _RiderHistoryScreenState extends State<RiderHistoryScreen> {
                               initialZoom: 14,
                             ),
                             children: [
-                              TileLayer(
-                                urlTemplate:
-                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.onenetsol.servenow',
-                              ),
+                              MapConfig.tileLayer(),
                               PolylineLayer(
                                 polylines: [
                                   Polyline(

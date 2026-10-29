@@ -43,11 +43,11 @@ function tokenFor(user) {
   return jwt.sign(user, process.env.JWT_SECRET);
 }
 
-async function request(router, mountPath, db, { method = 'GET', path, user, body, headers = {}, rawBody, beforeRouter } = {}) {
+async function request(router, mountPath, db, { method = 'GET', path, user, body, headers = {}, rawBody, beforeRouter, io = null } = {}) {
   const app = express();
   if (beforeRouter) beforeRouter(app);
   else app.use(express.json());
-  app.use((req, _res, next) => { req.db = db; req.io = null; next(); });
+  app.use((req, _res, next) => { req.db = db; req.io = io; next(); });
   app.use(mountPath, router);
   const payload = rawBody !== undefined ? rawBody : body !== undefined ? JSON.stringify(body) : '';
   const allHeaders = { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload), ...headers };

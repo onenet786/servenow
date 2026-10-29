@@ -1,12 +1,20 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/support_contact.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
 import '../services/notifier.dart';
+import '../utils/app_activity.dart';
 import '../utils/customer_language.dart';
+import '../widgets/tracking/tracking.dart';
 import '../widgets/ui/ui.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
@@ -33,6 +41,22 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   bool _isRefreshingOrder = false;
   final GlobalKey _trackingKey = GlobalKey();
 
+  // Live map (only while the order is picked up / out for delivery).
+  static const Duration _locationPollInterval = Duration(seconds: 15);
+  static const int _maxTrailPoints = 200;
+
+  /// Geocoded delivery addresses for this app session (null = failed), so a
+  /// failed lookup is not retried every time the screen opens.
+  static final Map<String, LatLng?> _sessionDestinations = {};
+
+  RiderFix? _riderFix;
+  final List<LatLng> _riderTrail = [];
+  LatLng? _destination;
+  bool _destinationRequested = false;
+  Timer? _locationPollTimer;
+  DateTime? _lastFixReceivedAt;
+  bool _isFetchingLocation = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +64,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     _setupLiveTracking();
     _loadSupportContact();
     _refreshOrderDetails(silent: true);
+    _syncLiveMap();
   }
 
   bool get _isUrdu => widget.isUrdu;
@@ -120,6 +145,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final location = (event['location'] ?? '').toString().trim();
     final latitude = event['latitude'];
     final longitude = event['longitude'];
+    final fix = RiderFix.fromPayload(event);
+    if (fix != null && _isOnTheRoad) _applyFix(fix);
 
     setState(() {
       if (location.isNotEmpty) {
@@ -149,6 +176,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         _order = {..._order, ...latestOrder};
         _didUpdateOrder = true;
       });
+      _syncLiveMap();
     } catch (_) {
       if (!silent && mounted) {
         ScaffoldMessenger.of(
@@ -182,6 +210,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         _order['status'] = 'cancelled';
         _didUpdateOrder = true;
       });
+      _syncLiveMap();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_tr('Order cancelled successfully'))),
       );
@@ -271,6 +300,264 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       contact: contact,
       isUrdu: _isUrdu,
       title: _tr('Contact Support'),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Live map
+  // ---------------------------------------------------------------------------
+
+  bool get _isOnTheRoad =>
+      _statusKey == 'picked_up' || _statusKey == 'out_for_delivery';
+
+  /// Starts the fallback poll and the destination lookup while the order is
+  /// on the road; stops everything once it is delivered or cancelled.
+  void _syncLiveMap() {
+    if (!_isOnTheRoad) {
+      _locationPollTimer?.cancel();
+      _locationPollTimer = null;
+      return;
+    }
+    if (_locationPollTimer == null) {
+      _locationPollTimer = Timer.periodic(_locationPollInterval, (_) {
+        if (!mounted || !AppActivity.shouldPoll(context)) return;
+        // The socket already delivered a fresh fix: skip this poll.
+        final last = _lastFixReceivedAt;
+        if (last != null &&
+            DateTime.now().difference(last) < const Duration(seconds: 12)) {
+          return;
+        }
+        _fetchRiderLocation();
+      });
+      _fetchRiderLocation();
+    }
+    _resolveDestination();
+  }
+
+  Future<void> _fetchRiderLocation() async {
+    if (_isFetchingLocation) return;
+    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    final orderId = _toNullableInt(_order['id']);
+    if (token == null || token.trim().isEmpty || orderId == null) return;
+    _isFetchingLocation = true;
+    try {
+      final data = await ApiService.getOrderRiderLocation(token, orderId);
+      if (!mounted) return;
+      if (data['active'] != true) {
+        // No longer on the road (delivered / cancelled): refresh the order.
+        if (_isOnTheRoad) _refreshOrderDetails(silent: true);
+        return;
+      }
+      final fix = RiderFix.fromPayload(data);
+      if (fix != null) _applyFix(fix);
+    } catch (_) {
+      // Keep the last position; the next tick or socket event retries.
+    } finally {
+      _isFetchingLocation = false;
+    }
+  }
+
+  void _applyFix(RiderFix fix) {
+    if (!mounted) return;
+    final previous = _riderFix;
+    // Ignore an older poll answer arriving after a newer socket event.
+    final prevAt = previous?.updatedAt;
+    final nextAt = fix.updatedAt;
+    if (prevAt != null && nextAt != null && nextAt.isBefore(prevAt)) return;
+    _lastFixReceivedAt = DateTime.now();
+    setState(() {
+      if (_riderTrail.isEmpty ||
+          TrackingMath.distanceMeters(_riderTrail.last, fix.position) >= 3) {
+        _riderTrail.add(fix.position);
+        if (_riderTrail.length > _maxTrailPoints) _riderTrail.removeAt(0);
+      }
+      _riderFix = fix;
+    });
+  }
+
+  /// Geocodes the delivery address once per order on the device (cached).
+  /// On failure there is no destination pin and no ETA.
+  Future<void> _resolveDestination() async {
+    if (_destinationRequested) return;
+    _destinationRequested = true;
+    final orderId = _toNullableInt(_order['id']);
+    final address = (_order['delivery_address'] ?? '').toString().trim();
+    if (orderId == null || address.isEmpty) return;
+    final key = 'order_destination_v1_$orderId';
+
+    if (_sessionDestinations.containsKey(key)) {
+      final cached = _sessionDestinations[key];
+      if (cached != null && mounted) setState(() => _destination = cached);
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(key);
+      if (saved != null) {
+        final parts = saved.split(',');
+        final lat = double.tryParse(parts.first);
+        final lng = parts.length > 1 ? double.tryParse(parts[1]) : null;
+        if (lat != null && lng != null) {
+          final point = LatLng(lat, lng);
+          _sessionDestinations[key] = point;
+          if (mounted) setState(() => _destination = point);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // The geocoding plugin has no web implementation.
+    if (kIsWeb) {
+      _sessionDestinations[key] = null;
+      return;
+    }
+    try {
+      final results = await locationFromAddress(address);
+      if (results.isEmpty) {
+        _sessionDestinations[key] = null;
+        return;
+      }
+      final point = LatLng(results.first.latitude, results.first.longitude);
+      _sessionDestinations[key] = point;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(key, '${point.latitude},${point.longitude}');
+      } catch (_) {}
+      if (mounted) setState(() => _destination = point);
+    } catch (_) {
+      _sessionDestinations[key] = null;
+    }
+  }
+
+  /// The geocoded address, unless it is clearly wrong (more than 50 km from
+  /// the rider, e.g. a street name matched in another city).
+  LatLng? get _plausibleDestination {
+    final destination = _destination;
+    final fix = _riderFix;
+    if (destination == null) return null;
+    if (fix != null &&
+        TrackingMath.distanceMeters(fix.position, destination) > 50000) {
+      return null;
+    }
+    return destination;
+  }
+
+  /// Live ETA ("about 8–12 min"), only with a destination and a fresh fix.
+  ({int low, int high})? _liveEta(DateTime now) {
+    final fix = _riderFix;
+    final destination = _plausibleDestination;
+    if (fix == null || destination == null) return null;
+    if (TrackingMath.isStale(fix.updatedAt, now)) return null;
+    return TrackingMath.etaWindowMinutes(
+      straightLineMeters: TrackingMath.distanceMeters(
+        fix.position,
+        destination,
+      ),
+      speedMps: fix.speedMps,
+    );
+  }
+
+  bool get _hasLiveEta =>
+      _isOnTheRoad && _riderFix != null && _plausibleDestination != null;
+
+  Widget _buildLiveMapCard() {
+    final text = TrackingText(_tr, isUrdu: _isUrdu);
+    final destination = _plausibleDestination;
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppRadius.card),
+            ),
+            child: SizedBox(
+              height: 280,
+              child: LiveRiderMap(
+                fix: _riderFix,
+                trail: _riderTrail,
+                destination: destination,
+                text: text,
+                semanticLabel: _tr('Live map of your rider'),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.lg),
+            child: AgoTicker(
+              builder: (context, now) {
+                final fix = _riderFix;
+                final stale =
+                    fix != null && TrackingMath.isStale(fix.updatedAt, now);
+                final eta = _liveEta(now);
+                final hasEta = fix != null && destination != null && !stale;
+                final String headline;
+                if (stale) {
+                  headline = _tr('Rider location is not updating');
+                } else if (hasEta) {
+                  headline = text.eta(eta);
+                } else {
+                  headline = _tr('Your rider is on the way');
+                }
+                final details = <String>[
+                  if (fix != null && destination != null)
+                    text.distance(
+                      TrackingMath.distanceMeters(fix.position, destination),
+                    ),
+                  if (fix != null) text.updatedAgo(fix.updatedAt, now),
+                ];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            headline,
+                            style: AppText.h2.copyWith(
+                              color: stale ? AppColors.warning : AppColors.text,
+                            ),
+                          ),
+                        ),
+                        if (hasEta) ...[
+                          const SizedBox(width: AppSpace.sm),
+                          TonePill(
+                            label: _tr('Approximate'),
+                            foreground: AppColors.text2,
+                            background: AppColors.surface3,
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (details.isNotEmpty) ...[
+                      const SizedBox(height: AppSpace.xs),
+                      Text(
+                        details.join(' · '),
+                        style: AppText.small.copyWith(
+                          fontFeatures: AppText.tabular,
+                        ),
+                      ),
+                    ],
+                    if (hasEta) ...[
+                      const SizedBox(height: AppSpace.xs),
+                      Text(
+                        _tr(
+                          'Estimated from the distance to your address. The actual time can vary.',
+                        ),
+                        style: AppText.caption,
+                      ),
+                    ],
+                    _buildRiderCard(),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -602,7 +889,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   Widget _buildHeader() {
-    final eta = _etaWindow;
+    final eta = _hasLiveEta ? '' : _etaWindow;
     final date = Fmt.dateTime(_order['created_at']);
     final storeName = (_order['store_name'] ?? '').toString().trim();
     return AppCard(
@@ -1018,6 +1305,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       children: [
                         _buildHeader(),
                         const SizedBox(height: AppSpace.md),
+                        if (_isOnTheRoad) ...[
+                          _buildLiveMapCard(),
+                          const SizedBox(height: AppSpace.md),
+                        ],
                         _buildPaymentBlock(),
                         if (_statusKey != 'cancelled')
                           const SizedBox(height: AppSpace.md),
@@ -1030,7 +1321,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               _buildStepper(),
-                              if (status.isActive) _buildRiderCard(),
+                              if (status.isActive && !_isOnTheRoad)
+                                _buildRiderCard(),
                             ],
                           ),
                         ),
@@ -1082,6 +1374,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   @override
   void dispose() {
+    _locationPollTimer?.cancel();
     Provider.of<NotificationProvider>(
       context,
       listen: false,

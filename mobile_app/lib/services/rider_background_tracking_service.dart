@@ -28,6 +28,7 @@ class RiderBackgroundTrackingService {
   DateTime? _lastSentAt;
   double? _pendingLatitude;
   double? _pendingLongitude;
+  _RiderMotion? _pendingMotion;
   bool _pendingForce = false;
 
   Future<void> updateToken(String token) async {
@@ -138,6 +139,7 @@ class RiderBackgroundTrackingService {
         token,
         latitude: position.latitude,
         longitude: position.longitude,
+        motion: _RiderMotion.fromPosition(position),
         force: true,
       );
     } on PlatformException {
@@ -157,6 +159,7 @@ class RiderBackgroundTrackingService {
       token,
       latitude: position.latitude,
       longitude: position.longitude,
+      motion: _RiderMotion.fromPosition(position),
       force: force,
     );
   }
@@ -169,6 +172,11 @@ class RiderBackgroundTrackingService {
       token,
       latitude: location.latitude,
       longitude: location.longitude,
+      motion: _RiderMotion(
+        heading: location.bearing,
+        speed: location.speed,
+        accuracy: location.accuracy,
+      ),
     );
   }
 
@@ -197,11 +205,13 @@ class RiderBackgroundTrackingService {
     String token, {
     required double latitude,
     required double longitude,
+    _RiderMotion? motion,
     bool force = false,
   }) async {
     if (_isSending) {
       _pendingLatitude = latitude;
       _pendingLongitude = longitude;
+      _pendingMotion = motion;
       _pendingForce = _pendingForce || force;
       return;
     }
@@ -233,6 +243,9 @@ class RiderBackgroundTrackingService {
         latitude: latitude,
         longitude: longitude,
         location: coordinateLabel,
+        heading: motion?.heading,
+        speed: motion?.speed,
+        accuracy: motion?.accuracy,
       );
 
       _lastLatitude = latitude;
@@ -249,8 +262,10 @@ class RiderBackgroundTrackingService {
       final pendingLatitude = _pendingLatitude;
       final pendingLongitude = _pendingLongitude;
       final pendingForce = _pendingForce;
+      final pendingMotion = _pendingMotion;
       _pendingLatitude = null;
       _pendingLongitude = null;
+      _pendingMotion = null;
       _pendingForce = false;
 
       if (pendingLatitude != null && pendingLongitude != null) {
@@ -259,10 +274,27 @@ class RiderBackgroundTrackingService {
             token,
             latitude: pendingLatitude,
             longitude: pendingLongitude,
+            motion: pendingMotion,
             force: pendingForce,
           ),
         );
       }
     }
   }
+}
+
+/// Heading / speed / accuracy of one fix, sent with the location so the live
+/// map can rotate and animate the rider marker. Values are optional.
+class _RiderMotion {
+  const _RiderMotion({this.heading, this.speed, this.accuracy});
+
+  factory _RiderMotion.fromPosition(Position position) => _RiderMotion(
+    heading: position.heading,
+    speed: position.speed,
+    accuracy: position.accuracy,
+  );
+
+  final double? heading;
+  final double? speed;
+  final double? accuracy;
 }

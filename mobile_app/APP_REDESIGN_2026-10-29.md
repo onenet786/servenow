@@ -408,3 +408,70 @@ Not changed: "Contact us" still shows the server fallback e-mail (owner action: 
 - `flutter build web --release --dart-define=SERVENOW_API_BASE_URL=http://127.0.0.1:3098 -o build/web_screens`: succeeds.
 - Screenshots re-captured into `docs/app-screens/after/` (see the report for the list). `tool/screenshots/scenarios.mjs`: login language shot is now `guest/03_login_urdu_toggle` (`tapx:Urdu`), customer `23_change_password` and Urdu `13_change_password` go through the Account tab.
 - Android: not built or device-tested here. Before release, check on a device: status-bar icons on Home/login, the white launch screen in light and dark mode, notification taps from a cold start (bootstrap order), and rider tracking mode switching when an order is assigned and delivered.
+
+---
+
+## Live tracking
+
+Uber / inDrive-style live rider tracking for the admin and the customer. The order flow and every existing API answer are unchanged; the server only gained optional fields, a customer emission and one read endpoint.
+
+### Server (`routes/orders.js`) - deploy this file
+
+| Change | Details |
+|---|---|
+| `PUT /api/orders/rider/location` accepts optional `heading` (0-360, negative = unknown, wraps past 360), `speed` (m/s, clamped 0-60) and `accuracy` (m, clamped 0-5000) | Parsed by `parseRiderMotion`; bad or missing values become `null`, so older rider apps keep working. No schema change (motion is forwarded live, not stored). |
+| Socket `rider_location_update` to admins / `rider_<id>` | Same payload as before plus `heading`, `speed`, `accuracy`. |
+| Socket `rider_location_update` to customers | For each order the rider carries in `picked_up` / `out_for_delivery`, one event to `user_<order.user_id>` with **only** `order_id, rider_id, latitude, longitude, heading, speed, updated_at` (no other orders, riders or location labels). No extra query: the existing `SELECT ... WHERE rider_id = ? AND status IN (...)` now also returns `user_id, status`. The admin per-order `PUT /:id/rider-location` emits the same customer event. |
+| `GET /api/orders/:id/rider-location` (new) | Customer tracking initial load / fallback. Allowed: `admin` / `standard_user`, the assigned rider, and a `customer` whose `orders.user_id` matches (anyone else 403; a rider whose id equals the customer's user id is refused). Returns `{active:false}` unless the order is `picked_up` / `out_for_delivery` with a rider; otherwise the latest `rider_location_logs` row for that order (or the order's last coordinates). Two indexed lookups, no DDL, so a 15 s poll from a visible screen stays far inside the global rate limit. |
+| Tests | `tests/tracking.test.js` (7 tests): another customer gets 403 and no location lookup; inactive statuses return `active:false` without coordinates; owner gets the latest position; rider / staff rules; emission goes only to the owning customer's room with only that order's fields; one order lookup per update and motion clamping; old clients without motion fields. `tests/helpers.js` `request()` takes an optional fake `io`. `npm test` 45/45, `npm run check` clean. |
+
+Verified live against `servenow_demo` (port 3093) with a raw Socket.IO client: customer 484 received only order 6999's events, customer 735 only order 6998's, a customer with no active order received nothing. `GET /api/orders/6999/rider-location`: owner 200 active, another customer 403; a delivered order returns `active:false`.
+
+### Rider app
+
+- `ApiService.updateRiderLocation` takes optional `heading`, `speed`, `accuracy` (negative = unknown, left out).
+- `RiderBackgroundTrackingService` passes them from the Geolocator `Position` (foreground stream / current position) and from the `background_location_2` `Location` (bearing, speed, accuracy). Throttling (3 m / 5 s), pending-send logic and service start/stop are unchanged.
+
+### Shared widgets: `lib/widgets/tracking/`
+
+| File | Contents |
+|---|---|
+| `tracking_math.dart` | `RiderFix` (position, heading, speed, accuracy, updatedAt; `fromPayload` for socket / REST data), `TrackingMath` (bearing, shortest turn, heading: device heading while moving, else bearing of the last move or last trail segment, else keep the last heading; stale after 2 min; ETA window with a 15 km/h city floor, 40 km/h cap and 1.3 road factor), `TrackingText` ("Updated 12 s ago", "Last seen 5 min ago", "23 km/h", "2.1 km away", "Arriving in about 8–12 min"; numbers isolated in Urdu, the ETA range is one LTR run). |
+| `live_rider_map.dart` | `LiveRiderMap`: one rider only. The marker glides between fixes over 1.3 s (ease-out) and turns the shortest way; motorbike disc with an orbiting heading arrow; accuracy halo when accuracy > 25 m; pulse ring while moving; grey marker when stale; "Waiting for the rider's location" before the first fix. Follow camera (keeps the destination in view when there is one); dragging turns follow off and shows **Recentre**. Trail polyline joined to the gliding marker. The map's semantics node is separate from the overlay buttons. Mouse-wheel zoom only on the full-screen map, so inline maps do not swallow page scrolling on web. Also `AgoTicker` (1 s rebuild for ticking labels) and `MapPillButton`. |
+| `admin_rider_tracker.dart` | `TrackedRider` / `TrackedOrder` and `AdminRiderTracker`: horizontal rider chips (name, status, order count, "12 s ago"; stable order) plus a searchable bottom sheet (name, phone, order number), the selected-rider map, and the info card (name, last update + speed, order rows with status pills that open the order, Call / WhatsApp via `SupportContact`, open-order button). Empty state when no rider is on the road. |
+
+### Admin (`admin_dashboard_screen.dart`)
+
+- The dashboard "Live riders" card and the Tools-tab "Live Rider Tracker" show **only the selected rider** (owner's request). The per-order rows are grouped per rider (`_publishTrackedRiders`). It auto-selects the active rider with the most recent update; a tapped rider is remembered (`admin_live_tracker_rider_id` in shared preferences) and restored while that rider is on the road.
+- **Full map** opens a full-screen page (selector on top, card floating on the map) that stays live through `ValueNotifier`s. The 4 s poll keeps running while that page is open; otherwise it still pauses when the dashboard is covered or the app is backgrounded (`AppActivity`).
+- Live updates use the existing socket events (admins room). Heading / speed / accuracy from the socket are cached per rider because the poll rebuilds the rows from the order list; speed falls back to the trail-based estimate.
+- Rider phones (not in the admin order list) come from the existing `GET /api/riders`, at most every 5 minutes.
+- Removed the old all-riders map code: the dashboard-wide 3.6 s motion controller (it rebuilt the whole dashboard every animation frame), multi-rider markers, waypoint / breadcrumb markers, the ride dropdown, the focused-ride card, the rider info chips and the rider details dialog (about 1,700 lines). "Track" from an order still opens the full map for that order's rider.
+
+### Customer (`order_details_screen.dart`)
+
+- While the order is **picked up / out for delivery**: a live map card at the top (only their rider; same marker, glide and follow camera; "Live · Updated 12 s ago"), then "Arriving in about 8–12 min" + an **Approximate** pill + "2.1 km away · Updated 12 s ago" + a one-line note that it is an estimate; "Your rider is on the way" without a destination; "Rider location is not updating" (amber, grey marker, no ETA) when stale. The rider card with Call / WhatsApp sits in the live card (not repeated in Order progress). The status stepper stays.
+- **Destination:** the delivery address is geocoded once per order on the device (`geocoding` `locationFromAddress`) and cached in shared preferences (`order_destination_v1_<orderId>`); failures are cached for the session. No result, web (no plugin) or a result more than 50 km from the rider means no pin and no ETA. While a live ETA is shown, the checkout-promise window in the header is hidden.
+- **Updates:** socket events from `NotificationProvider` filtered by order id; fallback `GET /api/orders/:id/rider-location` every 15 s only while the screen is the visible route and the app is in the foreground, skipped when the socket delivered a fix in the last 12 s. Stops when the order is delivered or cancelled (an `active:false` answer refreshes the order). The trail is the path seen during this visit (max 200 points).
+- **Urdu:** 30 new strings in `lib/utils/i18n/ur_orders.dart`; overlays and the card mirror in RTL, the map itself is not mirrored.
+
+### Map tiles: `lib/config/map_config.dart`
+
+`MapConfig.tileUrlTemplate`, `userAgentPackageName` (`com.onenetsol.servenow`, per the OSM tile usage policy), `tileLayer()` and a `MapAttribution` label ("© OpenStreetMap contributors") on every tracking map. Rider history uses the same tile layer. **Heavy production use should move to a keyed tile provider (MapTiler, Stadia Maps, Carto...)**: change the URL template and attribution in this one file. No keys were added.
+
+### Files
+
+- Server (deploy): `routes/orders.js`. Tests: `tests/tracking.test.js` (new), `tests/helpers.js`.
+- App: `lib/config/map_config.dart` (new), `lib/widgets/tracking/tracking.dart`, `tracking_math.dart`, `live_rider_map.dart`, `admin_rider_tracker.dart` (new), `lib/screens/admin_dashboard_screen.dart`, `lib/screens/order_details_screen.dart`, `lib/screens/rider_history_screen.dart` (tile layer only), `lib/services/api_service.dart`, `lib/services/rider_background_tracking_service.dart`, `lib/utils/i18n/ur_orders.dart`, `test/tracking_math_test.dart` (new).
+
+### Verification
+
+- `npm test` 45/45, `npm run check` clean, `flutter analyze` no issues, `flutter test` 12/12 (new math / label tests), `flutter build web --release` succeeds.
+- Screenshots in `docs/app-screens/tracking/` (web build against `servenow_demo` on port 3093; demo riders 13 and 3 moved along a Kot Addu route by calling `PUT /api/orders/rider/location` as those riders): `admin_01_dashboard_tracker`, `admin_02_full_map`, `admin_03_tools_tab_tracker`, `admin_04_rider_search_sheet`, `customer_01_tracking_en`, `customer_02_tracking_ur`, `customer_03_stale_en`, and `motion_frame_1..3` + `motion_sequence.png` (follow camera panning with the rider while live socket updates arrive). No destination pin / ETA in the web shots: the geocoding plugin has no web implementation.
+
+### Device tests needed (no Android toolchain here)
+
+1. Rider phone: heading / speed / accuracy arrive (admin card shows km/h, the arrow follows the road); the background service still sends while minimised; battery over a 30 min delivery.
+2. Customer phone: geocoding of real Kot Addu addresses (pin plausible, ETA sensible; failures show no pin), live socket updates on mobile data, the poll stops after leaving the screen and after delivery, Urdu layout.
+3. Marker smoothness at real update rates (3-5 s), follow / drag / Recentre, the full-map page on a 360 dp phone.
+4. OSM tile loading on mobile data; pick a keyed tile provider before traffic grows.

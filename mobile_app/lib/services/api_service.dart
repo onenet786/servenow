@@ -1549,6 +1549,9 @@ class ApiService {
     required double latitude,
     required double longitude,
     String? location,
+    double? heading,
+    double? speed,
+    double? accuracy,
   }) async {
     final uri = Uri.parse('$baseUrl/api/orders/rider/location');
     _logger.d('ApiService: PUT $uri');
@@ -1560,6 +1563,17 @@ class ApiService {
     if (trimmedLocation != null && trimmedLocation.isNotEmpty) {
       body['location'] = trimmedLocation;
     }
+    // Optional motion data for the live map (older servers ignore it).
+    // Devices report "unknown" as a negative value; those are left out.
+    if (heading != null && heading.isFinite && heading >= 0) {
+      body['heading'] = double.parse((heading % 360).toStringAsFixed(1));
+    }
+    if (speed != null && speed.isFinite && speed >= 0) {
+      body['speed'] = double.parse(speed.clamp(0, 60).toStringAsFixed(2));
+    }
+    if (accuracy != null && accuracy.isFinite && accuracy >= 0) {
+      body['accuracy'] = double.parse(accuracy.clamp(0, 5000).toStringAsFixed(1));
+    }
     final response = await _put(
       uri,
       headers: {
@@ -1567,6 +1581,21 @@ class ApiService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode(body),
+    );
+    return _handleResponse(response);
+  }
+
+  /// Live rider position for one order (customer tracking fallback).
+  /// `{active: false}` unless the order is picked up / out for delivery.
+  static Future<Map<String, dynamic>> getOrderRiderLocation(
+    String token,
+    int orderId,
+  ) async {
+    final uri = Uri.parse('$baseUrl/api/orders/$orderId/rider-location');
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
     );
     return _handleResponse(response);
   }
