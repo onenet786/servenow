@@ -1910,6 +1910,26 @@ window.applyImageBgFromMeta = function (img) {
 };
 
 // Authentication functions
+
+// Shared success path for every web sign-in (password login and Google).
+// Stores the session exactly as the password login always has, then
+// redirects by role.
+function completeLoginSuccess(data) {
+  localStorage.setItem("serveNowToken", data.token);
+  localStorage.setItem("serveNowUser", JSON.stringify(data.user));
+  currentUser = data.user;
+  showSuccess("Login Successful", "Logged in successfully!");
+
+  // Redirect based on user type
+  if (data.user.user_type === "admin" || data.user.user_type === "standard_user") {
+    window.location.href = "admin.html";
+  } else if (data.user.user_type === "rider") {
+    window.location.href = "rider.html";
+  } else {
+    window.location.href = "index.html";
+  }
+}
+
 async function handleLogin(e) {
   e.preventDefault();
 
@@ -1931,19 +1951,7 @@ async function handleLogin(e) {
     const data = await response.json();
 
     if (data.success) {
-      localStorage.setItem("serveNowToken", data.token);
-      localStorage.setItem("serveNowUser", JSON.stringify(data.user));
-      currentUser = data.user;
-      showSuccess("Login Successful", "Logged in successfully!");
-
-      // Redirect based on user type
-      if (data.user.user_type === "admin" || data.user.user_type === "standard_user") {
-        window.location.href = "admin.html";
-      } else if (data.user.user_type === "rider") {
-        window.location.href = "rider.html";
-      } else {
-        window.location.href = "index.html";
-      }
+      completeLoginSuccess(data);
     } else if (data.requires_verification === true) {
       showWarning("Verification Required", "Please verify your email to continue.");
       showVerificationModal(loginData.email);
@@ -2368,7 +2376,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const formatPhoneValue = (raw) => {
     const digits = String(raw || "").replace(/[^\d]/g, "");
-    let local = digits.replace(/^92/, "");
+    let local = digits.replace(/^92/, "").replace(/^0+/, ""); // 0300... -> 300...
     if (local.length > 10) local = local.slice(0, 10);
     return "+92" + local;
   };

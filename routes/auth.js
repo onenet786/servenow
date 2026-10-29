@@ -182,6 +182,22 @@ function buildGuestProfileFromToken(user) {
   };
 }
 
+// ServeNow's Google OAuth web client (project 123484088318). The website's
+// "Continue with Google" and the Android app (google-services.json,
+// default_web_client_id) both request ID tokens for this client. Client ids
+// are public. Override or extend with GOOGLE_CLIENT_IDS (comma-separated) or
+// GOOGLE_CLIENT_ID.
+const DEFAULT_GOOGLE_WEB_CLIENT_ID =
+  "123484088318-ek8r1kufci04k5mldr8tqsnnihqfnd4s.apps.googleusercontent.com";
+
+function allowedGoogleClientIds() {
+  const configured = String(process.env.GOOGLE_CLIENT_IDS || process.env.GOOGLE_CLIENT_ID || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return configured.length ? configured : [DEFAULT_GOOGLE_WEB_CLIENT_ID];
+}
+
 async function verifyGoogleIdToken(idToken) {
   const trimmed = String(idToken || "").trim();
   if (!trimmed) {
@@ -216,9 +232,10 @@ async function verifyGoogleIdToken(idToken) {
     throw new Error("Google account email is not verified");
   }
 
-  const configuredClientId = String(process.env.GOOGLE_CLIENT_ID || "").trim();
+  // The token must have been issued to ServeNow's own OAuth client, otherwise a
+  // Google token obtained by any other app could be used to sign in here.
   const aud = String(payload.aud || "").trim();
-  if (configuredClientId && aud && aud !== configuredClientId) {
+  if (!aud || !allowedGoogleClientIds().includes(aud)) {
     throw new Error("Google token audience mismatch");
   }
 
@@ -914,7 +931,10 @@ router.post(
         });
       }
 
-      const googleUser = await verifyGoogleIdToken(req.body.id_token);
+      const googleUser = await verifyGoogleIdToken(req.body.id_token).catch((verifyError) => {
+        verifyError.isGoogleVerificationError = true;
+        throw verifyError;
+      });
 
       const [riders] = await req.db.execute(
         "SELECT id FROM riders WHERE email = ? AND is_active = true LIMIT 1",
@@ -1036,11 +1056,16 @@ router.post(
         },
       });
     } catch (error) {
+      if (error && error.isGoogleVerificationError) {
+        return res.status(401).json({
+          success: false,
+          message: "Google sign-in could not be verified. Please try again.",
+        });
+      }
       console.error("Google mobile login error:", error);
       return res.status(500).json({
         success: false,
         message: "Google login failed",
-        error: error.message,
       });
     }
   }

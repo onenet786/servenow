@@ -189,3 +189,22 @@ found along the way. Element ids, JS-referenced classes, `name` attributes, inli
 - **profile.html:** the duplicate header logout icon is hidden. The page's own `#logoutBtn` is kept, and the shared `#headerLogoutBtn` is hidden by CSS.
 - **Modals:** violet inline icons (for example the Special Instructions icon) are now green.
 - **checkout** (`js/checkout.js` v=5): Full Name is pre-filled as `[first, last].filter(Boolean).join(' ')`, so a missing last name no longer shows "Ali undefined".
+
+## Web sign-in pages redesign + Google sign-in (2026-10-29)
+
+**Upload these files**
+- New: `css/servenow-auth.css` (`?v=1`), `js/servenow-auth.js` (`?v=1`), `js/google-signin.js` (`?v=1`)
+- Changed: `login.html`, `register.html`, `forgot-password.html`, `reset-password.html`, `js/app.js` (these four pages now load `app.js?v=25`; other pages keep `v=24`, which is fine because the app.js change is only a refactor)
+- Server side for Google sign-in (done separately): `server.js` (CSP allows https://accounts.google.com), `routes/auth.js` (`POST /api/auth/google-mobile`), `tests/google.test.js`
+
+**Owner action for Google sign-in (required).** In Google Cloud Console → APIs & Services → Credentials → OAuth client `123484088318-ek8r1kufci04k5mldr8tqsnnihqfnd4s` → **Authorized JavaScript origins**, add `https://servenow.pk` and `https://www.servenow.pk` (plus `http://localhost:3099` and `http://127.0.0.1:3099` for local testing). Until you do, Google shows an "origin not allowed" error when someone clicks the button.
+
+**What changed**
+- The four auth pages are a focused full-screen layout (`body.sn-auth-split`). On desktop (960px and wider) there is a deep-green brand panel (headline, three value points, a CSS/SVG "order on the way" illustration, and the cash-on-delivery trust line) next to a white form panel. Below 960px there is a compact green header with the form card overlapping it. The sidebar, header and bottom nav are hidden by CSS but stay in the DOM for app.js.
+- Every id, `name` and JS hook is unchanged (`loginForm`, `registerForm` and its fields, `emailForm`, `resetForm`, `resetPasswordForm`, the OTP inputs, `verifyOtpBtn`, `resendBtn`, `flowTitle`, `flowDesc`, `displayEmail`, the step dots, `toastContainer`, `cartCount`). The script order is unchanged; the new scripts load after the page's own script.
+- Inputs have leading icons, are 48px tall with 16px text, and have `autocomplete`/`inputmode` set. Password fields have an accessible show/hide button (`aria-pressed`). Autofill no longer turns fields yellow.
+- Loading state: `js/servenow-auth.js` puts the submit button into "Signing in…" (spinner, disabled) and restores it when app.js shows a toast, with a 20-second safety reset. Error and warning toasts are also shown inline in an `aria-live` box. `handleLogin`/`handleRegister` are not changed.
+- Register: fields are grouped as "Your details" and "Sign-in details", with an 8-character password hint, a strength meter and a live "passwords match" hint (`minlength="8"` matches the server).
+- Forgot/reset: the client-side minimum was 6 characters but the server requires 8, so it is now 8. Forgot has a "Password updated" success state; reset has an invalid-link state (no token) and a success state.
+- Google: `js/google-signin.js` renders Google's official button (outline, large, "Continue with Google") under an "or" divider on login and register. It posts the credential to `/api/auth/google-mobile`. On success it calls the new `completeLoginSuccess(data)` in app.js, the same storage and role redirect that `handleLogin` now also uses. If the Google script is blocked or offline, the divider and button stay hidden.
+- Screenshots: `docs/web-auth/` (1440×900 and 390×844 for all four pages, plus error, step-2 and invalid-link states).
