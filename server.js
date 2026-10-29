@@ -262,11 +262,21 @@ if (process.env.NODE_ENV === "production") {
 }
 console.log("Morgan request logging configured.");
 
-// Rate limiting - production-safe configuration
+// Rate limiting - production-safe configuration.
+// Limits are per client IP. Mobile networks in Pakistan put many customers behind one
+// shared (carrier-NAT) IP, and the app polls order/store status, so the general API
+// limit must be generous; login/guest/reset limits stay strict. Messages are JSON so
+// the app can show them. Override with RATE_LIMIT_MAX_REQUESTS / AUTH_RATE_LIMIT_MAX_ATTEMPTS.
+const isProdEnv = process.env.NODE_ENV === "production";
+const envLimit = (name, fallback) => {
+  const value = Number.parseInt(process.env[name] || "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+const limitMessage = (message) => ({ success: false, message });
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "production" ? 300 : 10000, // 300 req/15min for prod, generous for dev
-  message: "Too many requests from this IP, please try again later.",
+  max: envLimit("RATE_LIMIT_MAX_REQUESTS", isProdEnv ? 6000 : 10000),
+  message: limitMessage("Too many requests right now. Please wait a minute and try again."),
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
@@ -282,8 +292,8 @@ const limiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "production" ? 5 : 50, // 5 attempts for prod, 50 for dev
-  message: "Too many login attempts, please try again later.",
+  max: envLimit("AUTH_RATE_LIMIT_MAX_ATTEMPTS", isProdEnv ? 20 : 50), // failed attempts only
+  message: limitMessage("Too many login attempts. Please wait 15 minutes and try again."),
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
@@ -292,7 +302,7 @@ const authLimiter = rateLimit({
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: process.env.NODE_ENV === "production" ? 3 : 30,
-  message: "Too many password or verification requests, please try again later.",
+  message: limitMessage("Too many password or verification requests. Please try again later."),
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -300,7 +310,7 @@ const passwordResetLimiter = rateLimit({
 const orderLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
   max: process.env.NODE_ENV === "production" ? 20 : 100, // Prevent order spam
-  message: "Too many order requests, please try again later.",
+  message: limitMessage("Too many order requests. Please wait a minute and try again."),
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -319,7 +329,7 @@ app.use("/api/users/request-deletion", passwordResetLimiter);
 const verifyCodeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === "production" ? 10 : 100,
-  message: "Too many verification attempts, please try again later.",
+  message: limitMessage("Too many verification attempts. Please try again later."),
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
@@ -328,8 +338,8 @@ app.use("/api/auth/verify-email", verifyCodeLimiter);
 
 const guestLoginLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: process.env.NODE_ENV === "production" ? 20 : 200,
-  message: "Too many guest sessions requested, please try again later.",
+  max: isProdEnv ? 100 : 200,
+  message: limitMessage("Too many guest sessions requested. Please try again later."),
   standardHeaders: true,
   legacyHeaders: false,
 });
