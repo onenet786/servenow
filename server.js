@@ -85,6 +85,7 @@ const paymentRoutes = require("./routes/payments");
 const walletRoutes = require("./routes/wallets");
 const financialRoutes = require("./routes/financial");
 const permissionRoutes = require("./routes/permissions");
+const aiagentRoutes = require("./routes/aiagent");
 const { logError } = require("./utils/debugLogger");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -369,6 +370,16 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// The AIAgent chat widget's server (AIAGENT_URL): its script, voice notes and live voice come from there.
+const aiagentOrigin = (() => {
+  try {
+    return process.env.AIAGENT_URL ? new URL(process.env.AIAGENT_URL).origin : "";
+  } catch (_) {
+    console.error("AIAGENT_URL is not a valid address; the chat assistant stays off.");
+    return "";
+  }
+})();
+
 // Security headers middleware
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -377,11 +388,12 @@ app.use((req, res, next) => {
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://js.stripe.com https://accounts.google.com",
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://js.stripe.com https://accounts.google.com${aiagentOrigin ? ` ${aiagentOrigin}` : ""}`,
       "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://accounts.google.com",
       "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       "connect-src 'self' ws: wss: https:",
+      `media-src 'self' blob: data:${aiagentOrigin ? ` ${aiagentOrigin}` : ""}`,
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://accounts.google.com",
       "object-src 'none'",
       "base-uri 'self'",
@@ -397,7 +409,7 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader(
     "Permissions-Policy",
-    "geolocation=(self), microphone=(), camera=()"
+    `geolocation=(self), microphone=(${aiagentOrigin ? "self" : ""}), camera=()`
   );
   next();
 });
@@ -413,11 +425,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// The Stripe webhook must receive the raw body for signature verification,
-// so the JSON parser skips it (routes/payments.js applies express.raw there).
+// The Stripe webhook and the AIAgent tool endpoint must receive the raw body for signature
+// verification, so the JSON parser skips them (their routes apply express.raw).
 const jsonParser = express.json({ limit: "10mb" });
 app.use((req, res, next) => {
-  if (req.path === "/api/payments/webhook/stripe") return next();
+  if (req.path === "/api/payments/webhook/stripe" || req.path === "/integrations/aiagent/tools") return next();
   return jsonParser(req, res, next);
 });
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -543,6 +555,8 @@ if (process.env.NODE_ENV !== "production") {
 
 // Routes
 console.log("Setting up API routes...");
+app.use(aiagentRoutes);
+console.log("AIAgent assistant routes mounted (/api/aiagent, /.well-known/aiagent.json, /integrations/aiagent)");
 app.use("/api/auth", authRoutes);
 console.log("Auth routes mounted at /api/auth");
 app.use("/api/users", userRoutes);
