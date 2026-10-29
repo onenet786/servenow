@@ -4829,3 +4829,122 @@ body.sn-ui .sn-shipments span[class^="status-"] {
     font-size: 0.75rem;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Store Payments & Balances report (admin, js/store-payments.js)
+   -------------------------------------------------------------------------- */
+body.sn-admin .sp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+body.sn-admin .sp-head h2 { margin: 0; }
+body.sn-admin .sp-head p { margin: 0.25rem 0 0; color: var(--sn-muted); max-width: 70ch; }
+body.sn-admin .sp-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+body.sn-admin .sp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+}
+
+body.sn-admin .sp-filters .filter-group { display: flex; flex-direction: column; gap: 0.25rem; min-width: 150px; }
+body.sn-admin .sp-filters label { font-size: 0.75rem; font-weight: 600; color: var(--sn-text-2); }
+body.sn-admin .sp-filters .sp-check { flex-direction: row; align-items: center; gap: 0.45rem; min-width: 0; padding-bottom: 0.55rem; }
+
+body.sn-admin .sp-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+body.sn-admin .sp-kpi {
+  background: var(--sn-surface);
+  border: 1px solid var(--sn-border);
+  border-left: 4px solid var(--sn-border-strong);
+  border-radius: var(--sn-radius-md);
+  padding: 0.75rem 0.9rem;
+  box-shadow: var(--sn-shadow-1);
+}
+
+body.sn-admin .sp-kpi .sp-kpi-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sn-muted); }
+body.sn-admin .sp-kpi .sp-kpi-value { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--sn-text); margin-top: 0.2rem; }
+body.sn-admin .sp-kpi .sp-kpi-note { font-size: 0.75rem; color: var(--sn-muted); margin-top: 0.15rem; }
+body.sn-admin .sp-kpi.is-owed { border-left-color: var(--sn-warning); }
+body.sn-admin .sp-kpi.is-owed .sp-kpi-value { color: var(--sn-warning); }
+body.sn-admin .sp-kpi.is-credit { border-left-color: var(--sn-info); }
+body.sn-admin .sp-kpi.is-credit .sp-kpi-value { color: var(--sn-info); }
+body.sn-admin .sp-kpi.is-danger { border-left-color: var(--sn-danger); }
+body.sn-admin .sp-kpi.is-danger .sp-kpi-value { color: var(--sn-danger); }
+body.sn-admin .sp-kpi.is-ok { border-left-color: var(--sn-green-600); }
+
+body.sn-admin .sp-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+body.sn-admin .sp-table th,
+body.sn-admin .sp-table td { white-space: nowrap; }
+body.sn-admin .sp-table th.sp-group { text-align: center; background: var(--sn-surface-3); border-bottom: 1px solid var(--sn-border); }
+body.sn-admin .sp-table td.sp-store { white-space: normal; min-width: 180px; }
+body.sn-admin .sp-table td.sp-store a { font-weight: 700; color: var(--sn-text); text-decoration: none; }
+body.sn-admin .sp-table td.sp-store a:hover { color: var(--sn-green-700); text-decoration: underline; }
+body.sn-admin .sp-table .sp-sub { display: block; font-size: 0.72rem; color: var(--sn-muted); font-weight: 500; }
+body.sn-admin .sp-table td.sp-zero { color: var(--sn-muted); }
+body.sn-admin .sp-table tr.sp-row-covered > td { background: var(--sn-surface-2); }
+
+body.sn-admin .sp-amount-owed { color: var(--sn-warning) !important; font-weight: 700; }
+body.sn-admin .sp-amount-credit { color: var(--sn-info) !important; font-weight: 700; }
+body.sn-admin .sp-amount-settled { color: var(--sn-success) !important; font-weight: 600; }
+
+body.sn-admin span.status-owed { background: var(--sn-warning-bg) !important; color: var(--sn-warning) !important; }
+body.sn-admin span.status-store-credit,
+body.sn-admin span.status-covered { background: var(--sn-info-bg) !important; color: var(--sn-info) !important; }
+body.sn-admin span.status-settled { background: var(--sn-success-bg) !important; color: var(--sn-success) !important; }
+body.sn-admin span.status-overdue,
+body.sn-admin span.status-double-paid { background: var(--sn-danger-bg) !important; color: var(--sn-danger) !important; }
+body.sn-admin span.status-partly-covered,
+body.sn-admin span.status-due { background: var(--sn-warning-bg) !important; color: var(--sn-warning) !important; }
+body.sn-admin span.status-on-account { background: var(--sn-surface-3) !important; color: var(--sn-text-2) !important; }
+
+body.sn-admin .sp-section { margin-top: 1.25rem; }
+body.sn-admin .sp-section > h3 { font-size: 1rem; margin: 0 0 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+body.sn-admin .sp-section > p.sp-hint { margin: -0.25rem 0 0.6rem; color: var(--sn-muted); font-size: 0.8125rem; }
+body.sn-admin .sp-flag-count { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--sn-danger-bg); color: var(--sn-danger); }
+body.sn-admin .sp-flag-count.is-zero { background: var(--sn-success-bg); color: var(--sn-success); }
+body.sn-admin .sp-note { font-size: 0.8125rem; color: var(--sn-text-2); background: var(--sn-surface-2); border: 1px solid var(--sn-border); border-radius: var(--sn-radius-sm); padding: 0.6rem 0.8rem; margin-top: 0.75rem; }
+
+body.sn-admin .sp-statement-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.75rem; }
+body.sn-admin .sp-statement-head h3 { margin: 0; font-size: 1.15rem; }
+body.sn-admin .sp-meta { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; color: var(--sn-text-2); font-size: 0.8125rem; margin-top: 0.25rem; }
+body.sn-admin .sp-link { background: none; border: 0; padding: 0; color: var(--sn-green-700); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+body.sn-admin .sp-link:hover { color: var(--sn-green-800); }
+body.sn-admin .sp-detail { margin-top: 0.75rem; padding: 0.8rem 1rem; border: 1px solid var(--sn-border); border-radius: var(--sn-radius-md); background: var(--sn-surface-2); font-size: 0.8125rem; }
+body.sn-admin .sp-detail dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0; }
+body.sn-admin .sp-detail dt { color: var(--sn-muted); }
+body.sn-admin .sp-detail dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+body.sn-admin .sp-onaccount-card { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.75rem 0.9rem; border: 1px dashed var(--sn-border-strong); border-radius: var(--sn-radius-md); background: var(--sn-surface-2); cursor: pointer; }
+body.sn-admin .sp-onaccount-card p { margin: 0.15rem 0 0; color: var(--sn-muted); font-size: 0.8125rem; }
+
+@media (max-width: 640px) {
+  body.sn-admin .sp-filters .filter-group { min-width: 0; flex: 1 1 140px; }
+  body.sn-admin .sp-kpi .sp-kpi-value { font-size: 1.1rem; }
+}
+
+@media print {
+  body.sn-admin.sp-printing .sidebar,
+  body.sn-admin.sp-printing .top-header,
+  body.sn-admin.sp-printing header,
+  body.sn-admin.sp-printing nav,
+  body.sn-admin.sp-printing .sp-filters,
+  body.sn-admin.sp-printing .sp-actions,
+  body.sn-admin.sp-printing .tab-content:not(#store-payments) { display: none !important; }
+  body.sn-admin.sp-printing #store-payments { display: block !important; }
+  body.sn-admin.sp-printing .table-container { overflow: visible !important; box-shadow: none !important; }
+  body.sn-admin.sp-printing .sp-table { font-size: 9px; }
+}

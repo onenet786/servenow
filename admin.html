@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="css/servenow-ui.css?v=1">
+    <link rel="stylesheet" href="css/servenow-ui.css?v=2">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
@@ -258,6 +258,14 @@
                     class="tab-link"
                     data-tab="financial-reports"
                     ><i class="fas fa-file-invoice-dollar"></i> Financial Reports</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="admin.html#store-payments"
+                    class="tab-link"
+                    data-tab="store-payments"
+                    ><i class="fas fa-hand-holding-usd"></i> Store Payments &amp; Balances</a
                   >
                 </li>
                  <li>
@@ -2076,6 +2084,58 @@
         </div>
 
         <!-- Financial Dashboard Tab -->
+        <div id="store-payments" class="tab-content">
+          <div class="sp-head">
+            <div>
+              <h2>Store Payments &amp; Balances</h2>
+              <p>What each store earned from delivered orders, what it was paid (settlements, payments on account, rider payments at pickup, vouchers) and what is still owed. A negative balance is store credit: the store was paid more than it earned. Balances match the general ledger (account 2000).</p>
+            </div>
+            <div class="sp-actions">
+              <button type="button" class="btn btn-secondary" onclick="exportStorePaymentsCsv()"><i class="fas fa-file-csv"></i> Export CSV</button>
+              <button type="button" class="btn btn-secondary" onclick="printStorePayments()"><i class="fas fa-print"></i> Print</button>
+            </div>
+          </div>
+          <form class="filter-controls sp-filters" id="spFilters" onsubmit="event.preventDefault(); loadStorePaymentsReport();">
+            <div class="filter-group">
+              <label for="spFrom">From</label>
+              <input type="date" id="spFrom" class="form-control" />
+            </div>
+            <div class="filter-group">
+              <label for="spTo">To</label>
+              <input type="date" id="spTo" class="form-control" />
+            </div>
+            <div class="filter-group">
+              <label for="spStore">Store</label>
+              <select id="spStore" class="form-control"><option value="all">All stores</option></select>
+            </div>
+            <div class="filter-group">
+              <label for="spTerm">Payment term</label>
+              <select id="spTerm" class="form-control">
+                <option value="all">All terms</option>
+                <option value="Cash Only">Cash Only</option>
+                <option value="Cash with Discount">Cash with Discount</option>
+                <option value="Credit with Discount">Credit with Discount</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="spSearch">Search</label>
+              <input type="search" id="spSearch" class="form-control" placeholder="Store name" autocomplete="off" />
+            </div>
+            <label class="filter-group sp-check" for="spOnlyBalance">
+              <input type="checkbox" id="spOnlyBalance" />
+              <span>Only stores with a balance</span>
+            </label>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-sync"></i> Load</button>
+          </form>
+          <div id="spReportView">
+            <div id="spKpis" class="sp-kpis"></div>
+            <div id="spTableWrap" class="table-container"><p style="padding: 1rem">Loading...</p></div>
+            <div id="spNotes"></div>
+            <div id="spFlags"></div>
+          </div>
+          <div id="spStatementView" style="display: none"></div>
+        </div>
+
         <div id="general-ledger" class="tab-content">
           <h2>General Ledger</h2>
           <p class="text-muted">Double-entry books posted from orders, rider cash, settlements, vouchers and expenses. Revenue is recognised on delivery.</p>
@@ -2190,7 +2250,11 @@
             </div>
             <div class="stat-card">
               <h3 id="storeBalancesAmount">-</h3>
-              <p><i class="fas fa-store"></i> Store Balances</p>
+              <p><i class="fas fa-store"></i> Store Balances (owed to stores) <a href="admin.html#store-payments" class="sp-link" onclick="return openStorePaymentsReport(event)">Details</a></p>
+            </div>
+            <div class="stat-card">
+              <h3 id="storeCreditsAmount">-</h3>
+              <p><i class="fas fa-hand-holding-usd"></i> Store Credit (stores overpaid) <a href="admin.html#store-payments" class="sp-link" onclick="return openStorePaymentsReport(event)">Details</a></p>
             </div>
             <div class="stat-card">
               <h3 id="totalUnsettledAmount">-</h3>
@@ -2208,7 +2272,7 @@
                 <h3>Store Wise Financial Details</h3>
                 <p>Filter store-level earnings, paid settlements, and pending balance by period and store options.</p>
               </div>
-              <span class="fd-storewise-chip">Store Summary</span>
+              <a href="admin.html#store-payments" class="btn btn-secondary btn-small" onclick="return openStorePaymentsReport(event)"><i class="fas fa-hand-holding-usd"></i> Store Payments &amp; Balances</a>
             </div>
             <div class="filter-controls fd-storewise-filters">
               <div class="filter-group">
@@ -5312,8 +5376,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="js/notifications.js?v=4" defer></script>
     <script src="js/financial_helpers.js" defer></script>
-    <script src="js/financial.js?v=22" defer></script>
-    <script src="js/admin.js?v=49" defer></script>
+    <script src="js/financial.js?v=23" defer></script>
+    <script src="js/store-payments.js?v=1" defer></script>
+    <script src="js/admin.js?v=50" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
@@ -5964,6 +6029,19 @@
             </label>
           </div>
 
+          <!-- Payment on account (manual lump sum, admin only) -->
+          <div id="settlementOnAccountRow" class="form-group store-settlement-auto-row" style="display: none;">
+            <label class="sp-onaccount-card" for="settlementOnAccount">
+              <input type="checkbox" id="settlementOnAccount" />
+              <div>
+                <strong><i class="fas fa-hand-holding-usd"></i> Payment on account</strong>
+                <p>Record a lump-sum payment that is not linked to any order (admin only). It reduces the store balance; the store's unsettled orders are then shown as covered by its credit, and the next settlement uses that credit first.</p>
+              </div>
+            </label>
+            <label for="settlementNotes" style="margin-top: 0.6rem;">Notes</label>
+            <input type="text" id="settlementNotes" class="form-control" maxlength="250" placeholder="e.g. paid in cash at the shop, receipt no." />
+          </div>
+
           <!-- Unsettled Items Container -->
           <div id="unsettledItemsContainer" class="store-settlement-items-container" style="display: none;">
             <div class="settlement-unsettled-header">
@@ -5997,6 +6075,10 @@
                   <tr>
                     <td colspan="5" style="text-align: right; font-weight: 600;">Profit / Discount Adjustment:</td>
                     <td id="unsettledCommission" style="text-align: right; font-weight: 700; color: #b45309;">Rs  0.00</td>
+                  </tr>
+                  <tr id="unsettledCreditRow" style="display: none;">
+                    <td colspan="5" style="text-align: right; font-weight: 600;">Less: store credit (earlier payments):</td>
+                    <td id="unsettledCreditApplied" style="text-align: right; font-weight: 700; color: #1d4ed8; white-space: nowrap;">Rs  0.00</td>
                   </tr>
                   <tr class="settlement-summary-payable-row">
                     <td colspan="5" style="text-align: right; font-weight: 800; font-size: 1rem;">Net Payable:</td>

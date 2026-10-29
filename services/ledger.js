@@ -45,7 +45,13 @@ const ACCOUNTS = [
 const ACCOUNT_NAMES = Object.fromEntries(ACCOUNTS.map(([code, name]) => [code, name]));
 const ACCOUNT_TYPES = Object.fromEntries(ACCOUNTS.map(([code, , type]) => [code, type]));
 
-const PICKUP_PAID_TERMS = ['cash only', 'cash with discount'];
+const {
+  storePayableLineSql,
+  loadStoreNameIndex,
+  loadPickupStoresOnOrder,
+  createPickupStoreResolver,
+} = require('../utils/storeAccount');
+
 const SYNC_LOCK = 'servenow_gl_sync';
 
 const toCents = (value) => Math.round(Number(value || 0) * 100);
@@ -143,12 +149,7 @@ function line(account, cents, entityType = null, entityId = null, memo = null) {
   return { account, cents, entityType, entityId: entityId == null ? null : String(entityId), memo };
 }
 
-async function loadStoreNames(db) {
-  const [stores] = await db.query('SELECT id, name, payment_term FROM stores');
-  const byName = new Map();
-  for (const s of stores) byName.set(String(s.name || '').trim().toLowerCase(), s.id);
-  return byName;
-}
+const loadStoreNames = loadStoreNameIndex;
 
 async function buildOrderJournals(db) {
   // Delivery date = the rider's first cash collection for the order, else its last update.
@@ -170,28 +171,7 @@ async function buildOrderJournals(db) {
   const [items] = await db.query(`
     SELECT oi.order_id, COALESCE(oi.store_id, p.store_id) AS store_id,
            SUM(oi.price * oi.quantity) AS item_value,
-           SUM(CASE
-             WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) IN ('${PICKUP_PAID_TERMS.join("','")}')
-               THEN COALESCE(oi.cost_price,
-                    (SELECT psp.cost_price FROM product_size_prices psp
-                      WHERE psp.product_id = oi.product_id
-                        AND ((oi.size_id IS NOT NULL AND psp.size_id = oi.size_id AND psp.unit_id IS NULL)
-                          OR (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id AND psp.size_id IS NULL))
-                      LIMIT 1),
-                    p.cost_price, oi.price) * oi.quantity
-             ELSE GREATEST(0, oi.quantity * oi.price - oi.quantity * (
-               CASE
-                 WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%discount%'
-                      AND COALESCE(s.store_discount_apply_all_products, 0) = 1
-                      AND COALESCE(s.store_discount_percent, 0) > 0
-                   THEN oi.price * (COALESCE(s.store_discount_percent, 0) / 100)
-                 WHEN oi.discount_type = 'percent' AND COALESCE(oi.discount_value, 0) > 0
-                   THEN oi.price * (COALESCE(oi.discount_value, 0) / 100)
-                 WHEN oi.discount_type = 'amount' AND COALESCE(oi.discount_value, 0) > 0
-                   THEN COALESCE(oi.discount_value, 0)
-                 ELSE 0
-               END))
-           END) AS store_payable
+           SUM(${storePayableLineSql()}) AS store_payable
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id AND o.status = 'delivered'
     JOIN products p ON p.id = oi.product_id
@@ -241,27 +221,7 @@ async function buildWalletJournals(db, storeIdsByName) {
     JOIN wallets w ON w.id = wt.wallet_id
     ORDER BY wt.id`);
 
-  // Pickup-paid stores on each order, for payments that name a store which has
-  // since been renamed or deleted.
-  const [orderStores] = await db.query(`
-    SELECT DISTINCT oi.order_id, COALESCE(oi.store_id, p.store_id) AS store_id
-    FROM order_items oi
-    JOIN products p ON p.id = oi.product_id
-    JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id)
-    WHERE LOWER(TRIM(COALESCE(s.payment_term, ''))) IN ('${PICKUP_PAID_TERMS.join("','")}')`);
-  const pickupStoresOnOrder = new Map();
-  for (const r of orderStores) {
-    const key = String(r.order_id);
-    if (!pickupStoresOnOrder.has(key)) pickupStoresOnOrder.set(key, []);
-    pickupStoresOnOrder.get(key).push(r.store_id);
-  }
-  const storeFromDescription = (text, orderId = null) => {
-    const m = String(text || '').match(/pickup-paid store (.+?) for order/i);
-    const byName = m ? storeIdsByName.get(m[1].trim().toLowerCase()) : null;
-    if (byName) return byName;
-    const onOrder = orderId == null ? null : pickupStoresOnOrder.get(String(orderId));
-    return onOrder && onOrder.length === 1 ? onOrder[0] : null;
-  };
+  const storeFromDescription = createPickupStoreResolver(storeIdsByName, await loadPickupStoresOnOrder(db));
   // Reversals of a pickup payment name the order, not the store: use the store
   // the rider paid for that order.
   const pickupStoreByOrder = new Map();

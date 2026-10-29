@@ -2848,6 +2848,9 @@ function switchTab(tabName) {
         case 'general-ledger':
             if (typeof loadGeneralLedger === 'function') loadGeneralLedger();
             break;
+        case 'store-payments':
+            if (typeof loadStorePaymentsReport === 'function') loadStorePaymentsReport();
+            break;
         case 'transactions':
             if (typeof loadTransactions === 'function') loadTransactions();
             break;
@@ -12852,6 +12855,7 @@ async function applyRoleRestrictions() {
                 { perms: ['menu_report_financial', 'menu_reports'], tabs: ['financial-reports'] },
                 { perms: ['menu_financial_dashboard', 'menu_reports'], tabs: ['financial-dashboard'] },
                 { perms: ['menu_financial_dashboard'], tabs: ['general-ledger'] },
+                { perms: ['menu_report_financial', 'menu_financial_dashboard', 'menu_financial_settlements', 'menu_reports'], tabs: ['store-payments'] },
 
                 { perms: ['menu_categories', 'menu_settings'], tabs: ['categories'] },
                 { perms: ['menu_units', 'menu_settings'], tabs: ['units'] },

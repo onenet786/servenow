@@ -187,3 +187,72 @@ The trial balance and balance sheet both balance.
 9. **Rider fuel history** (`riders_fuel_history`) is a log, not a payment, so it is not posted. Fuel paid through vouchers is posted.
 
 Receipt vouchers are fixed: "Approve" now marks a voucher received, and the person who prepared it cannot confirm it.
+
+## 6. Store balances and the Store Payments report
+
+### What was wrong
+A store's "due" only looked at order lines not linked to a settlement. Lump-sum settlements with no order lines (total 0, net > 0) were never deducted, so those orders stayed "due" and were paid again by the next settlement. Example: Amir Bashir Naan Shop (store 48, Credit with Discount 10%).
+- Settlement SS-20261018-MO2VOB (2,052, 18 Oct) is not linked to any order. The October orders (2,610 payable) kept showing as fully due.
+- The June/July lump sums SS-20260615-NPVHKM, SS-20260705-YFTZ04 and SS-20260723-EGFZBI (2,457) paid order lines that SS-20261006-XEF9GB linked and paid again.
+- All time: payable 15,993, paid 17,892. The store has **1,899 store credit**.
+
+### How balances work now (`utils/storeAccount.js`)
+- **Balance** = store payable of delivered order lines − every payment to the store. Payments are paid settlements, rider payments at pickup, payment vouchers to the store and journal vouchers on store payables; receipts from the store count against them. Positive means owed to the store; negative is store credit.
+- The payable rule is the general ledger's (pickup-paid stores are owed cost price, credit stores price less the store discount). `services/ledger.js` now uses the same SQL and pickup-store rules.
+- **Store credit** = payments − payable of order lines already linked to a settlement or paid at pickup. It covers the oldest unsettled lines first. Covered lines are shown as covered, and only the rest is due.
+- **Auto-calculated settlements** apply that credit first and record it in `credit_applied`, so net = total − commissions − deductions − credit applied. They still link the lines they cover. A batch fully covered by credit is created with net 0, and marking it paid records no cash movement. Credit is used once: once lines are linked their payable counts as settled.
+- **Payment on account** (Settlement modal: turn off Auto-Calculate, tick "Payment on account"; API `on_account: true`; admin only): a lump sum with no order lines. It reduces the balance. Approval and payment follow the usual settlement rules. Manual settlements that are not on account must still add up.
+- **Schema:** the first new settlement adds two columns to `store_settlements`: `settlement_kind` (`orders` / `manual` / `on_account`) and `credit_applied`. Existing rows are not changed.
+- **Screens using the balance:** Settlement modal (unpaid items, due stores), Store Payment Term / credit-stores history, Financial Dashboard store balances, and the new **Store Payments & Balances** report.
+  - The dashboard's "Store Balances" tile is now the sum owed to credit stores.
+  - New tile: "Store Credit".
+  - The old figures are returned under `stats.legacy`.
+- **GL check:** `node scripts/store-payments/check-store-balances.js`. It is read-only and compares every store with GL account 2000. On the 28 Oct copy: **0 differences** for 67 stores, against both the rebuilt and the posted GL.
+  - Not assigned to any store: 436,030.30 (CPV-40, unallocated).
+  - Rider pickup payments whose store could not be identified: 28,977.75 (in suspense).
+
+### Store Payments & Balances report
+Open it from Reports → Store Payments & Balances, or from the Financial Dashboard. It needs any reports or finance permission.
+- **APIs:**
+  - `GET /api/financial/reports/store-payments?from&to&store_id&payment_term&only_balance&search`
+  - `GET /api/financial/reports/store-payments/:storeId/statement?from&to`
+- **Per store:**
+  - terms, discount and grace days
+  - period figures: orders, gross, kept by ServeNow, credit given
+  - payments split by cash, bank, cheque, rider at pickup, vouchers and adjustments
+  - opening and closing balance
+  - unsettled orders after credit, with the oldest date, days outstanding and an Overdue badge
+  - aging and last payment
+- **Also:** a totals row, CSV export, print, and a chronological statement with a running balance.
+- **Data issues (read-only):**
+  - stores with credit
+  - lump sums not linked to orders
+  - settlements whose net does not add up
+  - order lines paid by a lump sum and then settled again
+- **Results on the 28 Oct copy:**
+  - 8 stores with credit (104,050), led by Murshid Da Dera 37,017 and Apna Food Ghar 31,142
+  - 11 double payments, including Amir Bashir 2,457
+  - 10 settlements whose net does not add up
+
+### Optional correction: link a lump sum to the orders it paid
+Nothing is changed automatically. Linking does not change any balance or the GL; it only records which orders a lump sum paid, so they no longer show as "covered by credit".
+
+```
+node scripts/store-payments/link-lump-sum-settlement.js --settlement 300           # dry run, prints the SQL
+node scripts/store-payments/link-lump-sum-settlement.js --settlement 300 --apply   # after a backup
+```
+
+For SS-20261018-MO2VOB it links the 13 oldest October lines that fit (payable 1,971, gross 2,190). The remaining 81 stays as store credit. Equivalent SQL:
+
+```sql
+START TRANSACTION;
+UPDATE order_items SET settlement_id = 300
+ WHERE settlement_id IS NULL
+   AND id IN (12045, 12260, 12261, 12262, 12477, 12478, 12570, 12571, 12572, 12632, 12633, 12634, 12866);
+UPDATE store_settlements SET total_orders_amount = 2190.00, commissions = 219.00,
+       notes = CONCAT(COALESCE(notes, ''), '\nLinked to 13 order lines; Rs 81.00 left as store credit')
+ WHERE id = 300 AND status = 'paid';
+COMMIT;
+```
+
+This was tested on `servenow_demo` only. The double payments already made (for example 2,457 to Amir Bashir) stay as store credit. The next settlements use that credit, or the store can repay it with a receipt voucher.

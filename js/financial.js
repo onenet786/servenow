@@ -7,6 +7,8 @@ let currentExpenses = [];
 let currentReports = [];
 let currentUnsettledSettlementItems = [];
 let selectedUnsettledSettlementItemIds = new Set();
+// Store credit (payments not yet matched to settled orders) for the store in the settlement modal
+let currentUnsettledCreditAvailable = 0;
 let currentJournalVouchers = [];
 let lastRiderData = [];
 let lastStoreData = [];
@@ -563,6 +565,7 @@ async function loadFinancialDashboard() {
             setAmount('receiptVouchersAmount', stats.receiptVouchers, '#1d4ed8');
             setAmount('deliveryChargesAmount', stats.deliveryCharges || 0, '#0891b2');
             setAmount('storeBalancesAmount', stats.storeBalances || 0, '#b45309');
+            setAmount('storeCreditsAmount', stats.storeCredits || 0, '#1d4ed8');
             setAmount('totalUnsettledAmount', stats.totalUnsettledAmount || 0, '#ea580c');
             setDynamicAmount('netProfitIfSettledAmount', stats.netProfitIfSettled || 0, '#059669', '#b91c1c');
 
@@ -577,6 +580,7 @@ async function loadFinancialDashboard() {
             setTileStyle('receiptVouchersAmount', '#1d4ed8', 'linear-gradient(135deg,#eef2ff,#e0e7ff)');
             setTileStyle('deliveryChargesAmount', '#0891b2', 'linear-gradient(135deg,#ecfeff,#cffafe)');
             setTileStyle('storeBalancesAmount', '#b45309', 'linear-gradient(135deg,#fffbeb,#fde68a)');
+            setTileStyle('storeCreditsAmount', '#1d4ed8', 'linear-gradient(135deg,#eff6ff,#dbeafe)');
             setTileStyle('totalUnsettledAmount', '#ea580c', 'linear-gradient(135deg,#fff7ed,#ffedd5)');
             setTileStyle('netProfitIfSettledAmount', toNum(stats.netProfitIfSettled || 0) < 0 ? '#b91c1c' : '#059669', toNum(stats.netProfitIfSettled || 0) < 0 ? 'linear-gradient(135deg,#fff1f2,#fef2f2)' : 'linear-gradient(135deg,#ecfdf5,#f0fdf4)');
 
@@ -1272,9 +1276,11 @@ function setupStoreSettlementListeners() {
             const itemsContainer = document.getElementById('unsettledItemsContainer');
             const amountInput = document.getElementById('settlementAmount');
             
+            const onAccountRow = document.getElementById('settlementOnAccountRow');
             if (autoCalcCheckbox.checked) {
                 itemsContainer.style.display = 'block';
                 amountInput.readOnly = true;
+                if (onAccountRow) onAccountRow.style.display = 'none';
                 if (storeSelect.value) {
                     loadUnsettledItems(storeSelect.value);
                 }
@@ -1282,6 +1288,7 @@ function setupStoreSettlementListeners() {
                 itemsContainer.style.display = 'none';
                 amountInput.readOnly = false;
                 amountInput.value = '';
+                if (onAccountRow) onAccountRow.style.display = '';
             }
         });
     }
@@ -1357,6 +1364,12 @@ function updateSelectedUnsettledTotals() {
         0
     );
     const adjustment = Math.max(0, totalSales - netPayable);
+    // The store's credit covers the selected lines first (same rule as the server)
+    const creditApplied = Math.min(Math.max(0, Number(currentUnsettledCreditAvailable || 0)), netPayable);
+    const creditRow = document.getElementById('unsettledCreditRow');
+    const creditEl = document.getElementById('unsettledCreditApplied');
+    if (creditRow) creditRow.style.display = creditApplied > 0.005 ? '' : 'none';
+    if (creditEl) creditEl.textContent = `- Rs  ${creditApplied.toFixed(2)}`;
 
     const totalSalesEl = document.getElementById('unsettledTotalSales');
     const adjustmentEl = document.getElementById('unsettledCommission');
@@ -1368,8 +1381,9 @@ function updateSelectedUnsettledTotals() {
 
     if (totalSalesEl) totalSalesEl.textContent = `Rs  ${totalSales.toFixed(2)}`;
     if (adjustmentEl) adjustmentEl.textContent = `Rs  ${adjustment.toFixed(2)}`;
-    if (netPayableEl) netPayableEl.textContent = `Rs  ${netPayable.toFixed(2)}`;
-    if (amountInput) amountInput.value = netPayable.toFixed(2);
+    const netDue = Math.max(0, netPayable - creditApplied);
+    if (netPayableEl) netPayableEl.textContent = `Rs  ${netDue.toFixed(2)}`;
+    if (amountInput) amountInput.value = netDue.toFixed(2);
     if (selectAll) {
         selectAll.checked =
             itemCheckboxes.length > 0 &&
@@ -1411,6 +1425,7 @@ function displayUnsettledItems(items, summary) {
     const tbody = document.getElementById('unsettledItemsBody');
     tbody.innerHTML = '';
     currentUnsettledSettlementItems = Array.isArray(items) ? items : [];
+    currentUnsettledCreditAvailable = Number(summary?.credit_available || 0);
     selectedUnsettledSettlementItemIds = new Set(
         currentUnsettledSettlementItems
             .map((item) => Number(item.id))
@@ -1441,6 +1456,8 @@ function displayUnsettledItems(items, summary) {
                 item_names: [],
                 line_count: 0,
                 gross: 0,
+                payable: 0,
+                covered: 0,
             });
         }
         const row = orderRowsByKey.get(key);
@@ -1449,6 +1466,8 @@ function displayUnsettledItems(items, summary) {
         row.item_names.push(`${item.product_name || 'Item'}${item.variant_label ? ` (${item.variant_label})` : ''}`);
         row.line_count += 1;
         row.gross += Number(item.line_gross || (item.price * item.quantity) || 0);
+        row.payable += Number(item.line_payable || 0);
+        row.covered += Number(item.line_covered || 0);
     });
 
     Array.from(orderRowsByKey.values()).forEach((orderRow) => {
@@ -1460,7 +1479,11 @@ function displayUnsettledItems(items, summary) {
             </td>
             <td>${new Date(orderRow.order_date).toLocaleDateString()}</td>
             <td>${orderRow.order_number}</td>
-            <td>${escapeHtml(orderRow.item_names.join(', '))}</td>
+            <td>${escapeHtml(orderRow.item_names.join(', '))}${
+                orderRow.covered > 0.005
+                    ? ` <span class="status-covered" title="Paid by earlier payments to this store (store credit)">${orderRow.covered + 0.005 >= orderRow.payable ? 'Covered by credit' : `Rs ${orderRow.covered.toFixed(2)} covered`}</span>`
+                    : ''
+            }</td>
             <td>${orderRow.line_count}</td>
             <td>Rs  ${orderRow.gross.toFixed(2)}</td>
         `;
@@ -1506,16 +1529,21 @@ function displayUnsettledItems(items, summary) {
     }
 
     updateSelectedUnsettledTotals();
-    const legacyPaidOffset = Number(summary.legacy_paid_offset || 0);
     const legacyPaidNote = document.getElementById('unsettledLegacyPaidNote');
     if (legacyPaidNote) {
-        if (legacyPaidOffset > 0) {
-            legacyPaidNote.textContent = `Already-paid legacy settlements deducted: Rs ${legacyPaidOffset.toFixed(2)}`;
-            legacyPaidNote.style.display = 'block';
-        } else {
-            legacyPaidNote.textContent = '';
-            legacyPaidNote.style.display = 'none';
+        const credit = Number(summary?.credit_available || 0);
+        const balance = Number(summary?.store_balance || 0);
+        const parts = [];
+        if (credit > 0.005) {
+            parts.push(`Store credit Rs ${credit.toFixed(2)} from earlier payments not matched to orders is applied to the oldest items first.`);
         }
+        if (balance < -0.005) {
+            parts.push(`Store balance: Rs ${Math.abs(balance).toFixed(2)} store credit (the store has been paid more than it earned).`);
+        } else if (balance > 0.005) {
+            parts.push(`Store balance: Rs ${balance.toFixed(2)} owed to the store.`);
+        }
+        legacyPaidNote.textContent = parts.join(' ');
+        legacyPaidNote.style.display = parts.length ? 'block' : 'none';
     }
 }
 
@@ -2497,6 +2525,13 @@ async function createStoreSettlement() {
     }
     currentUnsettledSettlementItems = [];
     selectedUnsettledSettlementItemIds = new Set();
+    currentUnsettledCreditAvailable = 0;
+    const onAccountRow = document.getElementById('settlementOnAccountRow');
+    const onAccountCheckbox = document.getElementById('settlementOnAccount');
+    const notesInput = document.getElementById('settlementNotes');
+    if (onAccountRow) onAccountRow.style.display = 'none';
+    if (onAccountCheckbox) onAccountCheckbox.checked = false;
+    if (notesInput) notesInput.value = '';
     openModal('storeSettlementModal');
 }
 
@@ -2568,6 +2603,19 @@ async function submitStoreSettlement() {
         period_to: periodTo,
         auto_calculate: autoCalculate
     };
+    if (!id && !autoCalculate) {
+        // Without order lines the only valid entry is a payment on account
+        if (!document.getElementById('settlementOnAccount')?.checked) {
+            showError('Choose a settlement type', 'Use "Auto-Calculate from Unpaid Items", or tick "Payment on account" to record a lump-sum payment that is not linked to orders.');
+            return;
+        }
+        if (!(netAmount > 0)) {
+            showError('Amount required', 'Enter the amount paid on account.');
+            return;
+        }
+        payload.on_account = true;
+        payload.notes = (document.getElementById('settlementNotes')?.value || '').trim() || null;
+    }
     if (!id && autoCalculate) {
         const selectedItemIds = Array.from(selectedUnsettledSettlementItemIds)
             .filter((itemId) => Number.isInteger(Number(itemId)) && Number(itemId) > 0)

@@ -5,6 +5,7 @@ const { applyWalletDelta } = require('../utils/walletBalance');
 const { checkDocumentUpdate, makerCheckerApplies } = require('../utils/financeControls');
 const { recordFinancialTransaction } = require('../utils/dbHelpers');
 const ledger = require('../services/ledger');
+const storeAccount = require('../utils/storeAccount');
 const fs = require('fs');
 const path = require('path');
 
@@ -190,54 +191,14 @@ function buildSettlementItemAmounts(item) {
     };
 }
 
-async function getLegacyPaidSettlementOffset(db, storeId, startDate = null, endDate = null) {
-    const params = [storeId];
-    const dateFilter = startDate && endDate ? 'AND ss.settlement_date BETWEEN ? AND ?' : '';
-    if (startDate && endDate) {
-        params.push(startDate, endDate);
-    }
-
-    const [paidRows] = await db.execute(
-        `SELECT
-            COALESCE(SUM(ss.net_amount), 0) AS total_paid,
-            COALESCE(SUM(
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM order_items oi
-                        JOIN products p ON oi.product_id = p.id
-                        WHERE oi.settlement_id = ss.id
-                          AND COALESCE(oi.store_id, p.store_id) = ss.store_id
-                    )
-                    THEN ss.net_amount
-                    ELSE 0
-                END
-            ), 0) AS linked_paid
-         FROM store_settlements ss
-         WHERE ss.store_id = ?
-           AND ss.status = 'paid'
-           ${dateFilter}`,
-        params
-    );
-
-    const totalPaid = Number(paidRows?.[0]?.total_paid || 0);
-    const linkedPaid = Number(paidRows?.[0]?.linked_paid || 0);
-    return Math.max(0, totalPaid - linkedPaid);
-}
-
-function applyLegacyPaidOffsetToSettlementItems(items, legacyPaidOffset) {
-    let remainingOffset = Number(legacyPaidOffset || 0);
-    const displayItems = [];
-    const allItemIds = [];
-    let coveredGross = 0;
-    let coveredAdjustment = 0;
-    let payableRemaining = 0;
-    let grossRemaining = 0;
-    let adjustmentRemaining = 0;
-
-    (items || []).forEach((item) => {
+// FIFO coverage of settlement candidate lines by the store's available credit
+// (payments not yet matched to settled lines, see utils/storeAccount.js).
+// Every line is returned; covered lines carry line_covered/line_due so the UI
+// can show them as covered. payableRemaining is what is actually still due.
+function applyCreditToSettlementItems(items, creditCents = 0) {
+    const withAmounts = (items || []).map((item) => {
         const amounts = buildSettlementItemAmounts(item);
-        const itemWithAmounts = {
+        return {
             ...item,
             line_gross: amounts.lineGross,
             line_discount: amounts.lineDiscount,
@@ -245,43 +206,30 @@ function applyLegacyPaidOffsetToSettlementItems(items, legacyPaidOffset) {
             line_commission: amounts.lineCommission,
             line_payable: amounts.linePayable
         };
-        allItemIds.push(item.id);
-
-        if (remainingOffset > 0) {
-            const coveredPayable = Math.min(remainingOffset, amounts.linePayable);
-            const coverageRatio = amounts.linePayable > 0 ? coveredPayable / amounts.linePayable : 1;
-            coveredGross += amounts.lineGross * coverageRatio;
-            coveredAdjustment += (amounts.lineGross - amounts.linePayable) * coverageRatio;
-            remainingOffset -= coveredPayable;
-
-            const remainingPayable = Math.max(0, amounts.linePayable - coveredPayable);
-            if (remainingPayable <= 0.005) {
-                return;
-            }
-
-            const remainingRatio = amounts.linePayable > 0 ? remainingPayable / amounts.linePayable : 0;
-            itemWithAmounts.line_gross = amounts.lineGross * remainingRatio;
-            itemWithAmounts.line_discount = amounts.lineDiscount * remainingRatio;
-            itemWithAmounts.line_net = amounts.lineNet * remainingRatio;
-            itemWithAmounts.line_commission = amounts.lineCommission * remainingRatio;
-            itemWithAmounts.line_payable = remainingPayable;
-        }
-
-        displayItems.push(itemWithAmounts);
-        grossRemaining += Number(itemWithAmounts.line_gross || 0);
-        adjustmentRemaining += Number((itemWithAmounts.line_gross || 0) - (itemWithAmounts.line_payable || 0));
-        payableRemaining += Number(itemWithAmounts.line_payable || 0);
     });
-
+    const fifo = storeAccount.applyCreditFifo(withAmounts, creditCents, (line) => storeAccount.toCents(line.line_payable));
+    let grossTotal = 0;
+    let payableTotal = 0;
+    const displayItems = fifo.lines.map((row) => {
+        grossTotal += Number(row.line.line_gross || 0);
+        payableTotal += Number(row.line.line_payable || 0);
+        return {
+            ...row.line,
+            line_covered: storeAccount.fromCents(row.covered_c),
+            line_due: storeAccount.fromCents(row.due_c),
+            covered_by_credit: row.covered_c > 0 && row.due_c === 0 ? 'full' : (row.covered_c > 0 ? 'partial' : null)
+        };
+    });
+    const creditApplied = storeAccount.fromCents(fifo.applied_c);
     return {
         displayItems,
-        allItemIds,
-        grossRemaining,
-        adjustmentRemaining,
-        payableRemaining,
-        coveredGross,
-        coveredAdjustment,
-        legacyPaidApplied: Math.max(0, Number(legacyPaidOffset || 0) - Math.max(0, remainingOffset))
+        allItemIds: displayItems.map((item) => item.id),
+        grossTotal,
+        adjustmentTotal: grossTotal - payableTotal,
+        payableTotal,
+        creditAvailable: storeAccount.fromCents(Math.max(0, Math.round(creditCents || 0))),
+        creditApplied,
+        payableRemaining: Math.max(0, payableTotal - creditApplied)
     };
 }
 
@@ -330,7 +278,8 @@ async function calculateStoreSettlementBalance(
     storeId,
     startDate = null,
     endDate = null,
-    selectedItemIds = null
+    selectedItemIds = null,
+    { creditCents = null } = {}
 ) {
     let items = await getSettlementCandidateItems(db, storeId, startDate, endDate);
     if (Array.isArray(selectedItemIds)) {
@@ -341,7 +290,13 @@ async function calculateStoreSettlementBalance(
         );
         items = items.filter((item) => selectedSet.has(Number(item.id)));
     }
-    return applyLegacyPaidOffsetToSettlementItems(items, 0);
+    let credit = creditCents;
+    let position = null;
+    if (credit == null) {
+        position = (await storeAccount.getStoreAccount(db, storeId)).position;
+        credit = position.credit_c;
+    }
+    return { ...applyCreditToSettlementItems(items, credit), position };
 }
 
 function getStorePayableSqlExpression(storeAlias = 's') {
@@ -985,6 +940,43 @@ router.get('/dashboard', async (req, res) => {
             };
         } catch (glError) {
             console.error('General ledger figures unavailable for dashboard:', glError);
+        }
+
+        // Credit-store balances from the store accounts (utils/storeAccount.js): every
+        // payment to a store counts, and a store that was overpaid shows as store
+        // credit instead of hiding inside "0 due". Balances are as of the period end;
+        // the unsettled amount is what is still due after store credit, for order
+        // lines delivered in the period.
+        try {
+            const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            let from = null;
+            let to = null;
+            if (period === 'today') { from = ymd(today); to = from; }
+            else if (period === 'week') { from = ymd(startOfWeek); to = ymd(new Date(endOfWeek.getTime() - 86400000)); }
+            else if (period === 'month') { from = ymd(new Date(currentYear, currentMonth - 1, 1)); to = ymd(new Date(currentYear, currentMonth, 0)); }
+            else if (period === 'year') { from = `${currentYear}-01-01`; to = `${currentYear}-12-31`; }
+            const { accounts } = await storeAccount.loadStoreAccounts(req.db);
+            let owed = 0;
+            let credit = 0;
+            let unsettled = 0;
+            for (const account of accounts.values()) {
+                if (!account.exists || account.pickup_paid) continue;
+                const position = storeAccount.accountPosition(account);
+                const closing = storeAccount.accountPeriod(account, { to, orders: position.orders }).closing_c;
+                owed += Math.max(0, closing);
+                credit += Math.max(0, -closing);
+                for (const line of position.open_lines) {
+                    if ((!from || line.line.date >= from) && (!to || line.line.date <= to)) unsettled += line.due_c;
+                }
+            }
+            stats.legacy = stats.legacy || {};
+            stats.legacy.storeBalances = stats.storeBalances;
+            stats.legacy.totalUnsettledAmount = stats.totalUnsettledAmount;
+            stats.storeBalances = storeAccount.fromCents(owed);
+            stats.storeCredits = storeAccount.fromCents(credit);
+            stats.totalUnsettledAmount = storeAccount.fromCents(unsettled);
+        } catch (storeError) {
+            console.error('Store account balances unavailable for dashboard:', storeError);
         }
 
         res.json({
@@ -2549,131 +2541,101 @@ router.put('/rider-cash/:id', [
 router.get('/store-settlements/unsettled-items', async (req, res) => {
     try {
         const { store_id, period_from, period_to } = req.query;
-        if (!store_id) {
+        const storeId = Number(store_id);
+        if (!Number.isInteger(storeId) || storeId <= 0) {
             return res.status(400).json({ success: false, message: 'Store ID is required' });
         }
 
-        await ensureStoreSettlementSchema(req.db);
+        // Read-only endpoint: carry on if the schema check cannot run (e.g. no DDL rights)
+        await ensureStoreSettlementSchema(req.db).catch((e) => console.warn('Store settlement schema check skipped:', e.message));
 
+        // The store's available credit (payments not matched to settled lines)
+        // covers the oldest unsettled lines first; covered lines are listed as
+        // covered and only the rest is due.
         const settlementCalc = await calculateStoreSettlementBalance(
             req.db,
-            store_id,
+            storeId,
             period_from && period_to ? `${period_from} 00:00:00` : null,
             period_from && period_to ? `${period_to} 23:59:59` : null
         );
-        const commission_rate = 0;
-        const gross_amount = settlementCalc.grossRemaining;
-        const total_discount = settlementCalc.adjustmentRemaining;
-        const net_amount = settlementCalc.payableRemaining;
+        const position = settlementCalc.position;
+        const balance = storeAccount.fromCents(position.balance_c);
 
         res.json({
             success: true,
             items: settlementCalc.displayItems,
             summary: {
-                total_orders_amount: gross_amount,
-                total_gross_amount: gross_amount,
-                total_discount,
-                commission_rate,
-                commissions: total_discount,
-                net_amount,
+                total_orders_amount: settlementCalc.grossTotal,
+                total_gross_amount: settlementCalc.grossTotal,
+                total_discount: settlementCalc.adjustmentTotal,
+                commission_rate: 0,
+                commissions: settlementCalc.adjustmentTotal,
+                items_payable: settlementCalc.payableTotal,
+                credit_available: settlementCalc.creditAvailable,
+                credit_applied: settlementCalc.creditApplied,
+                net_amount: settlementCalc.payableRemaining,
                 item_count: settlementCalc.displayItems.length,
-                legacy_paid_offset: settlementCalc.legacyPaidApplied
+                covered_item_count: settlementCalc.displayItems.filter((i) => i.covered_by_credit === 'full').length,
+                store_balance: balance,
+                amount_due: Math.max(0, balance),
+                store_credit: Math.max(0, -balance),
+                total_payable: storeAccount.fromCents(position.payable_c),
+                total_paid: storeAccount.fromCents(position.paid_c),
+                open_settlements_amount: storeAccount.fromCents(position.open_settlements_c),
+                // kept for older admin pages: credit deducted from the listed items
+                legacy_paid_offset: settlementCalc.creditApplied
             }
         });
 
     } catch (error) {
         console.error('Error fetching unsettled items:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, message: 'Failed to load unsettled items' });
     }
 });
 
-// Get stores with payment due. The visible amount matches Store Reports
-// (total payable minus paid settlements), while current_settlement_balance
-// tells the UI whether a fresh settlement can be created from unlinked items.
+// Credit stores with something to pay. pending_settlement is the store balance
+// (payable of delivered lines minus every payment to the store, never below 0);
+// current_settlement_balance is what a new settlement from unlinked lines would
+// pay after the store's credit is applied.
 router.get('/store-settlements/due-stores', async (req, res) => {
     try {
         const { period_from, period_to } = req.query;
         const balanceStart = period_from && period_to ? `${period_from} 00:00:00` : null;
         const balanceEnd = period_from && period_to ? `${period_to} 23:59:59` : null;
 
-        await ensureStoreSettlementSchema(req.db);
+        // Read-only endpoint: carry on if the schema check cannot run (e.g. no DDL rights)
+        await ensureStoreSettlementSchema(req.db).catch((e) => console.warn('Store settlement schema check skipped:', e.message));
 
-        const payableSql = getStorePayableSqlExpression('s2');
-        const reportParams = [];
-        if (period_from && period_to) {
-            reportParams.push(balanceStart, balanceEnd);
-            reportParams.push(period_from, period_to);
-            reportParams.push(period_from, period_to);
-        }
-
-        const [stores] = await req.db.execute(
-            `SELECT
-                s.id,
-                s.name,
-                s.payment_term,
-                s.is_active,
-                COALESCE(earn.total_payable, 0) AS total_payable,
-                COALESCE(paid.total_paid, 0) AS total_paid,
-                COALESCE(open_settlements.total_unpaid_settlements, 0) AS open_settlement_amount
-             FROM stores s
-             LEFT JOIN (
-                SELECT
-                    COALESCE(oi.store_id, p.store_id) AS store_id,
-                    SUM(${payableSql}) AS total_payable
-                FROM order_items oi
-                JOIN orders o ON oi.order_id = o.id
-                JOIN products p ON oi.product_id = p.id
-                JOIN stores s2 ON s2.id = COALESCE(oi.store_id, p.store_id)
-                WHERE o.status = 'delivered'
-                  AND o.payment_status = 'paid'
-                  ${period_from && period_to ? 'AND o.created_at BETWEEN ? AND ?' : ''}
-                GROUP BY COALESCE(oi.store_id, p.store_id)
-             ) earn ON earn.store_id = s.id
-             LEFT JOIN (
-                SELECT store_id, SUM(net_amount) AS total_paid
-                FROM store_settlements
-                WHERE status = 'paid'
-                  ${period_from && period_to ? 'AND settlement_date BETWEEN ? AND ?' : ''}
-                GROUP BY store_id
-             ) paid ON paid.store_id = s.id
-             LEFT JOIN (
-                SELECT store_id, SUM(net_amount) AS total_unpaid_settlements
-                FROM store_settlements
-                WHERE status IN ('pending', 'approved')
-                  ${period_from && period_to ? 'AND settlement_date BETWEEN ? AND ?' : ''}
-                GROUP BY store_id
-             ) open_settlements ON open_settlements.store_id = s.id
-             WHERE LOWER(TRIM(COALESCE(s.payment_term, ''))) NOT IN ('cash only', 'cash with discount')
-             ORDER BY s.name ASC`,
-            reportParams
-        );
-
+        const { accounts } = await storeAccount.loadStoreAccounts(req.db);
         const dueStores = [];
-        for (const store of stores) {
+        for (const account of accounts.values()) {
+            if (!account.exists || account.pickup_paid) continue;
+            const position = storeAccount.accountPosition(account);
             const settlementBalance = await calculateStoreSettlementBalance(
                 req.db,
-                store.id,
+                account.store_id,
                 balanceStart,
-                balanceEnd
+                balanceEnd,
+                null,
+                { creditCents: position.credit_c }
             );
             const currentSettlementBalance = Number(settlementBalance.payableRemaining || 0);
-            const pendingSettlement = Math.max(
-                0,
-                Number(store.total_payable || 0) - Number(store.total_paid || 0)
-            );
-            const effectivePending = Math.max(pendingSettlement, currentSettlementBalance);
-            if (effectivePending <= 0.005) continue;
+            const accountBalance = Math.max(0, storeAccount.fromCents(position.balance_c));
+            const pending = balanceStart ? currentSettlementBalance : Math.max(accountBalance, currentSettlementBalance);
+            if (pending <= 0.005) continue;
 
             dueStores.push({
-                id: store.id,
-                name: store.name,
-                payment_term: store.payment_term || null,
-                is_active: !!store.is_active,
-                pending_settlement: effectivePending,
+                id: account.store_id,
+                name: account.name,
+                payment_term: account.payment_term,
+                is_active: account.is_active,
+                pending_settlement: pending,
+                store_balance: storeAccount.fromCents(position.balance_c),
                 current_settlement_balance: currentSettlementBalance,
-                open_settlement_amount: Number(store.open_settlement_amount || 0),
+                open_settlement_amount: storeAccount.fromCents(position.open_settlements_c),
                 item_count: settlementBalance.displayItems.length,
-                legacy_paid_offset: Number(settlementBalance.legacyPaidApplied || 0)
+                credit_applied: settlementBalance.creditApplied,
+                legacy_paid_offset: settlementBalance.creditApplied
             });
         }
 
@@ -2687,7 +2649,7 @@ router.get('/store-settlements/due-stores', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching settlement due stores:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, message: 'Failed to load due stores' });
     }
 });
 
@@ -2746,9 +2708,25 @@ router.get('/store-settlements', async (req, res) => {
     }
 });
 
+const isTruthyFlag = (value) => value === true || value === 'true' || value === 'on' || value === 1 || value === '1';
+
+// settlement_kind: 'orders' (linked to order lines), 'manual' or 'on_account'
+// (a lump-sum payment with no order lines). credit_applied: store credit used
+// by an orders settlement, so net = total - commissions - deductions - credit_applied.
+async function ensureSettlementKindColumns(db) {
+    if (!(await storeAccount.hasColumnCached(db, 'store_settlements', 'settlement_kind'))) {
+        await db.execute('ALTER TABLE store_settlements ADD COLUMN settlement_kind VARCHAR(20) NULL');
+    }
+    storeAccount.markColumnPresent('store_settlements', 'settlement_kind');
+    if (!(await storeAccount.hasColumnCached(db, 'store_settlements', 'credit_applied'))) {
+        await db.execute('ALTER TABLE store_settlements ADD COLUMN credit_applied DECIMAL(12,2) NOT NULL DEFAULT 0');
+    }
+    storeAccount.markColumnPresent('store_settlements', 'credit_applied');
+}
+
 router.post('/store-settlements', [
     body('store_id').isInt({ min: 1 }),
-    body('payment_method').isIn(['cash', 'cheque', 'bank_transfer'])
+    body('payment_method').isIn(['cash', 'cheque', 'check', 'bank_transfer'])
 ], async (req, res) => {
     let conn;
     try {
@@ -2761,21 +2739,47 @@ router.post('/store-settlements', [
             });
         }
 
+        const { store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, notes, auto_calculate, selected_item_ids, on_account } = req.body;
+        // The column is ENUM('cash','check','bank_transfer'); the admin form says "cheque"
+        const payment_method = req.body.payment_method === 'cheque' ? 'check' : req.body.payment_method;
+        const autoCalculate = isTruthyFlag(auto_calculate);
+        const onAccount = isTruthyFlag(on_account);
+
+        if (onAccount && autoCalculate) {
+            return res.status(400).json({ success: false, message: 'A payment on account is not linked to orders; turn off auto-calculate' });
+        }
+        // Settlements that are not built from order lines are admin-only
+        if (!autoCalculate && req.user.user_type !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Manual settlements and payments on account can only be created by an admin; use auto-calculate'
+            });
+        }
+
         await ensureStoreSettlementSchema(req.db);
+        // DDL commits implicitly, so it runs before the transaction starts
+        await ensureSettlementKindColumns(req.db);
 
         conn = await req.db.getConnection();
         await conn.beginTransaction();
 
-        const { store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, payment_method, notes, auto_calculate, selected_item_ids } = req.body;
-        
+        // One settlement per store at a time, so store credit is applied once
+        const [storeRows] = await conn.execute('SELECT id, payment_term FROM stores WHERE id = ? FOR UPDATE', [store_id]);
+        if (!storeRows.length) {
+            await conn.rollback();
+            conn.release();
+            return res.status(404).json({ success: false, message: 'Store not found' });
+        }
+
         let final_total = total_orders_amount || 0;
         let final_commissions = commissions || 0;
         let final_deductions = deductions || 0;
         let final_net = net_amount || 0;
+        let credit_applied = 0;
+        let settlement_kind = 'manual';
         let settlement_items = [];
 
-        // If auto-calculation is requested, calculate from unsettled items
-        if (auto_calculate === true || auto_calculate === 'true' || auto_calculate === 'on') {
+        if (autoCalculate) {
             const selectedItemIds = Array.isArray(selected_item_ids)
                 ? selected_item_ids
                     .map((id) => Number(id))
@@ -2789,62 +2793,80 @@ router.post('/store-settlements', [
                 selectedItemIds
             );
 
-            if (settlementCalc.payableRemaining <= 0.005) {
+            if (!settlementCalc.allItemIds.length || settlementCalc.payableTotal <= 0.005) {
                 await conn.rollback();
                 conn.release();
-                 return res.status(400).json({
+                return res.status(400).json({
                     success: false,
                     message: 'No unpaid settlement balance found for this store'
                 });
             }
 
+            settlement_kind = 'orders';
             settlement_items = settlementCalc.allItemIds;
-            final_total = settlementCalc.grossRemaining;
-            final_commissions = settlementCalc.adjustmentRemaining;
-            final_deductions = parseFloat(deductions || 0);
-            final_net = final_total - final_commissions - final_deductions;
-        } else {
-            // Manual settlements are not linked to order lines, so they are admin-only
-            // and their figures must add up (net = total - commissions - deductions).
-            if (req.user.user_type !== 'admin') {
+            final_total = Number(settlementCalc.grossTotal.toFixed(2));
+            final_commissions = Number(settlementCalc.adjustmentTotal.toFixed(2));
+            final_deductions = Number(parseFloat(deductions || 0).toFixed(2)) || 0;
+            credit_applied = Number(settlementCalc.creditApplied.toFixed(2));
+            final_net = Number((final_total - final_commissions - final_deductions - credit_applied).toFixed(2));
+            if (final_deductions < 0 || final_net < -0.005) {
                 await conn.rollback();
                 conn.release();
-                return res.status(403).json({
-                    success: false,
-                    message: 'Manual settlements can only be created by an admin; use auto-calculate'
-                });
+                return res.status(400).json({ success: false, message: 'Deductions cannot exceed the amount due' });
             }
+            final_net = Math.max(0, final_net);
+        } else if (onAccount) {
+            // Payment on account: a lump sum with no order lines. It reduces the
+            // store balance; open lines are then shown as covered by the credit.
+            const n = Number(final_net);
+            if (!Number.isFinite(n) || n <= 0) {
+                await conn.rollback();
+                conn.release();
+                return res.status(400).json({ success: false, message: 'Enter the amount paid on account' });
+            }
+            settlement_kind = 'on_account';
+            final_total = 0;
+            final_commissions = 0;
+            final_deductions = 0;
+            final_net = Number(n.toFixed(2));
+        } else {
+            // Manual settlements are not linked to order lines and their figures
+            // must add up (net = total - commissions - deductions).
             const t = Number(final_total), c = Number(final_commissions), d = Number(final_deductions), n = Number(final_net);
             if (![t, c, d, n].every((v) => Number.isFinite(v) && v >= 0) || Math.abs(t - c - d - n) > 0.005) {
                 await conn.rollback();
                 conn.release();
                 return res.status(400).json({
                     success: false,
-                    message: 'Net amount must equal total minus commissions minus deductions'
+                    message: 'Net amount must equal total minus commissions minus deductions (use "Payment on account" for a lump sum)'
                 });
             }
         }
 
         const settlement_number = generateVoucherNumber('SS');
         const settlement_date = new Date().toISOString().split('T')[0];
+        let finalNotes = notes || null;
+        if (credit_applied > 0) {
+            const creditNote = `Store credit applied: Rs ${credit_applied.toFixed(2)}`;
+            finalNotes = finalNotes ? `${finalNotes}\n${creditNote}` : creditNote;
+        }
 
-        // Create the settlement record
         const [result] = await conn.execute(
-            `INSERT INTO store_settlements 
-             (settlement_number, settlement_date, store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, payment_method, notes, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [settlement_number, settlement_date, store_id, period_from || null, period_to || null, final_total, final_commissions, final_deductions, final_net, payment_method, notes || null]
+            `INSERT INTO store_settlements
+             (settlement_number, settlement_date, store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, payment_method, notes, status, settlement_kind, credit_applied)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+            [settlement_number, settlement_date, store_id, period_from || null, period_to || null, final_total, final_commissions, final_deductions, final_net, payment_method, finalNotes, settlement_kind, credit_applied]
         );
 
         const settlementId = result.insertId;
 
         // Link the items to this settlement so they aren't paid again
-        if (auto_calculate && settlement_items.length > 0) {
-             const placeholders = settlement_items.map(() => '?').join(',');
-             await conn.execute(
-                `UPDATE order_items SET settlement_id = ? WHERE id IN (${placeholders})`,
+        if (settlement_items.length > 0) {
+            const placeholders = settlement_items.map(() => '?').join(',');
+            await conn.execute(
+                `UPDATE order_items SET settlement_id = ? WHERE settlement_id IS NULL AND id IN (${placeholders})`,
                 [settlementId, ...settlement_items]
-             );
+            );
         }
 
         await conn.commit();
@@ -2852,10 +2874,15 @@ router.post('/store-settlements', [
 
         res.status(201).json({
             success: true,
-            message: 'Store settlement created successfully',
+            message: settlement_kind === 'on_account' ? 'Payment on account recorded' : 'Store settlement created successfully',
             settlement: {
                 id: settlementId,
                 settlement_number,
+                settlement_kind,
+                total_orders_amount: final_total,
+                commissions: final_commissions,
+                deductions: final_deductions,
+                credit_applied,
                 net_amount: final_net,
                 items_count: settlement_items.length
             }
@@ -2868,8 +2895,7 @@ router.post('/store-settlements', [
         console.error('Error creating store settlement:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to create store settlement',
-            error: error.message
+            message: 'Failed to create store settlement'
         });
     }
 });
@@ -2956,8 +2982,9 @@ router.put('/store-settlements/:id', [
             );
         }
 
-        // Create financial transaction if status changed to paid
-        if (status === 'paid' && existingSettlement) {
+        // Create financial transaction if status changed to paid. A settlement fully
+        // covered by store credit (net 0) moves no money, so nothing is recorded.
+        if (status === 'paid' && existingSettlement && Number(net_amount || existingSettlement.net_amount) > 0) {
             const settlementAmount = net_amount || existingSettlement.net_amount;
             const [storeRows] = await req.db.execute('SELECT name FROM stores WHERE id = ?', [existingSettlement.store_id]);
             const storeName = storeRows.length > 0 ? storeRows[0].name : `Store #${existingSettlement.store_id}`;
@@ -7760,7 +7787,25 @@ router.get('/reports/stores-detailed', async (req, res) => {
 
         const balanceStart = start_date && end_date ? `${start_date} 00:00:00` : null;
         const balanceEnd = start_date && end_date ? `${end_date} 23:59:59` : null;
+        // Balances come from the store accounts (utils/storeAccount.js): every payment
+        // to the store counts (settlements, rider pickup payments, vouchers) and an
+        // overpaid store shows store_credit. total_paid = payments in the period.
+        const { accounts: storeAccounts } = await storeAccount.loadStoreAccounts(req.db, {
+            storeId: store_id && store_id !== 'all' ? Number(store_id) : null
+        });
+        const periodFrom = isoDate(start_date) && isoDate(end_date) ? start_date : null;
+        const periodTo = isoDate(start_date) && isoDate(end_date) ? end_date : null;
         for (const storeRow of stores) {
+            const account = storeAccounts.get(Number(storeRow.id));
+            const position = account ? storeAccount.accountPosition(account) : null;
+            const periodFigures = account
+                ? storeAccount.accountPeriod(account, { from: periodFrom, to: periodTo, orders: position.orders })
+                : null;
+            const closing = periodFigures ? storeAccount.fromCents(periodFigures.closing_c) : 0;
+            storeRow.total_paid = periodFigures ? storeAccount.fromCents(periodFigures.total_paid_c) : 0;
+            storeRow.store_balance = closing;
+            storeRow.store_credit = Math.max(0, -closing);
+
             const paymentTerm = String(storeRow.payment_term || '').toLowerCase().trim();
             if (paymentTerm === 'cash only' || paymentTerm === 'cash with discount') {
                 storeRow.current_settlement_balance = 0;
@@ -7772,12 +7817,11 @@ router.get('/reports/stores-detailed', async (req, res) => {
                 req.db,
                 storeRow.id,
                 balanceStart,
-                balanceEnd
+                balanceEnd,
+                null,
+                { creditCents: position ? position.credit_c : 0 }
             );
-            const accountingPending = Math.max(
-                0,
-                Number(storeRow.total_payable || 0) - Number(storeRow.total_paid || 0)
-            );
+            const accountingPending = Math.max(0, closing);
             storeRow.current_settlement_balance = Number(settlementBalance.payableRemaining || 0);
             storeRow.accounting_pending_balance = accountingPending;
             storeRow.pending_settlement = accountingPending;
@@ -8031,14 +8075,24 @@ router.get('/reports/credit-stores-history', async (req, res) => {
             total_payable: 0,
             total_paid: 0,
             total_pending_balance: 0,
-            stores_with_balance: 0
+            total_store_credit: 0,
+            stores_with_balance: 0,
+            stores_with_credit: 0
         };
 
+        // Paid and balance come from the store accounts (utils/storeAccount.js):
+        // every payment to the store counts, and overpayment shows as store credit.
+        const { accounts } = await storeAccount.loadStoreAccounts(req.db);
         const formattedStores = stores.map((s) => {
+            const account = accounts.get(Number(s.store_id));
+            const position = account ? storeAccount.accountPosition(account) : null;
             const payable = Number(Number(s.total_payable || 0).toFixed(2));
-            const paid = Number(Number(s.total_paid || 0).toFixed(2));
-            const pending = Number((payable - paid).toFixed(2));
-            const pendingBalance = Math.max(0, pending);
+            const paid = position ? storeAccount.fromCents(position.paid_c) : Number(Number(s.total_paid || 0).toFixed(2));
+            const balance = position ? storeAccount.fromCents(position.balance_c) : Number((payable - paid).toFixed(2));
+            const pendingBalance = Math.max(0, balance);
+            const storeCredit = Math.max(0, -balance);
+            summary.total_store_credit += storeCredit;
+            if (storeCredit > 0.01) summary.stores_with_credit += 1;
             const gross = Number(Number(s.gross_sales || 0).toFixed(2));
             const ordersCount = parseInt(s.delivered_orders || s.total_orders || 0, 10);
 
@@ -8063,6 +8117,10 @@ router.get('/reports/credit-stores-history', async (req, res) => {
                 total_payable: payable,
                 total_paid: paid,
                 pending_balance: pendingBalance,
+                balance,
+                store_credit: storeCredit,
+                unsettled_amount: position ? storeAccount.fromCents(position.unsettled_c) : pendingBalance,
+                covered_by_credit: position ? storeAccount.fromCents(position.covered_c) : 0,
                 last_settlement_date: s.last_settlement_date || null,
                 last_settlement_number: s.last_settlement_number || null,
                 last_settlement_status: s.last_settlement_status || null
@@ -8074,6 +8132,7 @@ router.get('/reports/credit-stores-history', async (req, res) => {
         summary.total_payable = Number(summary.total_payable.toFixed(2));
         summary.total_paid = Number(summary.total_paid.toFixed(2));
         summary.total_pending_balance = Number(summary.total_pending_balance.toFixed(2));
+        summary.total_store_credit = Number(summary.total_store_credit.toFixed(2));
 
         res.json({
             success: true,
@@ -8228,12 +8287,27 @@ router.get('/reports/credit-stores-history/:storeId', async (req, res) => {
             [storeId]
         );
 
-        // Store summary
+        // Store summary from the store account (utils/storeAccount.js): every payment
+        // to the store counts, and unsettled orders covered by the store's credit
+        // (e.g. a lump-sum payment not linked to orders) are marked as covered.
+        const { position } = await storeAccount.getStoreAccount(req.db, storeId);
+        const coverByOrder = new Map();
+        for (const line of position.open_lines) {
+            const c = coverByOrder.get(line.line.order_id) || { covered: 0, due: 0 };
+            c.covered += line.covered_c;
+            c.due += line.due_c;
+            coverByOrder.set(line.line.order_id, c);
+        }
+        for (const order of ordersList) {
+            const c = coverByOrder.get(Number(order.order_id));
+            order.covered_by_credit = c ? storeAccount.fromCents(c.covered) : 0;
+            order.due_amount = c ? storeAccount.fromCents(c.due) : 0;
+            if (!order.is_paid && c && c.due === 0 && c.covered > 0) order.settlement_status = order.settlement_status || 'covered_by_credit';
+        }
         const totalPayable = ordersList.reduce((sum, o) => sum + o.amount_to_pay, 0);
-        const totalPaid = settlements
-            .filter(s => s.status === 'paid')
-            .reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
-        const pendingBalance = Math.max(0, totalPayable - totalPaid);
+        const totalPaid = storeAccount.fromCents(position.paid_c);
+        const balance = storeAccount.fromCents(position.balance_c);
+        const pendingBalance = Math.max(0, balance);
 
         res.json({
             success: true,
@@ -8247,11 +8321,16 @@ router.get('/reports/credit-stores-history/:storeId', async (req, res) => {
             summary: {
                 total_orders: ordersList.length,
                 paid_orders: ordersList.filter(o => o.is_paid).length,
-                unpaid_orders: ordersList.filter(o => !o.is_paid).length,
+                unpaid_orders: ordersList.filter(o => !o.is_paid && !(o.due_amount === 0 && o.covered_by_credit > 0)).length,
+                covered_orders: ordersList.filter(o => !o.is_paid && o.due_amount === 0 && o.covered_by_credit > 0).length,
                 gross_sales: Number(ordersList.reduce((sum, o) => sum + o.gross_amount, 0).toFixed(2)),
                 total_payable: Number(totalPayable.toFixed(2)),
                 total_paid: Number(totalPaid.toFixed(2)),
-                pending_balance: Number(pendingBalance.toFixed(2))
+                pending_balance: Number(pendingBalance.toFixed(2)),
+                balance,
+                store_credit: Math.max(0, -balance),
+                unsettled_amount: storeAccount.fromCents(position.unsettled_c),
+                covered_by_credit: storeAccount.fromCents(position.covered_c)
             },
             orders: ordersList,
             settlements
@@ -8302,6 +8381,268 @@ router.get('/gl/entity-balances/:code', glRoute((req) =>
     ledger.entityBalances(req.db, String(req.params.code), { to: isoDate(req.query.to) })));
 
 router.get('/gl/reconciliation', glRoute((req) => ledger.reconciliation(req.db)));
+
+// ===== STORE PAYMENTS & BALANCES (see utils/storeAccount.js) =====
+// Balance = store payable of delivered order lines - every payment to the store.
+// It equals -(GL account 2000 for the store); scripts/store-payments/check-store-balances.js
+// proves it. Read-only.
+
+const rsAmount = (cents) => storeAccount.fromCents(cents);
+
+function storePaymentsDateRange(query) {
+    const from = isoDate(query.from);
+    const to = isoDate(query.to);
+    if (from && to && from > to) return { error: 'From date must be on or before To date' };
+    return { from, to };
+}
+
+function storePaymentsRow(account, { from, to, today }) {
+    const position = storeAccount.accountPosition(account, { today });
+    const period = storeAccount.accountPeriod(account, { from, to, orders: position.orders });
+    const issues = storeAccount.accountIssues(account, position);
+    const closing = period.closing_c;
+    return {
+        row: {
+            store_id: account.store_id,
+            name: account.name,
+            exists: account.exists,
+            is_active: account.is_active,
+            payment_term: account.payment_term,
+            pickup_paid: account.pickup_paid,
+            discount_percent: account.discount_percent,
+            grace_days: account.grace_days,
+            delivered_orders: period.delivered_orders,
+            gross_sales: rsAmount(period.gross_c),
+            commission: rsAmount(period.commission_c),
+            credit_given: rsAmount(period.credit_given_c),
+            paid_cash: rsAmount(period.paid.cash || 0),
+            paid_bank: rsAmount(period.paid.bank || 0),
+            paid_cheque: rsAmount(period.paid.cheque || 0),
+            paid_pickup: rsAmount(period.paid.pickup || 0),
+            paid_vouchers: rsAmount(period.paid.voucher || 0),
+            paid_adjustments: rsAmount(period.paid.adjustment || 0),
+            total_paid: rsAmount(period.total_paid_c),
+            opening_balance: rsAmount(period.opening_c),
+            closing_balance: rsAmount(closing),
+            balance_status: closing > 0 ? 'owed_to_store' : closing < 0 ? 'store_credit' : 'settled',
+            current_balance: rsAmount(position.balance_c),
+            store_credit_available: rsAmount(position.credit_left_c),
+            covered_by_credit: rsAmount(position.covered_c),
+            unsettled_orders: position.unsettled_orders,
+            unsettled_amount: rsAmount(position.unsettled_c),
+            oldest_unpaid: position.oldest_unpaid,
+            days_outstanding: position.days_outstanding,
+            overdue: position.overdue,
+            aging: {
+                d0_7: rsAmount(position.aging.d0_7),
+                d8_15: rsAmount(position.aging.d8_15),
+                d16_30: rsAmount(position.aging.d16_30),
+                d30_plus: rsAmount(position.aging.d30_plus)
+            },
+            open_settlements: position.open_settlements,
+            open_settlements_amount: rsAmount(position.open_settlements_c),
+            last_payment_date: period.last_payment ? period.last_payment.date : null,
+            last_payment_amount: period.last_payment ? rsAmount(period.last_payment.amount_c) : null,
+            last_payment_ref: period.last_payment ? period.last_payment.ref : null,
+            issue_count: (issues.store_credit_c > 0 ? 1 : 0) + issues.unlinked_payments.filter((u) => !u.on_account).length +
+                issues.net_mismatches.length + issues.double_payments.length
+        },
+        position,
+        issues
+    };
+}
+
+function storePaymentsIssuesOut(account, issues) {
+    const base = { store_id: account.store_id, store_name: account.name, payment_term: account.payment_term };
+    return {
+        credit: issues.store_credit_c > 0 ? [{ ...base, store_credit: rsAmount(issues.store_credit_c) }] : [],
+        unlinked: issues.unlinked_payments.map((u) => ({
+            ...base, settlement_id: u.settlement_id, settlement_number: u.settlement_number, date: u.date,
+            amount: rsAmount(u.net_c), on_account: u.on_account, payment_method: u.method
+        })),
+        mismatch: issues.net_mismatches.map((m) => ({
+            ...base, settlement_id: m.settlement_id, settlement_number: m.settlement_number, status: m.status, date: m.date,
+            total_orders_amount: rsAmount(m.total_c), commissions: rsAmount(m.commissions_c), deductions: rsAmount(m.deductions_c),
+            credit_applied: rsAmount(m.credit_applied_c), net_amount: rsAmount(m.net_c), expected_net: rsAmount(m.expected_c),
+            difference: rsAmount(m.difference_c)
+        })),
+        double: issues.double_payments.map((d) => ({
+            ...base, settlement_id: d.settlement_id, settlement_number: d.settlement_number, settlement_status: d.settlement_status,
+            settlement_date: d.settlement_date, double_paid: rsAmount(d.double_paid_c), items_from: d.items_from, items_to: d.items_to,
+            lump_payments: d.lump_payments.map((l) => ({ ref: l.ref, amount: rsAmount(l.amount_c) }))
+        }))
+    };
+}
+
+router.get('/reports/store-payments', async (req, res) => {
+    try {
+        const range = storePaymentsDateRange(req.query);
+        if (range.error) return res.status(400).json({ success: false, message: range.error });
+        const { from, to } = range;
+        const storeId = req.query.store_id && req.query.store_id !== 'all' ? Number(req.query.store_id) : null;
+        if (storeId !== null && (!Number.isInteger(storeId) || storeId <= 0)) {
+            return res.status(400).json({ success: false, message: 'Invalid store' });
+        }
+        const term = String(req.query.payment_term || '').trim().toLowerCase();
+        const onlyBalance = ['1', 'true', 'yes'].includes(String(req.query.only_balance || '').toLowerCase());
+        const search = String(req.query.search || '').trim().toLowerCase().slice(0, 100);
+        const today = storeAccount.todayYmd();
+
+        const { accounts, raw } = await storeAccount.loadStoreAccounts(req.db, { storeId });
+        const stores = [];
+        const flags = { stores_with_credit: [], unlinked_payments: [], net_mismatches: [], double_payments: [] };
+        for (const account of accounts.values()) {
+            if (!account.exists && !account.items.length && !account.payments.length) continue;
+            if (term && term !== 'all' && String(account.payment_term || '').trim().toLowerCase() !== term) continue;
+            if (search && !String(account.name || '').toLowerCase().includes(search)) continue;
+            const { row, issues } = storePaymentsRow(account, { from, to, today });
+            if (onlyBalance && Math.abs(row.closing_balance) < 0.005) continue;
+            stores.push(row);
+            const out = storePaymentsIssuesOut(account, issues);
+            flags.stores_with_credit.push(...out.credit);
+            flags.unlinked_payments.push(...out.unlinked);
+            flags.net_mismatches.push(...out.mismatch);
+            flags.double_payments.push(...out.double);
+        }
+        stores.sort((a, b) => Math.abs(b.closing_balance) - Math.abs(a.closing_balance) || String(a.name).localeCompare(String(b.name)));
+        flags.stores_with_credit.sort((a, b) => b.store_credit - a.store_credit);
+        flags.double_payments.sort((a, b) => b.double_paid - a.double_paid);
+
+        const sumKeys = ['delivered_orders', 'gross_sales', 'commission', 'credit_given', 'paid_cash', 'paid_bank', 'paid_cheque',
+            'paid_pickup', 'paid_vouchers', 'paid_adjustments', 'total_paid', 'opening_balance', 'closing_balance',
+            'unsettled_orders', 'unsettled_amount', 'covered_by_credit'];
+        const totals = {};
+        for (const key of sumKeys) {
+            const cents = stores.reduce((s, r) => s + Math.round(Number(r[key] || 0) * 100), 0);
+            totals[key] = ['delivered_orders', 'unsettled_orders'].includes(key) ? Math.round(cents / 100) : rsAmount(cents);
+        }
+        totals.aging = {};
+        for (const key of ['d0_7', 'd8_15', 'd16_30', 'd30_plus']) {
+            totals.aging[key] = rsAmount(stores.reduce((s, r) => s + Math.round(r.aging[key] * 100), 0));
+        }
+        totals.owed_to_stores = rsAmount(stores.reduce((s, r) => s + Math.max(0, Math.round(r.closing_balance * 100)), 0));
+        totals.store_credit = rsAmount(stores.reduce((s, r) => s + Math.max(0, -Math.round(r.closing_balance * 100)), 0));
+        totals.overdue_stores = stores.filter((r) => r.overdue).length;
+
+        // Store payments that the GL cannot assign to a store (e.g. CPV-40)
+        let unallocated = 0;
+        if (!storeId) {
+            const [vouchers] = await req.db.execute(
+                `SELECT voucher_number, payee_type, payee_id, payee_name, purpose, amount
+                 FROM cash_payment_vouchers WHERE status IN ('approved', 'paid')`
+            );
+            for (const v of vouchers) {
+                if (v.payee_type === 'store' && v.payee_id) continue;
+                if (/store purchase/i.test(`${v.payee_name || ''} ${v.purpose || ''}`)) unallocated += storeAccount.toCents(v.amount);
+            }
+        }
+
+        res.json({
+            success: true,
+            from, to, today,
+            stores,
+            totals,
+            flags,
+            notes: {
+                unallocated_store_payments: rsAmount(unallocated),
+                unidentified_pickup_payments: rsAmount((raw.unidentifiedPickupPayments || []).reduce((s, p) => s + p.amount_c, 0))
+            }
+        });
+    } catch (error) {
+        console.error('Error in /reports/store-payments:', error);
+        res.status(500).json({ success: false, message: 'Failed to load store payments report' });
+    }
+});
+
+router.get('/reports/store-payments/:storeId/statement', async (req, res) => {
+    try {
+        const storeId = Number(req.params.storeId);
+        if (!Number.isInteger(storeId) || storeId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid store' });
+        }
+        const range = storePaymentsDateRange(req.query);
+        if (range.error) return res.status(400).json({ success: false, message: range.error });
+        const { from, to } = range;
+        const today = storeAccount.todayYmd();
+
+        const { accounts } = await storeAccount.loadStoreAccounts(req.db, { storeId });
+        const account = accounts.get(storeId);
+        if (!account || (!account.exists && !account.items.length && !account.payments.length)) {
+            return res.status(404).json({ success: false, message: 'Store not found' });
+        }
+        const { row, position, issues } = storePaymentsRow(account, { from, to, today });
+        const statement = storeAccount.accountStatement(account, { from, to });
+
+        // Open (unsettled) order lines per order, with the part covered by store credit
+        const openByOrder = new Map();
+        for (const line of position.open_lines) {
+            const key = line.line.order_id;
+            if (!openByOrder.has(key)) {
+                openByOrder.set(key, { order_id: key, order_number: line.line.order_number, date: line.line.date, lines: 0, payable_c: 0, covered_c: 0, due_c: 0 });
+            }
+            const o = openByOrder.get(key);
+            o.lines += 1;
+            o.payable_c += line.payable_c;
+            o.covered_c += line.covered_c;
+            o.due_c += line.due_c;
+        }
+        const openOrders = [...openByOrder.values()].map((o) => ({
+            order_id: o.order_id, order_number: o.order_number, date: o.date, lines: o.lines,
+            payable: rsAmount(o.payable_c), covered_by_credit: rsAmount(o.covered_c), due: rsAmount(o.due_c),
+            days: storeAccount.daysBetween(o.date, today),
+            status: o.due_c === 0 ? 'covered' : (o.covered_c > 0 ? 'partly_covered' : 'due')
+        }));
+
+        res.json({
+            success: true,
+            from, to, today,
+            store: row,
+            statement: {
+                opening_balance: rsAmount(statement.opening_c),
+                closing_balance: rsAmount(statement.closing_c),
+                total_credit_given: rsAmount(statement.total_credit_given_c),
+                total_paid: rsAmount(statement.total_paid_c),
+                entries: statement.entries.map((e) => ({
+                    date: e.date,
+                    type: e.type,
+                    label: e.label,
+                    ref: e.ref,
+                    order_id: e.order_id || null,
+                    settlement_id: e.settlement_id || null,
+                    payment_method: e.method || null,
+                    linked_items: e.linked_items,
+                    lines: e.lines || null,
+                    gross: e.gross_c != null ? rsAmount(e.gross_c) : null,
+                    credit_given: rsAmount(e.credit_given_c),
+                    paid: rsAmount(e.paid_c),
+                    balance: rsAmount(e.balance_c)
+                }))
+            },
+            position: {
+                total_payable: rsAmount(position.payable_c),
+                total_paid: rsAmount(position.paid_c),
+                balance: rsAmount(position.balance_c),
+                settled_payable: rsAmount(position.settled_payable_c),
+                credit_before_open_orders: rsAmount(position.credit_c),
+                open_payable: rsAmount(position.open_payable_c),
+                covered_by_credit: rsAmount(position.covered_c),
+                credit_left: rsAmount(position.credit_left_c),
+                unsettled_amount: rsAmount(position.unsettled_c)
+            },
+            open_orders: openOrders,
+            settlements: account.settlements.map((s) => ({
+                id: s.id, settlement_number: s.number, status: s.status, date: s.date, paid_date: s.status === 'paid' ? String(s.paid_ts || '').slice(0, 10) : null,
+                kind: s.kind, on_account: s.on_account, linked_items: s.linked_items, payment_method: s.method,
+                total_orders_amount: rsAmount(s.total_c), commissions: rsAmount(s.commissions_c), deductions: rsAmount(s.deductions_c),
+                credit_applied: rsAmount(s.credit_applied_c), net_amount: rsAmount(s.net_c), notes: s.notes
+            })),
+            flags: storePaymentsIssuesOut(account, issues)
+        });
+    } catch (error) {
+        console.error('Error in /reports/store-payments/:storeId/statement:', error);
+        res.status(500).json({ success: false, message: 'Failed to load store statement' });
+    }
+});
 
 router.post('/gl/sync', requireAdmin, async (req, res) => {
     try {
