@@ -75,3 +75,7 @@ bundle/
 # Runtime debug logs
 error_debug.log
 socket_debug.log
+
+# App screenshots taken against production data copies contain customer personal data
+docs/app-screens/before/
+docs/app-screens/after/
