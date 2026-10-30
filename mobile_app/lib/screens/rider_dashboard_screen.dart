@@ -119,6 +119,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Pricing Breakdown': 'قیمت کی تفصیل',
       'stores': 'دکانیں',
       'Wallet balance': 'والیٹ بیلنس',
+      'Cash to hand in': 'جمع کرانے والی رقم',
       'Total earnings account': 'کل آمدنی کا اکاؤنٹ',
       'Wallet & cash flow refreshed': 'والیٹ اور کیش اپ ڈیٹ ہو گئے',
       'Daily cash': 'روزانہ کیش',
@@ -1659,7 +1660,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
               divider(),
               stat(Fmt.number(_completedDeliveries.length), _tr('Delivered')),
               divider(),
-              stat(Fmt.money(_walletBalance.roundToDouble()), _tr('Wallet')),
+              stat(Fmt.money(_walletBalance.roundToDouble()), _tr('Cash to hand in')),
             ],
           ),
         ],
@@ -2721,7 +2722,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
               ),
               const SizedBox(width: AppSpace.sm),
               Expanded(
-                child: Text(_tr('Wallet balance'), style: AppText.bodyStrong),
+                child: Text(_tr('Cash to hand in'), style: AppText.bodyStrong),
               ),
               IconButton(
                 tooltip: _tr('Refresh'),

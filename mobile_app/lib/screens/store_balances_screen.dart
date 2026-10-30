@@ -57,21 +57,20 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
         token,
       );
       final storeOrders = (storeOrdersResponse['store_orders'] as List?) ?? [];
-      Map<String, dynamic> walletResponse = {};
+      Map<String, dynamic> paymentsResponse = {};
       try {
-        walletResponse = await ApiService.getAdminWallets(token, limit: 1000);
+        paymentsResponse = await ApiService.getStorePaymentsReport(token);
       } catch (e) {
-        _logger.w('Wallet lookup blocked: $e');
+        _logger.w('Store payments lookup blocked: $e');
       }
 
+      // Same figures as Store Payments & Balances on the website.
       final storeWalletBalances = <int, double>{};
-      for (final w in (walletResponse['wallets'] as List? ?? [])) {
-        final sidRaw = w['store_id'];
-        if (sidRaw == null) continue;
-        final sid = int.tryParse(sidRaw.toString());
+      for (final row in (paymentsResponse['stores'] as List? ?? [])) {
+        final sid = int.tryParse(row['store_id']?.toString() ?? '');
         if (sid == null) continue;
-        final bal = double.tryParse(w['balance']?.toString() ?? '0') ?? 0;
-        storeWalletBalances[sid] = bal;
+        storeWalletBalances[sid] =
+            double.tryParse(row['current_balance']?.toString() ?? '0') ?? 0;
       }
 
       final storeNameLookup = <int, String>{};
@@ -347,9 +346,9 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
       ),
       items: const [
         DropdownMenuItem(value: 'all', child: Text('All balances')),
-        DropdownMenuItem(value: 'positive', child: Text('Positive')),
-        DropdownMenuItem(value: 'negative', child: Text('Negative')),
-        DropdownMenuItem(value: 'zero', child: Text('Zero')),
+        DropdownMenuItem(value: 'positive', child: Text('Owed')),
+        DropdownMenuItem(value: 'negative', child: Text('Overpaid')),
+        DropdownMenuItem(value: 'zero', child: Text('Settled')),
       ],
       onChanged: (value) {
         if (value == null) return;
@@ -402,9 +401,9 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
     final deliveredSales = row['served_sales'] as double? ?? 0;
     final pendingSales = row['pending_sales'] as double? ?? 0;
     final orders = (row['orders'] as List<Map<String, dynamic>>?) ?? [];
-    final balanceColor = wallet < 0
+    final balanceColor = wallet > 0
         ? AppColors.danger
-        : (wallet > 0 ? AppColors.success : AppColors.text2);
+        : (wallet < 0 ? AppColors.success : AppColors.text2);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpace.sm + 2),
@@ -431,7 +430,7 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
           padding: const EdgeInsets.only(top: 2),
           child: Row(
             children: [
-              Text('Balance ', style: AppText.small),
+              Text('Owed ', style: AppText.small),
               Text(
                 Fmt.money(wallet),
                 style: AppText.label.copyWith(
@@ -587,7 +586,7 @@ class _StoreBalancesScreenState extends State<StoreBalancesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Wallet balances, sales and order counts per store.',
+                      'Amount owed, sales and order counts per store.',
                       style: AppText.small,
                     ),
                     const SizedBox(height: AppSpace.md),

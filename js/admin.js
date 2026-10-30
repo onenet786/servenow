@@ -2851,6 +2851,9 @@ function switchTab(tabName) {
         case 'store-payments':
             if (typeof loadStorePaymentsReport === 'function') loadStorePaymentsReport();
             break;
+        case 'reports-centre':
+            if (typeof loadReportsCentre === 'function') loadReportsCentre();
+            break;
         case 'transactions':
             if (typeof loadTransactions === 'function') loadTransactions();
             break;
@@ -12428,7 +12431,9 @@ async function loadWallets() {
         const statsData = await response.json();
         if (statsData.success) {
             const stats = statsData.stats;
-            document.getElementById('walletsTotalBalance').textContent = `PKR ${stats.total_balance?.toFixed(2) || '0.00'}`;
+            document.getElementById('walletsTotalBalance').textContent = `PKR ${(stats.rider_cash || 0).toFixed(2)}`;
+            document.getElementById('walletsCustomerBalance').textContent = `PKR ${(stats.customer_balance || 0).toFixed(2)}`;
+            document.getElementById('walletsStorePaid').textContent = `PKR ${(stats.store_settlements_paid || 0).toFixed(2)}`;
             document.getElementById('walletsActiveCount').textContent = stats.active_wallets || 0;
             document.getElementById('walletsAutoRechargeCount').textContent = stats.with_auto_recharge || 0;
             document.getElementById('walletsTotalTransactions').textContent = stats.transactions?.total_transactions || 0;
@@ -12855,7 +12860,7 @@ async function applyRoleRestrictions() {
                 { perms: ['menu_report_financial', 'menu_reports'], tabs: ['financial-reports'] },
                 { perms: ['menu_financial_dashboard', 'menu_reports'], tabs: ['financial-dashboard'] },
                 { perms: ['menu_financial_dashboard'], tabs: ['general-ledger'] },
-                { perms: ['menu_report_financial', 'menu_financial_dashboard', 'menu_financial_settlements', 'menu_reports'], tabs: ['store-payments'] },
+                { perms: ['menu_report_financial', 'menu_financial_dashboard', 'menu_financial_settlements', 'menu_reports'], tabs: ['store-payments', 'reports-centre'] },
 
                 { perms: ['menu_categories', 'menu_settings'], tabs: ['categories'] },
                 { perms: ['menu_units', 'menu_settings'], tabs: ['units'] },

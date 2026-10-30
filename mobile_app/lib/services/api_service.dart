@@ -1354,6 +1354,16 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> getStorePaymentsReport(String token) async {
+    final uri = Uri.parse('$baseUrl/api/financial/reports/store-payments');
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> getAdminWallets(
     String token, {
     int page = 1,

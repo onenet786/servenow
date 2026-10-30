@@ -677,6 +677,65 @@ async function attachItemsToDeliveries(db, deliveries) {
   return deliveries;
 }
 
+// Cancelling an order takes the rider's money for it back out of the wallet, so
+// the wallet stays what the rider really holds and the store shows no payment
+// for goods that were not sold. Does nothing if already reversed.
+async function reverseRiderMoneyForCancelledOrder(db, { orderId, orderNumber }) {
+  const [entries] = await db.execute(
+    `SELECT wt.wallet_id, wt.type, wt.amount, wt.reference_type, wt.description, w.rider_id
+     FROM wallet_transactions wt
+     JOIN wallets w ON w.id = wt.wallet_id AND w.rider_id IS NOT NULL
+     WHERE wt.reference_id = ? AND wt.reference_type IN ('order', 'order_cancel_reversal')`,
+    [String(orderId)],
+  );
+  const reversed = new Set(entries.filter((e) => e.reference_type === "order_cancel_reversal").map((e) => e.wallet_id));
+
+  for (const e of entries) {
+    if (e.reference_type !== "order" || reversed.has(e.wallet_id)) continue;
+    const amount = roundAmount(e.amount);
+    if (amount <= 0) continue;
+    const undoesCredit = e.type === "credit";
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute("SELECT id FROM wallets WHERE id = ? FOR UPDATE", [e.wallet_id]);
+      await conn.execute(
+        undoesCredit
+          ? "UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ?"
+          : "UPDATE wallets SET balance = balance + ?, total_credited = total_credited + ? WHERE id = ?",
+        [amount, amount, e.wallet_id],
+      );
+      const [balanceRows] = await conn.execute("SELECT balance FROM wallets WHERE id = ?", [e.wallet_id]);
+      await conn.execute(
+        `INSERT INTO wallet_transactions (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
+         VALUES (?, ?, ?, ?, 'order_cancel_reversal', ?, ?)`,
+        [
+          e.wallet_id,
+          undoesCredit ? "debit" : "credit",
+          amount,
+          `Reversal: ${String(e.description || `order #${orderNumber}`).slice(0, 200)}`,
+          orderId,
+          roundAmount(Number(balanceRows[0]?.balance || 0)),
+        ],
+      );
+      await conn.commit();
+    } catch (reversalError) {
+      await conn.rollback();
+      throw reversalError;
+    } finally {
+      conn.release();
+    }
+  }
+
+  await db.execute(
+    `UPDATE rider_cash_movements SET status = 'cancelled'
+     WHERE reference_type = 'order' AND reference_id = ?
+       AND movement_type IN ('cash_collection', 'store_payment') AND status <> 'cancelled'`,
+    [orderId],
+  );
+  await db.execute("DELETE FROM rider_store_payments WHERE order_id = ?", [orderId]);
+}
+
 // recorded_by / created_by columns point at the users table. Riders live in
 // their own table, so a rider id there fails the foreign key.
 function staffUserIdFor(user) {
@@ -4823,6 +4882,25 @@ router.put(
         });
       }
 
+      // Cash already on a hand-in has left the rider: the wallet cannot be reversed.
+      if (status === "cancelled") {
+        const [handedIn] = await req.db.execute(
+          `SELECT rcm.movement_number
+           FROM rider_cash_submission_orders rcso
+           JOIN rider_cash_movements rcm ON rcm.id = rcso.movement_id
+           WHERE rcso.order_id = ? AND rcm.movement_type = 'cash_submission'
+             AND rcm.status IN ('pending', 'approved', 'completed')
+           LIMIT 1`,
+          [id],
+        );
+        if (handedIn.length) {
+          return res.status(409).json({
+            success: false,
+            message: `This order's cash is already on hand-in ${handedIn[0].movement_number}. Refund the customer with a Payment Voucher instead of cancelling.`,
+          });
+        }
+      }
+
       if (isTerminalReopen && !canResetTerminalOrder(req.user)) {
         return res.status(403).json({
           success: false,
@@ -5070,6 +5148,10 @@ router.put(
         } catch (stockErr) {
           console.error(`[orders] Stock restore failed for order ${id}:`, stockErr);
         }
+      }
+
+      if (newGlobalStatus === "cancelled") {
+        await reverseRiderMoneyForCancelledOrder(req.db, { orderId: id, orderNumber: order.order_number });
       }
 
       // Pickup-paid store settlement:
@@ -5796,6 +5878,17 @@ router.put("/:id(\\d+)/deliver", authenticateToken, async (req, res) => {
         success: false,
         message:
           "Order was not delivered because payment is no longer marked as paid. Please mark payment received first.",
+      });
+    }
+
+    // Cash stores are paid at pickup: an order already marked paid never passes
+    // through the payment route, so it must record that here. Safe to repeat.
+    if (order.rider_id) {
+      await recordPickupPaidStorePaymentsForOrder(req.db, {
+        orderId: id,
+        riderId: order.rider_id,
+        orderNumber: order.order_number,
+        createdBy: staffUserIdFor(req.user),
       });
     }
 

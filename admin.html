@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="css/servenow-ui.css?v=3">
+    <link rel="stylesheet" href="css/servenow-ui.css?v=4">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
@@ -266,6 +266,14 @@
                     class="tab-link"
                     data-tab="store-payments"
                     ><i class="fas fa-hand-holding-usd"></i> Store Payments &amp; Balances</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="admin.html#reports-centre"
+                    class="tab-link"
+                    data-tab="reports-centre"
+                    ><i class="fas fa-chart-bar"></i> Reports Centre</a
                   >
                 </li>
                  <li>
@@ -2084,6 +2092,48 @@
         </div>
 
         <!-- Financial Dashboard Tab -->
+        <div id="reports-centre" class="tab-content">
+          <div class="sp-head">
+            <div>
+              <h2>Reports Centre</h2>
+              <p>Riders, stores, accounts, control and sales. Every report uses the same figures as the wallets, store balances and ledger.</p>
+            </div>
+            <div class="sp-actions">
+              <button type="button" class="btn btn-secondary" onclick="exportReportsCentreExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+              <button type="button" class="btn btn-secondary" onclick="exportReportsCentrePdf()"><i class="fas fa-file-pdf"></i> PDF</button>
+            </div>
+          </div>
+          <form class="filter-controls sp-filters" onsubmit="event.preventDefault(); runReportsCentre();">
+            <div class="filter-group">
+              <label for="rcReport">Report</label>
+              <select id="rcReport" onchange="syncReportsCentreFilters()"></select>
+            </div>
+            <div id="rcDates" style="display: contents">
+              <div class="filter-group">
+                <label for="rcFrom">From</label>
+                <input type="date" id="rcFrom" />
+              </div>
+              <div class="filter-group">
+                <label for="rcTo">To</label>
+                <input type="date" id="rcTo" />
+              </div>
+            </div>
+            <div class="filter-group" id="rcRiderGroup">
+              <label for="rcRider">Rider</label>
+              <select id="rcRider"></select>
+            </div>
+            <div class="filter-group" id="rcStoreGroup">
+              <label for="rcStore">Store</label>
+              <select id="rcStore"></select>
+            </div>
+            <div class="filter-group">
+              <label>&nbsp;</label>
+              <button type="submit" class="btn btn-primary">Show Report</button>
+            </div>
+          </form>
+          <div id="rcResult"></div>
+        </div>
+
         <div id="store-payments" class="tab-content">
           <div class="sp-head">
             <div>
@@ -2438,7 +2488,15 @@
           <div class="stats-grid">
             <div class="stat-card">
               <h3 id="walletsTotalBalance">-</h3>
-              <p>Total Balance</p>
+              <p>Cash Held by Riders</p>
+            </div>
+            <div class="stat-card">
+              <h3 id="walletsCustomerBalance">-</h3>
+              <p>Customer Wallets</p>
+            </div>
+            <div class="stat-card">
+              <h3 id="walletsStorePaid">-</h3>
+              <p>Paid to Stores (history, not a debt)</p>
             </div>
             <div class="stat-card">
               <h3 id="walletsActiveCount">-</h3>
@@ -5376,9 +5434,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="js/notifications.js?v=4" defer></script>
     <script src="js/financial_helpers.js" defer></script>
-    <script src="js/financial.js?v=24" defer></script>
+    <script src="js/financial.js?v=25" defer></script>
     <script src="js/store-payments.js?v=2" defer></script>
-    <script src="js/admin.js?v=50" defer></script>
+    <script src="js/reports-centre.js?v=1" defer></script>
+    <script src="js/admin.js?v=51" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");

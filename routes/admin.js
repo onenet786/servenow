@@ -3832,6 +3832,14 @@ router.get(
       const [activeStats] = await req.db.execute(
         "SELECT COUNT(*) as count FROM wallets WHERE balance > 0"
       );
+      // Store wallets only mirror past settlements, so they are not money held.
+      const [typeStats] = await req.db.execute(
+        `SELECT
+           COALESCE(SUM(CASE WHEN rider_id IS NOT NULL THEN balance END), 0) AS rider_cash,
+           COALESCE(SUM(CASE WHEN rider_id IS NULL AND store_id IS NULL THEN balance END), 0) AS customer_balance,
+           COALESCE(-SUM(CASE WHEN store_id IS NOT NULL THEN balance END), 0) AS store_settlements_paid
+         FROM wallets`
+      );
       const [autoRechargeStats] = await req.db.execute(
         "SELECT COUNT(*) as count FROM wallets WHERE auto_recharge_enabled = TRUE"
       );
@@ -3846,6 +3854,9 @@ router.get(
           total_balance: Number(totalStats[0].total_balance || 0),
           avg_balance: Number(totalStats[0].avg_balance || 0),
           active_wallets: Number(activeStats[0].count),
+          rider_cash: Number(typeStats[0].rider_cash),
+          customer_balance: Number(typeStats[0].customer_balance),
+          store_settlements_paid: Number(typeStats[0].store_settlements_paid),
           with_auto_recharge: Number(autoRechargeStats[0].count),
           transactions: {
             total_transactions: Number(transactionStats[0].total_transactions),
@@ -3880,11 +3891,12 @@ router.get("/wallets", authenticateToken, requireStaffAccess, async (req, res) =
     let query =
       `SELECT w.*, 
               COALESCE(u.email, r.email) as email, 
-              COALESCE(u.first_name, r.first_name) as first_name, 
+              COALESCE(u.first_name, r.first_name, s.name) as first_name, 
               COALESCE(u.last_name, r.last_name) as last_name 
        FROM wallets w 
        LEFT JOIN users u ON w.user_id = u.id 
        LEFT JOIN riders r ON w.rider_id = r.id 
+       LEFT JOIN stores s ON w.store_id = s.id
        WHERE 1=1`;
     const params = [];
 

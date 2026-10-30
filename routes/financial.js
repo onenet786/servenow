@@ -6,6 +6,8 @@ const { checkDocumentUpdate, makerCheckerApplies } = require('../utils/financeCo
 const { recordFinancialTransaction } = require('../utils/dbHelpers');
 const ledger = require('../services/ledger');
 const storeAccount = require('../utils/storeAccount');
+const riderCash = require('../utils/riderCash');
+const { REPORTS } = require('../services/reportsCentre');
 const fs = require('fs');
 const path = require('path');
 
@@ -585,7 +587,7 @@ router.use(async (req, res, next) => {
     else if (path.startsWith('/journal-vouchers')) requiredPerm = 'menu_financial_jnv';
     else if (path.startsWith('/dashboard') || path.startsWith('/cash-ledger') || path.startsWith('/transactions')) requiredPerm = 'menu_financial_dashboard';
     else if (path.startsWith('/gl/') && req.method === 'GET') requiredPerm = 'menu_financial_dashboard';
-    else if (path.startsWith('/reports')) {
+    else if (path.startsWith('/reports')) { // includes /reports-centre
         // SECURITY: default-deny. Non-admins need at least one report/finance
         // permission; individual handlers (e.g. /reports/generate) narrow further.
         if (req.method === 'DELETE') {
@@ -1350,6 +1352,12 @@ router.put('/payment-vouchers/:id', [
                 return res.status(404).json({ success: false, message: 'Voucher not found' });
             }
             existingVoucher = rows[0];
+            if (['draft', 'pending'].includes(existingVoucher.status)) {
+                const oldDraft = oldDraftWarning(existingVoucher, req.body.confirm_old === true);
+                if (oldDraft) {
+                    return res.status(409).json({ success: false, needs_confirmation: true, message: oldDraft });
+                }
+            }
             
             if (targetStatus === 'paid' && String(existingVoucher.status || '').toLowerCase() === 'paid') {
                 return res.status(400).json({ success: false, message: 'Voucher is already marked as paid' });
@@ -1716,6 +1724,10 @@ router.put('/receipt-vouchers/:id', [
             
             if (existingVoucher.status === 'received') {
                 return res.status(400).json({ success: false, message: 'Voucher is already marked as received' });
+            }
+            const oldDraft = oldDraftWarning(existingVoucher, req.body.confirm_old === true);
+            if (oldDraft) {
+                return res.status(409).json({ success: false, needs_confirmation: true, message: oldDraft });
             }
         }
 
@@ -2111,6 +2123,31 @@ async function ensureWalletCreditsForSubmissionOrders(db, riderId, movementId) {
     }
 }
 
+// A draft left for this long is usually a mistake, so approving one asks first.
+const OLD_DRAFT_DAYS = 30;
+function oldDraftWarning(voucher, confirmed) {
+    if (confirmed) return null;
+    const date = new Date(voucher.voucher_date || voucher.created_at);
+    const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+    if (!(days > OLD_DRAFT_DAYS)) return null;
+    return `Voucher ${voucher.voucher_number} is ${days} days old. Approve it only if this money really moved.`;
+}
+
+// Current balance of every store, as Store Payments & Balances shows it.
+async function currentStoreBalances(db) {
+    const { accounts } = await storeAccount.loadStoreAccounts(db);
+    const balances = new Map();
+    for (const account of accounts.values()) {
+        balances.set(Number(account.store_id), storeAccount.fromCents(storeAccount.accountPosition(account).balance_c));
+    }
+    return balances;
+}
+
+const ymd = (value) => {
+    if (!(value instanceof Date)) return String(value || '').slice(0, 10);
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+};
+
 router.post('/rider-cash', [
     body('rider_id').isInt({ min: 1 }),
     body('movement_type').isIn(['cash_collection', 'cash_submission', 'advance', 'settlement', 'adjustment', 'store_payment', 'fuel_payment']),
@@ -2153,11 +2190,25 @@ router.post('/rider-cash', [
                     .filter((v) => Number.isInteger(v) && v > 0)
             )
         );
+        if (movement_type === 'cash_submission' && linkedOrderIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Tick the orders this cash is for. For any other money from a rider, use a Receipt Voucher.'
+            });
+        }
+        if (movement_type === 'fuel_payment' && linkedFuelEntryIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Tick the fuel entries this payment is for.'
+            });
+        }
+
         const movement_number = generateVoucherNumber('RCM');
         const movement_date = new Date().toISOString().split('T')[0];
 
         let eligibleOrders = [];
         let eligibleFuelEntries = [];
+        let fuelTakenOff = { ids: [], total: 0 };
         if (movement_type === 'cash_submission' && linkedOrderIds.length > 0) {
             const placeholders = linkedOrderIds.map(() => '?').join(',');
             const [orders] = await req.db.execute(
@@ -2206,11 +2257,22 @@ router.post('/rider-cash', [
                 });
             }
 
-            const expectedAmount = eligibleOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+            // Fuel the rider already paid from this cash comes off the hand-in, once.
+            fuelTakenOff = await riderCash.outstandingFuelPayments(req.db, rider_id);
+            const ordersTotal = eligibleOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+            const expectedAmount = ordersTotal - fuelTakenOff.total;
+            if (expectedAmount < 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Fuel paid (${fuelTakenOff.total.toFixed(2)}) is more than these orders (${ordersTotal.toFixed(2)}). Tick more orders.`
+                });
+            }
             if (Math.abs(Number(amount || 0) - expectedAmount) > 0.01) {
                 return res.status(400).json({
                     success: false,
-                    message: `Amount must match selected orders total (${expectedAmount.toFixed(2)})`
+                    message: fuelTakenOff.total > 0
+                        ? `Amount must be ${expectedAmount.toFixed(2)}: orders ${ordersTotal.toFixed(2)} less fuel paid ${fuelTakenOff.total.toFixed(2)}`
+                        : `Amount must match selected orders total (${expectedAmount.toFixed(2)})`
                 });
             }
         }
@@ -2218,7 +2280,7 @@ router.post('/rider-cash', [
         if (movement_type === 'fuel_payment' && linkedFuelEntryIds.length > 0) {
             const placeholders = linkedFuelEntryIds.map(() => '?').join(',');
             const [fuelEntries] = await req.db.execute(
-                `SELECT fh.id, fh.rider_id, fh.entry_date, fh.fuel_cost
+                `SELECT fh.id, fh.rider_id, DATE_FORMAT(fh.entry_date, '%Y-%m-%d') AS entry_date, fh.fuel_cost, fh.distance
                  FROM riders_fuel_history fh
                  WHERE fh.rider_id = ?
                    AND fh.id IN (${placeholders})`,
@@ -2255,6 +2317,40 @@ router.post('/rider-cash', [
                     message: `Amount must match selected fuel entries total (${expectedFuelAmount.toFixed(2)})`
                 });
             }
+
+            const beforeRule = eligibleFuelEntries.find((f) => String(f.entry_date) < riderCash.FUEL_RULE_START);
+            if (beforeRule) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Fuel from ${beforeRule.entry_date} is before ${riderCash.FUEL_RULE_START}. Older fuel is handled by the accounts, not a rider payment.`
+                });
+            }
+            const noDistance = eligibleFuelEntries.find((f) => !(Number(f.distance) > 0));
+            if (noDistance) {
+                return res.status(400).json({
+                    success: false,
+                    message: `The fuel entry for ${noDistance.entry_date} has no distance. Enter the meter readings first.`
+                });
+            }
+
+            const [walletRows] = await req.db.execute('SELECT balance FROM wallets WHERE rider_id = ?', [rider_id]);
+            const held = Number(walletRows[0]?.balance || 0);
+            if (Number(amount) > held + 0.01) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Rider is holding Rs ${held.toFixed(2)}, less than this fuel payment. It must be paid by the office instead.`
+                });
+            }
+
+            const averageRate = await riderCash.riderFuelRate(req.db, rider_id);
+            const km = eligibleFuelEntries.reduce((s, r) => s + Number(r.distance || 0), 0);
+            const rate = km > 0 ? expectedFuelAmount / km : 0;
+            if (averageRate > 0 && rate > averageRate * riderCash.FUEL_RATE_LIMIT && !String(notes || '').trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: `This fuel costs Rs ${rate.toFixed(2)} per km; this rider's average is Rs ${averageRate.toFixed(2)}. Add a note explaining why.`
+                });
+            }
         }
 
         const [result] = await req.db.execute(
@@ -2276,6 +2372,12 @@ router.post('/rider-cash', [
                  VALUES ${valuesSql}`,
                 insertParams
             );
+            if (fuelTakenOff.ids.length > 0) {
+                await req.db.query(
+                    `UPDATE rider_cash_movements SET reference_type = 'cash_submission', reference_id = ? WHERE id IN (?)`,
+                    [result.insertId, fuelTakenOff.ids]
+                );
+            }
         }
 
         if (movement_type === 'fuel_payment' && eligibleFuelEntries.length > 0) {
@@ -2430,7 +2532,16 @@ router.put('/rider-cash/:id', [
             updates.push('status = ?');
             params.push(status);
             
-            if (status === 'approved') {
+                        // A cancelled hand-in gives back the fuel it had taken off.
+            if (status === 'cancelled' && movement.movement_type === 'cash_submission') {
+                await req.db.execute(
+                    `UPDATE rider_cash_movements SET reference_type = NULL, reference_id = NULL
+                     WHERE movement_type = 'fuel_payment' AND reference_type = 'cash_submission' AND reference_id = ?`,
+                    [id]
+                );
+            }
+
+if (status === 'approved') {
                 const approvedBy = req.user?.id || movement.recorded_by || null;
                 updates.push('approved_by = ?, approved_at = NOW()');
                 params.push(approvedBy);
@@ -2492,6 +2603,23 @@ router.put('/rider-cash/:id', [
                     transactionType = 'expense';
                     descriptionPrefix = 'Rider Advance';
                 } else if (movement.movement_type === 'fuel_payment') {
+                    // The rider spent this from the cash they hold.
+                    const [walletRows] = await req.db.execute('SELECT balance FROM wallets WHERE rider_id = ?', [movement.rider_id]);
+                    const held = Number(walletRows[0]?.balance || 0);
+                    if (Number(effectiveAmount) > held + 0.01) {
+                        const shortError = new Error(`Rider is holding Rs ${held.toFixed(2)}, less than this fuel payment.`);
+                        shortError.statusCode = 400;
+                        throw shortError;
+                    }
+                    await recordRiderWalletTransaction(
+                        req.db,
+                        movement.rider_id,
+                        'debit',
+                        effectiveAmount,
+                        `Fuel payment via ${movement.movement_number}`,
+                        movement.id,
+                        movement.movement_type
+                    );
                     transactionType = 'expense';
                     descriptionPrefix = 'Rider Fuel Payment';
                 } else if (movement.movement_type === 'store_payment') {
@@ -3579,11 +3707,17 @@ router.post('/reports/generate', [
                 ]
             );
 
+            // Cancelled and unapproved entries stay on the list but never count as money.
             const summaryMap = {};
             for (const m of movements) {
+                if (!['approved', 'completed'].includes(m.status)) continue;
                 const k = String(m.movement_type || '').trim() || 'unknown';
                 summaryMap[k] = (summaryMap[k] || 0) + Number(m.amount || 0);
             }
+            const cashPositions = riderCash.sumPositions(await riderCash.riderCashPositions(req.db, {
+                riderId: rider_id || null, from: period_from || null, to: period_to || null
+            }));
+            summaryMap.store_payment = cashPositions.paid_stores;
             const summary = Object.entries(summaryMap).map(([movement_type, total]) => ({ movement_type, total }));
             const totalCashIncome = Number(summaryMap.cash_collection || 0);
 
@@ -3683,18 +3817,32 @@ router.post('/reports/generate', [
             if (rider_id) params.push(rider_id);
 
             const [entries] = await req.db.execute(
-                `SELECT rcm.*, r.first_name, r.last_name
-                 FROM rider_cash_movements rcm
-                 JOIN riders r ON rcm.rider_id = r.id
-                 WHERE rcm.movement_type IN ('store_payment', 'fuel_payment', 'cash_submission')
-                   ${dateFilter} ${riderFilter}
-                 ORDER BY rcm.movement_date DESC, rcm.id DESC`,
-                params
+                `SELECT * FROM (
+                    SELECT rcm.id, rcm.movement_number, rcm.rider_id, rcm.movement_date, rcm.movement_type,
+                           rcm.amount, rcm.description, rcm.status, r.first_name, r.last_name
+                    FROM rider_cash_movements rcm
+                    JOIN riders r ON rcm.rider_id = r.id
+                    WHERE rcm.movement_type IN ('fuel_payment', 'cash_submission')
+                      AND rcm.status IN ('approved', 'completed') AND rcm.amount > 0
+                      ${dateFilter} ${riderFilter}
+                    UNION ALL
+                    SELECT wt.id, CONCAT('WALLET-', wt.id), w.rider_id, DATE(wt.created_at), 'store_payment',
+                           wt.amount, wt.description, 'completed', r.first_name, r.last_name
+                    FROM wallet_transactions wt
+                    JOIN wallets w ON w.id = wt.wallet_id
+                    JOIN riders r ON r.id = w.rider_id
+                    WHERE wt.type = 'debit' AND wt.reference_type = 'order' AND wt.description LIKE 'Paid to pickup-paid store%'
+                      ${period_from && period_to ? 'AND DATE(wt.created_at) BETWEEN ? AND ?' : ''}
+                      ${rider_id ? 'AND w.rider_id = ?' : ''}
+                 ) t
+                 ORDER BY t.movement_date DESC, t.id DESC`,
+                [...params, ...params]
             );
             const [summaryRows] = await req.db.execute(
                 `SELECT rcm.movement_type, SUM(rcm.amount) as total
                  FROM rider_cash_movements rcm
-                 WHERE rcm.movement_type IN ('store_payment', 'fuel_payment', 'cash_submission')
+                 WHERE rcm.movement_type IN ('fuel_payment', 'cash_submission')
+                   AND rcm.status IN ('approved', 'completed')
                    ${dateFilter} ${riderFilter}
                  GROUP BY rcm.movement_type`,
                 params
@@ -3711,6 +3859,10 @@ router.post('/reports/generate', [
                 if (summary[key] !== undefined) summary[key] = val;
                 summary.total_payments += val;
             });
+            summary.store_payment = (entries || [])
+                .filter((e) => e.movement_type === 'store_payment')
+                .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+            summary.total_payments += summary.store_payment;
             total_expense = summary.total_payments;
             reportData = {
                 type: 'rider_payments',
@@ -3730,6 +3882,7 @@ router.post('/reports/generate', [
                  FROM rider_cash_movements rcm
                  JOIN riders r ON rcm.rider_id = r.id
                  WHERE rcm.movement_type IN ('cash_collection', 'advance', 'settlement')
+                   AND rcm.status IN ('approved', 'completed')
                    ${dateFilter} ${riderFilter}
                  ORDER BY rcm.movement_date DESC, rcm.id DESC`,
                 params
@@ -3738,6 +3891,7 @@ router.post('/reports/generate', [
                 `SELECT rcm.movement_type, SUM(rcm.amount) as total
                  FROM rider_cash_movements rcm
                  WHERE rcm.movement_type IN ('cash_collection', 'advance', 'settlement')
+                   AND rcm.status IN ('approved', 'completed')
                    ${dateFilter} ${riderFilter}
                  GROUP BY rcm.movement_type`,
                 params
@@ -4014,7 +4168,7 @@ router.post('/reports/generate', [
                     SUM(CASE WHEN rcm.movement_type = 'cash_submission' THEN rcm.amount ELSE 0 END) as cash_submission
                  FROM rider_cash_movements rcm
                  JOIN riders r ON r.id = rcm.rider_id
-                 WHERE 1=1 ${movementDateFilter} ${riderFilter}
+                 WHERE rcm.status IN ('approved', 'completed') ${movementDateFilter} ${riderFilter}
                  GROUP BY rcm.rider_id, DATE(rcm.movement_date), r.first_name, r.last_name
                  ORDER BY closing_date DESC, rider_name ASC`,
                 params
@@ -4064,24 +4218,39 @@ router.post('/reports/generate', [
                 (closingRows || []).map((c) => [`${c.rider_id}|${c.closed_date}`, c])
             );
 
+            // Store payments, the reset and the day's net come from the wallet.
+            const walletDays = new Map();
+            for (const entry of await riderCash.loadRiderWalletEntries(req.db, { riderId: rider_id || null })) {
+                const dayKey = `${entry.rider_id}|${entry.date}`;
+                if (!walletDays.has(dayKey)) walletDays.set(dayKey, { store: 0, reset: 0, net: 0 });
+                const day = walletDays.get(dayKey);
+                if (entry.heading === 'paid_stores') day.store -= entry.cents;
+                if (entry.heading === 'reset') day.reset -= entry.cents;
+                day.net += entry.cents;
+            }
+
             const rows = (movementRows || []).map((r) => {
                 const key = `${r.rider_id}|${r.closing_date}`;
+                const walletDay = walletDays.get(`${r.rider_id}|${ymd(r.closing_date)}`) || { store: 0, reset: 0, net: 0 };
                 const deliveryFee = deliveryMap.get(key) || 0;
                 const dayClosing = closingMap.get(key) || null;
 
                 const cashCollection = parseFloat(r.cash_collection || 0);
                 const officeAdvance = parseFloat(r.office_advance || 0);
                 const officeSettlement = parseFloat(r.office_settlement || 0);
-                const storePayment = parseFloat(r.store_payment || 0);
+                const storePayment = walletDay.store / 100;
                 const fuelPayment = parseFloat(r.fuel_payment || 0);
                 const cashSubmission = parseFloat(r.cash_submission || 0);
+                const balanceReset = walletDay.reset / 100;
 
                 const takenTotal = cashCollection + officeAdvance + officeSettlement;
                 const givenTotal = storePayment + fuelPayment + cashSubmission;
-                const netInHand = takenTotal - givenTotal;
+                const netInHand = walletDay.net / 100;
 
                 return {
                     ...r,
+                    store_payment: storePayment,
+                    balance_reset: balanceReset,
                     delivery_fee_earned: deliveryFee,
                     taken_total: takenTotal,
                     given_total: givenTotal,
@@ -5213,7 +5382,7 @@ router.post('/reports/generate', [
 
             const generatedMap = new Map((generatedRows || []).map((r) => [Number(r.store_id), Number(r.generated_payable || 0)]));
             const paidMap = new Map((paidRows || []).map((r) => [Number(r.store_id), Number(r.paid_amount || 0)]));
-            const balanceMap = new Map((outstandingRows || []).map((r) => [Number(r.store_id), Number(r.balance_amount || 0)]));
+            const balanceMap = await currentStoreBalances(req.db);
 
             const rows = (stores || []).map((store) => ({
                 store_id: Number(store.id) || null,
@@ -5325,6 +5494,9 @@ router.post('/reports/generate', [
                 `SELECT rcso.order_id, ROUND(SUM(rcso.order_amount),2) AS submitted
                  FROM rider_cash_submission_orders rcso
                  JOIN orders o ON o.id = rcso.order_id
+                 JOIN rider_cash_movements rcm ON rcm.id = rcso.movement_id
+                   AND rcm.status IN ('approved', 'completed')
+                   AND COALESCE(rcm.reference_type, '') <> 'balance_reset'
                  WHERE o.status = 'delivered' ${dateFilter}
                  GROUP BY rcso.order_id`,
                 dateParamsFull
@@ -5970,10 +6142,8 @@ router.post('/reports/generate', [
                          AND rsp.store_id = COALESCE(oi.store_id, p.store_id)
                    )`
             );
-            const current_outstanding_store_payable = Math.max(
-                0,
-                parseFloat(outstandingData[0].current_outstanding_store_payable || 0)
-            );
+            const current_outstanding_store_payable = [...(await currentStoreBalances(req.db)).values()]
+                .reduce((sum, balance) => sum + Math.max(0, balance), 0);
 
             const net_flow = total_income - total_expense - total_settlements - total_refunds;
 
@@ -6117,7 +6287,7 @@ router.post('/reports/generate', [
 
             const generatedMap = new Map((generatedRows || []).map(r => [Number(r.store_id), Number(r.period_generated_payable || 0)]));
             const paidMap = new Map((paidRows || []).map(r => [Number(r.store_id), Number(r.period_paid_settlements || 0)]));
-            const outstandingMap = new Map((outstandingRows || []).map(r => [Number(r.store_id), Number(r.current_outstanding || 0)]));
+            const outstandingMap = await currentStoreBalances(req.db);
 
             const rows = (stores || []).map(s => {
                 const sid = Number(s.id);
@@ -6322,15 +6492,20 @@ router.post('/reports/generate', [
                 srow.discrepancy += Number(r.discrepancy || 0);
             });
 
+            const settlementBalances = await currentStoreBalances(req.db);
             const store_rows = Array.from(storeMap.values())
-                .map((r) => ({
-                    ...r,
-                    gross_sales: Number(r.gross_sales.toFixed(2)),
-                    expected_payable: Number(r.expected_payable.toFixed(2)),
-                    paid_settlement_amount: Number(r.paid_settlement_amount.toFixed(2)),
-                    unsettled_amount: Number(r.unsettled_amount.toFixed(2)),
-                    discrepancy: Number(r.discrepancy.toFixed(2))
-                }))
+                .map((r) => {
+                    const balance = Number(settlementBalances.get(Number(r.store_id)) || 0);
+                    return {
+                        ...r,
+                        gross_sales: Number(r.gross_sales.toFixed(2)),
+                        expected_payable: Number(r.expected_payable.toFixed(2)),
+                        paid_settlement_amount: Number(r.paid_settlement_amount.toFixed(2)),
+                        unsettled_amount: Number(balance.toFixed(2)),
+                        // Paid by other means: rider at pickup, vouchers and journals
+                        discrepancy: Number((r.expected_payable - r.paid_settlement_amount - balance).toFixed(2))
+                    };
+                })
                 .sort((a, b) => a.store_name.localeCompare(b.store_name));
 
             const summary = store_rows.reduce((acc, r) => {
@@ -6540,10 +6715,12 @@ router.post('/reports/generate', [
                 srow.cancelled_sales += Number(r.cancelled_sales || 0);
             });
 
+            const creditBalances = await currentStoreBalances(req.db);
             const store_rows = Array.from(storeMap.values())
                 .map((r) => {
                     ['gross_sales', 'discount_amount', 'net_sales', 'store_payable', 'sale_profit', 'cancelled_unpaid_discount', 'paid_to_store', 'pending_store_balance', 'cancelled_sales']
                         .forEach((key) => { r[key] = Number(Number(r[key] || 0).toFixed(2)); });
+                    r.pending_store_balance = Number(Number(creditBalances.get(Number(r.store_id)) || 0).toFixed(2));
                     return r;
                 })
                 .sort((a, b) => a.store_name.localeCompare(b.store_name));
@@ -6820,8 +6997,9 @@ router.get('/riders/:id/pending-cash-orders', async (req, res) => {
             [id, id]
         );
         const total = pendingOrders.reduce((sum, order) => sum + parseFloat(order.total_amount || 0), 0);
+        const fuel = await riderCash.outstandingFuelPayments(req.db, id);
 
-        res.json({ success: true, orders: pendingOrders, total });
+        res.json({ success: true, orders: pendingOrders, total, fuel_paid: fuel.total });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -6837,6 +7015,7 @@ router.get('/riders/:id/pending-fuel-entries', async (req, res) => {
              FROM riders_fuel_history fh
              WHERE fh.rider_id = ?
                AND COALESCE(fh.fuel_cost, 0) > 0
+               AND fh.entry_date >= ?
                AND NOT EXISTS (
                    SELECT 1
                    FROM rider_fuel_payment_entries rfpe
@@ -6846,7 +7025,7 @@ router.get('/riders/:id/pending-fuel-entries', async (req, res) => {
                      AND rcm.status IN ('pending', 'approved', 'completed')
                )
              ORDER BY fh.entry_date DESC, fh.id DESC`,
-            [id]
+            [id, riderCash.FUEL_RULE_START]
         );
 
         const total = entries.reduce((sum, row) => sum + parseFloat(row.fuel_cost || 0), 0);
@@ -7358,6 +7537,9 @@ router.get('/reports/cash-flow', async (req, res) => {
         const [vouchers] = await req.db.execute(
             `SELECT SUM(amount) as total FROM cash_receipt_vouchers WHERE status = 'received'`
         );
+        const [withRiders] = await req.db.execute(
+            'SELECT SUM(balance) as total FROM wallets WHERE rider_id IS NOT NULL'
+        );
 
         res.json({
             success: true,
@@ -7365,7 +7547,7 @@ router.get('/reports/cash-flow', async (req, res) => {
                 total_rider_collections: parseFloat(collections[0]?.total || 0),
                 total_rider_submissions: parseFloat(submissions[0]?.total || 0),
                 total_other_receipts: parseFloat(vouchers[0]?.total || 0),
-                pending_with_riders: parseFloat(collections[0]?.total || 0) - parseFloat(submissions[0]?.total || 0)
+                pending_with_riders: parseFloat(withRiders[0]?.total || 0)
             }
         });
     } catch (error) {
@@ -7429,6 +7611,19 @@ router.get('/reports/riders-detailed', async (req, res) => {
             ORDER BY total_delivered DESC`,
             params
         );
+        const positions = new Map((await riderCash.riderCashPositions(req.db, {
+            riderId: rider_id && rider_id !== 'all' ? rider_id : null,
+            from: start_date || null,
+            to: end_date || null
+        })).map((p) => [p.rider_id, p]));
+        for (const r of riders) {
+            const position = positions.get(Number(r.id));
+            if (!position) continue;
+            r.cash_collection = position.collected;
+            r.cash_submission = position.handed_in;
+            r.paid_to_stores = position.paid_stores;
+            r.pending_cash = position.wallet_balance;
+        }
         res.json({ success: true, riders });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -7573,57 +7768,35 @@ router.get('/reports/rider-statement', async (req, res) => {
             dayClosings = [];
         }
 
-        // 7. Calculate Shift Financial Metrics & Running Balances
-        let advance_taken = 0;
-        let cash_collected = 0;
-        let settlement_received = 0;
-        let store_payments = 0;
-        let fuel_payments = 0;
-        let cash_submitted = 0;
-        let other_adjustments = 0;
+        // 7. Cash figures come from the wallet, the record of what the rider holds.
+        // Cancelled or unapproved movements are listed apart and never count as money.
+        const [position] = await riderCash.riderCashPositions(req.db, {
+            riderId: rider_id, from: start_date || null, to: end_date || null
+        });
+        const walletEntries = (await riderCash.loadRiderWalletEntries(req.db, { riderId: rider_id }))
+            .filter((e) => (!start_date || e.date >= start_date) && (!end_date || e.date <= end_date));
 
-        let runningBalance = 0;
-        const movementAudit = (movements || []).map((m, idx) => {
-            const amt = parseFloat(m.amount || 0);
-            let isInflow = false;
-            let isOutflow = false;
-
-            if (m.movement_type === 'advance') {
-                advance_taken += amt;
-                isInflow = true;
-            } else if (m.movement_type === 'cash_collection') {
-                cash_collected += amt;
-                isInflow = true;
-            } else if (m.movement_type === 'settlement') {
-                settlement_received += amt;
-                isInflow = true;
-            } else if (m.movement_type === 'store_payment') {
-                store_payments += amt;
-                isOutflow = true;
-            } else if (m.movement_type === 'fuel_payment') {
-                fuel_payments += amt;
-                isOutflow = true;
-            } else if (m.movement_type === 'cash_submission') {
-                cash_submitted += amt;
-                isOutflow = true;
-            } else if (m.movement_type === 'adjustment') {
-                other_adjustments += amt;
-                if (amt >= 0) isInflow = true;
-                else isOutflow = true;
-            }
-
-            if (isInflow) runningBalance += Math.abs(amt);
-            if (isOutflow) runningBalance -= Math.abs(amt);
-
+        let runningBalance = Math.round(position.opening * 100);
+        const movementAudit = walletEntries.map((e, idx) => {
+            runningBalance += e.cents;
             return {
-                ...m,
+                id: e.id,
                 index: idx + 1,
-                amount: amt,
-                is_inflow: isInflow,
-                is_outflow: isOutflow,
-                running_balance: runningBalance
+                movement_number: e.reference_id ? `${e.reference_type} #${e.reference_id}` : e.reference_type,
+                movement_date: e.ts,
+                movement_type: e.heading,
+                amount: Math.abs(e.cents) / 100,
+                description: e.description,
+                status: 'posted',
+                is_inflow: e.cents > 0,
+                is_outflow: e.cents < 0,
+                running_balance: runningBalance / 100
             };
         });
+        const notPosted = (movements || []).filter((m) => !['approved', 'completed'].includes(m.status));
+        const notPostedTotal = (status) => notPosted
+            .filter((m) => m.status === status && m.movement_type === 'cash_submission')
+            .reduce((sum, m) => sum + Number(m.amount || 0), 0);
 
         // Compute order delivery statistics & customer COD cash
         let cod_cash_orders_total = 0;
@@ -7648,13 +7821,12 @@ router.get('/reports/rider-statement', async (req, res) => {
             }
         });
 
-        // If no cash_collection movements are logged, use COD orders delivered as effective collections
-        const effectiveCashCollection = cash_collected > 0 ? cash_collected : cod_cash_orders_total;
-        const total_inflow = advance_taken + effectiveCashCollection + settlement_received;
-        const total_disbursements = store_payments + fuel_payments + Math.max(0, other_adjustments);
-        const expected_closing_cash = Math.max(0, total_inflow - total_disbursements);
-        const cash_variance = cash_submitted - expected_closing_cash;
-        const pending_cash_in_hand = Math.max(0, expected_closing_cash - cash_submitted);
+        const otherNet = position.cancelled + position.adjustments + position.corrections;
+        const total_inflow = position.opening + position.collected + position.fees + otherNet;
+        const total_disbursements = position.paid_stores + position.fuel + position.advances;
+        const expected_closing_cash = total_inflow - total_disbursements;
+        // With no end date the closing figure must equal the wallet.
+        const cash_variance = end_date ? 0 : Number((position.closing - position.wallet_balance).toFixed(2));
 
         res.json({
             success: true,
@@ -7678,17 +7850,23 @@ router.get('/reports/rider-statement', async (req, res) => {
                         : (start_date ? `From ${start_date}` : (end_date ? `Until ${end_date}` : 'All Dates'))
                 },
                 summary: {
-                    advance_taken,
-                    cash_collected: effectiveCashCollection,
-                    settlement_received,
+                    opening_balance: position.opening,
+                    advance_taken: position.advances,
+                    cash_collected: position.collected,
+                    delivery_fees_credited: position.fees,
+                    other_adjustments: otherNet,
                     total_inflow,
-                    store_payments,
-                    fuel_payments,
+                    store_payments: position.paid_stores,
+                    fuel_payments: position.fuel,
                     total_disbursements,
                     expected_closing_cash,
-                    cash_submitted,
+                    cash_submitted: position.handed_in,
+                    balance_reset: -position.reset,
+                    closing_balance: position.closing,
                     cash_variance,
-                    pending_cash_in_hand,
+                    pending_cash_in_hand: position.closing,
+                    cancelled_hand_ins: notPostedTotal('cancelled'),
+                    pending_hand_ins: notPostedTotal('pending'),
                     is_balanced: Math.abs(cash_variance) < 0.01,
                     // Operational stats
                     total_orders: (orders || []).length,
@@ -7698,6 +7876,7 @@ router.get('/reports/rider-statement', async (req, res) => {
                     delivery_fees_earned
                 },
                 movements: movementAudit,
+                not_posted: notPosted,
                 orders,
                 fuelHistory,
                 dayClosings,
@@ -8488,6 +8667,34 @@ function storePaymentsIssuesOut(account, issues) {
         }))
     };
 }
+
+// Reports Centre: the list of reports, then one report at a time
+router.get('/reports-centre', (req, res) => {
+    res.json({
+        success: true,
+        reports: REPORTS.map(({ key, group, title, filters, noDates }) => ({ key, group, title, filters, noDates: Boolean(noDates) }))
+    });
+});
+
+router.get('/reports-centre/:key', async (req, res) => {
+    const report = REPORTS.find((r) => r.key === req.params.key);
+    if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+    const validDate = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : null);
+    const validId = (value) => (Number.isInteger(Number(value)) && Number(value) > 0 ? Number(value) : null);
+    try {
+        await ledger.syncLedgerIfStale(req.db);
+        const data = await report.run(req.db, {
+            from: validDate(req.query.from),
+            to: validDate(req.query.to),
+            riderId: validId(req.query.rider_id),
+            storeId: validId(req.query.store_id)
+        });
+        res.json({ success: true, ...data });
+    } catch (error) {
+        console.error(`Error in report ${report.key}:`, error);
+        res.status(500).json({ success: false, message: 'Failed to load this report' });
+    }
+});
 
 router.get('/reports/store-payments', async (req, res) => {
     try {

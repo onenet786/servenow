@@ -259,7 +259,8 @@ async function buildWalletJournals(db, storeIdsByName) {
       } else if ((ref === 'order' || ref === 'order_cancel_reversal') && isDebit) {
         lines = [line('1150', cents, 'order', r.reference_id, desc), line('1100', -cents, ...rider)];
       } else if (ref === 'order_cancel_reversal' && isCredit) {
-        const storeId = pickupStoreByOrder.get(`${r.rider_id}:${r.reference_id}`);
+        const named = /^Reversal: /.test(desc) ? storeFromDescription(desc, null) : null;
+        const storeId = named || pickupStoreByOrder.get(`${r.rider_id}:${r.reference_id}`);
         lines = storeId && storeId !== 'ambiguous'
           ? [line('1100', cents, ...rider), line('2000', -cents, 'store', storeId, desc)]
           : [line('1100', cents, ...rider), line('3900', -cents, null, null, desc)];

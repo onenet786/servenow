@@ -5010,3 +5010,10 @@ body.sn-admin .sp-issue-list li + li { margin-top: 0.35rem; }
   /* Browsers that support it also show closed panels' content in print */
   body.sn-admin #store-payments details.sp-disclosure::details-content { content-visibility: visible; display: block; }
 }
+
+/* Reports Centre */
+body.sn-admin #reports-centre .rc-title { margin: 1rem 0 0.25rem; }
+body.sn-admin #reports-centre .rc-note { margin: 0.25rem 0 0.75rem; color: var(--sn-muted, #64748b); font-size: 0.85rem; }
+body.sn-admin #reports-centre .rc-table th.num,
+body.sn-admin #reports-centre .rc-table td.num { text-align: right; white-space: nowrap; }
+body.sn-admin #reports-centre .rc-table tfoot td { font-weight: 700; background: #f1f5f9; }

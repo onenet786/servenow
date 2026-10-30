@@ -2127,6 +2127,8 @@ async function createRiderCash() {
     const checkPendingOrders = async () => {
         const riderId = riderSelect.value;
         const type = typeSelect.value;
+        const amountField = document.getElementById('riderCashAmountInput');
+        if (amountField) amountField.readOnly = false;
         
         if (container && type === 'cash_submission' && riderId) {
             try {
@@ -2143,6 +2145,7 @@ async function createRiderCash() {
 
                 if (pendingData.success && pendingData.orders && pendingData.orders.length > 0) {
                     window.pendingCashOrders = pendingData.orders;
+                    window.pendingFuelPaid = pendingData.fuel_paid || 0;
                     window.selectedPendingOrders = new Set(pendingData.orders.map(o => o.id)); // Default select all
                     renderPendingOrdersTable();
                     container.style.display = 'block';
@@ -2191,7 +2194,10 @@ async function createRiderCash() {
                     window.selectedPendingFuelEntries = new Set();
                     pendingFuelContainer.style.display = 'none';
                     const amountInput = document.getElementById('riderCashAmountInput');
-                    if (amountInput) amountInput.value = '';
+                    if (amountInput) {
+                        amountInput.value = '';
+                        amountInput.readOnly = false;
+                    }
                 }
 
                 if (submittedFuelData.success && submittedFuelData.entries && submittedFuelData.entries.length > 0) {
@@ -2365,7 +2371,12 @@ function renderPendingOrdersTable() {
     // Only auto-fill amount if it's 0 or matches previous total (to allow manual override)
     // But for simplicity in this flow, we update it if it's a cash submission
     if (amountInput && document.getElementById('movementType').value === 'cash_submission') {
-         amountInput.value = totalSelected.toFixed(2);
+         const fuelPaid = Number(window.pendingFuelPaid || 0);
+         amountInput.value = Math.max(0, totalSelected - fuelPaid).toFixed(2);
+         amountInput.readOnly = true;
+         if (totalEl && fuelPaid > 0) {
+             totalEl.textContent = `Rs  ${totalSelected.toFixed(2)} less fuel paid Rs  ${fuelPaid.toFixed(2)}`;
+         }
     }
     
     if (selectAllCb) {
@@ -2759,7 +2770,7 @@ function editExpense(id) {
     openModal('expenseModal');
 }
 
-async function approvePaymentVoucher(id) {
+async function approvePaymentVoucher(id, confirmOld = false) {
     try {
         const response = await fetch(`${API_BASE}/api/financial/payment-vouchers/${id}`, {
             method: 'PUT',
@@ -2767,10 +2778,14 @@ async function approvePaymentVoucher(id) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             },
-            body: JSON.stringify({ status: 'approved' })
+            body: JSON.stringify({ status: 'approved', confirm_old: confirmOld })
         });
 
         const data = await response.json();
+        if (data.needs_confirmation) {
+            if (window.confirm(data.message)) return approvePaymentVoucher(id, true);
+            return;
+        }
         if (data.success) {
             showSuccess('Success', 'Payment voucher approved');
             loadPaymentVouchers();
@@ -2783,7 +2798,7 @@ async function approvePaymentVoucher(id) {
     }
 }
 
-async function approveReceiptVoucher(id) {
+async function approveReceiptVoucher(id, confirmOld = false) {
     try {
         const response = await fetch(`${API_BASE}/api/financial/receipt-vouchers/${id}`, {
             method: 'PUT',
@@ -2791,10 +2806,14 @@ async function approveReceiptVoucher(id) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}`
             },
-            body: JSON.stringify({ status: 'received' })
+            body: JSON.stringify({ status: 'received', confirm_old: confirmOld })
         });
 
         const data = await response.json();
+        if (data.needs_confirmation) {
+            if (window.confirm(data.message)) return approveReceiptVoucher(id, true);
+            return;
+        }
         if (data.success) {
             showSuccess('Success', 'Receipt voucher marked as received');
             loadReceiptVouchers();
@@ -5777,7 +5796,7 @@ function displayRiderReports(riders) {
         const feesEarned = parseFloat(r.total_fees || 0);
         const cashCollection = parseFloat(r.cash_collection || 0);
         const cashSubmission = parseFloat(r.cash_submission || 0);
-        const pendingCash = cashCollection - cashSubmission;
+        const pendingCash = parseFloat(r.pending_cash || 0);
 
         totAssigned += Number(r.total_assigned || 0);
         totDelivered += Number(r.total_delivered || 0);
@@ -6356,6 +6375,7 @@ function exportRiderReport() {
     const rows = lastRiderData.map(r => {
         const cashCollection = parseFloat(r.cash_collection || 0);
         const cashSubmission = parseFloat(r.cash_submission || 0);
+        const pendingCash = parseFloat(r.pending_cash || 0);
         return [
             `${r.first_name} ${r.last_name}`,
             r.email,
@@ -6366,7 +6386,7 @@ function exportRiderReport() {
             parseFloat(r.total_fees || 0).toFixed(2),
             cashCollection.toFixed(2),
             cashSubmission.toFixed(2),
-            (cashCollection - cashSubmission).toFixed(2)
+            (pendingCash).toFixed(2)
         ];
     });
 
@@ -6712,7 +6732,7 @@ function renderRiderStatementPDF(statement) {
     doc.setFont('helvetica', 'normal');
     const genDate = new Date(statement.generated_at || Date.now()).toLocaleString();
     doc.text(`Generated: ${genDate}`, pageWidth - margin - 6, 26, { align: 'right' });
-    doc.text(`Status: ${summary.is_balanced ? 'VERIFIED BALANCED' : 'VARIANCE FLAGGED'}`, pageWidth - margin - 6, 31, { align: 'right' });
+    doc.text(`Status: ${summary.is_balanced ? 'MATCHES RIDER WALLET' : 'CHECK RECORDS'}`, pageWidth - margin - 6, 31, { align: 'right' });
 
     // 2. Rider Profile & Statement Period Information Box
     let startY = 38;
@@ -6776,15 +6796,15 @@ function renderRiderStatementPDF(statement) {
 
     const kpiHead = [['SHIFT CASH RECONCILIATION SUMMARY', 'AMOUNT (PKR)', 'OPERATIONAL METRIC', 'COUNT / VALUE']];
     const kpiBody = [
-        ['Shift Opening Float / Advance Taken (Cash In)', formatCurrency(summary.advance_taken), 'Total Orders Assigned', `${summary.total_orders || 0}`],
-        ['Customer COD Cash Collected (Cash In)', formatCurrency(summary.cash_collected), 'Orders Delivered (Completed)', `${summary.delivered_count || 0}`],
-        ['Office Settlement / Other Cash Inflow', formatCurrency(summary.settlement_received), 'Orders Cancelled / Returned', `${summary.cancelled_count || 0}`],
-        ['TOTAL SHIFT CASH INFLOW (A)', formatCurrency(summary.total_inflow), 'Delivery Fees Earned by Rider', formatCurrency(summary.delivery_fees_earned)],
-        ['Vendor Purchases / Paid to Stores (Cash Out)', formatCurrency(summary.store_payments), 'Fuel Cost Reimbursed / Logged', formatCurrency(summary.fuel_payments)],
-        ['TOTAL CASH DISBURSEMENTS (B)', formatCurrency(summary.total_disbursements), 'Total In-Shift Disbursements', formatCurrency(summary.total_disbursements)],
-        ['NET EXPECTED CASH TO SUBMIT (A - B)', formatCurrency(summary.expected_closing_cash), 'Shift Closing Status', summary.is_balanced ? 'VERIFIED BALANCED' : 'VARIANCE FLAGGED'],
-        ['CLOSING CASH PHYSICALLY SUBMITTED', formatCurrency(summary.cash_submitted), 'Pending In-Hand Cash', formatCurrency(summary.pending_cash_in_hand)],
-        ['CASH VARIANCE (Submitted - Expected)', formatCurrency(summary.cash_variance), 'Shift Audit Result', summary.is_balanced ? '0.00 DIFFERENCE (OK)' : (summary.cash_variance < 0 ? 'SHORTAGE DETECTED' : 'SURPLUS DETECTED')]
+        ['Opening Balance', formatCurrency(summary.opening_balance), 'Total Orders Assigned', `${summary.total_orders || 0}`],
+        ['Customer Cash Collected', formatCurrency(summary.cash_collected), 'Orders Delivered (Completed)', `${summary.delivered_count || 0}`],
+        ['Delivery Fees and Other Adjustments', formatCurrency((summary.delivery_fees_credited || 0) + (summary.other_adjustments || 0)), 'Orders Cancelled / Returned', `${summary.cancelled_count || 0}`],
+        ['TOTAL CASH TO ACCOUNT FOR (A)', formatCurrency(summary.total_inflow), 'Delivery Fees Earned by Rider', formatCurrency(summary.delivery_fees_earned)],
+        ['Paid to Stores at Pickup', formatCurrency(summary.store_payments), 'Fuel Paid from Rider Cash', formatCurrency(summary.fuel_payments)],
+        ['TOTAL PAID OUT incl. Advances (B)', formatCurrency(summary.total_disbursements), 'Advances Deducted', formatCurrency(summary.advance_taken)],
+        ['CASH THE RIDER SHOULD HAND IN (A - B)', formatCurrency(summary.expected_closing_cash), 'Cleared by Balance Reset', formatCurrency(summary.balance_reset)],
+        ['CASH HANDED IN AND APPROVED', formatCurrency(summary.cash_submitted), 'Closing Balance (Rider Holds)', formatCurrency(summary.closing_balance)],
+        ['DIFFERENCE TO RIDER WALLET', formatCurrency(summary.cash_variance), 'Hand-ins Cancelled / Pending (not counted)', `${formatCurrency(summary.cancelled_hand_ins)} / ${formatCurrency(summary.pending_hand_ins)}`]
     ];
 
     doc.autoTable({
@@ -6854,6 +6874,16 @@ function renderRiderStatementPDF(statement) {
     );
 
     const movementTypeLabels = {
+        'collected': 'Customer Cash',
+        'fees': 'Delivery Fee',
+        'paid_stores': 'Paid to Store',
+        'fuel': 'Fuel Paid',
+        'advances': 'Advance',
+        'handed_in': 'Hand-in',
+        'cancelled': 'Cancelled Order',
+        'adjustments': 'Adjustment',
+        'corrections': 'Correction',
+        'reset': 'Balance Reset',
         'advance': 'Shift Advance Float',
         'cash_collection': 'Order COD Collection',
         'store_payment': 'Store Cash Purchase',
@@ -6871,7 +6901,7 @@ function renderRiderStatementPDF(statement) {
         const outflowStr = m.is_outflow ? `- Rs ${amt.toFixed(2)}` : '-';
         const runBalStr = `Rs ${parseFloat(m.running_balance || 0).toFixed(2)}`;
         const refStr = m.movement_number || (m.reference_type ? `${m.reference_type} #${m.reference_id || ''}` : '-');
-        const descStr = (m.description || m.notes || '-').substring(0, 42);
+        const descStr = (m.description || m.notes || '-').substring(0, 60);
 
         return [
             m.index || '',
@@ -6898,10 +6928,10 @@ function renderRiderStatementPDF(statement) {
             '',
             '',
             'Net Movement Closing Position',
-            `+ Rs ${summary.total_inflow.toFixed(2)}`,
-            `- Rs ${summary.total_disbursements.toFixed(2)}`,
-            `Rs ${(summary.total_inflow - summary.total_disbursements).toFixed(2)}`,
-            summary.is_balanced ? 'VERIFIED' : 'VARIANCE'
+            '',
+            '',
+            `Rs ${parseFloat(summary.closing_balance || 0).toFixed(2)}`,
+            summary.is_balanced ? 'MATCHES' : 'CHECK'
         ]] : undefined,
         theme: 'grid',
         styles: { fontSize: 6.8, cellPadding: 1.8, textColor: [30, 41, 59] },
@@ -7115,7 +7145,7 @@ function renderRiderStatementPDF(statement) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
     const subAmtStr = `Rs ${parseFloat(summary.cash_submitted || 0).toFixed(2)}`;
-    doc.text(`Physically received closing cash of ${subAmtStr}. System reconciliation:`, box2X + 4, sigBoxY + 11);
+    doc.text(`Cash handed in and approved: ${subAmtStr}. Check against the rider wallet:`, box2X + 4, sigBoxY + 11);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(summary.is_balanced ? 22 : 185, summary.is_balanced ? 101 : 28, summary.is_balanced ? 52 : 28);
     doc.text(`Status: [ ${summary.is_balanced ? 'X' : ' '} ] BALANCED (0.00)     [ ${!summary.is_balanced ? 'X' : ' '} ] VARIANCE: Rs ${parseFloat(summary.cash_variance || 0).toFixed(2)}`, box2X + 4, sigBoxY + 15);

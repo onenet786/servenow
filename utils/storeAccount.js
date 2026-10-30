@@ -139,7 +139,8 @@ async function loadRiderPickupPayments(db, { storeIdsByName = null, pickupStores
       if (storeId) payments.push({ ...base, store_id: storeId, amount_c: cents, reversal: false });
       else unidentified.push({ ...base, amount_c: cents });
     } else if (r.reference_type === 'order_cancel_reversal') {
-      const storeId = pickupStoreByOrder.get(`${r.rider_id}:${r.reference_id}`);
+      const named = /^Reversal: /.test(desc) ? resolve(desc, null) : null;
+      const storeId = named || pickupStoreByOrder.get(`${r.rider_id}:${r.reference_id}`);
       if (storeId && storeId !== 'ambiguous') payments.push({ ...base, store_id: storeId, amount_c: -cents, reversal: true });
       else unidentified.push({ ...base, amount_c: -cents });
     }
