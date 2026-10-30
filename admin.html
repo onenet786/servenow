@@ -2103,7 +2103,7 @@
               <button type="button" class="btn btn-secondary" onclick="exportReportsCentrePdf()"><i class="fas fa-file-pdf"></i> PDF</button>
             </div>
           </div>
-          <form class="filter-controls sp-filters" onsubmit="event.preventDefault(); runReportsCentre();">
+          <form id="rcFilters" class="filter-controls sp-filters" onsubmit="event.preventDefault(); runReportsCentre();">
             <div class="filter-group">
               <label for="rcReport">Report</label>
               <select id="rcReport" onchange="syncReportsCentreFilters()"></select>
