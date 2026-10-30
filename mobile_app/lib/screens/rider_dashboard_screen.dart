@@ -120,6 +120,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'stores': 'دکانیں',
       'Wallet balance': 'والیٹ بیلنس',
       'Cash to hand in': 'جمع کرانے والی رقم',
+      'Cash the office expects from you': 'یہ رقم آپ نے دفتر میں جمع کرانی ہے',
       'Total earnings account': 'کل آمدنی کا اکاؤنٹ',
       'Wallet & cash flow refreshed': 'والیٹ اور کیش اپ ڈیٹ ہو گئے',
       'Daily cash': 'روزانہ کیش',
@@ -2752,7 +2753,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
             style: AppText.price.copyWith(fontSize: 30, letterSpacing: -0.5),
           ),
           const SizedBox(height: AppSpace.xs),
-          Text(_tr('Total earnings account'), style: AppText.caption),
+          Text(_tr('Cash the office expects from you'), style: AppText.caption),
         ],
       ),
     );
