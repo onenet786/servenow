@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import 'package:geolocator/geolocator.dart';
@@ -1311,23 +1312,51 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
   ///   instead of continuous best-for-navigation GPS, which is the main
   ///   battery cost while a rider waits for orders.
   ///
-  /// The background service (RiderBackgroundTrackingService) is untouched:
-  /// it still starts/stops with assigned deliveries.
-  void _startLocationTracking() {
+  /// The background service (RiderBackgroundTrackingService) only runs when
+  /// the rider allowed location "all the time". Otherwise, on Android, the
+  /// delivery stream runs as a foreground service (ongoing notification), so
+  /// the customer's live map keeps updating while the phone is locked or the
+  /// rider is in another app, with "While using the app" permission only.
+  Future<void> _startLocationTracking() async {
     _locationStreamSubscription?.cancel();
+    _locationStreamSubscription = null;
 
     final highAccuracy = _assignedDeliveries.isNotEmpty;
     _trackingHighAccuracy = highAccuracy;
-    final locationSettings = highAccuracy
-        ? const LocationSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 2,
-          )
-        : const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            distanceFilter: 100,
-          );
 
+    var useForegroundService = false;
+    if (highAccuracy && defaultTargetPlatform == TargetPlatform.android) {
+      final permission = await Geolocator.checkPermission();
+      useForegroundService = permission == LocationPermission.whileInUse;
+    }
+    if (!mounted || _trackingHighAccuracy != highAccuracy) return;
+
+    final LocationSettings locationSettings;
+    if (useForegroundService) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 2,
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'ServeNow delivery in progress',
+          notificationText: 'Sharing your location with the customer.',
+          notificationChannelName: 'ServeNow rider tracking',
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
+      );
+    } else if (highAccuracy) {
+      locationSettings = const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 2,
+      );
+    } else {
+      locationSettings = const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 100,
+      );
+    }
+
+    await _locationStreamSubscription?.cancel();
     _locationStreamSubscription =
         Geolocator.getPositionStream(locationSettings: locationSettings).listen(
           (position) async {
@@ -1337,6 +1366,9 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                 position,
               );
             }
+          },
+          onError: (Object error) {
+            _logger.w('Rider location stream error: $error');
           },
         );
   }

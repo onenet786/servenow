@@ -53,9 +53,14 @@ class RiderBackgroundTrackingService {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) return;
 
+      // The plugin's service needs "Allow all the time". Without it the plugin
+      // asks for background + foreground location in one request, which
+      // Android 11+ refuses outright, and it then shows the toast
+      // "Permission was denied, but is needed for core functionality".
+      // With "While using the app" the rider dashboard keeps tracking through
+      // its own foreground-service position stream instead.
       final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission != LocationPermission.always) {
         return;
       }
 
