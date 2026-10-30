@@ -320,6 +320,7 @@ async function buildRiderMovementJournals(db) {
     let lines = null;
     switch (m.movement_type) {
       case 'cash_submission':
+        if (m.reference_type === 'receipt_voucher') continue; // the voucher journal is the record
         lines = [line('1000', cents, null, null, memo), line('1100', -cents, ...rider)];
         break;
       case 'advance':

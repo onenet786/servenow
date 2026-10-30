@@ -677,6 +677,12 @@ async function attachItemsToDeliveries(db, deliveries) {
   return deliveries;
 }
 
+// recorded_by / created_by columns point at the users table. Riders live in
+// their own table, so a rider id there fails the foreign key.
+function staffUserIdFor(user) {
+  return user && user.user_type !== "rider" ? user.id || null : null;
+}
+
 async function recordPickupPaidStorePaymentsForOrder(db, {
   orderId,
   riderId,
@@ -727,7 +733,6 @@ async function recordPickupPaidStorePaymentsForOrder(db, {
     throw error;
   }
 
-  let runningBalance = Number(walletOwnerRows[0].balance || 0);
   const recorded = [];
 
   for (const store of storesToSettle) {
@@ -735,53 +740,86 @@ async function recordPickupPaidStorePaymentsForOrder(db, {
     const payable = roundAmount(store.payable_to_store || 0);
     if (!storeId || payable <= 0) continue;
 
-    const [existingPayment] = await db.execute(
-      `SELECT id
-       FROM rider_store_payments
-       WHERE order_id = ? AND store_id = ? AND source_status = 'picked_up'
-       LIMIT 1`,
-      [orderId, storeId],
-    );
-    if (existingPayment.length) continue;
+    const description = `Paid to pickup-paid store ${store.store_name || storeId} for order #${orderNumber || orderId}`;
 
-    // Relative update so concurrent postings are not overwritten
-    await db.execute(
-      "UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ?",
-      [payable, payable, walletInfo.walletId],
-    );
-    const [balanceRows] = await db.execute("SELECT balance FROM wallets WHERE id = ?", [walletInfo.walletId]);
-    runningBalance = roundAmount(Number(balanceRows[0]?.balance || 0));
-    await db.execute(
-      `INSERT INTO wallet_transactions
-       (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
-       VALUES (?, 'debit', ?, ?, 'order', ?, ?)`,
-      [
-        walletInfo.walletId,
-        payable,
-        `Paid to pickup-paid store ${store.store_name || storeId} for order #${orderNumber || orderId}`,
-        orderId,
-        runningBalance,
-      ],
-    );
-    await db.execute(
-      `INSERT INTO rider_cash_movements
-       (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
-       VALUES (?, ?, CURDATE(), 'store_payment', ?, ?, 'order', ?, 'completed', ?)`,
-      [
-        `RCM-SP-${Date.now()}-${storeId}`,
-        riderId,
-        payable,
-        `Store payment on pickup for ${store.store_name || "Store"} (Order #${orderNumber || orderId})`,
-        orderId,
-        createdBy,
-      ],
-    );
-    await db.execute(
-      `INSERT INTO rider_store_payments
-       (order_id, store_id, rider_id, amount, source_status, created_by)
-       VALUES (?, ?, ?, ?, 'picked_up', ?)`,
-      [orderId, storeId, riderId, payable, createdBy],
-    );
+    // All-or-nothing: the wallet debit, cash movement and store payment row
+    // must never exist without each other.
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute("SELECT id FROM wallets WHERE id = ? FOR UPDATE", [walletInfo.walletId]);
+
+      const [existingPayment] = await conn.execute(
+        `SELECT id
+         FROM rider_store_payments
+         WHERE order_id = ? AND store_id = ? AND source_status = 'picked_up'
+         LIMIT 1`,
+        [orderId, storeId],
+      );
+      if (existingPayment.length) {
+        await conn.rollback();
+        continue;
+      }
+
+      // Older code could leave only the wallet debit behind. Complete that
+      // payment here instead of charging the rider a second time.
+      const [existingDebit] = await conn.execute(
+        `SELECT id
+         FROM wallet_transactions
+         WHERE wallet_id = ? AND type = 'debit' AND reference_type = 'order'
+           AND reference_id = ? AND description = ?
+         LIMIT 1`,
+        [walletInfo.walletId, String(orderId), description],
+      );
+
+      if (!existingDebit.length) {
+        // Relative update so concurrent postings are not overwritten
+        await conn.execute(
+          "UPDATE wallets SET balance = balance - ?, total_spent = total_spent + ? WHERE id = ?",
+          [payable, payable, walletInfo.walletId],
+        );
+        const [balanceRows] = await conn.execute("SELECT balance FROM wallets WHERE id = ?", [walletInfo.walletId]);
+        await conn.execute(
+          `INSERT INTO wallet_transactions
+           (wallet_id, type, amount, description, reference_type, reference_id, balance_after)
+           VALUES (?, 'debit', ?, ?, 'order', ?, ?)`,
+          [
+            walletInfo.walletId,
+            payable,
+            description,
+            orderId,
+            roundAmount(Number(balanceRows[0]?.balance || 0)),
+          ],
+        );
+      }
+
+      await conn.execute(
+        `INSERT INTO rider_cash_movements
+         (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
+         VALUES (?, ?, CURDATE(), 'store_payment', ?, ?, 'order', ?, 'completed', ?)`,
+        [
+          `RCM-SP-${Date.now()}-${storeId}`,
+          riderId,
+          payable,
+          `Store payment on pickup for ${store.store_name || "Store"} (Order #${orderNumber || orderId})`,
+          orderId,
+          createdBy,
+        ],
+      );
+      await conn.execute(
+        `INSERT INTO rider_store_payments
+         (order_id, store_id, rider_id, amount, source_status, created_by)
+         VALUES (?, ?, ?, ?, 'picked_up', ?)`,
+        [orderId, storeId, riderId, payable, createdBy],
+      );
+      await conn.commit();
+    } catch (paymentError) {
+      await conn.rollback();
+      throw paymentError;
+    } finally {
+      conn.release();
+    }
+
     await recordFinancialTransaction(db, {
       transaction_type: "adjustment",
       category: "rider_store_payment",
@@ -5042,7 +5080,7 @@ router.put(
           orderId: id,
           riderId: order.rider_id,
           orderNumber: order.order_number,
-          createdBy: req.user.id || null,
+          createdBy: staffUserIdFor(req.user),
         });
       }
 
@@ -5055,7 +5093,7 @@ router.put(
           orderId: id,
           riderId: order.rider_id,
           orderNumber: order.order_number,
-          createdBy: req.user.id || null,
+          createdBy: staffUserIdFor(req.user),
         });
       }
 
@@ -6032,7 +6070,7 @@ router.put(
           related_entity_id: order.store_id,
           reference_type: "order",
           reference_id: id,
-          created_by: req.user.id,
+          created_by: staffUserIdFor(req.user),
           notes: "Store: 100 (Cr.)",
         });
 
@@ -6048,7 +6086,7 @@ router.put(
           related_entity_id: order.rider_id,
           reference_type: "order",
           reference_id: id,
-          created_by: req.user.id,
+          created_by: staffUserIdFor(req.user),
           notes: `Gross Income: ${orderTotal} (Cr.)`,
         });
 
@@ -6152,7 +6190,7 @@ router.put(
           related_entity_id: order.rider_id,
           reference_type: "order",
           reference_id: id,
-          created_by: req.user.id,
+          created_by: staffUserIdFor(req.user),
           notes: `Rider's Balance: ${riderDrAmount} (Dr.)`,
         });
 
@@ -6222,7 +6260,7 @@ router.put(
             orderId: id,
             riderId: order.rider_id,
             orderNumber: order.order_number,
-            createdBy: req.user.id || null,
+            createdBy: staffUserIdFor(req.user),
           });
         }
       }

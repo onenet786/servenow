@@ -1025,8 +1025,7 @@ function displayBankReceiptVouchers(vouchers) {
             <td>${escapeHtml(v.description || '-')}</td>
             <td><span class="status-${v.status}">${v.status}</span></td>
             <td>
-                <button class="btn-small btn-info" onclick="editReceiptVoucher(${v.id})">Edit</button>
-                <button class="btn-small btn-primary" onclick="approveReceiptVoucher(${v.id})">Approve</button>
+                ${receiptVoucherActions(v, 'editReceiptVoucher')}
             </td>
         `;
         tbody.appendChild(row);
@@ -1035,6 +1034,14 @@ function displayBankReceiptVouchers(vouchers) {
     if (vouchers.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem;">No bank receipt vouchers found</td></tr>';
     }
+}
+
+// Received and cancelled vouchers are final: nothing left to edit or approve.
+function receiptVoucherActions(v, editFn) {
+    if (v.status === 'received' || v.status === 'cancelled') return '';
+    return `
+                <button class="btn-small btn-info" onclick="${editFn}(${v.id})">Edit</button>
+                <button class="btn-small btn-primary" onclick="approveReceiptVoucher(${v.id})">Approve</button>`;
 }
 
 function displayReceiptVouchers(vouchers) {
@@ -1053,8 +1060,7 @@ function displayReceiptVouchers(vouchers) {
             <td>${escapeHtml(v.description || '-')}</td>
             <td><span class="status-${v.status}">${v.status}</span></td>
             <td>
-                <button class="btn-small btn-info" onclick="editReceiptVoucher(${v.id})">Edit</button>
-                <button class="btn-small btn-primary" onclick="approveReceiptVoucher(${v.id})">Approve</button>
+                ${receiptVoucherActions(v, 'editReceiptVoucher')}
             </td>
         `;
         tbody.appendChild(row);

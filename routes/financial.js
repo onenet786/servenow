@@ -1465,14 +1465,14 @@ router.put('/payment-vouchers/:id', [
                            AND reference_id = ?
                            AND movement_type = 'settlement'
                          LIMIT 1`,
-                        [voucherRef]
+                        [existingVoucher.id]
                     );
                     if (!existingMovement.length) {
                         const [movementResult] = await req.db.execute(
                             `INSERT INTO rider_cash_movements 
                              (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, status, approved_by, approved_at)
                              VALUES (?, ?, ?, ?, ?, ?, 'payment_voucher', ?, ?, 'completed', ?, NOW())`,
-                            [movement_number, payeeId, movement_date, movementType, voucherAmount, `Cash payment via CPV ${voucherRef}`, voucherRef, req.user.id, req.user.id]
+                            [movement_number, payeeId, movement_date, movementType, voucherAmount, `Cash payment via CPV ${voucherRef}`, existingVoucher.id, req.user.id, req.user.id]
                         );
 
                         // Debit rider wallet (reduce company liability / increase rider liability)
@@ -1763,14 +1763,78 @@ router.put('/receipt-vouchers/:id', [
 
         params.push(id);
 
-        await req.db.execute(
-            `UPDATE cash_receipt_vouchers SET ${updates.join(', ')} WHERE id = ?`,
-            params
-        );
+        // All-or-nothing: a voucher must not read "received" unless the payer's
+        // wallet and cash records were posted with it.
+        const isNewReceipt = (status === 'received' || status === 'approved') && existingVoucher;
+        const voucherAmount = amount || existingVoucher?.amount;
+        const conn = await req.db.getConnection();
+        try {
+            await conn.beginTransaction();
+            await conn.execute(
+                `UPDATE cash_receipt_vouchers SET ${updates.join(', ')} WHERE id = ?`,
+                params
+            );
+
+            if (isNewReceipt) {
+                // If payer is a rider, record cash submission and update wallet
+                const payerType = payer_type || existingVoucher.payer_type;
+                const payerId = payer_id !== undefined ? payer_id : existingVoucher.payer_id;
+
+                if (payerType === 'rider' && payerId) {
+                    const movement_number = generateVoucherNumber('RCM');
+                    const movement_date = new Date().toISOString().split('T')[0];
+
+                    const [movementResult] = await conn.execute(
+                        `INSERT INTO rider_cash_movements
+                         (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, status, approved_by, approved_at)
+                         VALUES (?, ?, ?, 'cash_submission', ?, ?, 'receipt_voucher', ?, ?, 'completed', ?, NOW())`,
+                        [movement_number, payerId, movement_date, voucherAmount, `Cash submission via CRV ${existingVoucher.voucher_number}`, existingVoucher.id, req.user.id, req.user.id]
+                    );
+
+                    // Debit rider wallet: rider submitted cash to office, so rider-held cash decreases.
+                    await recordRiderWalletTransaction(
+                        conn,
+                        payerId,
+                        'debit',
+                        voucherAmount,
+                        `Cash submission via CRV ${existingVoucher.voucher_number}`,
+                        movementResult.insertId,
+                        'cash_submission'
+                    );
+                } else if (payerType === 'store' && payerId) {
+                    // Credit store wallet (increase company liability / reduce store debt)
+                    await recordStoreWalletTransaction(
+                        conn,
+                        payerId,
+                        'credit',
+                        voucherAmount,
+                        `Receipt via CRV ${existingVoucher.voucher_number}`,
+                        existingVoucher.id,
+                        'receipt_voucher'
+                    );
+                } else if (payerType === 'employee' && payerId) {
+                    // Credit employee wallet (increase company liability / reduce employee debt)
+                    await recordUserWalletTransaction(
+                        conn,
+                        payerId,
+                        'credit',
+                        voucherAmount,
+                        `Receipt via CRV ${existingVoucher.voucher_number}`,
+                        existingVoucher.id,
+                        'receipt_voucher'
+                    );
+                }
+            }
+            await conn.commit();
+        } catch (postingError) {
+            await conn.rollback();
+            throw postingError;
+        } finally {
+            conn.release();
+        }
 
         // Create financial transaction if status changed to received or approved
-        if ((status === 'received' || status === 'approved') && existingVoucher) {
-            const voucherAmount = amount || existingVoucher.amount;
+        if (isNewReceipt) {
             const voucherPayer = payer_name || existingVoucher.payer_name;
             const voucherDescription = description || existingVoucher.description || 'Receipt via voucher';
 
@@ -1786,55 +1850,6 @@ router.put('/receipt-vouchers/:id', [
                 reference_id: existingVoucher.voucher_number,
                 created_by: req.user.id
             });
-
-            // If payer is a rider, record cash submission and update wallet
-            const payerType = payer_type || existingVoucher.payer_type;
-            const payerId = payer_id !== undefined ? payer_id : existingVoucher.payer_id;
-
-            if (payerType === 'rider' && payerId) {
-                const movement_number = generateVoucherNumber('RCM');
-                const movement_date = new Date().toISOString().split('T')[0];
-
-                const [movementResult] = await req.db.execute(
-                    `INSERT INTO rider_cash_movements 
-                     (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, status, approved_by, approved_at)
-                     VALUES (?, ?, ?, 'cash_submission', ?, ?, 'receipt_voucher', ?, ?, 'completed', ?, NOW())`,
-                    [movement_number, payerId, movement_date, voucherAmount, `Cash submission via CRV ${existingVoucher.voucher_number}`, existingVoucher.voucher_number, req.user.id, req.user.id]
-                );
-
-                // Debit rider wallet: rider submitted cash to office, so rider-held cash decreases.
-                await recordRiderWalletTransaction(
-                    req.db,
-                    payerId,
-                    'debit',
-                    voucherAmount,
-                    `Cash submission via CRV ${existingVoucher.voucher_number}`,
-                    movementResult.insertId,
-                    'cash_submission'
-                );
-            } else if (payerType === 'store' && payerId) {
-                // Credit store wallet (increase company liability / reduce store debt)
-                await recordStoreWalletTransaction(
-                    req.db,
-                    payerId,
-                    'credit',
-                    voucherAmount,
-                    `Receipt via CRV ${existingVoucher.voucher_number}`,
-                    existingVoucher.id,
-                    'receipt_voucher'
-                );
-            } else if (payerType === 'employee' && payerId) {
-                // Credit employee wallet (increase company liability / reduce employee debt)
-                await recordUserWalletTransaction(
-                    req.db,
-                    payerId,
-                    'credit',
-                    voucherAmount,
-                    `Receipt via CRV ${existingVoucher.voucher_number}`,
-                    existingVoucher.id,
-                    'receipt_voucher'
-                );
-            }
         }
 
         res.json({

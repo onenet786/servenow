@@ -29,6 +29,7 @@ function sourceDb(overrides = {}) {
     if (/FROM wallet_transactions wt JOIN wallets w/.test(q)) return [rows.wallet];
     if (/FROM rider_cash_movements rcm WHERE rcm.status IN/.test(q)) return [rows.movements];
     if (/FROM cash_payment_vouchers/.test(q)) return [rows.vouchers];
+    if (/FROM cash_receipt_vouchers/.test(q)) return [rows.receipts || []];
     return [[]];
   }).db;
 }
@@ -58,6 +59,16 @@ test('rider collection clears against the order; submission moves cash to the of
   assert.equal(amountOn(js['wallet_transaction:1'], '1150'), -115000);
   assert.equal(amountOn(js['rider_cash_movement:7'], '1000'), 75000);
   assert.equal(amountOn(js['rider_cash_movement:7'], '1100'), -75000);
+});
+
+test('rider receipt voucher moves cash once, not again through its cash submission', async () => {
+  const js = byKey(await ledger.buildAllJournals(sourceDb({
+    receipts: [{ id: 11, voucher_number: 'CRV-11', payer_type: 'rider', payer_id: 3, payer_name: 'Rider', amount: '500.00', payment_method: 'cash', journal_date: '2026-10-30' }],
+    movements: [{ id: 8, movement_number: 'RCM-2', rider_id: 3, movement_type: 'cash_submission', amount: '500.00', reference_type: 'receipt_voucher', description: '', journal_date: '2026-10-30', wallet_direction: 'debit' }],
+  })));
+  assert.equal(amountOn(js['receipt_voucher:11'], '1000'), 50000);
+  assert.equal(amountOn(js['receipt_voucher:11'], '1100'), -50000);
+  assert.equal(js['rider_cash_movement:8'], undefined);
 });
 
 test('pickup payment to a renamed store falls back to the order\'s pickup-paid store', async () => {
