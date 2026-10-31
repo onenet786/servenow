@@ -6,9 +6,9 @@
 // answer only what that account may see. Nothing here changes orders, stock or money.
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { staffHasRight } = require('../middleware/auth');
 
 const TOKEN_TTL_SECONDS = 2 * 3600;
-const STAFF = new Set(['admin', 'standard_user']);
 const OPEN_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'out_for_delivery'];
 const STATUS_TEXT = {
   pending: 'Placed, waiting for the store to confirm',
@@ -146,6 +146,8 @@ const TOOLS = [
   {
     name: 'business_today',
     who: ['admin', 'standard_user'],
+    // Staff logins also need one of these rights (User rights screen); admins always pass.
+    staffRights: ['menu_dashboard'],
     description: "Today's figures for the whole platform: orders by status, value delivered, orders waiting for a rider, "
       + 'riders available, and the busiest stores. For ServeNow staff only.',
     inputSchema: { type: 'object', properties: {} },
@@ -267,9 +269,10 @@ async function myOrders(db, args, user) {
   };
 }
 
-// Who may see this order: its customer, its rider, the owner of its store, or staff.
+// Who may see this order: its customer, its rider, the owner of its store, admins, and staff with "View orders".
 async function maySeeOrder(db, order, user) {
-  if (STAFF.has(user.type)) return true;
+  if (user.type === 'admin') return true;
+  if (user.type === 'standard_user') return order.user_id === user.id || staffHasRight(db, user.id, 'menu_orders');
   if (user.type === 'rider') return order.rider_id === user.id;
   if (user.type === 'store_owner') {
     if (order.user_id === user.id) return true;
@@ -426,6 +429,9 @@ async function runTool(db, name, args, user) {
     }
     if (!tool.who.includes(user.type)) {
       return { error: 'not_permitted', message: `This is not available for a ${user.type.replace('_', ' ')} account. Tell them politely.` };
+    }
+    if (tool.staffRights && user.type === 'standard_user' && !(await staffHasRight(db, user.id, tool.staffRights))) {
+      return { error: 'not_permitted', message: `${user.name}'s user rights do not include this. Suggest asking an administrator.` };
     }
   }
   const result = await HANDLERS[name](db, input, user);

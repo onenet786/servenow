@@ -148,6 +148,28 @@ test('tools are limited by account type', async () => {
   assert.equal(asCustomer.body.error, 'not_permitted');
 });
 
+test('staff logins need the matching user right', async () => {
+  const staff = { id: 50, first_name: 'Hina', last_name: 'Raza', email: 'hina@example.com', user_type: 'standard_user', is_active: 1 };
+  const order = { id: 9, order_number: 'ORD-9', user_id: 42, store_id: 3, rider_id: null, status: 'ready', total_amount: '500', delivery_fee: '100', payment_method: 'cash', payment_status: 'pending', store_name: 'Fresh Mart' };
+  const withRights = (rights) => fakeDb((q, params) => {
+    if (/FROM users WHERE id = \?/.test(q)) return params[0] === 50 ? [[staff]] : [[]];
+    if (/FROM user_permissions/.test(q)) return [params.slice(1).some((k) => rights.includes(k)) ? [{ 1: 1 }] : []];
+    if (/FROM orders o LEFT JOIN stores s ON s.id = o.store_id LEFT JOIN riders/.test(q)) return [[order]];
+    if (/FROM order_items oi/.test(q)) return [[]];
+    if (/FROM orders/.test(q) || /FROM riders/.test(q)) return [[{ n: 0 }]];
+    return undefined;
+  }).db;
+  const identity = ai.mintIdentity(staff);
+
+  const catalogEditor = withRights(['action_manage_products']);
+  assert.equal((await callTool(catalogEditor, { tool: 'order_status', arguments: { order_number: 'ORD-9' }, identity })).body.error, 'not_found');
+  assert.equal((await callTool(catalogEditor, { tool: 'business_today', identity })).body.error, 'not_permitted');
+
+  const dispatcher = withRights(['menu_orders', 'menu_dashboard']);
+  assert.equal((await callTool(dispatcher, { tool: 'order_status', arguments: { order_number: 'ORD-9' }, identity })).body.status, 'ready');
+  assert.equal((await callTool(dispatcher, { tool: 'business_today', identity })).body.error, undefined);
+});
+
 test('a forged, expired or switched-off identity counts as a visitor', async () => {
   const forged = jwt.sign({ sub: 'u42', role: 'customer' }, 'not_the_identity_secret_0123456789', { algorithm: 'HS256', expiresIn: 600 });
   const expired = jwt.sign({ sub: 'u42', role: 'customer', exp: Math.floor(Date.now() / 1000) - 10 }, process.env.AIAGENT_IDENTITY_SECRET);

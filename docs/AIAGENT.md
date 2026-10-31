@@ -11,11 +11,11 @@ cancels orders, and never moves money.
 | `find_stores` | anyone | Stores matching a name, area or product; open now, hours, delivery time, store notice |
 | `find_products` | anyone | Products by name, with price, store and whether they can be ordered now |
 | `my_orders` | signed-in customers (also store owners and staff who order) | Their latest 5 orders |
-| `order_status` | signed-in | One order in full. Customers see their own orders, riders the orders given to them, store owners their stores' orders, staff all orders |
+| `order_status` | signed-in | One order in full. Customers see their own orders, riders the orders given to them, store owners their stores' orders, admins and staff with *View orders* all orders |
 | `my_wallet` | customers, riders | Wallet balance and latest transactions |
 | `rider_deliveries` | riders | Deliveries not finished yet |
 | `store_orders_today` | store owners | Today's orders for their stores |
-| `business_today` | admin, standard users | Today's platform figures |
+| `business_today` | admins, staff with *View dashboard* | Today's platform figures |
 
 Visitors who are not signed in can only use the first two. An unknown order number and somebody
 else's order get the same "not found" answer.
