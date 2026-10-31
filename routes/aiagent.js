@@ -1,31 +1,72 @@
 // AIAgent assistant: widget settings for our pages, the manifest AIAgent connects from, and the signed tool
-// endpoint. The tool endpoint is called by the AIAgent server, not by browsers: every call must be signed
-// (X-AIAgent-Signature: sha256=HMAC(AIAGENT_TOOL_SECRET, raw body)) and is answered for the signed-in
-// person in its identity token, or as a visitor when there is none.
-const crypto = require('crypto');
+// endpoint. The tool endpoint is called by the AIAgent server, not by browsers. The connector
+// (utils/aiagent-connect.js) checks the signature, the time window and the identity token, and runs
+// actions only after the person confirmed a summary; services/aiagent.js holds the tools themselves.
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const ai = require('../services/aiagent');
+const { createConnector } = require('../utils/aiagent-connect');
+const { runOncePerProcess } = require('../utils/runOnce');
 
 const router = express.Router();
-const hits = new Map(); // ip -> { n, at }
-const PER_MINUTE = 120;
-const MAX_SKEW_SECONDS = 300;
+const TOOL_PATH = '/integrations/aiagent/tools';
 
-function limited(ip) {
-  const now = Date.now();
-  const h = hits.get(ip);
-  if (!h || now - h.at > 60_000) { hits.set(ip, { n: 1, at: now }); return false; }
-  h.n += 1;
-  if (hits.size > 5000) for (const [k, v] of hits) if (now - v.at > 60_000) hits.delete(k);
-  return h.n > PER_MINUTE;
+const ensureActionsTable = runOncePerProcess((db) => db.execute(`
+    CREATE TABLE IF NOT EXISTS assistant_actions (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      tool VARCHAR(40) NOT NULL,
+      actor_type VARCHAR(20) NOT NULL,
+      actor_id INT NOT NULL,
+      actor_name VARCHAR(120),
+      details TEXT,
+      result TEXT,
+      conversation_id VARCHAR(64),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_assistant_actions_created (created_at)
+    )`));
+
+// Every action the assistant carried out, for the record (who, what, when).
+async function logAction(db, entry) {
+  await ensureActionsTable(db);
+  await db.execute(
+    `INSERT INTO assistant_actions (tool, actor_type, actor_id, actor_name, details, result, conversation_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [entry.tool, entry.user.type, entry.user.id, entry.user.name, JSON.stringify(entry.arguments).slice(0, 2000),
+      JSON.stringify(entry.result).slice(0, 2000), entry.conversationId]
+  );
 }
 
-function signatureOk(raw, header, secret) {
-  if (!secret || typeof header !== 'string') return false;
-  const want = `sha256=${crypto.createHmac('sha256', secret).update(raw).digest('hex')}`;
-  return header.length === want.length && crypto.timingSafeEqual(Buffer.from(header), Buffer.from(want));
-}
+const connector = createConnector({
+  name: 'ServeNow',
+  path: TOOL_PATH,
+  toolSecret: () => ai.settings().toolSecret,
+  identitySecret: () => ai.settings().identitySecret,
+  identityTtlSeconds: ai.TOKEN_TTL_SECONDS,
+  // The account as it is now: switched off, deleted or a changed role means "visitor".
+  async loadUser(sub, claims, { db }) {
+    const account = await ai.loadAccount(db, sub);
+    if (!account || account.user_type !== claims.role) return null;
+    const name = `${account.first_name || ''} ${account.last_name || ''}`.trim() || account.email;
+    return { id: account.id, type: account.user_type, name, branch_id: account.branch_id, label: `${name} (${account.user_type})` };
+  },
+  tools: ai.TOOLS.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchema: t.inputSchema,
+    public: t.who.includes('anyone'),
+    action: !!t.action,
+    allow: async (user, { db }) => {
+      const denied = await ai.accessError(db, t, user);
+      return denied ? denied.message : true;
+    },
+    preview: t.action ? (args, { db, user }) => ai.ACTIONS[t.name].preview(db, args, user) : undefined,
+    run: t.action
+      ? (args, { db, io, user }) => ai.ACTIONS[t.name].run(db, args, user, io)
+      : (args, { db, user }) => ai.runTool(db, t.name, args, user),
+  })),
+  // A failure to write the record is logged by the connector and never undoes the action.
+  onAction: (entry) => logAction(entry.context.db, entry),
+});
 
 // The ServeNow account behind a page's own login token, as it is now (null for guests and visitors).
 async function pageAccount(req) {
@@ -63,38 +104,22 @@ router.get('/api/aiagent/widget', async (req, res) => {
 });
 
 // Manifest for AIAgent's "Connect a system": type this site's address in AIAgent -> Tools and it sets up the
-// read-only tools by itself. Holds no ServeNow data, only tool names and descriptions.
+// tools by itself. Holds no ServeNow data, only tool names and descriptions.
 router.get('/.well-known/aiagent.json', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json(ai.manifest());
+  res.json(connector.manifest());
 });
 
-router.post('/integrations/aiagent/tools', express.raw({ type: () => true, limit: '64kb' }), async (req, res) => {
+router.post(TOOL_PATH, express.raw({ type: () => true, limit: '64kb' }), async (req, res) => {
+  // Without a valid identity token (none, expired after a few hours, or signed out) the caller is a visitor.
+  const out = await connector.handle({
+    rawBody: req.body,
+    signature: req.get('x-aiagent-signature'),
+    ip: req.ip,
+    context: { db: req.db, io: req.io },
+  });
   res.set('Cache-Control', 'no-store');
-  try {
-    if (limited(req.ip)) return res.status(429).json({ error: 'rate_limited' });
-    const s = ai.settings();
-    if (!s.toolSecret) return res.status(503).json({ error: 'disabled', message: 'The ServeNow assistant is switched off.' });
-    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-    if (!signatureOk(raw, req.get('x-aiagent-signature'), s.toolSecret)) return res.status(401).json({ error: 'bad_signature' });
-
-    let body;
-    try { body = JSON.parse(raw.toString('utf8')); } catch (_) { return res.status(400).json({ error: 'bad_json' }); }
-    // sent_at is inside the signed body, so a captured request can only be replayed within this window.
-    if (!Number.isInteger(body.sent_at) || Math.abs(Date.now() / 1000 - body.sent_at) > MAX_SKEW_SECONDS) {
-      return res.status(401).json({ error: 'stale_request' });
-    }
-    if (body.test) return res.json({ ok: true, message: 'Test call received and signature verified.' });
-
-    const tool = String(body.tool || req.get('x-aiagent-tool') || '');
-    // Without a valid token (none, expired after a few hours, or signed out) the caller is a visitor.
-    const user = await ai.verifyIdentity(req.db, body.identity, s.identitySecret);
-    res.json(await ai.runTool(req.db, tool, body.arguments, user));
-  } catch (err) {
-    const ref = crypto.randomBytes(4).toString('hex');
-    console.error(`[aiagent ${ref}]`, err);
-    res.status(500).json({ error: 'internal', message: `ServeNow could not answer right now (reference ${ref}).` });
-  }
+  res.status(out.status).json(out.body);
 });
 
 module.exports = router;

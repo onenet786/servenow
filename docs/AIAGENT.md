@@ -1,8 +1,9 @@
 # AIAgent chat assistant
 
-ServeNow can show the AIAgent chat (text and voice) on every web page: the classic pages and `/next`.
-The assistant answers from live ServeNow data through read-only tools. It never places, changes or
-cancels orders, and never moves money.
+ServeNow can show the AIAgent chat (text and voice) on every web page except the sign-in pages, and
+inside the mobile app (the ServeNow help screen). The assistant answers from live ServeNow data. It
+changes something only through an **action** (below), and only after the person confirmed a summary.
+It never moves money.
 
 ## What it can answer
 
@@ -18,7 +19,26 @@ cancels orders, and never moves money.
 | `business_today` | admins, staff with *View dashboard* | Today's platform figures |
 
 Visitors who are not signed in can only use the first two. An unknown order number and somebody
-else's order get the same "not found" answer.
+else's order get the same "not found" answer. Branch accounts only hear about their own branch.
+
+## What it can do (actions)
+
+| Action | Who | What |
+|---|---|---|
+| `assign_rider` | admins, staff with *Edit orders* (the right the admin screen's Assign rider needs) | "Assign Ali to order ORD-…": finds the rider by name among the order's branch riders; lists them if several or none match |
+
+How an action runs (utils/aiagent-connect.js):
+
+1. The first call changes nothing. It checks everything the admin screen checks (order status, branch,
+   rider active and in the same branch, cash or wallet records, a paid order's amount) and answers with a
+   summary such as *"Give order ORD-11 (Fresh Mart, Rs 1,250, ready) to Ali Khan? He has 2 unfinished
+   deliveries."* and a confirmation code.
+2. The assistant reads it out. Only after a clear yes does it call again with the code.
+3. The code fits only that person, that order and that rider, lasts 10 minutes and works once; a second
+   yes does not assign twice. The rider, store owner and customer are notified as from the admin screen.
+4. Each confirmed action is recorded in the `assistant_actions` table (who, what, result, when).
+
+After adding or changing tools, press **Refresh** on ServeNow in AIAgent (Tools → Connected systems).
 
 ## Set up (once)
 
