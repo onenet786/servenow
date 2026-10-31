@@ -426,6 +426,20 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  /// Chat assistant settings: whether it is on and, for a signed-in account, a short-lived identity
+  /// token so the assistant can answer about that person's orders, wallet or deliveries.
+  static Future<Map<String, dynamic>> getAssistantSession(String? token) async {
+    final uri = Uri.parse('$baseUrl/api/aiagent/widget');
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      },
+    );
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> deleteAccount(String token) async {
     final uri = Uri.parse('$baseUrl/api/auth/account');
     _logger.d('ApiService: DELETE $uri');

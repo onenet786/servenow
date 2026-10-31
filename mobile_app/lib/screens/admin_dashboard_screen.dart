@@ -16,6 +16,7 @@ import 'package:servenow/services/notifier.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
+import 'assistant_screen.dart';
 import '../widgets/admin/admin_ui.dart';
 import '../widgets/tracking/tracking.dart';
 import '../widgets/ui/ui.dart';
@@ -2950,6 +2951,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         appBar: AppBar(
           title: Text(_tr('Admin Dashboard')),
           actions: [
+            const AssistantButton(),
             const SizedBox(
               width: 40,
               height: 40,

@@ -638,7 +638,8 @@ app.use("/style", express.static(path.join(__dirname, "style"), staticAssetOptio
 const publicHtmlFiles = new Set([
   "index.html", "login.html", "register.html", "forgot-password.html", "reset-password.html", "profile.html",
   "stores.html", "store.html", "products.html", "cart.html", "checkout.html", "orders.html",
-  "order-confirmation.html", "wallet.html", "admin.html", "rider.html", "data-deletion.html"
+  "order-confirmation.html", "wallet.html", "admin.html", "rider.html", "data-deletion.html",
+  "assistant.html"
 ]);
 app.get("/:page([A-Za-z0-9-]+\\.html)", (req, res, next) => {
   if (!publicHtmlFiles.has(req.params.page)) return next();

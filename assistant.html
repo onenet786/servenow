@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>ServeNow help</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #f8fafc; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #334155; }
+    .status { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; }
+    .spinner { width: 28px; height: 28px; border: 3px solid #cbd5e1; border-top-color: #0f766e; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status p { margin: 0; font-size: 15px; line-height: 1.5; max-width: 320px; }
+    button { font: inherit; padding: 10px 18px; border-radius: 12px; border: 0; background: #0f766e; color: #fff; }
+  </style>
+</head>
+<body>
+  <!-- The ServeNow app opens this page for its "Chat" screen: assistant.html#identity=...&scope=...
+       The identity token is in the #fragment, so it never reaches a server log. -->
+  <div class="status" id="status"><div class="spinner"></div><p>Opening chat…</p></div>
+  <script>
+    (function () {
+      var status = document.getElementById("status");
+      var params = new URLSearchParams(location.hash.slice(1));
+      var identity = params.get("identity") || "";
+      var scope = params.get("scope") || "";
+      // Keep the token out of the address bar and history.
+      if (location.hash) history.replaceState(null, "", location.pathname);
+
+      function show(text, retry) {
+        status.innerHTML = "";
+        var p = document.createElement("p");
+        p.textContent = text;
+        status.appendChild(p);
+        if (retry) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.textContent = "Try again";
+          b.onclick = function () { location.reload(); };
+          status.appendChild(b);
+        }
+        status.style.display = "flex";
+      }
+
+      // The panel is built for a corner of a desktop page; here it fills the screen.
+      var FULL = ".panel{left:0!important;right:0!important;top:0!important;bottom:0!important;width:100vw!important;max-width:none!important;"
+        + "height:100%!important;max-height:none!important;border-radius:0!important;}";
+      function fillScreen(tries) {
+        var host = document.getElementById("aiagent-widget");
+        if (host && host.shadowRoot) {
+          var style = document.createElement("style");
+          style.textContent = FULL;
+          host.shadowRoot.appendChild(style);
+          return;
+        }
+        if (tries > 0) setTimeout(function () { fillScreen(tries - 1); }, 100);
+      }
+
+      window.addEventListener("aiagent:ready", function () {
+        status.style.display = "none";
+        fillScreen(30);
+        window.AIAgent.open();
+      });
+
+      fetch("/api/aiagent/widget", { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); })
+        .then(function (cfg) {
+          if (!cfg.enabled || !cfg.src || !cfg.key) return show("Chat isn't available right now. Please try again later.");
+          var s = document.createElement("script");
+          s.src = cfg.src;
+          s.async = true;
+          s.dataset.key = cfg.key;
+          s.dataset.title = "ServeNow help";
+          if (identity) s.dataset.identity = identity;
+          if (scope) s.dataset.scope = scope;
+          s.onerror = function () { show("Couldn't load the chat. Check your internet connection.", true); };
+          document.body.appendChild(s);
+        })
+        .catch(function () { show("Couldn't reach ServeNow. Check your internet connection.", true); });
+    })();
+  </script>
+</body>
+</html>

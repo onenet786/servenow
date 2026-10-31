@@ -6,6 +6,7 @@ import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
+import 'assistant_screen.dart';
 import '../widgets/staff/staff_ui.dart';
 import '../widgets/staff/store_financial_sheet.dart';
 import 'offer_campaigns_screen.dart';
@@ -441,7 +442,7 @@ class _StoreOwnerDashboardScreenState extends State<StoreOwnerDashboardScreen>
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          actions: const [NotificationBellWidget(), SizedBox(width: 4)],
+          actions: const [AssistantButton(), NotificationBellWidget(), SizedBox(width: 4)],
         ),
         bottomNavigationBar: _buildBottomNavigationBar(),
         body: _isLoading && _stats.isEmpty

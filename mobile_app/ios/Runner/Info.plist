@@ -63,5 +63,7 @@
 	</dict>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>ServeNow uses notifications for order and delivery updates.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ServeNow uses the microphone when you send a voice message or talk live with ServeNow help.</string>
 </dict>
 </plist>

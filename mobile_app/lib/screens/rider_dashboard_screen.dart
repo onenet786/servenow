@@ -13,6 +13,7 @@ import '../services/api_service.dart';
 import '../services/rider_background_tracking_service.dart';
 import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
+import 'assistant_screen.dart';
 import '../widgets/staff/staff_ui.dart';
 import 'login_screen.dart';
 
@@ -1550,7 +1551,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
         drawer: _buildRiderDrawer(),
         appBar: AppBar(
           title: Text(_tr(_tabTitles[_selectedTabIndex.clamp(0, 3)])),
-          actions: const [NotificationBellWidget(), SizedBox(width: 4)],
+          actions: const [AssistantButton(), NotificationBellWidget(), SizedBox(width: 4)],
         ),
         bottomNavigationBar: _buildBottomNavigationBar(),
         body: _isLoading

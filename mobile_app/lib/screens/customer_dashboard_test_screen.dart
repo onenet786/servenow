@@ -22,6 +22,7 @@ import '../utils/cart_counts.dart';
 import '../widgets/customer_bottom_nav.dart';
 import '../widgets/notification_bell_widget.dart';
 import '../widgets/ui/ui.dart';
+import 'assistant_screen.dart';
 import 'store_screen.dart';
 
 class CustomerDashboardTestScreen extends StatefulWidget {
@@ -1547,6 +1548,11 @@ class _CustomerDashboardTestScreenState
               duration: AppMotion.fast,
               child: KeyedSubtree(key: ValueKey(_tab), child: body),
             ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => AssistantScreen.open(context),
+            tooltip: _tr('Chat with ServeNow help'),
+            child: const Icon(Icons.support_agent),
           ),
           bottomNavigationBar: CustomerBottomNav(
             current: _tab,
