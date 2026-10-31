@@ -5017,3 +5017,167 @@ body.sn-admin #reports-centre .rc-note { margin: 0.25rem 0 0.75rem; color: var(-
 body.sn-admin #reports-centre .rc-table th.num,
 body.sn-admin #reports-centre .rc-table td.num { text-align: right; white-space: nowrap; }
 body.sn-admin #reports-centre .rc-table tfoot td { font-weight: 700; background: #f1f5f9; }
+
+/* Popups use the width they ask for, up to the screen edge */
+body.sn-admin .modal[style*="--modal-width"] .modal-content {
+  width: min(var(--modal-width), calc(100vw - 2rem));
+  max-width: none;
+}
+
+/* Wide reports: fit as many columns as possible. Whatever still cannot fit
+   scrolls with its first column kept in view. */
+body.sn-admin #reports-centre table th,
+body.sn-admin #rider-reports table th,
+body.sn-admin #store-reports table th,
+body.sn-admin #store-payment-term-reports table th,
+body.sn-admin #inventory-report table th,
+body.sn-admin #store-payments table th {
+  padding: 0.55rem 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  white-space: normal;
+  vertical-align: bottom;
+}
+body.sn-admin #reports-centre table td,
+body.sn-admin #rider-reports table td,
+body.sn-admin #store-reports table td,
+body.sn-admin #store-payment-term-reports table td,
+body.sn-admin #inventory-report table td,
+body.sn-admin #store-payments table td {
+  padding: 0.5rem;
+  font-size: 0.8rem;
+}
+body.sn-admin #reports-centre table th:first-child,
+body.sn-admin #reports-centre table td:first-child,
+body.sn-admin #inventory-report table th:first-child,
+body.sn-admin #inventory-report table td:first-child,
+body.sn-admin #store-payment-term-reports table th:first-child,
+body.sn-admin #store-payment-term-reports table td:first-child,
+body.sn-admin #store-payments table th:first-child,
+body.sn-admin #store-payments table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+  box-shadow: 1px 0 0 var(--sn-border);
+}
+
+/* These tables had fixed minimum widths and no wrapping, so they scrolled
+   whatever the space. Let them take the width there is. */
+body.sn-admin #riderReportsTable,
+body.sn-admin #storeReportsTable,
+body.sn-admin #creditStoresLedgerTable,
+body.sn-admin #orderWiseSalesTable,
+body.sn-admin .sp-issue-table {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+body.sn-admin #riderReportsTable th,
+body.sn-admin #riderReportsTable td,
+body.sn-admin #storeReportsTable th,
+body.sn-admin #storeReportsTable td,
+body.sn-admin #creditStoresLedgerTable th,
+body.sn-admin #creditStoresLedgerTable td,
+body.sn-admin #orderWiseSalesTable th,
+body.sn-admin #orderWiseSalesTable td,
+body.sn-admin .sp-issue-table th,
+body.sn-admin .sp-issue-table td {
+  min-width: 0 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+body.sn-admin #creditStoresLedgerTable th,
+body.sn-admin #creditStoresLedgerTable td {
+  padding: 0.45rem 0.35rem;
+  font-size: 0.76rem;
+}
+/* Amounts stay on one line: contact details and names give way instead. */
+body.sn-admin #creditStoresLedgerTable td:nth-child(5),
+body.sn-admin #creditStoresLedgerTable td:nth-child(6),
+body.sn-admin #creditStoresLedgerTable td:nth-child(7),
+body.sn-admin #creditStoresLedgerTable td:nth-child(8),
+body.sn-admin #creditStoresLedgerTable td:nth-child(9) {
+  white-space: nowrap !important;
+  overflow-wrap: normal;
+}
+body.sn-admin #creditStoresLedgerTable td:last-child .btn {
+  padding: 0.3rem 0.45rem;
+  font-size: 0.72rem;
+  white-space: normal !important;
+  line-height: 1.2;
+}
+body.sn-admin #creditStoresLedgerTable td:nth-child(9) span,
+body.sn-admin #riderReportsTable td:nth-child(7),
+body.sn-admin #riderReportsTable td:nth-child(8),
+body.sn-admin #riderReportsTable td:nth-child(9) {
+  white-space: nowrap !important;
+  overflow-wrap: normal;
+}
+body.sn-admin #creditStoresLedgerTable td:nth-child(4) * {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+body.sn-admin #storeReportsTable td:nth-child(7),
+body.sn-admin #storeReportsTable td:nth-child(8),
+body.sn-admin #storeReportsTable td:nth-child(9),
+body.sn-admin #storeReportsTable td:nth-child(10) {
+  white-space: nowrap !important;
+  overflow-wrap: normal;
+}
+body.sn-admin #creditStoresLedgerTable td:nth-child(4) {
+  min-width: 118px !important;
+}
+body.sn-admin #riderReportsTable th,
+body.sn-admin #riderReportsTable td {
+  padding: 0.45rem 0.35rem;
+  font-size: 0.76rem;
+}
+
+/* User Rights & Groups */
+body.sn-admin .ur-tabs { display: flex; gap: 0.25rem; margin: 0.75rem 0 1rem; border-bottom: 1px solid var(--sn-border); }
+body.sn-admin .ur-tab { border: 0; background: none; padding: 0.6rem 0.9rem; font-weight: 600; color: var(--sn-muted); border-bottom: 2px solid transparent; cursor: pointer; }
+body.sn-admin .ur-tab.is-active { color: var(--sn-green-700); border-bottom-color: var(--sn-green-700); }
+body.sn-admin .ur-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 1rem; align-items: start; }
+body.sn-admin .ur-side { display: flex; flex-direction: column; gap: 0.75rem; }
+body.sn-admin .ur-card { background: #fff; border: 1px solid var(--sn-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+body.sn-admin .ur-side .ur-card { margin-bottom: 0; }
+body.sn-admin .ur-card h4 { margin: 0 0 0.25rem; font-size: 0.9rem; }
+body.sn-admin .ur-group-list { display: flex; flex-direction: column; gap: 0.4rem; }
+body.sn-admin .ur-group { text-align: left; background: #fff; border: 1px solid var(--sn-border); border-radius: 10px; padding: 0.6rem 0.75rem; cursor: pointer; }
+body.sn-admin .ur-group strong { display: block; }
+body.sn-admin .ur-group span { font-size: 0.75rem; color: var(--sn-muted); }
+body.sn-admin .ur-group.is-active { border-color: var(--sn-green-700); box-shadow: inset 0 0 0 1px var(--sn-green-700); }
+body.sn-admin .ur-note { color: var(--sn-muted); font-size: 0.82rem; margin: 0.25rem 0; }
+body.sn-admin .ur-empty { padding: 2rem; text-align: center; }
+body.sn-admin .ur-admin-only { margin: 0.25rem 0 0; padding-left: 1rem; font-size: 0.78rem; color: var(--sn-muted); }
+body.sn-admin .ur-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+body.sn-admin .ur-actions { display: flex; gap: 0.5rem; }
+body.sn-admin .ur-tools { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto auto; gap: 0.6rem; align-items: center; margin-bottom: 0.75rem; }
+body.sn-admin .ur-check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; white-space: nowrap; }
+body.sn-admin .ur-link { border: 0; background: none; color: var(--sn-green-700); font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap; }
+body.sn-admin .ur-module { border: 1px solid var(--sn-border); border-radius: 10px; margin-bottom: 0.5rem; overflow: hidden; }
+body.sn-admin .ur-module header { display: flex; align-items: center; justify-content: space-between; padding: 0 0.75rem; background: #f8fafc; }
+body.sn-admin .ur-module-toggle { flex: 1; text-align: left; border: 0; background: none; padding: 0.6rem 0; font-weight: 700; cursor: pointer; }
+body.sn-admin .ur-module-toggle i { font-size: 0.7rem; margin-right: 0.35rem; transition: transform 0.15s; }
+body.sn-admin .ur-module.is-open .ur-module-toggle i { transform: rotate(90deg); }
+body.sn-admin .ur-count { font-weight: 500; font-size: 0.75rem; color: var(--sn-muted); margin-left: 0.4rem; }
+body.sn-admin .ur-rows { padding: 0.25rem 0.75rem; }
+body.sn-admin .ur-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 0.6rem; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+body.sn-admin .ur-row:last-child { border-bottom: 0; }
+body.sn-admin .ur-row input { width: 17px; height: 17px; margin: 0; }
+body.sn-admin .ur-label { font-size: 0.86rem; }
+body.sn-admin .ur-label small { display: block; color: var(--sn-muted); font-size: 0.74rem; }
+body.sn-admin .ur-risk { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.1rem 0.45rem; border-radius: 999px; }
+body.sn-admin .ur-risk-low { color: #166534; background: #dcfce7; }
+body.sn-admin .ur-risk-medium { color: #92400e; background: #fef3c7; }
+body.sn-admin .ur-risk-high { color: #b91c1c; background: #fee2e2; }
+body.sn-admin .ur-savebar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; background: #fff; padding-top: 0.75rem; margin-top: 0.5rem; border-top: 1px solid var(--sn-border); font-size: 0.85rem; }
+body.sn-admin .ur-table small { display: block; color: var(--sn-muted); font-size: 0.74rem; }
+body.sn-admin .ur-table small.ur-warn { color: #b45309; font-weight: 600; }
+body.sn-admin .ur-table select { min-width: 190px; }
+body.sn-admin .ur-inactive { opacity: 0.55; }
+body.sn-admin .ur-state { font-size: 0.72rem; font-weight: 700; color: var(--sn-muted); }
+body.sn-admin .ur-state.ur-on { color: #166534; }
+@media (max-width: 900px) {
+  body.sn-admin .ur-layout, body.sn-admin .ur-fields, body.sn-admin .ur-tools { grid-template-columns: minmax(0, 1fr); }
+}

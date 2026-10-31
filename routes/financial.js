@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requirePermission, staffHasRight } = require('../middleware/auth');
 const { applyWalletDelta } = require('../utils/walletBalance');
 const { checkDocumentUpdate, makerCheckerApplies } = require('../utils/financeControls');
 const { recordFinancialTransaction } = require('../utils/dbHelpers');
@@ -577,8 +577,17 @@ router.use(async (req, res, next) => {
     const path = req.path;
     let requiredPerm = null;
 
-    if (path.startsWith('/payment-vouchers')) requiredPerm = 'menu_financial_cpv';
-    else if (path.startsWith('/receipt-vouchers')) requiredPerm = 'menu_financial_crv';
+    // One table holds cash and bank vouchers, so the right follows the method.
+    const voucherRights = { '/payment-vouchers': ['menu_financial_cpv', 'menu_financial_bpv'], '/receipt-vouchers': ['menu_financial_crv', 'menu_financial_brv'] };
+    const voucherBase = Object.keys(voucherRights).find((base) => path.startsWith(base));
+    if (voucherBase) {
+        const [cashRight, bankRight] = voucherRights[voucherBase];
+        const method = req.method === 'GET' ? req.query.payment_method : (req.method === 'POST' ? req.body?.payment_method : null);
+        if (!method) requiredPerm = req.method === 'GET' ? [cashRight, bankRight] : [cashRight, bankRight];
+        else requiredPerm = method === 'cash' ? cashRight : bankRight;
+    }
+    else if (path.startsWith('/riders/')) requiredPerm = 'menu_financial_rider_cash';
+    else if (path === '/entities') requiredPerm = ['menu_financial_cpv', 'menu_financial_bpv', 'menu_financial_crv', 'menu_financial_brv', 'menu_financial_jnv', 'menu_financial_rider_cash', 'menu_financial_settlements', 'menu_financial_expenses', 'report_centre_riders', 'report_centre_stores', 'report_centre_sales', 'report_store_payments'];
     else if (path.startsWith('/store-settlements')) requiredPerm = 'menu_financial_settlements';
     else if (path.startsWith('/expenses')) requiredPerm = 'menu_financial_expenses';
     else if (path.startsWith('/rider-cash')) requiredPerm = 'menu_financial_rider_cash';
@@ -592,6 +601,20 @@ router.use(async (req, res, next) => {
         // permission; individual handlers (e.g. /reports/generate) narrow further.
         if (req.method === 'DELETE') {
             return res.status(403).json({ success: false, message: 'Admin access required' });
+        }
+        const pageRights = [
+            ['/reports/store-payments', ['report_store_payments']],
+            ['/reports/rider-statement', ['menu_report_riders', 'report_rider_cash', 'menu_financial_rider_cash']],
+            ['/reports/riders-detailed', ['menu_report_riders']],
+            ['/reports/stores-detailed', ['menu_report_stores']],
+            ['/reports/credit-stores-history', ['menu_report_store_payment_terms']],
+            ['/reports/cash-flow', ['menu_financial_dashboard']],
+            ['/reports/platform-summary', ['menu_financial_dashboard']],
+        ];
+        const page = pageRights.find(([prefix]) => path.startsWith(prefix));
+        if (page) {
+            if (req.user.user_type === 'standard_user' && await staffHasRight(req.db, req.user.id, page[1])) return next();
+            return res.status(403).json({ success: false, message: 'Admin access required or missing permission' });
         }
         try {
             const [rows] = await req.db.execute(
@@ -620,12 +643,7 @@ router.use(async (req, res, next) => {
     // whose numeric id collides with a staff user from inheriting their access.
     if (requiredPerm && req.user.user_type === 'standard_user') {
         try {
-            // Check DB for permission
-            const [rows] = await req.db.execute(
-                'SELECT 1 FROM user_permissions WHERE user_id = ? AND permission_key = ?',
-                [req.user.id, requiredPerm]
-            );
-            if (rows.length > 0) {
+            if (await staffHasRight(req.db, req.user.id, requiredPerm)) {
                 return next();
             }
         } catch (e) {
@@ -1193,7 +1211,7 @@ router.get('/payment-vouchers', async (req, res) => {
             if (payment_method === 'cash') {
                 whereClause += ' AND payment_method = \'cash\'';
             } else if (payment_method === 'bank') {
-                whereClause += ' AND (payment_method = \'bank_transfer\' OR payment_method = \'cheque\')';
+                whereClause += ' AND payment_method IN (\'bank_transfer\', \'check\')';
             }
         }
 
@@ -1287,7 +1305,9 @@ router.post('/payment-vouchers', [
             });
         }
 
-        const { payee_name, payee_type, payee_id, amount, purpose, description, payment_method, check_number, cheque_number, bank_details } = req.body;
+        const { payee_name, payee_id, amount, purpose, description, check_number, cheque_number, bank_details } = req.body;
+        const payee_type = voucherPartyType(req.body.payee_type, PAYEE_TYPES);
+        const payment_method = voucherMethod(req.body.payment_method);
         const voucher_number = generateVoucherNumber('CPV');
         const voucher_date = new Date().toISOString().split('T')[0];
 
@@ -1340,7 +1360,9 @@ router.put('/payment-vouchers/:id', [
         if (controlError) {
             return res.status(controlError.status).json({ success: false, message: controlError.message });
         }
-        const { payee_name, payee_type, payee_id, amount, status, description, payment_method, check_number, cheque_number } = req.body;
+        const { payee_name, payee_id, amount, status, description, check_number, cheque_number } = req.body;
+        const payee_type = req.body.payee_type ? voucherPartyType(req.body.payee_type, PAYEE_TYPES) : undefined;
+        const payment_method = voucherMethod(req.body.payment_method);
 
         // Get existing voucher data if we're moving voucher into an accounting-posted state
         let existingVoucher = null;
@@ -1457,44 +1479,12 @@ router.put('/payment-vouchers/:id', [
                     created_by: req.user.id
                 });
 
-                // If payee is a rider, record cash settlement/advance and update wallet (Debit)
+                // A rider's wallet is the cash they hold for the office, so paying a
+                // rider is an expense only (posted by the voucher journal).
                 const payeeType = payee_type || existingVoucher.payee_type;
                 const payeeId = payee_id !== undefined ? payee_id : existingVoucher.payee_id;
 
-                if (payeeType === 'rider' && payeeId) {
-                    const movement_number = generateVoucherNumber('RCM');
-                    const movement_date = new Date().toISOString().split('T')[0];
-                    const movementType = 'settlement'; // Using settlement for payments to riders
-
-                    const [existingMovement] = await req.db.execute(
-                        `SELECT id
-                         FROM rider_cash_movements
-                         WHERE reference_type = 'payment_voucher'
-                           AND reference_id = ?
-                           AND movement_type = 'settlement'
-                         LIMIT 1`,
-                        [existingVoucher.id]
-                    );
-                    if (!existingMovement.length) {
-                        const [movementResult] = await req.db.execute(
-                            `INSERT INTO rider_cash_movements 
-                             (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, status, approved_by, approved_at)
-                             VALUES (?, ?, ?, ?, ?, ?, 'payment_voucher', ?, ?, 'completed', ?, NOW())`,
-                            [movement_number, payeeId, movement_date, movementType, voucherAmount, `Cash payment via CPV ${voucherRef}`, existingVoucher.id, req.user.id, req.user.id]
-                        );
-
-                        // Debit rider wallet (reduce company liability / increase rider liability)
-                        await recordRiderWalletTransaction(
-                            req.db,
-                            payeeId,
-                            'debit',
-                            voucherAmount,
-                            `Cash payment via CPV ${voucherRef}`,
-                            movementResult.insertId,
-                            movementType
-                        );
-                    }
-                } else if (payeeType === 'store' && payeeId) {
+                if (payeeType === 'store' && payeeId) {
                     // Debit store wallet (reduce company liability)
                     await recordStoreWalletTransaction(
                         req.db,
@@ -1556,7 +1546,7 @@ router.get('/receipt-vouchers', async (req, res) => {
             if (payment_method === 'cash') {
                 whereClause += ' AND crv.payment_method = \'cash\'';
             } else if (payment_method === 'bank') {
-                whereClause += ' AND (crv.payment_method = \'bank_transfer\' OR crv.payment_method = \'cheque\')';
+                whereClause += ' AND crv.payment_method IN (\'bank_transfer\', \'check\')';
             }
         }
 
@@ -1612,7 +1602,9 @@ router.post('/receipt-vouchers', [
             });
         }
 
-        const { payer_name, payer_type, payer_id, amount, description, details, payment_method } = req.body;
+        const { payer_name, payer_id, amount, description, details } = req.body;
+        const payer_type = voucherPartyType(req.body.payer_type, PAYER_TYPES);
+        const payment_method = voucherMethod(req.body.payment_method);
         // Accept either cheque_number or check_number from client, normalize to one variable
         const cheque_number = req.body.cheque_number ?? req.body.check_number ?? null;
         const bank_details = req.body.bank_details ?? null;
@@ -1711,7 +1703,8 @@ router.put('/receipt-vouchers/:id', [
         if (controlError) {
             return res.status(controlError.status).json({ success: false, message: controlError.message });
         }
-        const { payer_name, payer_type, payer_id, amount, status, description } = req.body;
+        const { payer_name, payer_id, amount, status, description } = req.body;
+        const payer_type = req.body.payer_type ? voucherPartyType(req.body.payer_type, PAYER_TYPES) : undefined;
 
         // Get existing voucher data if we're marking it as received
         let existingVoucher = null;
@@ -1764,6 +1757,10 @@ router.put('/receipt-vouchers/:id', [
         if (description) {
             updates.push('description = ?');
             params.push(description);
+        }
+        if (req.body.payment_method) {
+            updates.push('payment_method = ?');
+            params.push(voucherMethod(req.body.payment_method));
         }
 
         if (updates.length === 0) {
@@ -2122,6 +2119,12 @@ async function ensureWalletCreditsForSubmissionOrders(db, riderId, movementId) {
         return { backfilledCount: 0, backfilledAmount: 0 };
     }
 }
+
+// The voucher tables store 'check', and have no 'customer' or 'bank' party type.
+const voucherMethod = (method) => (method === 'cheque' ? 'check' : method);
+const voucherPartyType = (type, allowed) => (allowed.includes(type) ? type : 'other');
+const PAYEE_TYPES = ['store', 'rider', 'vendor', 'employee', 'expense', 'other'];
+const PAYER_TYPES = ['customer', 'store', 'rider', 'vendor', 'employee', 'expense', 'other'];
 
 // A draft left for this long is usually a mistake, so approving one asks first.
 const OLD_DRAFT_DAYS = 30;
@@ -7327,7 +7330,7 @@ router.post('/journal-vouchers', [
     }
 });
 
-router.post('/journal-vouchers/:id/post', async (req, res) => {
+router.post('/journal-vouchers/:id/post', requirePermission('approve_jnv'), async (req, res) => {
     try {
         const { id } = req.params;
         const [vouchers] = await req.db.execute('SELECT * FROM journal_vouchers WHERE id = ?', [id]);
@@ -7412,7 +7415,7 @@ router.post('/journal-vouchers/:id/post', async (req, res) => {
     }
 });
 
-router.put('/journal-vouchers/:id/cancel', async (req, res) => {
+router.put('/journal-vouchers/:id/cancel', requirePermission('approve_jnv'), async (req, res) => {
     try {
         const { id } = req.params;
         const [vouchers] = await req.db.execute('SELECT status FROM journal_vouchers WHERE id = ?', [id]);
@@ -8669,16 +8672,29 @@ function storePaymentsIssuesOut(account, issues) {
 }
 
 // Reports Centre: the list of reports, then one report at a time
-router.get('/reports-centre', (req, res) => {
-    res.json({
-        success: true,
-        reports: REPORTS.map(({ key, group, title, filters, noDates }) => ({ key, group, title, filters, noDates: Boolean(noDates) }))
-    });
+const REPORT_GROUP_RIGHTS = {
+    Riders: 'report_centre_riders',
+    Stores: 'report_centre_stores',
+    Accounts: 'report_centre_accounts',
+    Control: 'report_centre_control',
+    Sales: 'report_centre_sales',
+};
+const canOpenReportGroup = (req, group) => req.user.user_type === 'admin' || staffHasRight(req.db, req.user.id, REPORT_GROUP_RIGHTS[group]);
+
+router.get('/reports-centre', async (req, res) => {
+    const reports = [];
+    for (const { key, group, title, filters, noDates } of REPORTS) {
+        if (await canOpenReportGroup(req, group)) reports.push({ key, group, title, filters, noDates: Boolean(noDates) });
+    }
+    res.json({ success: true, reports });
 });
 
 router.get('/reports-centre/:key', async (req, res) => {
     const report = REPORTS.find((r) => r.key === req.params.key);
     if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+    if (!(await canOpenReportGroup(req, report.group))) {
+        return res.status(403).json({ success: false, message: 'You do not have the right to open this report' });
+    }
     const validDate = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : null);
     const validId = (value) => (Number.isInteger(Number(value)) && Number(value) > 0 ? Number(value) : null);
     try {

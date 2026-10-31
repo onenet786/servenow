@@ -36,6 +36,31 @@ function closeModal(modalId) {
     if (isFiancialModal) formChangedState[modalId] = false;
 }
 
+// After a successful save: the form has nothing left to lose.
+function closeSavedModal(modalId) {
+    formChangedState[modalId] = false;
+    closeModal(modalId);
+}
+
+// The cheque number box only shows for cheques.
+function toggleChequeInput(selectId, containerId) {
+    const select = document.getElementById(selectId);
+    const container = document.getElementById(containerId);
+    if (select && container) container.style.display = select.value === 'cheque' ? 'block' : 'none';
+}
+
+// Blocks a second click while a save is on its way.
+async function saveOnce(formId, save) {
+    const button = document.querySelector(`#${formId} button[type="submit"]`);
+    if (button && button.disabled) return;
+    if (button) button.disabled = true;
+    try {
+        await save();
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
 function trackFormChanges(formId, modalId) {
     const form = document.getElementById(formId);
     if (!form) return;
@@ -226,7 +251,7 @@ async function submitJournalVoucher() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', 'Journal Voucher created as draft');
-            closeModal('journalVoucherModal');
+            closeSavedModal('journalVoucherModal');
             loadJournalVouchers();
         } else {
             showError('Error', data.message);
@@ -342,14 +367,14 @@ function initializeFinancialForms() {
     document.getElementById('paymentVoucherForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (typeof validateForm === 'function' && !validateForm('paymentVoucherForm')) return;
-        await submitPaymentVoucher();
+        await saveOnce('paymentVoucherForm', submitPaymentVoucher);
     });
     trackFormChanges('paymentVoucherForm', 'paymentVoucherModal');
     
     document.getElementById('receiptVoucherForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (typeof validateForm === 'function' && !validateForm('receiptVoucherForm')) return;
-        await submitReceiptVoucher();
+        await saveOnce('receiptVoucherForm', submitReceiptVoucher);
     });
     trackFormChanges('receiptVoucherForm', 'receiptVoucherModal');
     
@@ -865,6 +890,19 @@ function displayTransactions(transactions) {
     }
 }
 
+let currentBankPaymentVouchers = [];
+let currentBankReceiptVouchers = [];
+
+// A voucher can move between the cash and bank lists, so refresh both.
+function refreshPaymentVoucherLists() {
+    loadPaymentVouchers();
+    loadBankPaymentVouchers();
+}
+function refreshReceiptVoucherLists() {
+    loadReceiptVouchers();
+    loadBankReceiptVouchers();
+}
+
 async function loadPaymentVouchers() {
     try {
         const status = document.getElementById('paymentVoucherStatusFilter')?.value || '';
@@ -900,7 +938,8 @@ async function loadBankPaymentVouchers() {
         const data = await response.json();
 
         if (data.success) {
-            displayBankPaymentVouchers(data.vouchers || []);
+            currentBankPaymentVouchers = data.vouchers || [];
+            displayBankPaymentVouchers(currentBankPaymentVouchers);
         }
     } catch (error) {
         console.error('Error loading bank payment vouchers:', error);
@@ -1000,7 +1039,8 @@ async function loadBankReceiptVouchers() {
         const data = await response.json();
 
         if (data.success) {
-            displayBankReceiptVouchers(data.vouchers || []);
+            currentBankReceiptVouchers = data.vouchers || [];
+            displayBankReceiptVouchers(currentBankReceiptVouchers);
         }
     } catch (error) {
         console.error('Error loading bank receipt vouchers:', error);
@@ -1783,15 +1823,17 @@ async function payStoreSettlement(id) {
 function createPaymentVoucher() {
     const form = document.getElementById('paymentVoucherForm');
     if (form) form.reset();
+    document.getElementById('payeeType').dispatchEvent(new Event('change'));
     const idInput = document.getElementById('paymentVoucherId');
     if (idInput) idInput.value = '';
     
     // Set default payment method to cash for CPV
     const methodSelect = document.getElementById('paymentMethodPV');
     if (methodSelect) methodSelect.value = 'cash';
+    toggleChequeInput('paymentMethodPV', 'paymentChequeContainerPV');
 
     document.querySelector('#paymentVoucherModal h2').textContent = 'Create Cash Payment Voucher (CPV)';
-    document.querySelector('#paymentVoucherModal .btn-primary').textContent = 'Create Voucher';
+    document.querySelector('#paymentVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
     formChangedState['paymentVoucherModal'] = false;
     openModal('paymentVoucherModal');
@@ -1800,15 +1842,17 @@ function createPaymentVoucher() {
 function createBankPaymentVoucher() {
     const form = document.getElementById('paymentVoucherForm');
     if (form) form.reset();
+    document.getElementById('payeeType').dispatchEvent(new Event('change'));
     const idInput = document.getElementById('paymentVoucherId');
     if (idInput) idInput.value = '';
     
     // Set default payment method to bank_transfer for BPV
     const methodSelect = document.getElementById('paymentMethodPV');
     if (methodSelect) methodSelect.value = 'bank_transfer';
+    toggleChequeInput('paymentMethodPV', 'paymentChequeContainerPV');
 
     document.querySelector('#paymentVoucherModal h2').textContent = 'Create Bank Payment Voucher (BPV)';
-    document.querySelector('#paymentVoucherModal .btn-primary').textContent = 'Create Voucher';
+    document.querySelector('#paymentVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
     formChangedState['paymentVoucherModal'] = false;
     openModal('paymentVoucherModal');
@@ -1852,8 +1896,8 @@ async function submitPaymentVoucher() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', id ? 'Payment voucher updated' : 'Payment voucher created successfully');
-            closeModal('paymentVoucherModal');
-            loadPaymentVouchers();
+            closeSavedModal('paymentVoucherModal');
+            refreshPaymentVoucherLists();
         } else {
             showError('Error', data.message);
         }
@@ -1864,13 +1908,14 @@ async function submitPaymentVoucher() {
 }
 
 async function editPaymentVoucher(id) {
-    const voucher = currentPaymentVouchers.find(v => v.id === id);
+    const voucher = [...currentPaymentVouchers, ...currentBankPaymentVouchers].find(v => v.id === id);
     if (!voucher) return;
 
     document.getElementById('paymentVoucherId').value = voucher.id;
     document.getElementById('paymentAmount').value = voucher.amount;
     document.getElementById('paymentPurpose').value = voucher.purpose || '';
-    document.getElementById('paymentMethodPV').value = voucher.payment_method;
+    document.getElementById('paymentMethodPV').value = voucher.payment_method === 'check' ? 'cheque' : voucher.payment_method;
+    toggleChequeInput('paymentMethodPV', 'paymentChequeContainerPV');
     
     // Populate cheque number if applicable
     const chequeInput = document.getElementById('paymentChequeNoPV');
@@ -1907,8 +1952,8 @@ async function editPaymentVoucher(id) {
         nameInput.value = voucher.payee_name;
     }
 
-    document.querySelector('#paymentVoucherModal h2').textContent = 'Edit Payment Voucher';
-    document.querySelector('#paymentVoucherModal .btn-primary').textContent = 'Update Voucher';
+    document.querySelector('#paymentVoucherModal h2').textContent = voucher.payment_method === 'cash' ? 'Edit Cash Payment Voucher' : 'Edit Bank Payment Voucher';
+    document.querySelector('#paymentVoucherModal button[type="submit"]').textContent = 'Update Voucher';
 
     formChangedState['paymentVoucherModal'] = false;
     openModal('paymentVoucherModal');
@@ -1917,15 +1962,17 @@ async function editPaymentVoucher(id) {
 function createReceiptVoucher() {
     const form = document.getElementById('receiptVoucherForm');
     if (form) form.reset();
+    document.getElementById('payerType').dispatchEvent(new Event('change'));
     const idInput = document.getElementById('receiptVoucherId');
     if (idInput) idInput.value = '';
     
     // Set default payment method to cash for CRV
     const methodSelect = document.getElementById('paymentMethodRV');
     if (methodSelect) methodSelect.value = 'cash';
+    toggleChequeInput('paymentMethodRV', 'paymentChequeContainerRV');
 
     document.querySelector('#receiptVoucherModal h2').textContent = 'Create Cash Receipt Voucher (CRV)';
-    document.querySelector('#receiptVoucherModal .btn-primary').textContent = 'Create Voucher';
+    document.querySelector('#receiptVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
     formChangedState['receiptVoucherModal'] = false;
     openModal('receiptVoucherModal');
@@ -1934,15 +1981,17 @@ function createReceiptVoucher() {
 function createBankReceiptVoucher() {
     const form = document.getElementById('receiptVoucherForm');
     if (form) form.reset();
+    document.getElementById('payerType').dispatchEvent(new Event('change'));
     const idInput = document.getElementById('receiptVoucherId');
     if (idInput) idInput.value = '';
     
     // Set default payment method to bank_transfer for BRV
     const methodSelect = document.getElementById('paymentMethodRV');
     if (methodSelect) methodSelect.value = 'bank_transfer';
+    toggleChequeInput('paymentMethodRV', 'paymentChequeContainerRV');
 
     document.querySelector('#receiptVoucherModal h2').textContent = 'Create Bank Receive Voucher (BRV)';
-    document.querySelector('#receiptVoucherModal .btn-primary').textContent = 'Create Voucher';
+    document.querySelector('#receiptVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
     formChangedState['receiptVoucherModal'] = false;
     openModal('receiptVoucherModal');
@@ -1985,8 +2034,8 @@ async function submitReceiptVoucher() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', id ? 'Receipt voucher updated' : 'Receipt voucher created successfully');
-            closeModal('receiptVoucherModal');
-            loadReceiptVouchers();
+            closeSavedModal('receiptVoucherModal');
+            refreshReceiptVoucherLists();
         } else {
             showError('Error', data.message);
         }
@@ -1997,13 +2046,14 @@ async function submitReceiptVoucher() {
 }
 
 async function editReceiptVoucher(id) {
-    const voucher = currentReceiptVouchers.find(v => v.id === id);
+    const voucher = [...currentReceiptVouchers, ...currentBankReceiptVouchers].find(v => v.id === id);
     if (!voucher) return;
 
     document.getElementById('receiptVoucherId').value = voucher.id;
     document.getElementById('receiptAmount').value = voucher.amount;
     document.getElementById('receiptDescription').value = voucher.description || '';
-    document.getElementById('paymentMethodRV').value = voucher.payment_method;
+    document.getElementById('paymentMethodRV').value = voucher.payment_method === 'check' ? 'cheque' : voucher.payment_method;
+    toggleChequeInput('paymentMethodRV', 'paymentChequeContainerRV');
     
     const payerType = document.getElementById('payerType');
     payerType.value = voucher.payer_type;
@@ -2030,7 +2080,7 @@ async function editReceiptVoucher(id) {
     }
 
     document.querySelector('#receiptVoucherModal h2').textContent = 'Edit Receipt Voucher';
-    document.querySelector('#receiptVoucherModal .btn-primary').textContent = 'Update Voucher';
+    document.querySelector('#receiptVoucherModal button[type="submit"]').textContent = 'Update Voucher';
 
     formChangedState['receiptVoucherModal'] = false;
     openModal('receiptVoucherModal');
@@ -2096,7 +2146,7 @@ async function createRiderCash() {
     document.getElementById('riderCashId').value = '';
     formChangedState['riderCashModal'] = false;
     document.querySelector('#riderCashModal h2').textContent = 'Record Rider Cash Movement';
-    document.querySelector('#riderCashModal .btn-primary').textContent = 'Record Movement';
+    document.querySelector('#riderCashModal button[type="submit"]').textContent = 'Record Movement';
     await populateRidersDropdown();
     const typeSelect = document.getElementById('movementType');
     if (typeSelect) {
@@ -2487,7 +2537,7 @@ async function submitRiderCash() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', id ? (data.message || 'Rider cash movement updated') : 'Cash movement recorded successfully');
-            closeModal('riderCashModal');
+            closeSavedModal('riderCashModal');
             loadRiderCash();
         } else {
             const errorMsg = data.error && data.error !== data.message
@@ -2603,7 +2653,7 @@ async function submitStoreSettlement() {
 
         if (successCount > 0) {
             showSuccess('Success', `${successCount} settlement${successCount === 1 ? '' : 's'} created successfully`);
-            closeModal('storeSettlementModal');
+            closeSavedModal('storeSettlementModal');
             loadStoreSettlements();
         }
         if (failures.length > 0) {
@@ -2660,7 +2710,7 @@ async function submitStoreSettlement() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', id ? 'Settlement updated' : 'Settlement created successfully');
-            closeModal('storeSettlementModal');
+            closeSavedModal('storeSettlementModal');
             loadStoreSettlements();
         } else {
             showError('Error', data.message);
@@ -2741,7 +2791,7 @@ async function submitExpense() {
         const data = await response.json();
         if (data.success) {
             showSuccess('Success', id ? 'Expense updated' : 'Expense recorded successfully');
-            closeModal('expenseModal');
+            closeSavedModal('expenseModal');
             loadExpenses();
         } else {
             showError('Error', data.message);
@@ -2788,7 +2838,7 @@ async function approvePaymentVoucher(id, confirmOld = false) {
         }
         if (data.success) {
             showSuccess('Success', 'Payment voucher approved');
-            loadPaymentVouchers();
+            refreshPaymentVoucherLists();
         } else {
             showError('Error', data.message);
         }
@@ -2816,7 +2866,7 @@ async function approveReceiptVoucher(id, confirmOld = false) {
         }
         if (data.success) {
             showSuccess('Success', 'Receipt voucher marked as received');
-            loadReceiptVouchers();
+            refreshReceiptVoucherLists();
         } else {
             showError('Error', data.message);
         }
@@ -5260,7 +5310,7 @@ async function editRiderCash(id) {
     document.getElementById('riderCashDescription').value = movement.description || '';
 
     document.querySelector('#riderCashModal h2').textContent = 'Edit Rider Cash Movement';
-    document.querySelector('#riderCashModal .btn-primary').textContent = 'Update Movement';
+    document.querySelector('#riderCashModal button[type="submit"]').textContent = 'Update Movement';
 
     formChangedState['riderCashModal'] = false;
     await populateRidersDropdown();

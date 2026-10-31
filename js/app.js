@@ -2127,8 +2127,11 @@ function hideVerificationModal() {
   }
 }
 // Form validation
-function validateForm(formId) {
-  const form = document.getElementById(formId);
+function validateForm(formOrId) {
+  const form =
+    formOrId instanceof HTMLFormElement
+      ? formOrId
+      : document.getElementById(formOrId);
   if (!form) return false;
 
   const inputs = form.querySelectorAll(
@@ -2510,7 +2513,7 @@ document.addEventListener("DOMContentLoaded", function () {
   );
   otherForms.forEach((form) => {
     form.addEventListener("submit", function (e) {
-      if (!validateForm(form.id)) {
+      if (!validateForm(form)) {
         e.preventDefault();
         showWarning("Incomplete Form", "Please fill in all required fields.");
       }

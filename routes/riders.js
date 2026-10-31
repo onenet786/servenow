@@ -2,7 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { authenticateToken, requireAdmin, requireDispatchAccess } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireDispatchAccess, requirePermission } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -564,7 +564,7 @@ router.get('/fuel-history', authenticateToken, requireAdmin, async (req, res) =>
 });
 
 // List fuel history for a single rider
-router.get('/:id/fuel-history', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/:id/fuel-history', authenticateToken, requirePermission('action_manage_fuel'), async (req, res) => {
     try {
         const { id } = req.params;
         // Ensure the table exists
@@ -594,7 +594,7 @@ router.get('/:id/fuel-history', authenticateToken, requireAdmin, async (req, res
 });
 
 // Create a fuel history entry for a rider
-router.post('/:id/fuel-history', authenticateToken, requireAdmin, [
+router.post('/:id/fuel-history', authenticateToken, requirePermission('action_manage_fuel'), [
     body('entryDate').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('entryDate must be a valid date'),
     body('startMeter').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 64 }).withMessage('startMeter must be a short string'),
     body('endMeter').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 64 }).withMessage('endMeter must be a short string'),

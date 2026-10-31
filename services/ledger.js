@@ -374,7 +374,7 @@ async function buildDocumentJournals(db) {
     if (v.payee_type === 'store' && v.payee_id) debit = line('2000', cents, 'store', v.payee_id, memo);
     // Bulk payment to stores without a store named: reduces store payables, unallocated
     else if (/store purchase/i.test(memo)) debit = line('2000', cents, null, null, `Unallocated: ${memo}`);
-    else if (v.payee_type === 'rider') debit = line('5100', cents, 'rider', v.payee_id, memo);
+    else if (v.payee_type === 'rider') debit = line(/fuel|petrol/i.test(memo) ? '5400' : '5100', cents, 'rider', v.payee_id, memo);
     else debit = line(expenseAccount(memo), cents, null, null, memo);
     journals.push({
       key: `payment_voucher:${v.id}`, date: v.journal_date, description: `Payment voucher ${v.voucher_number}`,

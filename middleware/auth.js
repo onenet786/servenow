@@ -213,7 +213,32 @@ const requirePermission = (permissionKey) => {
     };
 };
 
+async function staffHasRight(db, userId, keys) {
+    const list = [].concat(keys);
+    const [rows] = await db.execute(
+        `SELECT 1 FROM user_permissions WHERE user_id = ? AND permission_key IN (${list.map(() => '?').join(',')}) LIMIT 1`,
+        [userId, ...list]
+    );
+    return rows.length > 0;
+}
+
+// Staff logins must hold the right. Admins pass, and other account types fall
+// through to the route's own ownership checks (a rider on their order, a store
+// owner on their products).
+const requireStaffRight = (keys) => async (req, res, next) => {
+    if (req.user.user_type !== 'standard_user') return next();
+    try {
+        if (await staffHasRight(req.db, req.user.id, keys)) return next();
+    } catch (e) {
+        console.error('Permission check error:', e);
+        return res.status(500).json({ success: false, message: 'Permission check failed' });
+    }
+    return res.status(403).json({ success: false, message: 'You do not have the right to do this' });
+};
+
 module.exports = {
+    staffHasRight,
+    requireStaffRight,
     authenticateToken,
     requireAdmin,
     requireStoreOwner,

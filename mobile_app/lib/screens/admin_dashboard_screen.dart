@@ -3516,7 +3516,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final deliveredSales = _dailySalesSummary['delivered_sales'];
     final deliveryFees = _dailySalesSummary['delivery_fees'];
     final riderCash = _dailySalesSummary['rider_cash'];
-    final cashSales = _dailySalesSummary['cash_sales'];
+    final cashPurchase = _dailySalesSummary['cash_purchase'];
     final totalStoreCredit =
         _dailySalesSummary['total_store_credit'] ??
         _dailySalesSummary['store_credit'] ??
@@ -3639,7 +3639,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ('Delivered', _formatPkr(deliveredSales)),
             ('Rider cash', _formatPkr(riderCash)),
             ('Delivery fee', _formatPkr(deliveryFees)),
-            ('Cash sale', _formatPkr(cashSales)),
+            ('Cash purchase', _formatPkr(cashPurchase)),
             ('Total store credit', _formatPkr(totalStoreCredit)),
           ]),
           if (riderRows.isNotEmpty) ...[

@@ -5,6 +5,7 @@
 //  - financial fields are read-only once a document is approved/posted;
 //    corrections go through a reversing journal voucher
 //  - maker-checker: the person who prepared a document cannot approve or pay it
+//  - approving needs its own right: creating a document never includes approving it
 //
 // Maker-checker always applies to staff. It applies to admins too when
 // FINANCE_STRICT_MAKER_CHECKER=true (turn on once two people handle finance).
@@ -87,6 +88,15 @@ const DOCUMENTS = {
   },
 };
 
+const isCash = (doc) => String(doc.payment_method || 'cash').toLowerCase() === 'cash';
+const APPROVE_RIGHTS = {
+  payment_voucher: { statuses: ['approved', 'paid'], right: (doc) => (isCash(doc) ? 'approve_cpv' : 'approve_bpv') },
+  receipt_voucher: { statuses: ['approved', 'received'], right: (doc) => (isCash(doc) ? 'approve_crv' : 'approve_brv') },
+  rider_cash: { statuses: ['approved', 'completed'], right: () => 'approve_rider_cash' },
+  settlement: { statuses: ['approved', 'paid'], right: () => 'approve_settlements' },
+  expense: { statuses: ['approved', 'paid'], right: () => 'approve_expenses' },
+};
+
 function makerCheckerApplies(user) {
   return user.user_type !== 'admin' || process.env.FINANCE_STRICT_MAKER_CHECKER === 'true';
 }
@@ -130,6 +140,15 @@ async function checkDocumentUpdate(db, user, docType, id, body) {
           message: `${field} cannot be changed once the ${cfg.label.toLowerCase()} is ${current}; correct it with a journal voucher`,
         };
       }
+    }
+  }
+
+  const approval = APPROVE_RIGHTS[docType];
+  if (target && target !== current && approval && approval.statuses.includes(target) && user.user_type === 'standard_user') {
+    const key = approval.right(doc);
+    const [held] = await db.execute('SELECT 1 FROM user_permissions WHERE user_id = ? AND permission_key = ?', [user.id, key]);
+    if (!held.length) {
+      return { status: 403, message: `You do not have the right to approve this ${cfg.label.toLowerCase()}` };
     }
   }
 

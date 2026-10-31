@@ -163,6 +163,8 @@ async function ensureManualOrderItemCostColumn(db) {
 // Helper to check specific permissions for non-admin staff
 async function hasPermission(req, permissionKey) {
     if (req.user.user_type === 'admin') return true;
+    // Permissions are only ever granted to staff logins
+    if (req.user.user_type !== 'standard_user') return false;
     try {
         const [rows] = await req.db.execute(
             'SELECT 1 FROM user_permissions WHERE user_id = ? AND permission_key = ?',
@@ -536,6 +538,15 @@ router.get(
         LIMIT 8
       `, [targetDate]);
 
+      // What riders really paid cash stores at pickup for this day's orders.
+      const [cashPurchaseRows] = await req.db.execute(`
+        SELECT COALESCE(SUM(rsp.amount), 0) AS cash_purchase
+        FROM rider_store_payments rsp
+        JOIN orders o ON o.id = rsp.order_id
+        WHERE DATE(o.created_at) = ?
+          AND LOWER(TRIM(COALESCE(o.status, ''))) <> 'cancelled'
+      `, [targetDate]);
+
       const summary = summaryRows[0] || {};
       const money = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -549,6 +560,7 @@ router.get(
           delivered_sales: money(summary.delivered_sales),
           delivery_fees: money(summary.delivery_fees),
           cash_sales: money(summary.cash_sales),
+          cash_purchase: money(cashPurchaseRows[0]?.cash_purchase),
           digital_sales: money(summary.digital_sales),
           total_store_credit: money(totalStoreCredit),
           store_credit: money(totalStoreCredit),

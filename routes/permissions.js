@@ -1,6 +1,93 @@
 const express = require('express');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { RIGHTS, MODULES, ADMIN_ONLY, TEMPLATES, unknownRights, highRisk } = require('../utils/rightsCatalog');
 const router = express.Router();
+
+// Rights changes are recorded and never edited.
+async function ensureRightsAudit(db) {
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS rights_audit_log (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            actor_id INT NULL,
+            actor_name VARCHAR(160) NULL,
+            action VARCHAR(40) NOT NULL,
+            target_type VARCHAR(20) NOT NULL,
+            target_id INT NULL,
+            target_name VARCHAR(160) NULL,
+            added TEXT NULL,
+            removed TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_rights_audit_created (created_at)
+        )
+    `);
+}
+
+async function recordRightsChange(req, { action, targetType, targetId = null, targetName = null, added = [], removed = [] }) {
+    try {
+        await ensureRightsAudit(req.db);
+        const actor = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || req.user.email || null;
+        await req.db.execute(
+            `INSERT INTO rights_audit_log (actor_id, actor_name, action, target_type, target_id, target_name, added, removed)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [req.user.id, actor, action, targetType, targetId, targetName, added.join(', ') || null, removed.join(', ') || null]
+        );
+    } catch (err) {
+        console.error('Rights audit write failed:', err);
+    }
+}
+
+// Only staff logins can hold rights: customers and store owners never do.
+async function findStaffUser(db, id) {
+    const [rows] = await db.execute(
+        "SELECT id, first_name, last_name, email FROM users WHERE id = ? AND user_type = 'standard_user'",
+        [id]
+    );
+    return rows[0] || null;
+}
+
+const staffName = (user) => `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+
+// Bad keys are refused; newly added high-risk rights must be confirmed by the caller.
+function checkRightsRequest(res, permissions, previous, confirmed) {
+    if (!Array.isArray(permissions)) {
+        res.status(400).json({ success: false, message: 'Permissions must be an array' });
+        return false;
+    }
+    const unknown = unknownRights(permissions);
+    if (unknown.length) {
+        res.status(400).json({ success: false, message: `Unknown rights: ${unknown.join(', ')}` });
+        return false;
+    }
+    const newHighRisk = highRisk(permissions.filter((key) => !previous.includes(key)));
+    if (newHighRisk.length && confirmed !== true) {
+        res.status(409).json({
+            success: false,
+            needs_confirmation: true,
+            message: 'These high-risk rights need confirming',
+            rights: newHighRisk.map((r) => r.label),
+        });
+        return false;
+    }
+    return true;
+}
+
+router.get('/catalog', authenticateToken, requireAdmin, (req, res) => {
+    res.json({ success: true, rights: RIGHTS, modules: MODULES, admin_only: ADMIN_ONLY, templates: TEMPLATES });
+});
+
+router.get('/audit', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        await ensureRightsAudit(req.db);
+        const [rows] = await req.db.query(
+            `SELECT id, actor_name, action, target_type, target_name, added, removed, created_at
+             FROM rights_audit_log ORDER BY id DESC LIMIT 300`
+        );
+        res.json({ success: true, entries: rows });
+    } catch (error) {
+        console.error('Error loading rights audit:', error);
+        res.status(500).json({ success: false, message: 'Failed to load the rights log' });
+    }
+});
 
 // Ensure permissions table exists
 async function ensurePermissionsTable(db) {
@@ -114,10 +201,11 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
     try {
         await ensurePermissionGroupTables(req.db);
         const [users] = await req.db.execute(`
-            SELECT id, first_name, last_name, email, user_type, phone 
-            FROM users 
-            WHERE user_type = 'standard_user'
-            ORDER BY first_name ASC
+            SELECT u.id, u.first_name, u.last_name, u.email, u.user_type, u.phone, u.is_active,
+                   (SELECT COUNT(*) FROM user_permissions p WHERE p.user_id = u.id) AS rights_count
+            FROM users u
+            WHERE u.user_type = 'standard_user'
+            ORDER BY u.is_active DESC, u.first_name ASC
         `);
         const userIds = users.map((u) => u.id);
         let groupMap = new Map();
@@ -196,6 +284,12 @@ router.post('/user/:id/group', authenticateToken, requireAdmin, async (req, res)
         if (groupId && !Number.isInteger(groupId)) {
             return res.status(400).json({ success: false, message: 'Invalid group_id' });
         }
+        const staff = await findStaffUser(req.db, id);
+        if (!staff) {
+            return res.status(404).json({ success: false, message: 'Rights can only be given to staff accounts' });
+        }
+        const [currentRows] = await req.db.execute('SELECT permission_key FROM user_permissions WHERE user_id = ?', [id]);
+        const previous = currentRows.map((r) => r.permission_key);
 
         let groupPermissions = [];
         if (groupId) {
@@ -207,6 +301,15 @@ router.post('/user/:id/group', authenticateToken, requireAdmin, async (req, res)
                 return res.status(404).json({ success: false, message: 'Group not found' });
             }
             groupPermissions = await getGroupPermissions(req.db, groupId);
+            const newHighRisk = highRisk(groupPermissions.filter((key) => !previous.includes(key)));
+            if (newHighRisk.length && req.body?.confirm_high_risk !== true) {
+                return res.status(409).json({
+                    success: false,
+                    needs_confirmation: true,
+                    message: 'This group gives high-risk rights',
+                    rights: newHighRisk.map((r) => r.label),
+                });
+            }
         }
 
         const connection = await req.db.getConnection();
@@ -241,6 +344,14 @@ router.post('/user/:id/group', authenticateToken, requireAdmin, async (req, res)
             connection.release();
         }
 
+        await recordRightsChange(req, {
+            action: groupId ? 'assign_group' : 'remove_group',
+            targetType: 'user',
+            targetId: Number(id),
+            targetName: staffName(staff),
+            added: groupPermissions.filter((key) => !previous.includes(key)),
+            removed: previous.filter((key) => !groupPermissions.includes(key)),
+        });
         res.json({ success: true, message: 'User group updated successfully' });
     } catch (error) {
         console.error('Error updating user group:', error);
@@ -253,13 +364,16 @@ router.post('/user/:id', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { permissions } = req.body; // Array of permission keys
-        
-        if (!Array.isArray(permissions)) {
-            return res.status(400).json({ success: false, message: 'Permissions must be an array' });
-        }
 
         await ensurePermissionsTable(req.db);
-        
+        const staff = await findStaffUser(req.db, id);
+        if (!staff) {
+            return res.status(404).json({ success: false, message: 'Rights can only be given to staff accounts' });
+        }
+        const [currentRows] = await req.db.execute('SELECT permission_key FROM user_permissions WHERE user_id = ?', [id]);
+        const previous = currentRows.map((r) => r.permission_key);
+        if (!checkRightsRequest(res, permissions, previous, req.body?.confirm_high_risk)) return;
+
         const connection = await req.db.getConnection();
         try {
             await connection.beginTransaction();
@@ -282,6 +396,14 @@ router.post('/user/:id', authenticateToken, requireAdmin, async (req, res) => {
             }
             
             await connection.commit();
+            await recordRightsChange(req, {
+                action: 'set_user_rights',
+                targetType: 'user',
+                targetId: Number(id),
+                targetName: staffName(staff),
+                added: permissions.filter((key) => !previous.includes(key)),
+                removed: previous.filter((key) => !permissions.includes(key)),
+            });
             res.json({ success: true, message: 'Permissions updated successfully' });
         } catch (err) {
             await connection.rollback();
@@ -329,6 +451,7 @@ router.post('/groups', authenticateToken, requireAdmin, async (req, res) => {
             "INSERT INTO permission_groups (name, description) VALUES (?, ?)",
             [name, description || null]
         );
+        await recordRightsChange(req, { action: 'create_group', targetType: 'group', targetId: result.insertId, targetName: name });
         res.json({ success: true, group_id: result.insertId });
     } catch (error) {
         if (error && error.code === 'ER_DUP_ENTRY') {
@@ -355,6 +478,7 @@ router.put('/groups/:id', authenticateToken, requireAdmin, async (req, res) => {
         if (!result.affectedRows) {
             return res.status(404).json({ success: false, message: 'Group not found' });
         }
+        await recordRightsChange(req, { action: 'rename_group', targetType: 'group', targetId: Number(id), targetName: name });
         res.json({ success: true, message: 'Group updated successfully' });
     } catch (error) {
         if (error && error.code === 'ER_DUP_ENTRY') {
@@ -371,25 +495,19 @@ router.delete('/groups/:id', authenticateToken, requireAdmin, async (req, res) =
         await ensurePermissionsTable(req.db);
         await ensurePermissionGroupTables(req.db);
         const [members] = await req.db.execute(
-            "SELECT user_id FROM user_permission_groups WHERE group_id = ?",
+            "SELECT COUNT(*) AS n FROM user_permission_groups WHERE group_id = ?",
             [id]
         );
-        const userIds = members
-            .map((m) => Number.parseInt(m.user_id, 10))
-            .filter((v) => Number.isInteger(v) && v > 0);
+        if (Number(members[0]?.n || 0) > 0) {
+            return res.status(409).json({ success: false, message: 'Move everyone out of this group before deleting it' });
+        }
 
+        const [groupRows] = await req.db.execute('SELECT name FROM permission_groups WHERE id = ?', [id]);
         const [result] = await req.db.execute("DELETE FROM permission_groups WHERE id = ?", [id]);
         if (!result.affectedRows) {
             return res.status(404).json({ success: false, message: 'Group not found' });
         }
-
-        if (userIds.length) {
-            const placeholders = userIds.map(() => "?").join(",");
-            await req.db.execute(
-                `DELETE FROM user_permissions WHERE user_id IN (${placeholders})`,
-                userIds
-            );
-        }
+        await recordRightsChange(req, { action: 'delete_group', targetType: 'group', targetId: Number(id), targetName: groupRows[0]?.name || null });
 
         res.json({ success: true, message: 'Group deleted successfully' });
     } catch (error) {
@@ -414,11 +532,15 @@ router.post('/group/:id/permissions', authenticateToken, requireAdmin, async (re
     try {
         const { id } = req.params;
         const { permissions } = req.body;
-        if (!Array.isArray(permissions)) {
-            return res.status(400).json({ success: false, message: 'Permissions must be an array' });
-        }
         await ensurePermissionsTable(req.db);
         await ensurePermissionGroupTables(req.db);
+
+        const [groupRows] = await req.db.execute('SELECT name FROM permission_groups WHERE id = ?', [id]);
+        if (!groupRows.length) {
+            return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+        const previous = await getGroupPermissions(req.db, id);
+        if (!checkRightsRequest(res, permissions, previous, req.body?.confirm_high_risk)) return;
 
         const connection = await req.db.getConnection();
         try {
@@ -447,6 +569,14 @@ router.post('/group/:id/permissions', authenticateToken, requireAdmin, async (re
         }
 
         await syncGroupMembersPermissions(req.db, id, permissions);
+        await recordRightsChange(req, {
+            action: 'set_group_rights',
+            targetType: 'group',
+            targetId: Number(id),
+            targetName: groupRows[0].name,
+            added: permissions.filter((key) => !previous.includes(key)),
+            removed: previous.filter((key) => !permissions.includes(key)),
+        });
         res.json({ success: true, message: 'Group permissions updated successfully' });
     } catch (error) {
         console.error('Error updating group permissions:', error);
@@ -460,6 +590,9 @@ router.get('/my-permissions', authenticateToken, async (req, res) => {
         // Admins have all permissions implicitly, but we return a special flag or list
         if (req.user.user_type === 'admin') {
             return res.json({ success: true, isAdmin: true, permissions: ['*'] });
+        }
+        if (req.user.user_type !== 'standard_user') {
+            return res.json({ success: true, permissions: [] });
         }
 
         await ensurePermissionsTable(req.db);

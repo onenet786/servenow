@@ -159,10 +159,9 @@ class AdminRiderTracker extends StatelessWidget {
                   bottom: AppSpace.xl,
                   child: SafeArea(
                     top: false,
-                    child: _RiderInfoCard(
+                    child: _CollapsibleRiderCard(
                       rider: selected,
                       onOpenOrder: onOpenOrder,
-                      floating: true,
                     ),
                   ),
                 ),
@@ -222,6 +221,35 @@ class _RiderSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Two riders fit side by side, so neither is cut off at the screen edge.
+    if (riders.length == 2) {
+      return AgoTicker(
+        builder: (context, now) => SizedBox(
+          height: 64,
+          child: Row(
+            children: [
+              _SelectorButton(
+                count: riders.length,
+                onTap: () => _openSheet(context),
+              ),
+              for (final rider in riders) ...[
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: _RiderChip(
+                    rider: rider,
+                    selected: rider.id == selectedId,
+                    now: now,
+                    fill: true,
+                    onTap: () => onSelect(rider.id),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
     return AgoTicker(
       builder: (context, now) => SizedBox(
         height: 64,
@@ -305,12 +333,16 @@ class _RiderChip extends StatelessWidget {
     required this.selected,
     required this.now,
     required this.onTap,
+    this.fill = false,
   });
 
   final TrackedRider rider;
   final bool selected;
   final DateTime now;
   final VoidCallback onTap;
+
+  /// Takes the width it is given, for the side-by-side layout.
+  final bool fill;
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +357,9 @@ class _RiderChip extends StatelessWidget {
       excludeSemantics: true,
       child: AnimatedContainer(
         duration: AppMotion.fast,
-        constraints: const BoxConstraints(minWidth: 150, maxWidth: 210),
+        constraints: fill
+            ? const BoxConstraints()
+            : const BoxConstraints(minWidth: 150, maxWidth: 210),
         decoration: BoxDecoration(
           color: selected ? AppColors.tint50 : AppColors.surface,
           borderRadius: AppRadius.controlAll,
@@ -509,6 +543,102 @@ class _RiderSearchSheetState extends State<_RiderSearchSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Floating card on the full map. Minimized it shrinks to one line so the map
+/// is clear, and stays minimized while switching riders.
+class _CollapsibleRiderCard extends StatefulWidget {
+  const _CollapsibleRiderCard({required this.rider, required this.onOpenOrder});
+
+  final TrackedRider rider;
+  final ValueChanged<TrackedOrder> onOpenOrder;
+
+  @override
+  State<_CollapsibleRiderCard> createState() => _CollapsibleRiderCardState();
+}
+
+class _CollapsibleRiderCardState extends State<_CollapsibleRiderCard> {
+  bool _minimized = false;
+
+  void _toggle() => setState(() => _minimized = !_minimized);
+
+  @override
+  Widget build(BuildContext context) {
+    final rider = widget.rider;
+    return AnimatedSize(
+      duration: AppMotion.fast,
+      alignment: Alignment.bottomCenter,
+      child: _minimized
+          ? Semantics(
+              button: true,
+              label: 'Show details for ${rider.name}',
+              excludeSemantics: true,
+              child: Material(
+                color: AppColors.surface,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.controlAll,
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                child: InkWell(
+                  onTap: _toggle,
+                  borderRadius: AppRadius.controlAll,
+                  child: SizedBox(
+                    height: 52,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.md,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.two_wheeler_rounded,
+                            size: 20,
+                            color: AppColors.primaryPressed,
+                          ),
+                          const SizedBox(width: AppSpace.sm),
+                          Expanded(
+                            child: Text(
+                              rider.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.bodyStrong,
+                            ),
+                          ),
+                          const Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : Stack(
+              children: [
+                _RiderInfoCard(
+                  rider: rider,
+                  onOpenOrder: widget.onOpenOrder,
+                  floating: true,
+                ),
+                PositionedDirectional(
+                  top: 4,
+                  end: 4,
+                  child: IconButton(
+                    tooltip: 'Minimize',
+                    onPressed: _toggle,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.text2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

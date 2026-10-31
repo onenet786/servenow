@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { authenticateToken, requireAdmin, requireStoreOwner, requireStaffAccess, optionalAuth } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStoreOwner, requireStaffAccess, requireStaffRight, optionalAuth } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
 
@@ -553,7 +553,7 @@ function getImageVariants(imageUrl) {
 }
 
 // Upload image endpoint — accepts single file and generates resized variants
-router.post('/upload-image', authenticateToken, requireStaffAccess, upload.single('image'), async (req, res) => {
+router.post('/upload-image', authenticateToken, requireStaffAccess, requireStaffRight('action_manage_products'), upload.single('image'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
         const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -798,7 +798,7 @@ router.post('/export-base64-images', authenticateToken, requireAdmin, async (req
 });
 
 // Create new product (Admin or Store Owner)
-router.post('/', authenticateToken, requireStaffAccess, [
+router.post('/', authenticateToken, requireStaffAccess, requireStaffRight('action_manage_products'), [
     body('name').trim().isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
     body('price').isFloat({ min: 0 }).withMessage('Price must be a positive number'),
     body('cost_price').optional().isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
@@ -1093,7 +1093,7 @@ router.post('/', authenticateToken, requireStaffAccess, [
 });
 
 // Update product (Admin or Store Owner)
-router.put('/:id', authenticateToken, requireStaffAccess, [
+router.put('/:id', authenticateToken, requireStaffAccess, requireStaffRight('action_manage_products'), [
     body('name').optional().trim().isLength({ min: 2 }).withMessage('Product name must be at least 2 characters'),
     body('cost_price').optional().isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
     body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a positive number'),
@@ -1512,7 +1512,7 @@ router.put('/:id', authenticateToken, requireStaffAccess, [
 });
 
 // Delete product (Admin or Store Owner)
-router.delete('/:id', authenticateToken, requireStaffAccess, async (req, res) => {
+router.delete('/:id', authenticateToken, requireStaffAccess, requireStaffRight('action_delete_products'), async (req, res) => {
     try {
         const { id } = req.params;
 

@@ -7,6 +7,8 @@ const {
   requireStoreOwner,
   requireDispatchAccess,
   requireStaffAccess,
+  requireStaffRight,
+  staffHasRight,
 } = require("../middleware/auth");
 const { sendOrderThanksEmail } = require("../services/emailService");
 const { recordFinancialTransaction } = require("../utils/dbHelpers");
@@ -2377,6 +2379,7 @@ router.get(
 router.post(
   "/admin/manual-create",
   authenticateToken,
+  requireStaffRight("action_order_create"),
   requireStaffAccess,
   async (req, res) => {
     try {
@@ -4794,6 +4797,7 @@ router.put(
 router.put(
   "/:id(\\d+)/status",
   authenticateToken,
+  requireStaffRight("action_order_status"),
   requireStaffAccess,
   [
     body("status")
@@ -4879,6 +4883,17 @@ router.put(
         return res.status(403).json({
           success: false,
           message: "You do not have permission to update this order",
+        });
+      }
+
+      if (
+        status === "cancelled" &&
+        req.user.user_type === "standard_user" &&
+        !(await staffHasRight(req.db, req.user.id, "action_order_cancel"))
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "You do not have the right to cancel orders",
         });
       }
 
@@ -5345,6 +5360,7 @@ router.put(
 router.put(
   "/:id(\\d+)/assign-rider",
   authenticateToken,
+  requireStaffRight("action_edit_order"),
   requireDispatchAccess,
   [
     body("rider_id").isInt().withMessage("Rider ID must be a valid integer"),
@@ -5649,6 +5665,7 @@ router.put(
 router.put(
   "/:id(\\d+)/delivery-fee",
   authenticateToken,
+  requireStaffRight("action_edit_order"),
   requireStaffAccess,
   async (req, res) => {
     try {
@@ -5814,7 +5831,7 @@ router.put(
 );
 
 // Mark order as delivered (Rider or Admin)
-router.put("/:id(\\d+)/deliver", authenticateToken, async (req, res) => {
+router.put("/:id(\\d+)/deliver", authenticateToken, requireStaffRight("action_order_status"), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -6060,6 +6077,7 @@ router.put("/:id(\\d+)/deliver", authenticateToken, async (req, res) => {
 router.put(
   "/:id(\\d+)/payment-status",
   authenticateToken,
+  requireStaffRight("action_order_payment"),
   [
     body("payment_status")
       .isIn(["pending", "paid", "failed"])
@@ -6459,6 +6477,7 @@ router.put(
 router.put(
   "/:id(\\d+)/items",
   authenticateToken,
+  requireStaffRight("action_edit_order"),
   requireStaffAccess,
   async (req, res) => {
     try {
@@ -6641,6 +6660,7 @@ router.get(
 router.put(
   "/:id(\\d+)/customer",
   authenticateToken,
+  requireStaffRight("action_edit_order"),
   requireStaffAccess,
   [
     body("customer_id").isInt({ min: 1 }).withMessage("Valid customer is required"),
@@ -6757,6 +6777,7 @@ router.put(
 router.post(
   "/:id(\\d+)/items/add",
   authenticateToken,
+  requireStaffRight("action_edit_order"),
   requireStaffAccess,
   async (req, res) => {
     try {
@@ -6960,6 +6981,7 @@ router.post(
 router.delete(
   "/:id(\\d+)/items/:itemId(\\d+)",
   authenticateToken,
+  requireStaffRight("action_edit_order"),
   requireStaffAccess,
   async (req, res) => {
     try {
