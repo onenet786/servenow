@@ -91,13 +91,23 @@ window.sanitizeUserFacingErrorMessage = sanitizeUserFacingErrorMessage;
   }
 })();
 
-// Global fetch wrapper: automatically attach Authorization header when a token exists
+// Global fetch wrapper: automatically attach Authorization header when a token exists.
+// Only for ServeNow's own address: the login token must never go to another site (the chat
+// assistant, maps, payment providers), and those sites refuse requests that carry it.
 (() => {
   const nativeFetch = window.fetch.bind(window);
+  const isOwnSite = (input) => {
+    try {
+      const url = typeof Request !== "undefined" && input instanceof Request ? input.url : String(input);
+      return new URL(url, window.location.href).origin === window.location.origin;
+    } catch (_) {
+      return false;
+    }
+  };
   window.fetch = function (input, init) {
     try {
       const token = localStorage.getItem("serveNowToken");
-      if (!token) return nativeFetch(input, init);
+      if (!token || !isOwnSite(input)) return nativeFetch(input, init);
 
       // If caller passed a Request object, clone it and add the header safely
       if (typeof Request !== "undefined" && input instanceof Request) {
