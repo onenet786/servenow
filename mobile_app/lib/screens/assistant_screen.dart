@@ -28,6 +28,9 @@ class AssistantScreen extends StatefulWidget {
 }
 
 class _AssistantScreenState extends State<AssistantScreen> {
+  /// The <title> of assistant.html.
+  static const _pageTitle = 'ServeNow help';
+
   WebViewController? _controller;
   String? _error;
   bool _loading = true;
@@ -99,9 +102,7 @@ class _AssistantScreenState extends State<AssistantScreen> {
           ..setBackgroundColor(AppColors.background)
           ..setNavigationDelegate(
             NavigationDelegate(
-              onPageFinished: (_) {
-                if (mounted) setState(() => _loading = false);
-              },
+              onPageFinished: (_) => _checkPage(),
               onNavigationRequest: (request) {
                 final uri = Uri.tryParse(request.url);
                 final own = Uri.parse(ApiService.baseUrl);
@@ -121,6 +122,22 @@ class _AssistantScreenState extends State<AssistantScreen> {
       platform.setMediaPlaybackRequiresUserGesture(false);
     }
     return controller;
+  }
+
+  /// A server without assistant.html answers with its home page (the login screen). Show a message
+  /// instead of that page.
+  Future<void> _checkPage() async {
+    final title = await _controller?.getTitle();
+    if (!mounted) return;
+    if (title != null && title != _pageTitle) {
+      setState(() {
+        _controller = null;
+        _loading = false;
+        _error = "Chat isn't set up on the server yet. Please try again later.";
+      });
+      return;
+    }
+    setState(() => _loading = false);
   }
 
   /// The chat asks for the microphone for voice messages and Live calls. The phone asks the person

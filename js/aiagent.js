@@ -3,6 +3,11 @@
 // ServeNowAssistant.refresh() reloads it after a sign-in or sign-out without a page reload.
 (function () {
   if (window.ServeNowAssistant) return;
+  // Sign-in screens stay clean: no chat on login, sign-up or password pages ("/" shows the login page).
+  const SIGN_IN_PAGES = new Set([
+    "/", "/login.html", "/register.html", "/forgot-password.html", "/reset-password.html", "/verify-email.html",
+  ]);
+  if (SIGN_IN_PAGES.has(window.location.pathname)) return;
 
   function authToken() {
     try {

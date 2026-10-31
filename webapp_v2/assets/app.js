@@ -190,7 +190,7 @@ loadAssistant();
 // AIAgent chat assistant (appears only when the server has it switched on).
 function loadAssistant() {
   const s = document.createElement("script");
-  s.src = "/js/aiagent.js?v=1";
+  s.src = "/js/aiagent.js?v=2";
   s.async = true;
   document.head.appendChild(s);
 }
