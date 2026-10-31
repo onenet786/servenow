@@ -2,6 +2,8 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { listBranches, clearBranchCache, isOwnerEmail, staffScope, toBranchId, STAFF_TYPES } = require('../utils/branches');
 
+const { copyPreview, copyBranchStores } = require('../utils/branchCopy');
+
 const router = express.Router();
 
 const publicBranch = (b) => ({
@@ -125,6 +127,58 @@ function readBranchFields(body, { partial }) {
     const error = errors.find(Boolean);
     return error ? { error } : { values };
 }
+
+// The two branches of a copy, from ?from= or the body. Returns null after answering if they are wrong.
+async function copyBranches(req, res) {
+    const toId = toBranchId(req.params.id);
+    const fromId = toBranchId(req.query.from ?? (req.body && req.body.from_branch_id));
+    if (fromId === null) {
+        res.status(400).json({ success: false, message: 'Choose the branch to copy from' });
+        return null;
+    }
+    if (fromId === toId) {
+        res.status(400).json({ success: false, message: 'A branch cannot be copied onto itself' });
+        return null;
+    }
+    const all = await listBranches(req.db);
+    const to = all.find((b) => Number(b.id) === toId);
+    if (!to || !all.some((b) => Number(b.id) === fromId)) {
+        res.status(404).json({ success: false, message: 'Branch not found' });
+        return null;
+    }
+    return { fromId, toId, to };
+}
+
+router.get('/:id(\\d+)/copy-preview', requireOwner, async (req, res) => {
+    try {
+        const pair = await copyBranches(req, res);
+        if (!pair) return;
+        res.json({ success: true, ...(await copyPreview(req.db, pair.fromId, pair.toId)) });
+    } catch (e) {
+        console.error('Error previewing branch copy:', e);
+        res.status(500).json({ success: false, message: 'Failed to check the copy' });
+    }
+});
+
+router.post('/:id(\\d+)/copy-stores', requireOwner, async (req, res) => {
+    try {
+        const pair = await copyBranches(req, res);
+        if (!pair) return;
+        // Customers of an open branch must not see copies before they are edited.
+        const hide = Number(pair.to.is_active) === 1;
+        const copied = await copyBranchStores(req.db, pair.fromId, pair.toId, { hide });
+        console.log(`[branches] ${req.user.email || req.user.id} copied ${copied.stores} stores, ${copied.products} products from branch ${pair.fromId} to ${pair.toId}`);
+        res.json({ success: true, hidden_from_customers: hide, ...copied });
+    } catch (e) {
+        console.error('Error copying branch stores:', e);
+        const done = e.copied || { stores: 0, products: 0 };
+        res.status(500).json({
+            success: false,
+            message: `The copy stopped after ${done.stores} stores. Run it again: finished stores are skipped.`,
+            ...done,
+        });
+    }
+});
 
 router.post('/', requireOwner, async (req, res) => {
     const { values, error } = readBranchFields(req.body || {}, { partial: false });

@@ -53,6 +53,21 @@
               </tr>`).join('')}</tbody>
           </table>
         </div>
+        <h4 style="margin:1rem 0 .5rem;">Copy stores and products to another branch</h4>
+        <form id="branchCopyForm" class="filter-controls utility-control-grid">
+          <div class="form-group">
+            <label for="branchCopyFrom">Copy from</label>
+            <select id="branchCopyFrom">${branches.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select>
+          </div>
+          <div class="form-group">
+            <label for="branchCopyTo">Copy to</label>
+            <select id="branchCopyTo">${branches.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select>
+          </div>
+          <div style="display:flex;align-items:flex-end;">
+            <button type="submit" class="btn-primary" id="branchCopyBtn">Copy</button>
+          </div>
+        </form>
+        <p id="branchCopyNote" style="margin:.5rem 0 0;opacity:.75;">Copies store details, products, prices, sizes, stock and images, ready to edit. Orders, balances, owner logins, bank details and map pins are not copied.</p>
         <h4 id="branchFormTitle" style="margin:1rem 0 .5rem;">Add a new branch</h4>
         <form id="branchForm" class="filter-controls utility-control-grid">
           ${FIELDS.map(([key, label, type, hint]) => `
@@ -107,6 +122,34 @@
       say(r.ok, r.ok ? 'Saved' : 'Not saved', r.ok ? `${b.name} is now ${opening ? 'open' : 'closed'}.` : r.message);
       if (r.ok) load(host, true);
     }));
+
+    const copyForm = widget.querySelector('#branchCopyForm');
+    const copyFrom = widget.querySelector('#branchCopyFrom');
+    const copyTo = widget.querySelector('#branchCopyTo');
+    const copyNote = widget.querySelector('#branchCopyNote');
+    // Start on the likely copy: the biggest branch into a branch with no stores yet.
+    const biggest = branches.reduce((a, b) => (Number(b.stores) > Number(a.stores) ? b : a), branches[0]);
+    const empty = branches.find((b) => !Number(b.stores) && b !== biggest);
+    if (biggest) copyFrom.value = String(biggest.id);
+    if (empty) copyTo.value = String(empty.id);
+
+    copyForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = (select) => select.options[select.selectedIndex].text;
+      const check = await fetch(`/api/branches/${copyTo.value}/copy-preview?from=${copyFrom.value}`).then((r) => r.json().then((j) => ({ ok: r.ok, ...j })));
+      if (!check.ok) return say(false, 'Not copied', check.message);
+      if (!check.stores) return say(false, 'Nothing to copy', `All of ${name(copyFrom)}'s stores are already in ${name(copyTo)}.`);
+      if (!window.confirm(`Copy ${check.stores} stores and ${check.products} products from ${name(copyFrom)} to ${name(copyTo)}?`)) return;
+      const btn = widget.querySelector('#branchCopyBtn');
+      btn.disabled = true;
+      copyNote.textContent = 'Copying, please wait...';
+      const r = await send(`/api/branches/${copyTo.value}/copy-stores`, 'POST', { from_branch_id: Number(copyFrom.value) }).catch(() => ({ ok: false, message: 'The connection was lost. Press Copy again: finished stores are skipped.' }));
+      btn.disabled = false;
+      say(r.ok, r.ok ? 'Copied' : 'Not finished', r.ok
+        ? `${r.stores} stores and ${r.products} products copied.${r.hidden_from_customers ? ' They are hidden from customers until you show them.' : ''}`
+        : r.message);
+      load(host, true);
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
