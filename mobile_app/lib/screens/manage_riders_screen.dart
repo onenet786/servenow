@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/branch_service.dart';
 import '../widgets/admin/admin_ui.dart';
+import '../widgets/admin/branch_filter.dart';
 import '../widgets/ui/ui.dart';
 
 class ManageRidersScreen extends StatefulWidget {
@@ -35,11 +37,25 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
     super.dispose();
   }
 
+  Map<int, String> _branchNames = const {};
+  int? _branchFilter;
+
+  Future<void> _loadBranchNames(String token) async {
+    final names = await BranchService.loadStaffNames(token);
+    if (!mounted) return;
+    setState(() => _branchNames = names);
+  }
+
+  bool _inBranch(dynamic record) =>
+      _branchFilter == null ||
+      int.tryParse('${record['branch_id']}') == _branchFilter;
+
   Future<void> _loadRiders() async {
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) return;
 
+      _loadBranchNames(token);
       final riders = await ApiService.getRiders(token);
 
       setState(() {
@@ -99,7 +115,7 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
         _ => true,
       };
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && _inBranch(rider);
     }).toList();
 
     setState(() => _filteredRiders = filtered);
@@ -152,6 +168,14 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
                               _buildFilterChip('Inactive', 'inactive'),
                             ],
                           ),
+                        ),
+                        BranchFilter(
+                          names: _branchNames,
+                          value: _branchFilter,
+                          onChanged: (value) {
+                            setState(() => _branchFilter = value);
+                            _filterRiders();
+                          },
                         ),
                       ],
                     ),
@@ -254,6 +278,7 @@ class _ManageRidersScreenState extends State<ManageRidersScreen> {
             spacing: AppSpace.sm,
             runSpacing: AppSpace.xs,
             children: [
+              BranchTag(names: _branchNames, branchId: rider['branch_id']),
               if (active)
                 const TonePill.success('Active')
               else

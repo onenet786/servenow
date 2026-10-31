@@ -1,7 +1,26 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, forgetAccountStatus } = require('../middleware/auth');
+const { DEFAULT_BRANCH_ID, getBranch, toBranchId, isHeadOffice, isOwnerEmail, resolveStaffBranch } = require('../utils/branches');
+
+const BRANCH_USER_TYPES = ['customer', 'store_owner'];
+
+// Customers and store owners always belong to a branch (default Kot Addu). Staff may have none,
+// which means head office: all branches. Returns { branchId, error }.
+async function branchForUser(db, userType, requested, { creating }) {
+    const wanted = toBranchId(requested);
+    if (requested !== undefined && requested !== null && requested !== '' && wanted === null) {
+        return { branchId: null, error: 'Unknown branch' };
+    }
+    if (wanted !== null && !(await getBranch(db, wanted))) return { branchId: null, error: 'Unknown branch' };
+    if (BRANCH_USER_TYPES.includes(userType)) return { branchId: wanted ?? (creating ? DEFAULT_BRANCH_ID : null), error: null };
+    return { branchId: wanted, error: null };
+}
+
+function forgetAccount(id) {
+    for (const t of ['customer', 'store_owner', 'admin', 'standard_user']) forgetAccountStatus(t, id);
+}
 const crypto = require('crypto');
 const { sendVerificationEmail, sendDeletionRequestEmail } = require('../services/emailService');
 
@@ -99,8 +118,17 @@ const requireUserManagement = async (req, res, next) => {
 router.get('/', authenticateToken, requireUserManagement, async (req, res) => {
     try {
         await ensureUserProfileColumns(req.db);
+        // A branch account sees only its own branch's customers and store owners (never staff);
+        // head office sees everyone, or one branch when asked (?branch_id=).
+        const scope = resolveStaffBranch(req.user, req.query.branch_id);
+        if (scope.error) return res.status(403).json({ success: false, message: scope.error });
+        const limited = scope.branchId !== null;
         const [users] = await req.db.execute(
-            'SELECT id, first_name, last_name, email, phone, address, user_type, is_active, is_verified, created_at, store_id, id_card_num, image_url FROM users ORDER BY created_at DESC'
+            `SELECT id, first_name, last_name, email, phone, address, user_type, is_active, is_verified, created_at, store_id, id_card_num, image_url, branch_id
+               FROM users
+              ${limited ? "WHERE branch_id = ? AND user_type IN ('customer', 'store_owner')" : ''}
+              ORDER BY created_at DESC`,
+            limited ? [scope.branchId] : []
         );
 
         const formattedUsers = users.map(user => ({
@@ -165,7 +193,13 @@ router.post('/', authenticateToken, requireAdmin, [
             });
         }
 
+        if (!isHeadOffice(req.user)) {
+            return res.status(403).json({ success: false, message: 'Only head office can create accounts' });
+        }
         const { firstName, lastName, email, password, phone, address, user_type, is_verified, is_active, store_id, id_card_num, image_url } = req.body;
+        if (isOwnerEmail(email)) return res.status(400).json({ success: false, message: 'Email already exists' });
+        const branch = await branchForUser(req.db, user_type || 'customer', req.body.branch_id, { creating: true });
+        if (branch.error) return res.status(400).json({ success: false, message: branch.error });
         const normalizedEmail = String(email || '').trim().toLowerCase();
         const normalizedPhone = phone === undefined || phone === null ? '' : String(phone).trim();
         const normalizedStoreId = normalizePositiveInt(store_id);
@@ -194,8 +228,8 @@ router.post('/', authenticateToken, requireAdmin, [
         const active = is_active !== undefined ? is_active : true;
 
         const [result] = await req.db.execute(
-            'INSERT INTO users (first_name, last_name, email, phone, password, address, user_type, verification_code, verification_expires_at, is_verified, is_active, store_id, id_card_num, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [firstName, lastName, normalizedEmail, normalizedPhone || null, hashedPassword, address || null, user_type || 'customer', verificationCode, verificationExpiresAt, verified, active, normalizedStoreId, normalizedIdCardNum, normalizedImageUrl]
+            'INSERT INTO users (first_name, last_name, email, phone, password, address, user_type, verification_code, verification_expires_at, is_verified, is_active, store_id, id_card_num, image_url, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [firstName, lastName, normalizedEmail, normalizedPhone || null, hashedPassword, address || null, user_type || 'customer', verificationCode, verificationExpiresAt, verified, active, normalizedStoreId, normalizedIdCardNum, normalizedImageUrl, branch.branchId]
         );
 
         await syncStoreOwnerAssignment(req.db, {
@@ -277,7 +311,7 @@ router.put('/:id', authenticateToken, requireAdmin, [
         const normalizedImageUrl = image_url === undefined ? undefined : String(image_url || '').trim();
 
         const [existingUsers] = await req.db.execute(
-            'SELECT id, user_type, store_id FROM users WHERE id = ? LIMIT 1',
+            'SELECT id, user_type, store_id, branch_id, email FROM users WHERE id = ? LIMIT 1',
             [id]
         );
         if (!existingUsers.length) {
@@ -287,6 +321,17 @@ router.put('/:id', authenticateToken, requireAdmin, [
             });
         }
         const existingUser = existingUsers[0];
+
+        // The owner account manages branches, so only the owner may change it: otherwise any
+        // admin could reset its password or take over its email and with it branch management.
+        const [callerRows] = await req.db.execute('SELECT email FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+        const callerIsOwner = callerRows.length > 0 && isOwnerEmail(callerRows[0].email);
+        if (!callerIsOwner && (isOwnerEmail(existingUser.email) || (email !== undefined && isOwnerEmail(normalizedEmail)))) {
+            return res.status(403).json({ success: false, message: 'This account can only be changed by itself' });
+        }
+        if (isOwnerEmail(existingUser.email) && (req.body.branch_id || (user_type !== undefined && user_type !== 'admin') || is_active === false || (email !== undefined && !isOwnerEmail(normalizedEmail)))) {
+            return res.status(400).json({ success: false, message: 'The owner account must stay an active head-office admin with this email' });
+        }
 
         const updateFields = [];
         const updateValues = [];
@@ -301,6 +346,38 @@ router.put('/:id', authenticateToken, requireAdmin, [
         if (is_verified !== undefined) { updateFields.push('is_verified = ?'); updateValues.push(is_verified); }
         if (id_card_num !== undefined) { updateFields.push('id_card_num = ?'); updateValues.push(normalizedIdCardNum || null); }
         if (image_url !== undefined) { updateFields.push('image_url = ?'); updateValues.push(normalizedImageUrl || null); }
+        // Branch: head office only. A customer or store owner must keep a branch; staff may be set
+        // to one branch (a branch account) or cleared (head office).
+        if (req.body.branch_id !== undefined) {
+            if (!isHeadOffice(req.user)) {
+                return res.status(403).json({ success: false, message: 'Only head office can change a branch' });
+            }
+            const finalType = user_type !== undefined ? user_type : existingUser.user_type;
+            const branch = await branchForUser(req.db, finalType, req.body.branch_id, { creating: false });
+            if (branch.error) return res.status(400).json({ success: false, message: branch.error });
+            if (BRANCH_USER_TYPES.includes(finalType) && branch.branchId === null) {
+                return res.status(400).json({ success: false, message: 'A customer or store owner must belong to a branch' });
+            }
+            if (toBranchId(existingUser.branch_id) !== branch.branchId) {
+                // Open orders stay in the branch they were placed in, so wait until they are done.
+                const [[open]] = await req.db.execute(
+                    "SELECT COUNT(*) AS n FROM orders WHERE user_id = ? AND status NOT IN ('delivered', 'cancelled')", [id]
+                );
+                if (Number(open.n) > 0) {
+                    return res.status(409).json({ success: false, message: 'This customer has open orders. Change the branch after they are finished.' });
+                }
+                if (finalType === 'store_owner' && branch.branchId !== null) {
+                    const [[elsewhere]] = await req.db.execute(
+                        'SELECT COUNT(*) AS n FROM stores WHERE owner_id = ? AND branch_id <> ?', [id, branch.branchId]
+                    );
+                    if (Number(elsewhere.n) > 0) {
+                        return res.status(409).json({ success: false, message: 'This owner has stores in another branch' });
+                    }
+                }
+            }
+            updateFields.push('branch_id = ?');
+            updateValues.push(branch.branchId);
+        }
         if (user_type !== undefined && user_type !== 'store_owner') {
             updateFields.push('store_id = ?');
             updateValues.push(null);
@@ -344,6 +421,8 @@ router.put('/:id', authenticateToken, requireAdmin, [
             `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
             updateValues
         );
+        // Role, branch or active changes apply on the next request, not after the 60 s cache.
+        forgetAccount(Number(id));
 
         await syncStoreOwnerAssignment(req.db, {
             userId: id,

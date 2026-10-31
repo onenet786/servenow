@@ -9,7 +9,20 @@ const {
   requireStaffAccess,
   requireStaffRight,
   staffHasRight,
+  softAuth,
 } = require("../middleware/auth");
+const {
+  DEFAULT_BRANCH_ID,
+  STAFF_TYPES,
+  getBranch,
+  toBranchId,
+  staffScope,
+  resolveStaffBranch,
+  storeBranches,
+  adminRoomsFor,
+  applyBranchFees,
+  settingBranchFor,
+} = require("../utils/branches");
 const { sendOrderThanksEmail } = require("../services/emailService");
 const { recordFinancialTransaction } = require("../utils/dbHelpers");
 const { sendPushToUser } = require("../services/pushNotifications");
@@ -62,7 +75,7 @@ async function ensureSystemSettingsTable(db) {
   `);
 }
 
-async function getDeliveryFeeConfig(db) {
+async function getDeliveryFeeConfig(db, branchId = null) {
   await ensureSystemSettingsTable(db);
   const [rows] = await db.execute(
     `SELECT setting_key, setting_value
@@ -101,7 +114,7 @@ async function getDeliveryFeeConfig(db) {
     );
   }
 
-  return { base_fee, additional_per_store };
+  return applyBranchFees(db, branchId, { base_fee, additional_per_store });
 }
 
 function calculateDeliveryFeeByStoreCount(storeCount, feeConfig) {
@@ -323,6 +336,7 @@ async function ensureGlobalDeliveryStatusTable(db) {
       status_message TEXT NULL,
       start_at DATETIME NULL,
       end_at DATETIME NULL,
+      branch_id INT NULL,
       updated_by INT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -344,18 +358,20 @@ async function ensureGlobalDeliveryStatusTable(db) {
   }
 }
 
-router.get("/delivery-fee-config", async (req, res) => {
+router.get("/delivery-fee-config", softAuth, async (req, res) => {
   try {
-    const cached = cache.get("delivery_fee_config");
+    const { branchId } = await settingBranchFor(req.db, req.user, req.query.branch_id);
+    const cacheKey = `delivery_fee_config_${branchId || 0}`;
+    const cached = cache.get(cacheKey);
     if (cached) {
       res.setHeader("X-Cache", "HIT");
       res.setHeader("Cache-Control", "public, max-age=60");
       return res.json(cached);
     }
 
-    const cfg = await getDeliveryFeeConfig(req.db);
+    const cfg = await getDeliveryFeeConfig(req.db, branchId);
     const payload = { success: true, ...cfg };
-    cache.set("delivery_fee_config", payload, 60 * 1000);
+    cache.set(cacheKey, payload, 60 * 1000);
 
     res.setHeader("X-Cache", "MISS");
     res.setHeader("Cache-Control", "public, max-age=60");
@@ -370,15 +386,23 @@ router.get("/delivery-fee-config", async (req, res) => {
   }
 });
 
-async function getGlobalDeliveryBlockState(db) {
+// A delivery closure can be for every branch or for one; either one stops ordering.
+async function getGlobalDeliveryBlockState(db, branchId = null) {
   await ensureGlobalDeliveryStatusTable(db);
-  const [rows] = await db.execute(
-    `SELECT id, is_enabled, block_ordering, status_message, start_at, end_at
-     FROM global_delivery_status
-     ORDER BY id DESC
-     LIMIT 1`
+  const columns = "id, is_enabled, block_ordering, status_message, start_at, end_at";
+  const [all] = await db.execute(
+    `SELECT ${columns} FROM global_delivery_status WHERE branch_id IS NULL ORDER BY id DESC LIMIT 1`
   );
-  const row = rows[0];
+  const state = await deliveryBlockOfRow(db, all[0]);
+  if (state.blocked || !branchId) return state;
+  const [own] = await db.execute(
+    `SELECT ${columns} FROM global_delivery_status WHERE branch_id = ? ORDER BY id DESC LIMIT 1`,
+    [branchId]
+  );
+  return deliveryBlockOfRow(db, own[0]);
+}
+
+async function deliveryBlockOfRow(db, row) {
   if (!row || !row.is_enabled) return { blocked: false, message: "" };
   const start = row.start_at ? new Date(row.start_at) : null;
   const end = row.end_at ? new Date(row.end_at) : null;
@@ -856,8 +880,8 @@ async function recordPickupPaidStorePaymentsForOrder(db, {
 
       await conn.execute(
         `INSERT INTO rider_cash_movements
-         (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
-         VALUES (?, ?, CURDATE(), 'store_payment', ?, ?, 'order', ?, 'completed', ?)`,
+         (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by, branch_id)
+         VALUES (?, ?, CURDATE(), 'store_payment', ?, ?, 'order', ?, 'completed', ?, (SELECT branch_id FROM orders WHERE id = ?))`,
         [
           `RCM-SP-${Date.now()}-${storeId}`,
           riderId,
@@ -865,13 +889,14 @@ async function recordPickupPaidStorePaymentsForOrder(db, {
           `Store payment on pickup for ${store.store_name || "Store"} (Order #${orderNumber || orderId})`,
           orderId,
           createdBy,
+          orderId,
         ],
       );
       await conn.execute(
         `INSERT INTO rider_store_payments
-         (order_id, store_id, rider_id, amount, source_status, created_by)
-         VALUES (?, ?, ?, ?, 'picked_up', ?)`,
-        [orderId, storeId, riderId, payable, createdBy],
+         (order_id, store_id, rider_id, amount, source_status, created_by, branch_id)
+         VALUES (?, ?, ?, ?, 'picked_up', ?, (SELECT branch_id FROM orders WHERE id = ?))`,
+        [orderId, storeId, riderId, payable, createdBy, orderId],
       );
       await conn.commit();
     } catch (paymentError) {
@@ -963,10 +988,18 @@ function buildCustomerRiderLocationPayload(order, payload) {
   };
 }
 
-// customerOrders: rows { id, user_id, status } the rider currently carries.
-function emitRiderLocationUpdate(io, payload, customerOrders = []) {
+
+// Staff rooms for an order's live events: head office ("admins") plus that order's branch room.
+const adminRoomsOf = (order) => adminRoomsFor(order ? order.branch_id : null);
+
+// customerOrders: rows { id, user_id, status, branch_id } the rider currently carries.
+function emitRiderLocationUpdate(io, payload, customerOrders = [], riderBranchId = null) {
   if (!io || !payload) return;
-  io.to("admins").emit("rider_location_update", payload);
+  // Head office hears every rider; each branch hears only a rider carrying one of its orders.
+  const rooms = new Set(["admins"]);
+  for (const o of customerOrders) for (const r of adminRoomsOf(o)) rooms.add(r);
+  if (riderBranchId) for (const r of adminRoomsFor(riderBranchId)) rooms.add(r);
+  for (const room of rooms) io.to(room).emit("rider_location_update", payload);
   if (payload.rider_id) {
     io.to(`rider_${payload.rider_id}`).emit("rider_location_update", payload);
   }
@@ -1164,7 +1197,7 @@ function roundAmount(value) {
 
 async function syncOrderFinancialsAndDeliveryFee(db, orderId, options = {}) {
   const [orders] = await db.execute(
-    "SELECT id, order_number, status, delivery_fee, total_amount, special_instructions FROM orders WHERE id = ?",
+    "SELECT id, branch_id, order_number, status, delivery_fee, total_amount, special_instructions FROM orders WHERE id = ?",
     [orderId]
   );
   if (!orders || orders.length === 0) return null;
@@ -1212,7 +1245,7 @@ async function syncOrderFinancialsAndDeliveryFee(db, orderId, options = {}) {
   ) {
     deliveryFee = roundAmount(parseFloat(options.manualDeliveryFee));
   } else {
-    const deliveryFeeConfig = await getDeliveryFeeConfig(db);
+    const deliveryFeeConfig = await getDeliveryFeeConfig(db, order.branch_id);
     deliveryFee = calculateDeliveryFeeByStoreCount(storeCount, deliveryFeeConfig);
   }
 
@@ -1262,6 +1295,7 @@ async function ensureRiderStorePaymentsTable(db) {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS rider_store_payments (
       id INT PRIMARY KEY AUTO_INCREMENT,
+      branch_id INT NOT NULL DEFAULT 1,
       order_id INT NOT NULL,
       store_id INT NOT NULL,
       rider_id INT NOT NULL,
@@ -1290,6 +1324,7 @@ async function ensureRiderDayClosingsTable(db) {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS rider_day_closings (
       id INT PRIMARY KEY AUTO_INCREMENT,
+      branch_id INT NOT NULL DEFAULT 1,
       rider_id INT NOT NULL,
       closed_date DATE NOT NULL,
       wallet_balance DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -1310,6 +1345,7 @@ async function ensureRiderCashSubmissionOrdersTable(db) {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS rider_cash_submission_orders (
       id INT PRIMARY KEY AUTO_INCREMENT,
+      branch_id INT NOT NULL DEFAULT 1,
       movement_id INT NOT NULL,
       order_id INT NOT NULL,
       rider_id INT NOT NULL,
@@ -1667,7 +1703,10 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
-    const globalBlock = await getGlobalDeliveryBlockState(req.db);
+    const globalBlock = await getGlobalDeliveryBlockState(
+      req.db,
+      toBranchId(req.user.branch_id) ?? (STAFF_TYPES.has(req.user.user_type) ? null : DEFAULT_BRANCH_ID),
+    );
     if (globalBlock.blocked) {
       return res.status(403).json({
         success: false,
@@ -2022,9 +2061,37 @@ router.post("/", authenticateToken, async (req, res) => {
       }
     }
 
+    // Branch: every store in the order must be in one branch, and a customer can only order
+    // from their own branch (so a Muzaffargarh customer cannot order from Kot Addu's stores).
+    const storeBranchMap = await storeBranches(req.db, storeIdArray);
+    const orderBranches = new Set(storeIdArray.map((sid) => storeBranchMap.get(Number(sid))));
+    if (orderBranches.size !== 1 || orderBranches.has(undefined)) {
+      return res.status(400).json({
+        success: false,
+        message: "An order can only contain stores from one branch. Please order from one branch at a time.",
+      });
+    }
+    const orderBranchId = [...orderBranches][0];
+    const customerBranchId = STAFF_TYPES.has(req.user.user_type)
+      ? (staffScope(req.user) ?? orderBranchId)
+      : (toBranchId(req.user.branch_id) ?? DEFAULT_BRANCH_ID);
+    if (customerBranchId !== orderBranchId) {
+      return res.status(403).json({
+        success: false,
+        message: "These stores are not available in your branch.",
+      });
+    }
+    const orderBranch = await getBranch(req.db, orderBranchId);
+    if (!orderBranch || Number(orderBranch.is_active) !== 1) {
+      return res.status(403).json({
+        success: false,
+        message: `${orderBranch ? orderBranch.name : "This branch"} is not taking orders yet.`,
+      });
+    }
+
     // Calculate delivery fee based on number of unique stores and admin-configured settings
     const storeCount = storeIds.size;
-    const deliveryFeeConfig = await getDeliveryFeeConfig(req.db);
+    const deliveryFeeConfig = await getDeliveryFeeConfig(req.db, orderBranchId);
     const delivery_fee = calculateDeliveryFeeByStoreCount(
       storeCount,
       deliveryFeeConfig
@@ -2109,12 +2176,13 @@ router.post("/", authenticateToken, async (req, res) => {
       for (let attempt = 0; ; attempt++) {
         try {
           const [orderResult] = await conn.execute(
-            `INSERT INTO orders (order_number, user_id, store_id, total_amount, delivery_fee, payment_method, payment_status, delivery_address, delivery_time, special_instructions)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO orders (order_number, user_id, store_id, branch_id, total_amount, delivery_fee, payment_method, payment_status, delivery_address, delivery_time, special_instructions)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               order_number,
               req.user.id,
               orderStoreId,
+              orderBranchId,
               grandTotal,
               delivery_fee,
               payment_method,
@@ -2179,9 +2247,9 @@ router.post("/", authenticateToken, async (req, res) => {
         );
         // Payment record: the single source of truth that this order is paid
         await conn.execute(
-          `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, status)
-           VALUES (?, ?, ?, 'wallet', 'local', 'success')`,
-          [orderId, req.user.id, grandTotal],
+          `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, status, branch_id)
+           VALUES (?, ?, ?, 'wallet', 'local', 'success', ?)`,
+          [orderId, req.user.id, grandTotal, orderBranchId],
         );
       }
 
@@ -2222,8 +2290,9 @@ router.post("/", authenticateToken, async (req, res) => {
         `Order Created: ${order_number} (ID: ${orderId}). req.io present: ${!!req.io}`,
       );
       if (req.io) {
-        req.io.to("admins").emit("new_order", {
+        req.io.to(adminRoomsFor(orderBranchId)).emit("new_order", {
           id: orderId,
+          branch_id: orderBranchId,
           order_number: order_number,
           total_amount: grandTotal,
           store_id: orderStoreId,
@@ -2422,16 +2491,23 @@ router.post(
           : Number(cost_price);
 
       if (isParcelDelivery && (!Number.isInteger(storeId) || storeId <= 0)) {
+        // The parcel store must be in the customer's branch (never another branch's store).
+        const [parcelCustomerRows] = await req.db.execute(
+          "SELECT branch_id FROM users WHERE id = ? LIMIT 1", [customerId]
+        );
+        const parcelBranch = toBranchId(parcelCustomerRows[0] && parcelCustomerRows[0].branch_id) ?? DEFAULT_BRANCH_ID;
         const [parcelStores] = await req.db.execute(
-          "SELECT id FROM stores WHERE LOWER(name) LIKE '%parcel%' OR LOWER(name) LIKE '%pick%' LIMIT 1"
+          "SELECT id FROM stores WHERE branch_id = ? AND (LOWER(name) LIKE '%parcel%' OR LOWER(name) LIKE '%pick%') LIMIT 1",
+          [parcelBranch]
         );
         if (parcelStores.length > 0) {
           storeId = parcelStores[0].id;
         } else {
           const [anyStore] = await req.db.execute(
-            "SELECT id FROM stores WHERE is_active = true ORDER BY id ASC LIMIT 1"
+            "SELECT id FROM stores WHERE is_active = true AND branch_id = ? ORDER BY id ASC LIMIT 1",
+            [parcelBranch]
           );
-          storeId = anyStore[0]?.id || 1;
+          storeId = anyStore[0]?.id || 0;
         }
       }
 
@@ -2507,7 +2583,7 @@ router.post(
       }
 
       const [users] = await req.db.execute(
-        "SELECT id FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, branch_id FROM users WHERE id = ? LIMIT 1",
         [customerId],
       );
       if (!users.length) {
@@ -2518,7 +2594,7 @@ router.post(
       }
 
       const [stores] = await req.db.execute(
-        "SELECT id, name, is_active, payment_term FROM stores WHERE id = ? LIMIT 1",
+        "SELECT id, name, is_active, payment_term, branch_id FROM stores WHERE id = ? LIMIT 1",
         [storeId],
       );
       if (!stores.length) {
@@ -2528,6 +2604,19 @@ router.post(
         });
       }
       const store = stores[0];
+      // The order belongs to the store's branch. The customer must be in that branch, and a
+      // branch account can only create orders in its own branch.
+      const manualBranchId = toBranchId(store.branch_id) ?? DEFAULT_BRANCH_ID;
+      if ((toBranchId(users[0].branch_id) ?? DEFAULT_BRANCH_ID) !== manualBranchId) {
+        return res.status(400).json({
+          success: false,
+          message: "The customer and the store belong to different branches",
+        });
+      }
+      const manualScope = staffScope(req.user);
+      if (manualScope !== null && manualScope !== manualBranchId) {
+        return res.status(403).json({ success: false, message: "You can only create orders in your own branch" });
+      }
       const adminStoreSummary = String(store.name || "Unknown Store").trim();
       if (!store.is_active) {
         return res.status(400).json({
@@ -2622,7 +2711,7 @@ router.post(
       );
       const product = productRows[0] || {};
 
-      const feeConfig = manualDeliveryFee === null && !isParcelDelivery ? await getDeliveryFeeConfig(req.db) : null;
+      const feeConfig = manualDeliveryFee === null && !isParcelDelivery ? await getDeliveryFeeConfig(req.db, manualBranchId) : null;
       const deliveryFee =
         manualDeliveryFee !== null
           ? roundAmount(manualDeliveryFee)
@@ -2646,13 +2735,14 @@ router.post(
 
       const [orderResult] = await req.db.execute(
         `INSERT INTO orders (
-           order_number, user_id, store_id, total_amount, delivery_fee, payment_method,
+           order_number, user_id, store_id, branch_id, total_amount, delivery_fee, payment_method,
            delivery_address, special_instructions
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderNumber,
           customerId,
           storeId,
+          manualBranchId,
           totalAmount,
           deliveryFee,
           String(payment_method || "cash"),
@@ -2690,8 +2780,9 @@ router.post(
 
       try {
         if (req.io) {
-          req.io.to("admins").emit("new_order", {
+          req.io.to(adminRoomsFor(manualBranchId)).emit("new_order", {
             id: orderId,
+            branch_id: manualBranchId,
             order_number: orderNumber,
             total_amount: totalAmount,
             store_id: storeId,
@@ -3066,6 +3157,7 @@ router.put(
             Number(order.id) > 0 &&
             CUSTOMER_TRACKABLE_STATUSES.includes(String(order.status || "")),
         ),
+        req.user.branch_id,
       );
 
       if (!location || isCoordinateOnlyLocationLabel(location)) {
@@ -3907,8 +3999,8 @@ router.post("/rider/close-day", authenticateToken, async (req, res) => {
 
     await req.db.execute(
       `INSERT INTO rider_day_closings (
-         rider_id, closed_date, wallet_balance, cash_collection, office_advance, store_payment, fuel_payment, delivery_fee_earned, notes
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         rider_id, closed_date, wallet_balance, cash_collection, office_advance, store_payment, fuel_payment, delivery_fee_earned, notes, branch_id
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT branch_id FROM riders WHERE id = ?))
        ON DUPLICATE KEY UPDATE
          wallet_balance = VALUES(wallet_balance),
          cash_collection = VALUES(cash_collection),
@@ -3928,6 +4020,7 @@ router.post("/rider/close-day", authenticateToken, async (req, res) => {
         summary.fuel_payment,
         summary.delivery_fee_earned,
         notes,
+        riderId,
       ]
     );
 
@@ -4548,6 +4641,17 @@ router.get("/", authenticateToken, async (req, res) => {
     let conditions = [];
     let params = [];
 
+    // A branch account only ever sees its own branch; head office sees all, or one branch
+    // when asked (?branch_id=).
+    const listScope = resolveStaffBranch(req.user, req.query.branch_id);
+    if (listScope.error) {
+      return res.status(403).json({ success: false, message: listScope.error });
+    }
+    if (listScope.branchId !== null) {
+      conditions.push(`o.branch_id = ?`);
+      params.push(listScope.branchId);
+    }
+
     if (status && status !== "all") {
       conditions.push(`o.status = ?`);
       params.push(status);
@@ -4695,7 +4799,7 @@ async function emitOrderResetToNew(req, order) {
   };
 
   req.io.to(`user_${order.user_id}`).emit("order_status_update", payload);
-  req.io.to("admins").emit("order_status_update", payload);
+  req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("order_status_update", payload);
   req.io.to(`user_${order.user_id}`).emit("user_notification", {
     type: "refresh_orders",
     message: "Order reset to new order state",
@@ -4741,7 +4845,7 @@ router.put(
 
       const { id } = req.params;
       const [orders] = await req.db.execute(
-        "SELECT id, order_number, user_id, rider_id, status FROM orders WHERE id = ?",
+        "SELECT id, order_number, user_id, rider_id, status, branch_id FROM orders WHERE id = ?",
         [id],
       );
 
@@ -5215,7 +5319,7 @@ router.put(
           req.io
             .to(`user_${order.user_id}`)
             .emit("order_status_update", statusUpdateData);
-          req.io.to("admins").emit("order_status_update", statusUpdateData);
+          req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("order_status_update", statusUpdateData);
 
           // Custom logic: Only emit 'notification' event for user-facing status changes
           // Avoid spamming generic notifications.
@@ -5385,7 +5489,7 @@ router.put(
 
       // Check if order exists
       const [orders] = await req.db.execute(
-        "SELECT id, order_number, user_id, total_amount, delivery_fee, status FROM orders WHERE id = ?",
+        "SELECT id, order_number, user_id, total_amount, delivery_fee, status, branch_id FROM orders WHERE id = ?",
         [id],
       );
       if (orders.length === 0) {
@@ -5434,7 +5538,7 @@ router.put(
 
       // Check if rider exists and is available
       const [riders] = await req.db.execute(
-        "SELECT id, first_name, last_name FROM riders WHERE id = ? AND is_active = true",
+        "SELECT id, first_name, last_name, branch_id FROM riders WHERE id = ? AND is_active = true",
         [rider_id],
       );
       if (riders.length === 0) {
@@ -5445,6 +5549,12 @@ router.put(
       }
 
       const rider = riders[0];
+      if (toBranchId(rider.branch_id) !== toBranchId(order.branch_id)) {
+        return res.status(400).json({
+          success: false,
+          message: "This rider belongs to a different branch than the order",
+        });
+      }
 
       // Set estimated delivery time (current time + 30 minutes)
       const estimatedDelivery = new Date(Date.now() + 30 * 60 * 1000);
@@ -5531,7 +5641,7 @@ router.put(
             `[Orders] Broadcasting order_assigned to admins`,
             orderData,
           );
-          req.io.to("admins").emit("order_assigned", orderData);
+          req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("order_assigned", orderData);
 
           // NEW: Send "Store Owner Notification" to all store owners involved in this order
           // Identify unique stores in this order
@@ -5751,7 +5861,7 @@ router.put(
 
       // Check if order exists and user has permission (rider or admin)
       const [orders] = await req.db.execute(
-        "SELECT id, rider_id, user_id, order_number, total_amount, payment_status, status FROM orders WHERE id = ?",
+        "SELECT id, rider_id, user_id, order_number, total_amount, payment_status, status, branch_id FROM orders WHERE id = ?",
         [id],
       );
 
@@ -5808,6 +5918,7 @@ router.put(
             ),
           }),
           order.rider_id ? [order] : [],
+          order.branch_id,
         );
 
         if (!location || isCoordinateOnlyLocationLabel(location)) {
@@ -5837,7 +5948,7 @@ router.put("/:id(\\d+)/deliver", authenticateToken, requireStaffRight("action_or
 
     // Check if order exists and user has permission (rider, admin, or standard user)
     const [orders] = await req.db.execute(
-      `SELECT o.id, o.rider_id, o.user_id, o.order_number, o.total_amount, o.delivery_fee, o.payment_method, o.payment_status, o.status,
+      `SELECT o.id, o.branch_id, o.rider_id, o.user_id, o.order_number, o.total_amount, o.delivery_fee, o.payment_method, o.payment_status, o.status,
                     u.email as user_email, u.first_name as user_first_name
              FROM orders o
              JOIN users u ON o.user_id = u.id
@@ -5929,7 +6040,7 @@ router.put("/:id(\\d+)/deliver", authenticateToken, requireStaffRight("action_or
         req.io
           .to(`user_${order.user_id}`)
           .emit("order_status_update", statusUpdateData);
-        req.io.to("admins").emit("order_status_update", statusUpdateData);
+        req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("order_status_update", statusUpdateData);
         if (order.rider_id) {
           req.io.to(`rider_${order.rider_id}`).emit("order_status_update", {
             ...statusUpdateData,
@@ -6027,7 +6138,7 @@ router.put("/:id(\\d+)/deliver", authenticateToken, requireStaffRight("action_or
           message: `Order ${order.order_number} has been delivered by rider.`,
           timestamp: new Date(),
         };
-        req.io.to("admins").emit("user_notification", adminNotifData);
+        req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("user_notification", adminNotifData);
 
         // Check if completed (paid + delivered)
         if (order.payment_status === "paid") {
@@ -6043,7 +6154,7 @@ router.put("/:id(\\d+)/deliver", authenticateToken, requireStaffRight("action_or
           req.io
             .to(`user_${order.user_id}`)
             .emit("order_completed", completedData);
-          req.io.to("admins").emit("order_completed", completedData);
+          req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("order_completed", completedData);
 
           // Send Thanks Email
           if (order.user_email) {
@@ -6106,7 +6217,7 @@ router.put(
 
       // Check if order exists and user has permission (rider or admin)
       const [orders] = await req.db.execute(
-        `SELECT o.id, o.store_id, o.rider_id, o.user_id, o.order_number, o.total_amount, o.delivery_fee, o.payment_method, o.payment_status, o.status,
+        `SELECT o.id, o.branch_id, o.store_id, o.rider_id, o.user_id, o.order_number, o.total_amount, o.delivery_fee, o.payment_method, o.payment_status, o.status,
                     u.email as user_email, u.first_name as user_first_name
              FROM orders o
              JOIN users u ON o.user_id = u.id
@@ -6312,8 +6423,8 @@ router.put(
 
             await req.db.execute(
               `INSERT INTO payments
-               (order_id, user_id, amount, payment_method, gateway, status)
-               SELECT ?, ?, ?, 'cash', 'local', 'success'
+               (order_id, user_id, amount, payment_method, gateway, status, branch_id)
+               SELECT ?, ?, ?, 'cash', 'local', 'success', (SELECT branch_id FROM orders WHERE id = ?)
                WHERE NOT EXISTS (
                  SELECT 1
                  FROM payments
@@ -6321,7 +6432,7 @@ router.put(
                    AND payment_method = 'cash'
                    AND status = 'success'
                )`,
-              [id, order.user_id, order.total_amount, id],
+              [id, order.user_id, order.total_amount, id, id],
             );
 
             const now = new Date();
@@ -6337,8 +6448,8 @@ router.put(
 
             await req.db.execute(
               `INSERT INTO rider_cash_movements
-               (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by)
-               SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+               (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, status, recorded_by, branch_id)
+               SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT branch_id FROM orders WHERE id = ?)
                WHERE NOT EXISTS (
                  SELECT 1
                  FROM rider_cash_movements
@@ -6357,6 +6468,7 @@ router.put(
                 id,
                 "completed",
                 req.user.user_type === "admin" ? req.user.id : null,
+                id,
                 id,
               ],
             );
@@ -6390,7 +6502,7 @@ router.put(
           req.io
             .to(`user_${order.user_id}`)
             .emit("payment_status_update", paymentUpdateData);
-          req.io.to("admins").emit("payment_status_update", paymentUpdateData);
+          req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("payment_status_update", paymentUpdateData);
 
           // User notification
           const userPaymentNotif = {
@@ -6427,7 +6539,7 @@ router.put(
             message: `Payment ${payment_status} for order ${order.order_number}.`,
             timestamp: new Date(),
           };
-          req.io.to("admins").emit("user_notification", adminPaymentNotif);
+          req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("user_notification", adminPaymentNotif);
 
           // Check if completed (paid + delivered)
           if (payment_status === "paid" && order.status === "delivered") {
@@ -6443,7 +6555,7 @@ router.put(
             req.io
               .to(`user_${order.user_id}`)
               .emit("order_completed", completedData);
-            req.io.to("admins").emit("order_completed", completedData);
+            req.io.to(adminRoomsOf(typeof order === "undefined" ? null : order)).emit("order_completed", completedData);
 
             // Send Thanks Email
             if (order.user_email) {

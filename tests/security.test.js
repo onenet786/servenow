@@ -39,6 +39,7 @@ test('registration ignores a client-supplied role', async () => {
   let insertedRole;
   const { db } = fakeDb((q, p) => {
     if (/^SELECT id FROM users WHERE email/.test(q)) return [[]];
+    if (/FROM branches/.test(q)) return [[{ id: 1, name: 'Kot Addu', is_active: 1 }]];
     if (/^INSERT INTO users/.test(q)) { insertedRole = p[7]; return [{ insertId: 500 }]; }
     return undefined;
   });

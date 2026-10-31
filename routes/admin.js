@@ -1,12 +1,17 @@
 const express = require("express");
 const { authenticateToken, requireAdmin, requireStaffAccess, requirePermission } = require("../middleware/auth");
 const { recordFinancialTransaction } = require("../utils/dbHelpers");
+const feeBranch = require("../utils/branches");
+const feeCache = require("../utils/cache");
 const {
   ensurePushDeviceTokensTable,
   getPushServiceStatus,
 } = require("../services/pushNotifications");
 
 const router = express.Router();
+const { scopeReads, branchOfRow } = require("../utils/branchFinance");
+// Reports read one branch for a branch account, or when head office asks for one (branch_id).
+router.use(scopeReads);
 const RESTRICTED_FINANCIAL_REPORT_EMAILS = new Set(
   String(process.env.PRIVILEGED_ADMIN_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean)
 );
@@ -264,7 +269,11 @@ router.get(
   requirePermission("menu_settings_general"),
   async (req, res) => {
     try {
-      const settings = await getDeliveryFeeSettings(req.db);
+      const feeScope = feeBranch.resolveStaffBranch(req.user, req.query.branch_id);
+      if (feeScope.error) {
+        return res.status(403).json({ success: false, message: feeScope.error });
+      }
+      const settings = await feeBranch.applyBranchFees(req.db, feeScope.branchId, await getDeliveryFeeSettings(req.db));
       return res.json({ success: true, ...settings });
     } catch (error) {
       console.error("delivery-fee-settings get error:", error);
@@ -351,19 +360,30 @@ router.put(
         });
       }
 
+      // Blank = the fees for every branch. A branch account can only set its own branch's fees.
+      const feeScope = feeBranch.resolveStaffBranch(req.user, req.body?.branch_id);
+      if (feeScope.error) {
+        return res.status(403).json({ success: false, message: feeScope.error });
+      }
+      const baseKey = feeScope.branchId === null ? "delivery_fee_base" : feeBranch.feeKey("base_fee", feeScope.branchId);
+      const additionalKey = feeScope.branchId === null
+        ? "delivery_fee_additional_per_store"
+        : feeBranch.feeKey("additional_per_store", feeScope.branchId);
+
       await ensureSystemSettingsTable(req.db);
       await req.db.execute(
         `INSERT INTO system_settings (setting_key, setting_value)
-         VALUES ('delivery_fee_base', ?)
+         VALUES (?, ?)
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
-        [String(baseFee)]
+        [baseKey, String(baseFee)]
       );
       await req.db.execute(
         `INSERT INTO system_settings (setting_key, setting_value)
-         VALUES ('delivery_fee_additional_per_store', ?)
+         VALUES (?, ?)
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
-        [String(additionalFee)]
+        [additionalKey, String(additionalFee)]
       );
+      feeCache.clearPrefix("delivery_fee_config");
 
       return res.json({
         success: true,
@@ -4068,6 +4088,7 @@ router.post(
         description: `Admin Wallet Adjustment (${type}): ${reason}`,
         amount: Math.abs(amount),
         payment_method: 'wallet',
+        branch_id: wallet.rider_id ? await branchOfRow(req.db, 'riders', wallet.rider_id) : null,
         related_entity_type: 'user',
         related_entity_id: wallet.user_id || wallet.rider_id,
         reference_type: 'wallet_transaction',

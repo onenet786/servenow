@@ -9,6 +9,9 @@ class User {
   final String? dateOfBirth;
   final bool isGuest;
 
+  /// Null for guests and for head-office staff (all branches).
+  final int? branchId;
+
   User({
     required this.id,
     required this.firstName,
@@ -19,6 +22,7 @@ class User {
     this.address,
     this.dateOfBirth,
     this.isGuest = false,
+    this.branchId,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -36,6 +40,7 @@ class User {
       address: json['address'],
       dateOfBirth: json['date_of_birth'],
       isGuest: guestFromFlag || userType == 'guest',
+      branchId: int.tryParse('${json['branch_id']}'),
     );
   }
 
@@ -50,6 +55,7 @@ class User {
       'address': address,
       'date_of_birth': dateOfBirth,
       'is_guest': isGuest,
+      'branch_id': branchId,
     };
   }
 }

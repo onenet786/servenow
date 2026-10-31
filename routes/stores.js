@@ -1,6 +1,11 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { authenticateToken, requireAdmin, requireStoreOwner } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStoreOwner, softAuth } = require('../middleware/auth');
+const { filterPrivateData, trustedAdminFlag } = require('../middleware/publicData');
+const {
+    DEFAULT_BRANCH_ID, STAFF_TYPES, toBranchId, isHeadOffice, resolveStaffBranch, resolveWriteBranch, resolveCustomerBranch,
+    latestSetting, settingBranchFor
+} = require('../utils/branches');
 const { sendPushToUser, ensurePushDeviceTokensTable, getPushServiceStatus } = require('../services/pushNotifications');
 const fs = require('fs');
 const path = require('path');
@@ -65,6 +70,7 @@ async function ensureGlobalDeliveryStatusTable(db) {
             status_message TEXT NULL,
             start_at DATETIME NULL,
             end_at DATETIME NULL,
+            branch_id INT NULL,
             updated_by INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -96,6 +102,7 @@ async function ensureLivePromotionsTable(db) {
             start_at DATETIME NULL,
             end_at DATETIME NULL,
             widget_images_json LONGTEXT NULL,
+            branch_id INT NULL,
             updated_by INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -115,6 +122,7 @@ async function ensureCustomerFlashMessagesTable(db) {
             end_at DATETIME NULL,
             notification_target VARCHAR(16) DEFAULT 'all',
             customer_ids_json LONGTEXT NULL,
+            branch_id INT NULL,
             updated_by INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -381,7 +389,7 @@ function normalizeCustomerIds(input) {
     return Array.from(uniq);
 }
 
-async function getTargetCustomers(db, target, customIds) {
+async function getTargetCustomers(db, target, customIds, branchId = null) {
     const normTarget = String(target || 'all').toLowerCase() === 'custom' ? 'custom' : 'all';
     const ids = normalizeCustomerIds(customIds);
     const params = [];
@@ -393,6 +401,10 @@ async function getTargetCustomers(db, target, customIds) {
         if (!ids.length) return [];
         where += ` AND u.id IN (${ids.map(() => '?').join(',')})`;
         params.push(...ids);
+    }
+    if (branchId !== null) {
+        where += ' AND u.branch_id = ?';
+        params.push(branchId);
     }
     const [rows] = await db.execute(
         `SELECT u.id, COALESCE(NULLIF(LOWER(u.user_type), ''), 'standard_user') AS user_type
@@ -626,6 +638,7 @@ async function ensureServiceGeoLimitsTable(db) {
             center_longitude DECIMAL(11, 8) NULL,
             radius_km DECIMAL(10, 2) NULL,
             require_location BOOLEAN DEFAULT FALSE,
+            branch_id INT NOT NULL DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )
@@ -671,7 +684,7 @@ const calculateIsOpen = (opening_time, closing_time) => {
 };
 
 // Get all stores (optionally filter by category via products)
-router.get('/', async (req, res) => {
+router.get('/', softAuth, filterPrivateData, async (req, res) => {
     try {
         await ensureOnce('stores-list-schema', async () => {
             await ensureStoreStatusMessagesTable(req.db);
@@ -681,10 +694,32 @@ router.get('/', async (req, res) => {
             await ensureStoreBankColumn(req.db);
             await ensureStoreBankDetailsColumns(req.db);
         });
-        const { category, category_id, search, admin, lite, latitude, longitude, city } = req.query;
+        const { category, category_id, search, lite, latitude, longitude, city } = req.query;
+        const admin = trustedAdminFlag(req) ? '1' : undefined;
         const liteMode = String(lite || '').toLowerCase() === '1' || String(lite || '').toLowerCase() === 'true';
         const whereClauses = admin === '1' ? [] : ['s.is_active = true', 'COALESCE(s.is_customer_visible, 1) = 1'];
         const params = [];
+
+        // Branch. Customers see their own branch's stores (apps that name none get Kot Addu);
+        // a branch account is held to its branch; head office may filter or see all.
+        let listBranchId = null;
+        if (admin === '1' && req.user.user_type === 'store_owner') {
+            listBranchId = toBranchId(req.user.branch_id) ?? DEFAULT_BRANCH_ID;
+        } else if (admin === '1') {
+            const scoped = resolveStaffBranch(req.user, req.query.branch_id);
+            if (scoped.error) return res.status(403).json({ success: false, message: scoped.error });
+            listBranchId = scoped.branchId;
+        } else {
+            const chosen = await resolveCustomerBranch(req.db, req.user, req.query.branch_id);
+            if (chosen.error) {
+                return res.json({ success: true, stores: [], service_limited: true, service_message: chosen.error });
+            }
+            listBranchId = chosen.branchId;
+        }
+        if (listBranchId !== null) {
+            whereClauses.push('s.branch_id = ?');
+            params.push(listBranchId);
+        }
 
         if (search) {
             const searchTerm = `%${search}%`;
@@ -758,6 +793,7 @@ router.get('/', async (req, res) => {
                 `SELECT *
                  FROM service_geo_limits
                  WHERE is_active = true
+                   AND branch_id = ?
                    AND (
                      require_location = true
                      OR (radius_km IS NOT NULL AND center_latitude IS NOT NULL AND center_longitude IS NOT NULL)
@@ -768,7 +804,8 @@ router.get('/', async (req, res) => {
                    radius_km ASC,
                    require_location DESC,
                    id DESC
-                 LIMIT 1`
+                 LIMIT 1`,
+                [listBranchId === null ? DEFAULT_BRANCH_ID : listBranchId]
             );
             const geo = (geoRows && geoRows.length) ? geoRows[0] : null;
 
@@ -858,6 +895,7 @@ router.get('/', async (req, res) => {
                 const scheduleOpen = calculateIsOpen(store.opening_time, store.closing_time);
                 return {
                     id: store.id,
+                    branch_id: store.branch_id === undefined ? null : Number(store.branch_id),
                     name: store.name,
                     location: store.location,
                     opening_time: store.opening_time || null,
@@ -1173,16 +1211,11 @@ router.put('/status-message', authenticateToken, requireStoreOwner, async (req, 
     }
 });
 
-router.get('/global-delivery-status', async (req, res) => {
+router.get('/global-delivery-status', softAuth, async (req, res) => {
     try {
         await ensureOnce('global-delivery-status-schema', () => ensureGlobalDeliveryStatusTable(req.db));
-        const [rows] = await req.db.execute(
-            `SELECT id, is_enabled, block_ordering, title, status_message, start_at, end_at, updated_at
-             FROM global_delivery_status
-             ORDER BY id DESC
-             LIMIT 1`
-        );
-        let row = rows[0] || null;
+        const { branchId } = await settingBranchFor(req.db, req.user, req.query.branch_id);
+        let row = await latestSetting(req.db, 'global_delivery_status', 'id, is_enabled, block_ordering, title, status_message, start_at, end_at, updated_at', branchId);
         if (row?.is_enabled && row?.end_at) {
             const endAt = new Date(row.end_at);
             if (!Number.isNaN(endAt.getTime()) && new Date() > endAt) {
@@ -1218,6 +1251,9 @@ router.get('/global-delivery-status', async (req, res) => {
 
 router.get('/notification-customers', authenticateToken, requireAdmin, async (req, res) => {
     try {
+        const listScope = resolveStaffBranch(req.user, req.query.branch_id);
+        if (listScope.error) return res.status(403).json({ success: false, message: listScope.error });
+        const listBranch = listScope.branchId;
         const [rows] = await req.db.execute(
             `SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.address,
                     (
@@ -1237,8 +1273,10 @@ router.get('/notification-customers', authenticateToken, requireAdmin, async (re
              FROM users u
              WHERE (u.user_type IS NULL OR u.user_type = '' OR LOWER(u.user_type) IN ('customer', 'standard_user'))
                AND (u.is_active IS NULL OR u.is_active = 1)
+               ${listBranch !== null ? 'AND u.branch_id = ?' : ''}
              ORDER BY u.id DESC
-             LIMIT 500`
+             LIMIT 500`,
+            listBranch !== null ? [listBranch] : []
         );
         return res.json({
             success: true,
@@ -1281,7 +1319,14 @@ router.post('/customer-push-notification', authenticateToken, requireAdmin, asyn
             });
         }
 
-        const recipients = await getTargetCustomers(req.db, notificationTarget, customCustomerIds);
+        // Optional: send to one branch only (blank = every branch, as before).
+        if (req.body.branch_id !== undefined && req.body.branch_id !== null && req.body.branch_id !== '' && toBranchId(req.body.branch_id) === null) {
+            return res.status(400).json({ success: false, message: 'Unknown branch' });
+        }
+        const pushScope = resolveStaffBranch(req.user, req.body.branch_id);
+        if (pushScope.error) return res.status(403).json({ success: false, message: pushScope.error });
+        const pushBranch = pushScope.branchId;
+        const recipients = await getTargetCustomers(req.db, notificationTarget, customCustomerIds, pushBranch);
         let pushed = 0;
         for (const recipient of recipients) {
             await sendPushToUser(req.db, {
@@ -1506,6 +1551,10 @@ router.get('/push-status', authenticateToken, requireAdmin, async (req, res) => 
 
 router.put('/global-delivery-status', authenticateToken, requireAdmin, async (req, res) => {
     try {
+        // Which branch this is for: blank = every branch. A branch account can only set its own.
+        const settingScope = resolveStaffBranch(req.user, req.body.branch_id);
+        if (settingScope.error) return res.status(403).json({ success: false, message: settingScope.error });
+        const settingBranchId = settingScope.branchId;
         await ensureGlobalDeliveryStatusTable(req.db);
         const isEnabled = !!req.body.is_enabled;
         const blockOrdering = !!req.body.block_ordering;
@@ -1548,9 +1597,9 @@ router.put('/global-delivery-status', authenticateToken, requireAdmin, async (re
         }
 
         await req.db.execute(
-            `INSERT INTO global_delivery_status (is_enabled, block_ordering, title, status_message, start_at, end_at, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [isEnabled ? 1 : 0, blockOrdering ? 1 : 0, title || null, statusMessage || null, startAt, endAt, req.user.id]
+            `INSERT INTO global_delivery_status (branch_id, is_enabled, block_ordering, title, status_message, start_at, end_at, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [settingBranchId, isEnabled ? 1 : 0, blockOrdering ? 1 : 0, title || null, statusMessage || null, startAt, endAt, req.user.id]
         );
 
         const [rows] = await req.db.execute(
@@ -1562,7 +1611,7 @@ router.put('/global-delivery-status', authenticateToken, requireAdmin, async (re
         const payload = getGlobalDeliveryStatusPayload(rows[0] || null);
         let pushed = 0;
         if (sendPush) {
-            const recipients = await getTargetCustomers(req.db, notificationTarget, customCustomerIds);
+            const recipients = await getTargetCustomers(req.db, notificationTarget, customCustomerIds, settingBranchId);
             const notifTitle = pushTitle || (title || 'Delivery Update');
             const notifMessage = pushMessageRaw || (statusMessage || 'Please check latest delivery status.');
             for (const recipient of recipients) {
@@ -1618,16 +1667,11 @@ router.put('/global-delivery-status', authenticateToken, requireAdmin, async (re
     }
 });
 
-router.get('/live-promotions', async (req, res) => {
+router.get('/live-promotions', softAuth, async (req, res) => {
     try {
         await ensureOnce('live-promotions-schema', () => ensureLivePromotionsTable(req.db));
-        const [rows] = await req.db.execute(
-            `SELECT id, is_enabled, title, status_message, start_at, end_at, widget_images_json, updated_at
-             FROM live_promotions
-             ORDER BY id DESC
-             LIMIT 1`
-        );
-        let row = rows[0] || null;
+        const { branchId } = await settingBranchFor(req.db, req.user, req.query.branch_id);
+        let row = await latestSetting(req.db, 'live_promotions', 'id, is_enabled, title, status_message, start_at, end_at, widget_images_json, updated_at', branchId);
         if (row?.is_enabled && row?.end_at) {
             const endAt = new Date(row.end_at);
             if (!Number.isNaN(endAt.getTime()) && new Date() > endAt) {
@@ -2032,6 +2076,10 @@ router.delete('/offer-campaigns/:id', authenticateToken, requireStoreOwner, asyn
 
 router.put('/live-promotions', authenticateToken, requireAdmin, async (req, res) => {
     try {
+        // Which branch this is for: blank = every branch. A branch account can only set its own.
+        const settingScope = resolveStaffBranch(req.user, req.body.branch_id);
+        if (settingScope.error) return res.status(403).json({ success: false, message: settingScope.error });
+        const settingBranchId = settingScope.branchId;
         await ensureLivePromotionsTable(req.db);
         const isEnabled = !!req.body.is_enabled;
         const title = (req.body.title ?? '').toString().trim();
@@ -2072,10 +2120,10 @@ router.put('/live-promotions', authenticateToken, requireAdmin, async (req, res)
         }
 
         await req.db.execute(
-            `INSERT INTO live_promotions (is_enabled, title, status_message, start_at, end_at, widget_images_json, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO live_promotions (branch_id, is_enabled, title, status_message, start_at, end_at, widget_images_json, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                isEnabled ? 1 : 0,
+                settingBranchId, isEnabled ? 1 : 0,
                 title || null,
                 statusMessage || null,
                 startAt,
@@ -2109,13 +2157,8 @@ router.put('/live-promotions', authenticateToken, requireAdmin, async (req, res)
 router.get('/customer-flash-message', authenticateToken, async (req, res) => {
     try {
         await ensureOnce('customer-flash-message-schema', () => ensureCustomerFlashMessagesTable(req.db));
-        const [rows] = await req.db.execute(
-            `SELECT id, is_enabled, title, status_message, image_url, start_at, end_at, notification_target, customer_ids_json, updated_at
-             FROM customer_flash_messages
-             ORDER BY id DESC
-             LIMIT 1`
-        );
-        let row = rows[0] || null;
+        const { branchId } = await settingBranchFor(req.db, req.user, req.query.branch_id);
+        let row = await latestSetting(req.db, 'customer_flash_messages', 'id, is_enabled, title, status_message, image_url, start_at, end_at, notification_target, customer_ids_json, updated_at', branchId);
         if (row?.is_enabled && row?.end_at) {
             const endAt = new Date(row.end_at);
             if (!Number.isNaN(endAt.getTime()) && new Date() > endAt) {
@@ -2152,6 +2195,10 @@ router.get('/customer-flash-message', authenticateToken, async (req, res) => {
 
 router.put('/customer-flash-message', authenticateToken, requireAdmin, async (req, res) => {
     try {
+        // Which branch this is for: blank = every branch. A branch account can only set its own.
+        const settingScope = resolveStaffBranch(req.user, req.body.branch_id);
+        if (settingScope.error) return res.status(403).json({ success: false, message: settingScope.error });
+        const settingBranchId = settingScope.branchId;
         await ensureCustomerFlashMessagesTable(req.db);
         const isEnabled = !!req.body.is_enabled;
         const title = (req.body.title ?? '').toString().trim();
@@ -2203,10 +2250,10 @@ router.put('/customer-flash-message', authenticateToken, requireAdmin, async (re
         }
 
         await req.db.execute(
-            `INSERT INTO customer_flash_messages (is_enabled, title, status_message, image_url, start_at, end_at, notification_target, customer_ids_json, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO customer_flash_messages (branch_id, is_enabled, title, status_message, image_url, start_at, end_at, notification_target, customer_ids_json, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                isEnabled ? 1 : 0,
+                settingBranchId, isEnabled ? 1 : 0,
                 title || null,
                 statusMessage || null,
                 imageUrl || null,
@@ -2228,7 +2275,7 @@ router.put('/customer-flash-message', authenticateToken, requireAdmin, async (re
 
         let pushed = 0;
         if (sendPush) {
-            const recipients = await getTargetCustomers(req.db, notificationTarget, customCustomerIds);
+            const recipients = await getTargetCustomers(req.db, notificationTarget, customCustomerIds, settingBranchId);
             const notifTitle = pushTitle || (title || 'ServeNow Update');
             const notifMessage = pushMessageRaw || (statusMessage || 'Please check latest customer updates.');
             for (const recipient of recipients) {
@@ -2450,7 +2497,7 @@ router.post('/:id/grace-alert-mute', authenticateToken, requireAdmin, async (req
     }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', softAuth, filterPrivateData, async (req, res) => {
     try {
         await ensureStoreStatusMessagesTable(req.db);
         await ensureStoreFinancialColumns(req.db);
@@ -2468,7 +2515,7 @@ router.get('/:id', async (req, res) => {
             LEFT JOIN users u ON s.owner_id = u.id
             LEFT JOIN banks b ON b.id = s.bank_id
             WHERE s.id = ? AND s.is_active = true AND (? = '1' OR COALESCE(s.is_customer_visible, 1) = 1)
-        `, [id, String(req.query?.admin || '0')]);
+        `, [id, trustedAdminFlag(req) ? '1' : '0']);
 
         if (stores.length === 0) {
             return res.status(404).json({
@@ -2502,6 +2549,7 @@ router.get('/:id', async (req, res) => {
             success: true,
             store: {
                 id: store.id,
+                branch_id: store.branch_id === undefined ? null : Number(store.branch_id),
                 name: store.name,
                 location: store.location,
                 opening_time: store.opening_time || null,
@@ -2733,6 +2781,25 @@ router.post('/', authenticateToken, requireStoreOwner, [
         const parsedOwnerId = rawOwnerId === null || rawOwnerId === undefined ? null : parseInt(String(rawOwnerId), 10);
         const ownerId = Number.isFinite(parsedOwnerId) && parsedOwnerId > 0 ? parsedOwnerId : null;
 
+        // Branch of the new store. A store owner's store is in their own branch; staff name one
+        // (a branch account can only use its own).
+        let newStoreBranch;
+        if (req.user.user_type === 'admin') {
+            const written = await resolveWriteBranch(req.db, req.user, req.body.branch_id);
+            if (written.error) return res.status(400).json({ success: false, message: written.error });
+            newStoreBranch = written.branchId;
+        } else {
+            newStoreBranch = toBranchId(req.user.branch_id) ?? DEFAULT_BRANCH_ID;
+        }
+        // An owner who belongs to a branch can only run stores in that branch.
+        if (ownerId !== null && ownerId !== req.user.id) {
+            const [ownerRows] = await req.db.execute('SELECT branch_id FROM users WHERE id = ? LIMIT 1', [ownerId]);
+            const ownerBranch = ownerRows.length ? toBranchId(ownerRows[0].branch_id) : null;
+            if (ownerBranch !== null && ownerBranch !== newStoreBranch) {
+                return res.status(400).json({ success: false, message: 'The store owner belongs to a different branch' });
+            }
+        }
+
         const insertFields = [
             'name',
             'description',
@@ -2757,7 +2824,8 @@ router.post('/', authenticateToken, requireStoreOwner, [
             'owner_id',
             'cover_image'
             ,
-            'is_customer_visible'
+            'is_customer_visible',
+            'branch_id'
         ];
         const insertValues = [
             name,
@@ -2782,7 +2850,8 @@ router.post('/', authenticateToken, requireStoreOwner, [
             parsedStoreBankAccountNumber,
             ownerId,
             image_url || null,
-            customerVisible ? 1 : 0
+            customerVisible ? 1 : 0,
+            newStoreBranch
         ];
 
         if (rating !== undefined && req.user.user_type === 'admin') {
@@ -3082,6 +3151,21 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             updateValues.push(visible ? 1 : 0);
         }
         if (is_active !== undefined && req.user.user_type === 'admin') { updateFields.push('is_active = ?'); updateValues.push(is_active); }
+        // Moving a store to another branch is a head-office decision, and only while it has no
+        // orders: past orders stay in the branch they were placed in.
+        if (req.body.branch_id !== undefined && toBranchId(req.body.branch_id) !== toBranchId(store.branch_id)) {
+            if (req.user.user_type !== 'admin' || !isHeadOffice(req.user)) {
+                return res.status(403).json({ success: false, message: 'Only head office can move a store to another branch' });
+            }
+            const written = await resolveWriteBranch(req.db, req.user, req.body.branch_id);
+            if (written.error) return res.status(400).json({ success: false, message: written.error });
+            const [[used]] = await req.db.execute('SELECT COUNT(*) AS n FROM orders WHERE store_id = ?', [id]);
+            if (Number(used.n) > 0) {
+                return res.status(409).json({ success: false, message: 'This store already has orders, so it cannot move to another branch' });
+            }
+            updateFields.push('branch_id = ?');
+            updateValues.push(written.branchId);
+        }
 
         if (updateFields.length === 0) {
             return res.status(400).json({

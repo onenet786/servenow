@@ -6,6 +6,7 @@ import 'package:logger/logger.dart';
 import 'dart:convert';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/branch_service.dart';
 import '../services/rider_background_tracking_service.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -21,6 +22,8 @@ class AuthProvider with ChangeNotifier {
 
   AuthProvider() {
     ApiService.refreshAccessToken = _refreshAccessToken;
+    ApiService.readSessionToken = () => _token;
+    BranchService.readAccountBranch = () => _user?.branchId;
   }
 
   User? get user => _user;
@@ -175,7 +178,10 @@ class AuthProvider with ChangeNotifier {
         throw Exception('Google sign in did not return a valid ID token.');
       }
 
-      final data = await ApiService.googleLogin(idToken);
+      final data = await ApiService.googleLogin(
+        idToken,
+        branchId: BranchService.selectedId,
+      );
       if (data['success'] == true || data['token'] != null) {
         _token = data['token'];
         _refreshToken = data['refresh_token'];
@@ -219,6 +225,7 @@ class AuthProvider with ChangeNotifier {
     required String password,
     String? phone,
     String? address,
+    int? branchId,
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -232,6 +239,7 @@ class AuthProvider with ChangeNotifier {
         password: password,
         phone: phone,
         address: address,
+        branchId: branchId,
       );
 
       if (response['requires_verification'] == true) {
@@ -581,6 +589,8 @@ class AuthProvider with ChangeNotifier {
   void dispose() {
     if (ApiService.refreshAccessToken == _refreshAccessToken) {
       ApiService.refreshAccessToken = null;
+      ApiService.readSessionToken = null;
+      BranchService.readAccountBranch = null;
     }
     super.dispose();
   }

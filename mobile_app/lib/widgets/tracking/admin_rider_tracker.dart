@@ -72,7 +72,7 @@ class AdminRiderTracker extends StatelessWidget {
     this.mapHeight = 300,
     this.fullscreen = false,
     this.showInfoCard = true,
-    this.fallbackCenter = const LatLng(30.4686, 70.9661),
+    this.fallbackCenter,
   });
 
   final List<TrackedRider> riders;
@@ -87,7 +87,7 @@ class AdminRiderTracker extends StatelessWidget {
 
   /// The compact dashboard card leaves the info card to the full map.
   final bool showInfoCard;
-  final LatLng fallbackCenter;
+  final LatLng? fallbackCenter;
 
   static final TrackingText _text = TrackingText((s) => s);
 

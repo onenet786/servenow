@@ -50,7 +50,11 @@
       var res = await fetch(base + "/api/auth/google-mobile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: credential }),
+        body: JSON.stringify({
+          id_token: credential,
+          // Only used when this sign-in creates a new account: its city.
+          branch_id: (document.getElementById("branchSelect") || {}).value || localStorage.getItem("serveNowCity") || undefined,
+        }),
       });
       var data = null;
       try {

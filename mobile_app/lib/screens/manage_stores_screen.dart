@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/branch_service.dart';
 import '../widgets/admin/admin_ui.dart';
+import '../widgets/admin/branch_filter.dart';
 import '../widgets/ui/ui.dart';
 
 class ManageStoresScreen extends StatefulWidget {
@@ -40,6 +42,7 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) return;
 
+      _loadBranchNames(token);
       final stores = await ApiService.getStoresForAdmin(
         token,
         includeInactive: true,
@@ -68,14 +71,25 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
     }
   }
 
+  Map<int, String> _branchNames = const {};
+  int? _branchFilter;
+
+  Future<void> _loadBranchNames(String token) async {
+    final names = await BranchService.loadStaffNames(token);
+    if (!mounted) return;
+    setState(() => _branchNames = names);
+  }
+
+  bool _inBranch(dynamic record) =>
+      _branchFilter == null ||
+      int.tryParse('${record['branch_id']}') == _branchFilter;
+
   void _applySearch() {
     final q = _searchController.text.trim().toLowerCase();
-    if (q.isEmpty) {
-      setState(() => _filteredStores = _stores);
-      return;
-    }
     setState(() {
       _filteredStores = _stores.where((s) {
+        if (!_inBranch(s)) return false;
+        if (q.isEmpty) return true;
         final name = (s['name'] ?? s['store_name'] ?? '')
             .toString()
             .toLowerCase();
@@ -138,6 +152,17 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
                               hintText: 'Search by name, ID or location',
                               prefixIcon: Icon(Icons.search),
                             ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: BranchFilter(
+                            names: _branchNames,
+                            value: _branchFilter,
+                            onChanged: (value) {
+                              _branchFilter = value;
+                              _applySearch();
+                            },
                           ),
                         ),
                         Padding(
@@ -235,6 +260,10 @@ class _ManageStoresScreenState extends State<ManageStoresScreen> {
               OpenBadge(isOpen: open),
             ],
           ),
+          if (_branchNames.length > 1) ...[
+            const SizedBox(height: AppSpace.xs),
+            BranchTag(names: _branchNames, branchId: store['branch_id']),
+          ],
           // Only exceptions get a pill (inactive / hidden); a normal store
           // shows just its Open/Closed badge.
           if (!active || !visible) ...[

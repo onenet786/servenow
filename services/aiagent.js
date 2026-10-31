@@ -7,6 +7,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { staffHasRight } = require('../middleware/auth');
+const { DEFAULT_BRANCH_ID, toBranchId, staffScope, listBranches } = require('../utils/branches');
 
 const TOKEN_TTL_SECONDS = 2 * 3600;
 const OPEN_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'out_for_delivery'];
@@ -53,11 +54,11 @@ async function loadAccount(db, key) {
   if (!m) return null;
   const id = Number(m[2]);
   if (m[1] === 'r') {
-    const [rows] = await db.execute('SELECT id, first_name, last_name, email, is_active FROM riders WHERE id = ?', [id]);
+    const [rows] = await db.execute('SELECT id, first_name, last_name, email, is_active, branch_id FROM riders WHERE id = ?', [id]);
     const r = rows[0];
     return r && r.is_active ? { ...r, user_type: 'rider' } : null;
   }
-  const [rows] = await db.execute('SELECT id, first_name, last_name, email, user_type, is_active FROM users WHERE id = ?', [id]);
+  const [rows] = await db.execute('SELECT id, first_name, last_name, email, user_type, is_active, branch_id FROM users WHERE id = ?', [id]);
   const u = rows[0];
   return u && u.is_active ? u : null;
 }
@@ -73,7 +74,7 @@ async function verifyIdentity(db, token, secret = settings().identitySecret) {
   const account = await loadAccount(db, claims.sub);
   if (!account || account.user_type !== claims.role) return null;
   const name = `${account.first_name || ''} ${account.last_name || ''}`.trim() || account.email;
-  return { id: account.id, type: account.user_type, name };
+  return { id: account.id, type: account.user_type, name, branch_id: toBranchId(account.branch_id) };
 }
 
 // ---------------------------------------------------------------- tool definitions (copied into AIAgent)
@@ -186,12 +187,27 @@ function openBySchedule(opening, closing, now = new Date()) {
 
 const placeholders = (n) => Array(n).fill('?').join(', ');
 
+// The one branch this asker is limited to, or null (head office, or not staff).
+const staffBranchOf = (user) => (user ? staffScope({ user_type: user.type, branch_id: user.branch_id }) : null);
+
+// Branches the asker may hear about when browsing stores: their own (customers, riders, branch
+// accounts), or every open branch for head office and visitors.
+async function browseBranchIds(db, user) {
+  const own = staffBranchOf(user);
+  if (own !== null) return [own];
+  if (user && user.type !== 'admin' && user.type !== 'standard_user') return [toBranchId(user.branch_id) ?? DEFAULT_BRANCH_ID];
+  const open = await listBranches(db, { activeOnly: true });
+  return open.map((b) => Number(b.id));
+}
+
 // ---------------------------------------------------------------- tools
 
-async function findStores(db, args) {
+async function findStores(db, args, user) {
   const t = clean(args.search, 50);
-  const params = [];
-  let where = 's.is_active = 1 AND COALESCE(s.is_customer_visible, 1) = 1';
+  const branchIds = await browseBranchIds(db, user);
+  if (!branchIds.length) return { stores: [], note: 'No stores are listed right now.' };
+  const params = [...branchIds];
+  let where = `s.is_active = 1 AND COALESCE(s.is_customer_visible, 1) = 1 AND s.branch_id IN (${placeholders(branchIds.length)})`;
   if (t) {
     where += ` AND (s.name LIKE ? OR s.location LIKE ? OR s.address LIKE ?
                OR EXISTS (SELECT 1 FROM products p WHERE p.store_id = s.id AND p.is_available = 1 AND p.name LIKE ?))`;
@@ -199,8 +215,9 @@ async function findStores(db, args) {
   }
   const [rows] = await db.execute(
     `SELECT s.id, s.name, s.location, s.delivery_time, s.opening_time, s.closing_time, s.rating,
-            sm.is_closed, sm.status_message
+            sm.is_closed, sm.status_message, b.name AS branch_name
        FROM stores s LEFT JOIN store_status_messages sm ON sm.store_id = s.id
+       LEFT JOIN branches b ON b.id = s.branch_id
       WHERE ${where}
       ORDER BY s.priority IS NULL, s.priority, s.name LIMIT 8`,
     params
@@ -210,6 +227,7 @@ async function findStores(db, args) {
     stores: rows.map((s) => ({
       name: s.name,
       area: s.location,
+      branch: branchIds.length > 1 ? s.branch_name : undefined,
       open_now: !s.is_closed && openBySchedule(s.opening_time, s.closing_time),
       hours: s.opening_time && s.closing_time ? `${timeText(s.opening_time)}–${timeText(s.closing_time)}` : null,
       closed_by_store: !!s.is_closed,
@@ -220,12 +238,14 @@ async function findStores(db, args) {
   };
 }
 
-async function findProducts(db, args) {
+async function findProducts(db, args, user) {
   const t = clean(args.search, 50);
   if (!t) return { error: 'missing', message: 'Ask which product they are looking for.' };
   const store = clean(args.store, 50);
-  const params = [`%${t}%`];
-  let where = 'p.is_available = 1 AND p.name LIKE ? AND s.is_active = 1 AND COALESCE(s.is_customer_visible, 1) = 1';
+  const branchIds = await browseBranchIds(db, user);
+  if (!branchIds.length) return { products: [], note: `No product matches "${t}".` };
+  const params = [`%${t}%`, ...branchIds];
+  let where = `p.is_available = 1 AND p.name LIKE ? AND s.is_active = 1 AND COALESCE(s.is_customer_visible, 1) = 1 AND s.branch_id IN (${placeholders(branchIds.length)})`;
   if (store) { where += ' AND s.name LIKE ?'; params.push(`%${store}%`); }
   const [rows] = await db.execute(
     `SELECT p.name, p.price, p.stock_quantity, p.available_from, p.available_to, s.name AS store_name,
@@ -271,6 +291,9 @@ async function myOrders(db, args, user) {
 
 // Who may see this order: its customer, its rider, the owner of its store, admins, and staff with "View orders".
 async function maySeeOrder(db, order, user) {
+  // A branch account never sees another branch's orders, not even through the assistant.
+  const scope = staffBranchOf(user);
+  if (scope !== null && toBranchId(order.branch_id) !== scope) return false;
   if (user.type === 'admin') return true;
   if (user.type === 'standard_user') return order.user_id === user.id || staffHasRight(db, user.id, 'menu_orders');
   if (user.type === 'rider') return order.rider_id === user.id;
@@ -286,7 +309,7 @@ async function orderStatus(db, args, user) {
   const no = String(args.order_number || '').trim().replace(/^#/, '').slice(0, 50);
   if (!no) return { error: 'missing', message: 'Ask for the order number (it is on the order confirmation and in My orders).' };
   const [rows] = await db.execute(
-    `SELECT o.id, o.order_number, o.user_id, o.store_id, o.rider_id, o.status, o.total_amount, o.delivery_fee,
+    `SELECT o.id, o.branch_id, o.order_number, o.user_id, o.store_id, o.rider_id, o.status, o.total_amount, o.delivery_fee,
             o.payment_method, o.payment_status, o.estimated_delivery_time, o.created_at, o.updated_at,
             s.name AS store_name, r.first_name AS rider_first_name
        FROM orders o LEFT JOIN stores s ON s.id = o.store_id LEFT JOIN riders r ON r.id = o.rider_id
@@ -385,17 +408,22 @@ async function storeOrdersToday(db, _args, user) {
   };
 }
 
-async function businessToday(db) {
+async function businessToday(db, _args, user) {
+  const scope = staffBranchOf(user);
+  const inBranch = scope === null ? '' : ' AND o.branch_id = ?';
+  const p = scope === null ? [] : [scope];
   const [byStatus] = await db.execute(
-    `SELECT o.status, COUNT(*) AS n, SUM(o.total_amount) AS value FROM orders o WHERE ${TODAY} GROUP BY o.status`
+    `SELECT o.status, COUNT(*) AS n, SUM(o.total_amount) AS value FROM orders o WHERE ${TODAY}${inBranch} GROUP BY o.status`, p
   );
   const [[waiting]] = await db.execute(
-    `SELECT COUNT(*) AS n FROM orders WHERE rider_id IS NULL AND status IN ('confirmed', 'preparing', 'ready')`
+    `SELECT COUNT(*) AS n FROM orders o WHERE o.rider_id IS NULL AND o.status IN ('confirmed', 'preparing', 'ready')${inBranch}`, p
   );
-  const [[riders]] = await db.execute('SELECT COUNT(*) AS n FROM riders WHERE is_active = 1 AND is_available = 1');
+  const [[riders]] = await db.execute(
+    `SELECT COUNT(*) AS n FROM riders WHERE is_active = 1 AND is_available = 1${scope === null ? '' : ' AND branch_id = ?'}`, p
+  );
   const [busiest] = await db.execute(
     `SELECT s.name, COUNT(*) AS n FROM orders o JOIN stores s ON s.id = o.store_id
-      WHERE ${TODAY} GROUP BY s.id, s.name ORDER BY n DESC LIMIT 5`
+      WHERE ${TODAY}${inBranch} GROUP BY s.id, s.name ORDER BY n DESC LIMIT 5`, p
   );
   const delivered = byStatus.find((r) => r.status === 'delivered');
   return {

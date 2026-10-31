@@ -8,6 +8,8 @@ const ledger = require('../services/ledger');
 const storeAccount = require('../utils/storeAccount');
 const riderCash = require('../utils/riderCash');
 const { REPORTS } = require('../services/reportsCentre');
+const { staffScope, toBranchId } = require('../utils/branches');
+const { applyBranchScope, documentBranch, journalVoucherBranch, unscoped } = require('../utils/branchFinance');
 const fs = require('fs');
 const path = require('path');
 
@@ -96,6 +98,7 @@ async function ensureOrderItemsCostPriceColumn(db) {
 async function ensureRiderStorePaymentsTable(db) {
     await db.execute(`
         CREATE TABLE IF NOT EXISTS rider_store_payments (
+            branch_id INT NOT NULL DEFAULT 1,
             id INT PRIMARY KEY AUTO_INCREMENT,
             order_id INT NOT NULL,
             store_id INT NOT NULL,
@@ -324,8 +327,9 @@ function getStorePayableSqlExpression(storeAlias = 's') {
         )`;
 }
 
-async function backfillLegacyPaymentVouchersToFinancialTransactions(db) {
+async function backfillLegacyPaymentVouchersToFinancialTransactions(handle) {
     if (_legacyCpvBackfillDone) return 0;
+    const db = unscoped(handle);
     const [pendingRows] = await db.execute(
         `SELECT cpv.id
          FROM cash_payment_vouchers cpv
@@ -343,7 +347,7 @@ async function backfillLegacyPaymentVouchersToFinancialTransactions(db) {
 
     const [result] = await db.execute(
         `INSERT INTO financial_transactions
-            (transaction_number, transaction_type, category, description, amount, payment_method, related_entity_type, related_entity_id, reference_type, reference_id, notes, created_by, status, created_at)
+            (transaction_number, transaction_type, category, description, amount, payment_method, related_entity_type, related_entity_id, reference_type, reference_id, notes, created_by, status, created_at, branch_id)
          SELECT
             CONCAT(
                 'FIN-BF-',
@@ -363,7 +367,8 @@ async function backfillLegacyPaymentVouchersToFinancialTransactions(db) {
             'Backfilled from legacy CPV' AS notes,
             COALESCE(cpv.paid_by, cpv.approved_by, cpv.prepared_by, 1) AS created_by,
             'completed' AS status,
-            COALESCE(cpv.paid_at, cpv.approved_at, cpv.updated_at, cpv.created_at, NOW()) AS created_at
+            COALESCE(cpv.paid_at, cpv.approved_at, cpv.updated_at, cpv.created_at, NOW()) AS created_at,
+            cpv.branch_id AS branch_id
          FROM cash_payment_vouchers cpv
          LEFT JOIN financial_transactions ft
            ON ft.reference_type = 'payment_voucher'
@@ -387,6 +392,7 @@ async function ensureRiderCashMovementTypes(db) {
 async function ensureRiderCashSubmissionOrdersTable(db) {
     await db.execute(`
         CREATE TABLE IF NOT EXISTS rider_cash_submission_orders (
+            branch_id INT NOT NULL DEFAULT 1,
             id INT PRIMARY KEY AUTO_INCREMENT,
             movement_id INT NOT NULL,
             order_id INT NOT NULL,
@@ -402,7 +408,8 @@ async function ensureRiderCashSubmissionOrdersTable(db) {
     `);
 }
 
-async function backfillLegacyRiderCashSubmissionLinks(db) {
+async function backfillLegacyRiderCashSubmissionLinks(handle) {
+    const db = unscoped(handle);
     await ensureRiderCashSubmissionOrdersTable(db);
 
     const [existingLinks] = await db.execute(
@@ -532,12 +539,12 @@ async function backfillLegacyRiderCashSubmissionLinks(db) {
         return { linkedMovements: 0, linkedOrders: 0 };
     }
 
-    const valuesSql = stagedLinks.map(() => '(?, ?, ?, ?, ?)').join(', ');
+    const valuesSql = stagedLinks.map(() => '(?, ?, ?, ?, ?, (SELECT branch_id FROM rider_cash_movements WHERE id = ?))').join(', ');
     await db.execute(
         `INSERT IGNORE INTO rider_cash_submission_orders
-         (movement_id, order_id, rider_id, order_number, order_amount)
+         (movement_id, order_id, rider_id, order_number, order_amount, branch_id)
          VALUES ${valuesSql}`,
-        stagedLinks.flat()
+        stagedLinks.flatMap((link) => [...link, link[0]])
     );
 
     return {
@@ -549,6 +556,7 @@ async function backfillLegacyRiderCashSubmissionLinks(db) {
 async function ensureRiderFuelPaymentEntriesTable(db) {
     await db.execute(`
         CREATE TABLE IF NOT EXISTS rider_fuel_payment_entries (
+            branch_id INT NOT NULL DEFAULT 1,
             id INT PRIMARY KEY AUTO_INCREMENT,
             movement_id INT NOT NULL,
             fuel_history_id INT NOT NULL,
@@ -656,6 +664,62 @@ router.use(async (req, res, next) => {
         success: false, 
         message: 'Admin access required or missing permission' 
     });
+});
+
+// Reading: every GET, and report generation, sees one branch when the caller is a branch account
+// or head office asked for one (branch_id). See utils/branchFinance.js.
+router.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.path === '/reports/generate') {
+        return applyBranchScope(req, res, next);
+    }
+    return next();
+});
+
+// Changing a document: it must be in the caller's branch (another branch's looks like it does
+// not exist), and a voucher cannot be pointed at a rider, store or customer of another branch.
+const DOCUMENT_ROUTES = [
+    [/^\/payment-vouchers\/(\d+)/, 'cash_payment_vouchers', 'payee'],
+    [/^\/receipt-vouchers\/(\d+)/, 'cash_receipt_vouchers', 'payer'],
+    [/^\/rider-cash\/(\d+)/, 'rider_cash_movements'],
+    [/^\/store-settlements\/(\d+)/, 'store_settlements'],
+    [/^\/expenses\/(\d+)/, 'admin_expenses'],
+    [/^\/journal-vouchers\/(\d+)/, 'journal_vouchers'],
+    [/^\/reports\/(\d+)/, 'financial_reports'],
+];
+const partyOf = (type, id) => {
+    if (!id) return {};
+    if (type === 'rider') return { rider: id };
+    if (type === 'store') return { store: id };
+    if (type === 'customer') return { customer: id };
+    return {};
+};
+
+router.use(async (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') return next();
+    try {
+        for (const [pattern, table, party] of DOCUMENT_ROUTES) {
+            const hit = req.path.match(pattern);
+            if (!hit) continue;
+            const [rows] = await req.db.execute(`SELECT * FROM ${table} WHERE id = ? LIMIT 1`, [Number(hit[1])]);
+            if (!rows.length) return next(); // the route answers 404
+            const docBranch = toBranchId(rows[0].branch_id);
+            const scope = staffScope(req.user);
+            if (scope !== null && docBranch !== scope) {
+                return res.status(404).json({ success: false, message: 'Not found' });
+            }
+            req.docBranch = docBranch;
+            if (party && req.body && req.body[`${party}_id`]) {
+                const named = await documentBranch(req.db, req.user, docBranch,
+                    partyOf(req.body[`${party}_type`] || rows[0][`${party}_type`], req.body[`${party}_id`]));
+                if (named.error) return res.status(named.status).json({ success: false, message: named.error });
+            }
+            return next();
+        }
+        return next();
+    } catch (error) {
+        console.error('Error checking document branch:', error);
+        return res.status(500).json({ success: false, message: 'Failed to check the branch' });
+    }
 });
 
 router.get('/dashboard', async (req, res) => {
@@ -1156,8 +1220,12 @@ router.post('/transactions', [
         }
 
         const { transaction_type, category, description, amount, payment_method, reference_type, reference_id, notes } = req.body;
-        
+
+        const entryBranch = await documentBranch(req.db, req.user, req.body.branch_id, {});
+        if (entryBranch.error) return res.status(entryBranch.status).json({ success: false, message: entryBranch.error });
+
         const transactionId = await recordFinancialTransaction(req.db, {
+            branch_id: entryBranch.branchId,
             transaction_type,
             category,
             description,
@@ -1311,14 +1379,17 @@ router.post('/payment-vouchers', [
         const voucher_number = generateVoucherNumber('CPV');
         const voucher_date = new Date().toISOString().split('T')[0];
 
+        const voucherBranch = await documentBranch(req.db, req.user, req.body.branch_id, partyOf(payee_type, payee_id));
+        if (voucherBranch.error) return res.status(voucherBranch.status).json({ success: false, message: voucherBranch.error });
+
         // Normalize cheque number
         const finalChequeNumber = cheque_number || check_number || null;
 
         const [result] = await req.db.execute(
             `INSERT INTO cash_payment_vouchers 
-             (voucher_number, voucher_date, payee_name, payee_type, payee_id, amount, purpose, description, payment_method, check_number, bank_details, prepared_by, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
-            [voucher_number, voucher_date, payee_name, payee_type, payee_id || null, amount, purpose || null, description || null, payment_method, finalChequeNumber, bank_details || null, req.user.id]
+             (voucher_number, voucher_date, payee_name, payee_type, payee_id, amount, purpose, description, payment_method, check_number, bank_details, prepared_by, status, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
+            [voucher_number, voucher_date, payee_name, payee_type, payee_id || null, amount, purpose || null, description || null, payment_method, finalChequeNumber, bank_details || null, req.user.id, voucherBranch.branchId]
         );
 
         res.status(201).json({
@@ -1472,6 +1543,7 @@ router.put('/payment-vouchers/:id', [
                     description: `CPV ${voucherRef} | Payment to ${voucherPayee}: ${voucherDescription}`,
                     amount: voucherAmount,
                     payment_method: payment_method || existingVoucher.payment_method,
+                    branch_id: req.docBranch,
                     related_entity_type: existingVoucher.payee_type,
                     related_entity_id: existingVoucher.payee_id,
                     reference_type: 'payment_voucher',
@@ -1611,13 +1683,16 @@ router.post('/receipt-vouchers', [
         const voucher_number = generateVoucherNumber('CRV');
         const voucher_date = new Date().toISOString().split('T')[0];
 
+        const voucherBranch = await documentBranch(req.db, req.user, req.body.branch_id, partyOf(payer_type, payer_id));
+        if (voucherBranch.error) return res.status(voucherBranch.status).json({ success: false, message: voucherBranch.error });
+
         // Try insert with 'cheque_number', fallback to 'check_number' if column not found
         let result;
         try {
             const insertSqlCheque = `
                 INSERT INTO cash_receipt_vouchers 
-                (voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, cheque_number, bank_details, prepared_by, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+                (voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, cheque_number, bank_details, prepared_by, status, branch_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)
             `;
             const insertParamsCheque = [
                 voucher_number,
@@ -1631,7 +1706,8 @@ router.post('/receipt-vouchers', [
                 payment_method,
                 cheque_number || null,
                 bank_details || null,
-                req.user.id
+                req.user.id,
+                voucherBranch.branchId
             ];
             [result] = await req.db.execute(insertSqlCheque, insertParamsCheque);
         } catch (e) {
@@ -1639,8 +1715,8 @@ router.post('/receipt-vouchers', [
             if (msg.includes('unknown column') && msg.includes('cheque_number')) {
                 const insertSqlCheck = `
                     INSERT INTO cash_receipt_vouchers 
-                    (voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, check_number, bank_details, prepared_by, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+                    (voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, check_number, bank_details, prepared_by, status, branch_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)
                 `;
                 const insertParamsCheck = [
                     voucher_number,
@@ -1654,7 +1730,8 @@ router.post('/receipt-vouchers', [
                     payment_method,
                     cheque_number || null,
                     bank_details || null,
-                    req.user.id
+                    req.user.id,
+                    voucherBranch.branchId
                 ];
                 [result] = await req.db.execute(insertSqlCheck, insertParamsCheck);
             } else {
@@ -1795,9 +1872,9 @@ router.put('/receipt-vouchers/:id', [
 
                     const [movementResult] = await conn.execute(
                         `INSERT INTO rider_cash_movements
-                         (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, status, approved_by, approved_at)
-                         VALUES (?, ?, ?, 'cash_submission', ?, ?, 'receipt_voucher', ?, ?, 'completed', ?, NOW())`,
-                        [movement_number, payerId, movement_date, voucherAmount, `Cash submission via CRV ${existingVoucher.voucher_number}`, existingVoucher.id, req.user.id, req.user.id]
+                         (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, status, approved_by, approved_at, branch_id)
+                         VALUES (?, ?, ?, 'cash_submission', ?, ?, 'receipt_voucher', ?, ?, 'completed', ?, NOW(), ?)`,
+                        [movement_number, payerId, movement_date, voucherAmount, `Cash submission via CRV ${existingVoucher.voucher_number}`, existingVoucher.id, req.user.id, req.user.id, existingVoucher.branch_id]
                     );
 
                     // Debit rider wallet: rider submitted cash to office, so rider-held cash decreases.
@@ -1853,6 +1930,7 @@ router.put('/receipt-vouchers/:id', [
                 description: `Receipt from ${voucherPayer}: ${voucherDescription}`,
                 amount: voucherAmount,
                 payment_method: existingVoucher.payment_method,
+                branch_id: req.docBranch,
                 related_entity_type: existingVoucher.payer_type,
                 related_entity_id: existingVoucher.payer_id,
                 reference_type: 'receipt_voucher',
@@ -2172,6 +2250,9 @@ router.post('/rider-cash', [
 
         const { rider_id, movement_type, amount, description, reference_type, reference_id, notes } = req.body;
 
+        const riderBranch = await documentBranch(req.db, req.user, req.body.branch_id, { rider: rider_id });
+        if (riderBranch.error) return res.status(riderBranch.status).json({ success: false, message: riderBranch.error });
+
         if (movement_type === 'cash_collection') {
             return res.status(400).json({
                 success: false,
@@ -2358,20 +2439,20 @@ router.post('/rider-cash', [
 
         const [result] = await req.db.execute(
             `INSERT INTO rider_cash_movements 
-             (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, notes, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [movement_number, rider_id, movement_date, movement_type, amount, description || null, reference_type || null, reference_id || null, req.user.id, notes || null]
+             (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, notes, status, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            [movement_number, rider_id, movement_date, movement_type, amount, description || null, reference_type || null, reference_id || null, req.user.id, notes || null, riderBranch.branchId]
         );
 
         if (movement_type === 'cash_submission' && eligibleOrders.length > 0) {
-            const valuesSql = eligibleOrders.map(() => '(?, ?, ?, ?, ?)').join(', ');
+            const valuesSql = eligibleOrders.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
             const insertParams = [];
             eligibleOrders.forEach((o) => {
-                insertParams.push(result.insertId, o.id, rider_id, o.order_number || null, Number(o.total_amount || 0));
+                insertParams.push(result.insertId, o.id, rider_id, o.order_number || null, Number(o.total_amount || 0), riderBranch.branchId);
             });
             await req.db.execute(
                 `INSERT INTO rider_cash_submission_orders
-                 (movement_id, order_id, rider_id, order_number, order_amount)
+                 (movement_id, order_id, rider_id, order_number, order_amount, branch_id)
                  VALUES ${valuesSql}`,
                 insertParams
             );
@@ -2384,7 +2465,7 @@ router.post('/rider-cash', [
         }
 
         if (movement_type === 'fuel_payment' && eligibleFuelEntries.length > 0) {
-            const valuesSql = eligibleFuelEntries.map(() => '(?, ?, ?, ?, ?)').join(', ');
+            const valuesSql = eligibleFuelEntries.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
             const insertParams = [];
             eligibleFuelEntries.forEach((f) => {
                 insertParams.push(
@@ -2392,12 +2473,13 @@ router.post('/rider-cash', [
                     f.id,
                     rider_id,
                     f.entry_date || null,
-                    Number(f.fuel_cost || 0)
+                    Number(f.fuel_cost || 0),
+                    riderBranch.branchId
                 );
             });
             await req.db.execute(
                 `INSERT INTO rider_fuel_payment_entries
-                 (movement_id, fuel_history_id, rider_id, entry_date, fuel_cost)
+                 (movement_id, fuel_history_id, rider_id, entry_date, fuel_cost, branch_id)
                  VALUES ${valuesSql}`,
                 insertParams
             );
@@ -2886,6 +2968,8 @@ router.post('/store-settlements', [
         }
 
         const { store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, notes, auto_calculate, selected_item_ids, on_account } = req.body;
+        const storeBranch = await documentBranch(req.db, req.user, req.body.branch_id, { store: store_id });
+        if (storeBranch.error) return res.status(storeBranch.status).json({ success: false, message: storeBranch.error });
         // The column is ENUM('cash','check','bank_transfer'); the admin form says "cheque"
         const payment_method = req.body.payment_method === 'cheque' ? 'check' : req.body.payment_method;
         const autoCalculate = isTruthyFlag(auto_calculate);
@@ -2999,9 +3083,9 @@ router.post('/store-settlements', [
 
         const [result] = await conn.execute(
             `INSERT INTO store_settlements
-             (settlement_number, settlement_date, store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, payment_method, notes, status, settlement_kind, credit_applied)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-            [settlement_number, settlement_date, store_id, period_from || null, period_to || null, final_total, final_commissions, final_deductions, final_net, payment_method, finalNotes, settlement_kind, credit_applied]
+             (settlement_number, settlement_date, store_id, period_from, period_to, total_orders_amount, commissions, deductions, net_amount, payment_method, notes, status, settlement_kind, credit_applied, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+            [settlement_number, settlement_date, store_id, period_from || null, period_to || null, final_total, final_commissions, final_deductions, final_net, payment_method, finalNotes, settlement_kind, credit_applied, storeBranch.branchId]
         );
 
         const settlementId = result.insertId;
@@ -3284,11 +3368,14 @@ router.post('/expenses', [
         const expense_number = generateVoucherNumber('EXP');
         const expense_date = new Date().toISOString().split('T')[0];
 
+        const expenseBranch = await documentBranch(req.db, req.user, req.body.branch_id, {});
+        if (expenseBranch.error) return res.status(expenseBranch.status).json({ success: false, message: expenseBranch.error });
+
         const [result] = await req.db.execute(
             `INSERT INTO admin_expenses 
-             (expense_number, expense_date, category, description, amount, payment_method, vendor_name, receipt_number, notes, submitted_by, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-            [expense_number, expense_date, category, description || null, amount, payment_method, vendor_name || null, receipt_number || null, notes || null, req.user.id]
+             (expense_number, expense_date, category, description, amount, payment_method, vendor_name, receipt_number, notes, submitted_by, status, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            [expense_number, expense_date, category, description || null, amount, payment_method, vendor_name || null, receipt_number || null, notes || null, req.user.id, expenseBranch.branchId]
         );
 
         res.status(201).json({
@@ -3390,6 +3477,7 @@ router.put('/expenses/:id', [
                 description: `Expense: ${existingExpense.category} - ${expenseDescription}`,
                 amount: expenseAmount,
                 payment_method: existingExpense.payment_method,
+                branch_id: req.docBranch,
                 related_entity_type: 'admin_expense',
                 related_entity_id: existingExpense.id,
                 reference_type: 'admin_expense',
@@ -3587,8 +3675,8 @@ router.post('/reports/generate', [
         const dateStr = `${day}${month}${year}`;
         
         const searchPattern = `${prefix}-${dateStr}-%`;
-        const [lastReports] = await req.db.execute(
-            `SELECT report_number FROM financial_reports 
+        const [lastReports] = await unscoped(req.db).execute(
+            `SELECT report_number FROM financial_reports  
              WHERE report_number LIKE ? 
              ORDER BY id DESC LIMIT 1`,
             [searchPattern]
@@ -6923,8 +7011,8 @@ router.post('/reports/generate', [
 
         const [result] = await req.db.execute(
             `INSERT INTO financial_reports 
-             (report_number, report_type, period_from, period_to, total_income, total_expense, total_commissions, net_profit, data, generated_by, description)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (report_number, report_type, period_from, period_to, total_income, total_expense, total_commissions, net_profit, data, generated_by, description, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 report_number, 
                 report_type, 
@@ -6934,9 +7022,10 @@ router.post('/reports/generate', [
                 total_expense + total_refunds, // Group refunds with expenses for legacy schema compatibility
                 total_settlements, // Store settlements in total_commissions column
                 net_profit, 
-                JSON.stringify(reportData), 
+                JSON.stringify(reportData),
                 req.user.id,
-                description
+                description,
+                req.branchId === undefined ? null : req.branchId
             ]
         );
 
@@ -7306,12 +7395,15 @@ router.post('/journal-vouchers', [
             return res.status(400).json({ success: false, message: 'Total amount must equal the total of the debit entries' });
         }
 
+        const journalBranch = await journalVoucherBranch(req.db, req.user, req.body.branch_id, entries);
+        if (journalBranch.error) return res.status(journalBranch.status).json({ success: false, message: journalBranch.error });
+
         const voucher_number = generateVoucherNumber('JNV');
 
         const [result] = await req.db.execute(
-            `INSERT INTO journal_vouchers (voucher_number, voucher_date, description, reference_number, total_amount, prepared_by)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [voucher_number, voucher_date, description, reference_number, total_amount, req.user.id]
+            `INSERT INTO journal_vouchers (voucher_number, voucher_date, description, reference_number, total_amount, prepared_by, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [voucher_number, voucher_date, description, reference_number, total_amount, req.user.id, journalBranch.branchId]
         );
 
         const jnv_id = result.insertId;
@@ -7367,6 +7459,7 @@ router.post('/journal-vouchers/:id/post', requirePermission('approve_jnv'), asyn
                 description: entry.description || voucher.description || `JNV Posting: ${entry.account_name}`,
                 amount: entry.amount,
                 payment_method: 'bank_transfer', // JNVs are usually non-cash/bank
+                branch_id: req.docBranch,
                 related_entity_type: entry.entity_type,
                 related_entity_id: entry.entity_id,
                 reference_type: 'journal_voucher_entry',

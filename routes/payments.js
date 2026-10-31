@@ -148,9 +148,9 @@ async function processCardPayment(req, orderId, userId, amount, cardToken, saveC
         const status = paymentIntent.status === 'succeeded' ? 'success' : 'failed';
         const [result] = await req.db.execute(
             `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, 
-             transaction_id, status, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [orderId, userId, amount, 'card', 'stripe', paymentIntent.id, status, 
-             JSON.stringify(paymentIntent)]
+             transaction_id, status, metadata, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT branch_id FROM orders WHERE id = ?))`,
+            [orderId, userId, amount, 'card', 'stripe', paymentIntent.id, status,
+             JSON.stringify(paymentIntent), orderId]
         );
 
         // Record in Master Ledger if successful
@@ -195,8 +195,8 @@ async function processCardPayment(req, orderId, userId, amount, cardToken, saveC
         console.error('Stripe error:', error);
         await req.db.execute(
             `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, 
-             status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [orderId, userId, amount, 'card', 'stripe', 'failed', error.message]
+             status, error_message, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT branch_id FROM orders WHERE id = ?))`,
+            [orderId, userId, amount, 'card', 'stripe', 'failed', error.message, orderId]
         );
         throw error;
     }
@@ -242,8 +242,8 @@ async function processWalletPayment(req, orderId, userId, amount) {
         // 5. Record payment
         const [result] = await connection.execute(
             `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, 
-             status) VALUES (?, ?, ?, ?, ?, ?)`,
-            [orderId, userId, amount, 'wallet', 'local', 'success']
+             status, branch_id) VALUES (?, ?, ?, ?, ?, ?, (SELECT branch_id FROM orders WHERE id = ?))`,
+            [orderId, userId, amount, 'wallet', 'local', 'success', orderId]
         );
 
         await connection.commit();
@@ -262,8 +262,8 @@ async function processWalletPayment(req, orderId, userId, amount) {
         console.error('Wallet payment error:', error);
         await req.db.execute(
             `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, 
-             status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [orderId, userId, amount, 'wallet', 'local', 'failed', error.message]
+             status, error_message, branch_id) VALUES (?, ?, ?, ?, ?, ?, ?, (SELECT branch_id FROM orders WHERE id = ?))`,
+            [orderId, userId, amount, 'wallet', 'local', 'failed', error.message, orderId]
         );
         throw error;
     } finally {
@@ -276,8 +276,8 @@ async function processCashPayment(req, orderId, userId, amount) {
     try {
         const [result] = await req.db.execute(
             `INSERT INTO payments (order_id, user_id, amount, payment_method, gateway, 
-             status) VALUES (?, ?, ?, ?, ?, ?)`,
-            [orderId, userId, amount, 'cash', 'local', 'pending']
+             status, branch_id) VALUES (?, ?, ?, ?, ?, ?, (SELECT branch_id FROM orders WHERE id = ?))`,
+            [orderId, userId, amount, 'cash', 'local', 'pending', orderId]
         );
 
         return {

@@ -9,6 +9,8 @@ const crypto = require('crypto');
 const { createImageUpload, detectImageExtension, maxFileSize } = require('../middleware/upload');
 const sharp = (() => { try { return require('sharp'); } catch(e){ return null; } })();
 const upload = createImageUpload();
+const { isHeadOffice, toBranchId, resolveStaffBranch, resolveWriteBranch } = require('../utils/branches');
+const { applyBranchScope } = require('../utils/branchFinance');
 
 const router = express.Router();
 
@@ -41,24 +43,33 @@ router.get('/', authenticateToken, async (req, res) => {
         }
     }
     try {
+        // A branch account sees only its own branch's riders; head office sees all, or one
+        // branch when asked (?branch_id=).
+        const scope = resolveStaffBranch(req.user, req.query.branch_id);
+        if (scope.error) return res.status(403).json({ success: false, message: scope.error });
+        const branchWhere = scope.branchId === null ? '' : 'WHERE r.branch_id = ?';
+        const branchParams = scope.branchId === null ? [] : [scope.branchId];
+
         const hasFullName = await hasColumn(req.db, 'riders', 'full_name');
         let sql;
         if (hasFullName) {
             sql = `SELECT r.id, r.full_name, r.email, r.phone, r.vehicle_type, r.license_number, 
                           r.is_available, r.is_active, r.father_name, r.image_url, r.id_card_url, 
-                          r.id_card_num, r.created_at, w.balance as wallet_balance 
+                          r.id_card_num, r.created_at, r.branch_id, w.balance as wallet_balance 
                    FROM riders r 
                    LEFT JOIN wallets w ON r.id = w.rider_id 
+                   ${branchWhere}
                    ORDER BY r.full_name ASC`;
         } else {
             sql = `SELECT r.id, r.first_name, r.last_name, r.email, r.phone, r.vehicle_type, 
                           r.license_number, r.is_available, r.is_active, r.father_name, r.image_url, 
-                          r.id_card_url, r.id_card_num, r.created_at, w.balance as wallet_balance 
+                          r.id_card_url, r.id_card_num, r.created_at, r.branch_id, w.balance as wallet_balance 
                    FROM riders r 
                    LEFT JOIN wallets w ON r.id = w.rider_id 
+                   ${branchWhere}
                    ORDER BY r.first_name ASC`;
         }
-        const [riders] = await req.db.execute(sql);
+        const [riders] = await req.db.execute(sql, branchParams);
 
         const formattedRiders = riders.map(rider => ({
             ...rider,
@@ -86,9 +97,9 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
         const hasFullName = await hasColumn(req.db, 'riders', 'full_name');
         let sql;
         if (hasFullName) {
-            sql = 'SELECT id, full_name, email, phone, vehicle_type, license_number, is_available, is_active, father_name, image_url, id_card_url, id_card_num, created_at, updated_at FROM riders WHERE id = ?';
+            sql = 'SELECT id, full_name, email, phone, vehicle_type, license_number, is_available, is_active, branch_id, father_name, image_url, id_card_url, id_card_num, created_at, updated_at FROM riders WHERE id = ?';
         } else {
-            sql = 'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, is_active, father_name, image_url, id_card_url, id_card_num, created_at, updated_at FROM riders WHERE id = ?';
+            sql = 'SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, is_active, branch_id, father_name, image_url, id_card_url, id_card_num, created_at, updated_at FROM riders WHERE id = ?';
         }
         const [riders] = await req.db.execute(sql, [id]);
 
@@ -189,6 +200,11 @@ router.post('/', authenticateToken, requireAdmin, [
             });
         }
 
+        // The rider's branch: a branch account can only add riders to its own branch.
+        const written = await resolveWriteBranch(req.db, req.user, req.body.branch_id ?? req.body.branchId);
+        if (written.error) return res.status(400).json({ success: false, message: written.error });
+        const riderBranchId = written.branchId;
+
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -198,8 +214,8 @@ router.post('/', authenticateToken, requireAdmin, [
         if (hasFullName) {
             insertSql = `
                 INSERT INTO riders
-                (full_name, email, phone, password, vehicle_type, license_number, father_name, image_url, id_card_url, id_card_num)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (full_name, email, phone, password, vehicle_type, license_number, father_name, image_url, id_card_url, id_card_num, branch_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             params = [
                 String((fullName || firstName || '') || ''),
@@ -211,13 +227,14 @@ router.post('/', authenticateToken, requireAdmin, [
                 fatherName != null ? String(fatherName) : null,
                 imageUrlFinal != null ? String(imageUrlFinal) : null,
                 idCardUrlFinal != null ? String(idCardUrlFinal) : null,
-                idCardNum != null ? String(idCardNum) : null
+                idCardNum != null ? String(idCardNum) : null,
+                riderBranchId
             ];
         } else {
             insertSql = `
                 INSERT INTO riders
-                (first_name, last_name, email, phone, password, vehicle_type, license_number, father_name, image_url, id_card_url, id_card_num)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (first_name, last_name, email, phone, password, vehicle_type, license_number, father_name, image_url, id_card_url, id_card_num, branch_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             // Map fullName into first_name and leave last_name empty
             params = [
@@ -231,7 +248,8 @@ router.post('/', authenticateToken, requireAdmin, [
                 fatherName != null ? String(fatherName) : null,
                 imageUrlFinal != null ? String(imageUrlFinal) : null,
                 idCardUrlFinal != null ? String(idCardUrlFinal) : null,
-                idCardNum != null ? String(idCardNum) : null
+                idCardNum != null ? String(idCardNum) : null,
+                riderBranchId
             ];
         }
         const [result] = await req.db.execute(insertSql, params);
@@ -433,6 +451,26 @@ router.put('/:id', authenticateToken, requireAdmin, [
             updateValues.push(idCardNum);
         }
 
+        if (req.body.branch_id !== undefined) {
+            const [current] = await req.db.execute('SELECT branch_id FROM riders WHERE id = ?', [id]);
+            if (!current.length) return res.status(404).json({ success: false, message: 'Rider not found' });
+            if (toBranchId(req.body.branch_id) !== toBranchId(current[0].branch_id)) {
+                if (!isHeadOffice(req.user)) {
+                    return res.status(403).json({ success: false, message: 'Only head office can move a rider to another branch' });
+                }
+                const written = await resolveWriteBranch(req.db, req.user, req.body.branch_id);
+                if (written.error) return res.status(400).json({ success: false, message: written.error });
+                const [[open]] = await req.db.execute(
+                    "SELECT COUNT(*) AS n FROM orders WHERE rider_id = ? AND status NOT IN ('delivered', 'cancelled')", [id]
+                );
+                if (Number(open.n) > 0) {
+                    return res.status(409).json({ success: false, message: 'This rider has open orders. Move the rider after they are finished.' });
+                }
+                updateFields.push('branch_id = ?');
+                updateValues.push(written.branchId);
+            }
+        }
+
         if (updateFields.length === 0) {
             return res.status(400).json({
                 success: false,
@@ -532,7 +570,7 @@ router.get('/types/vehicle', authenticateToken, requireAdmin, async (req, res) =
 // Table assumed: `riders_fuel_history` with columns like
 // id, rider_id, entry_date, start_meter, end_meter, distance, petrol_rate, fuel_cost, notes, created_at
 // List all fuel history entries (admin)
-router.get('/fuel-history', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/fuel-history', authenticateToken, requireAdmin, applyBranchScope, async (req, res) => {
     try {
         // Ensure the table exists to give a clearer error message when missing
         const [tbl] = await req.db.execute(
@@ -650,6 +688,12 @@ router.post('/:id/fuel-history', authenticateToken, requirePermission('action_ma
             fuel_cost: fuel_cost,
             notes: notes || null
         };
+
+        // Fuel belongs to the rider's branch.
+        if (existingCols.includes('branch_id')) {
+            const [riderRows] = await req.db.execute('SELECT branch_id FROM riders WHERE id = ?', [id]);
+            if (riderRows.length) desired.branch_id = riderRows[0].branch_id;
+        }
 
         const insertCols = [];
         const placeholders = [];

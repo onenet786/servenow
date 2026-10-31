@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../services/branch_service.dart';
 import '../services/notifier.dart';
 import '../utils/customer_language.dart';
 import '../widgets/ui/ui.dart';
@@ -20,11 +21,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true;
   bool _isUrdu = false;
+  List<Branch> _branches = const [];
 
   @override
   void initState() {
     super.initState();
     _loadLanguagePreference();
+    _loadBranches();
+  }
+
+  Future<void> _loadBranches() async {
+    final branches = await BranchService.load();
+    if (!mounted) return;
+    setState(() => _branches = branches);
   }
 
   Future<void> _loadLanguagePreference() async {
@@ -93,6 +102,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _continueWithGoogle() async {
+    // A first Google sign-in creates the account, and it needs a city.
+    if (_branches.length > 1 && BranchService.selectedId == null) {
+      Notifier.error(context, _tr('Choose your city'));
+      return;
+    }
     try {
       await Provider.of<AuthProvider>(context, listen: false).loginWithGoogle();
 
@@ -228,6 +242,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpace.xl),
+                  if (_branches.length > 1) ...[
+                    DropdownButtonFormField<int>(
+                      initialValue: BranchService.selectedId,
+                      decoration: InputDecoration(
+                        labelText: _tr('Your city'),
+                        prefixIcon: const Icon(Icons.location_city_rounded),
+                      ),
+                      items: [
+                        for (final branch in _branches)
+                          DropdownMenuItem(
+                            value: branch.id,
+                            child: Text(branch.name),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        BranchService.select(value);
+                        setState(() {});
+                      },
+                    ),
+                    const SizedBox(height: AppSpace.md),
+                  ],
                   SizedBox(
                     height: 52,
                     child: OutlinedButton(

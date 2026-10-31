@@ -85,6 +85,7 @@ test('the endpoint reports itself switched off when there is no tool secret', as
 
 test('visitors can look up stores; the search is passed as a parameter, not into the SQL', async () => {
   const { db: d, log } = db((q) => {
+    if (/FROM branches/.test(q)) return [[{ id: 1, name: 'Kot Addu', is_active: 1 }]];
     if (/FROM stores s LEFT JOIN store_status_messages/.test(q)) {
       return [[{ name: 'Fresh Mart', location: 'DHA', opening_time: '00:00:00', closing_time: '23:59:00', is_closed: 0, status_message: '' }]];
     }

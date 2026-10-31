@@ -35,6 +35,14 @@ class ApiService {
   static const String serviceUnavailableMessage =
       'ServeNow is temporarily unavailable. The site is under maintenance. Please try again shortly.';
   static Future<String?> Function()? refreshAccessToken;
+
+  /// Set by `AuthProvider`, so store calls carry the session's token and the
+  /// server can apply the account's branch.
+  static String? Function()? readSessionToken;
+
+  /// The city chosen by a guest. The server ignores it for accounts that
+  /// belong to a branch.
+  static int? browseBranchId;
   static Future<String?>? _refreshInFlight;
   static final Map<String, _CacheEntry<Map<String, dynamic>>> _storesCache = {};
   static final Map<String, _CacheEntry<Map<String, dynamic>>>
@@ -129,6 +137,12 @@ class ApiService {
     Map<String, String>? headers,
   ) {
     if (response.statusCode != 401 && response.statusCode != 403) return false;
+    // A 403 for an area this account cannot use is not an expired token, and
+    // must not spend a refresh or end the session.
+    if (response.statusCode == 403 &&
+        !response.body.toLowerCase().contains('token')) {
+      return false;
+    }
     if (headers == null) return false;
     final authHeader = headers['Authorization'];
     if (authHeader == null || authHeader.trim().isEmpty) return false;
@@ -279,13 +293,19 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> googleLogin(String idToken) async {
+  static Future<Map<String, dynamic>> googleLogin(
+    String idToken, {
+    int? branchId,
+  }) async {
     final uri = Uri.parse('$baseUrl/api/auth/google-mobile');
     _logger.d('ApiService: POST $uri');
     final response = await _post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'id_token': idToken}),
+      body: jsonEncode({
+        'id_token': idToken,
+        'branch_id': ?branchId,
+      }),
     );
     return _handleResponse(response);
   }
@@ -309,6 +329,7 @@ class ApiService {
     required String password,
     String? phone,
     String? address,
+    int? branchId,
   }) async {
     final uri = Uri.parse('$baseUrl/api/auth/register');
     _logger.d('ApiService: POST $uri');
@@ -324,6 +345,7 @@ class ApiService {
         'phone': phone,
         'address': address,
         'userType': 'customer',
+        'branch_id': ?branchId,
       }),
     );
     return _handleResponse(response);
@@ -513,20 +535,23 @@ class ApiService {
     }
     if (admin) {
       query['admin'] = '1';
+    } else if (browseBranchId != null) {
+      query['branch_id'] = browseBranchId.toString();
     }
+    final sessionToken = token ?? readSessionToken?.call();
 
     final uri = Uri.parse(
       '$baseUrl/api/stores',
     ).replace(queryParameters: query.isEmpty ? null : query);
     _logger.d('ApiService: GET $uri');
-    final cacheKey = '${uri.toString()}|${token?.trim() ?? ''}';
+    final cacheKey = '${uri.toString()}|${sessionToken?.trim() ?? ''}';
     final cached = _storesCache[cacheKey];
     if (!forceRefresh && cached != null && cached.isFresh) {
       return cached.value;
     }
     final headers = <String, String>{};
-    if (token != null && token.trim().isNotEmpty) {
-      headers['Authorization'] = 'Bearer ${token.trim()}';
+    if (sessionToken != null && sessionToken.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer ${sessionToken.trim()}';
     }
     final response = await _get(uri, headers: headers.isEmpty ? null : headers);
     final data = _handleResponse(response);
@@ -535,6 +560,28 @@ class ApiService {
       expiresAt: DateTime.now().add(_storesCacheTtl),
     );
     return data;
+  }
+
+  /// Open branches. Public: used before anyone has signed in.
+  static Future<List<dynamic>> getBranches() async {
+    final uri = Uri.parse('$baseUrl/api/branches');
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(uri);
+    final data = _handleResponse(response);
+    return (data['branches'] as List<dynamic>?) ?? [];
+  }
+
+  /// Branch names for staff screens: every branch for head office, its own
+  /// for a branch account.
+  static Future<List<dynamic>> getBranchOptions(String token) async {
+    final uri = Uri.parse('$baseUrl/api/branches/options');
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    final data = _handleResponse(response);
+    return (data['branches'] as List<dynamic>?) ?? [];
   }
 
   static Future<List<dynamic>> getCategories({bool forceRefresh = false}) async {
@@ -563,18 +610,19 @@ class ApiService {
     if (admin) {
       query['admin'] = '1';
     }
+    final sessionToken = token ?? readSessionToken?.call();
     final uri = Uri.parse(
       '$baseUrl/api/stores/$id',
     ).replace(queryParameters: query.isEmpty ? null : query);
     _logger.d('ApiService: GET $uri');
-    final cacheKey = '${uri.toString()}|${token?.trim() ?? ''}';
+    final cacheKey = '${uri.toString()}|${sessionToken?.trim() ?? ''}';
     final cached = _storeDetailsCache[cacheKey];
     if (!forceRefresh && cached != null && cached.isFresh) {
       return cached.value;
     }
     final headers = <String, String>{};
-    if (token != null && token.trim().isNotEmpty) {
-      headers['Authorization'] = 'Bearer ${token.trim()}';
+    if (sessionToken != null && sessionToken.trim().isNotEmpty) {
+      headers['Authorization'] = 'Bearer ${sessionToken.trim()}';
     }
     final response = await _get(uri, headers: headers.isEmpty ? null : headers);
     final data = _handleResponse(response);
@@ -1408,10 +1456,9 @@ class ApiService {
     bool includeInactive = false,
     bool lite = false,
   }) async {
-    final query = <String>[];
-    if (includeInactive) query.add('admin=1');
-    if (lite) query.add('lite=1');
-    final qs = query.isEmpty ? '' : '?${query.join('&')}';
+    // Always admin=1: without it the server treats this as a customer's list
+    // of one branch, which would hide the other branches from head office.
+    final qs = lite ? '?admin=1&lite=1' : '?admin=1';
     final uri = Uri.parse('$baseUrl/api/stores$qs');
     _logger.d('ApiService: GET $uri');
     final response = await _get(
@@ -1419,7 +1466,12 @@ class ApiService {
       headers: {'Authorization': 'Bearer $token'},
     );
     final data = _handleResponse(response);
-    return data['stores'] ?? [];
+    final stores = (data['stores'] as List<dynamic>?) ?? [];
+    if (includeInactive) return stores;
+    bool on(dynamic flag) => flag != false && flag != 0 && flag != '0';
+    return stores
+        .where((s) => on(s['is_active']) && on(s['is_customer_visible']))
+        .toList();
   }
 
   static Future<Map<String, dynamic>> getStoreOfferCampaigns(
@@ -1486,7 +1538,9 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getProductsForAdmin(String token) async {
-    final uri = Uri.parse('$baseUrl/api/products');
+    final uri = Uri.parse(
+      '$baseUrl/api/products?admin=1&include_variants=1&include_image_variants=1',
+    );
     _logger.d('ApiService: GET $uri');
     final response = await _get(
       uri,

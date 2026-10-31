@@ -14,6 +14,7 @@ import 'providers/wallet_provider.dart';
 import 'providers/notification_provider.dart';
 import 'services/api_service.dart';
 import 'services/app_bootstrap.dart';
+import 'services/branch_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/admin_dashboard_screen.dart';
@@ -126,6 +127,8 @@ Future<void> main() async {
   // initialises, so nothing can use Firebase before it is ready.
   WidgetsBinding.instance.addPostFrameCallback((_) {
     AppBootstrap.ensureStarted();
+    // Map centres and city choices; everything works without it.
+    BranchService.load().catchError((_) => const <Branch>[]);
   });
 }
 

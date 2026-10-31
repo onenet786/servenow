@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/branch_service.dart';
 import '../widgets/admin/admin_ui.dart';
+import '../widgets/admin/branch_filter.dart';
 import '../widgets/ui/ui.dart';
 
 class ManageUsersScreen extends StatefulWidget {
@@ -35,11 +37,25 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     super.dispose();
   }
 
+  Map<int, String> _branchNames = const {};
+  int? _branchFilter;
+
+  Future<void> _loadBranchNames(String token) async {
+    final names = await BranchService.loadStaffNames(token);
+    if (!mounted) return;
+    setState(() => _branchNames = names);
+  }
+
+  bool _inBranch(dynamic record) =>
+      _branchFilter == null ||
+      int.tryParse('${record['branch_id']}') == _branchFilter;
+
   Future<void> _loadUsers() async {
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token;
       if (token == null) return;
 
+      _loadBranchNames(token);
       final users = await ApiService.getUsers(token);
 
       setState(() {
@@ -80,7 +96,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           phone.contains(query);
       final matchesType = _filterType.isEmpty || userType == _filterType;
 
-      return matchesSearch && matchesType;
+      return matchesSearch && matchesType && _inBranch(user);
     }).toList();
 
     setState(() => _filteredUsers = filtered);
@@ -134,6 +150,14 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                               _buildFilterChip('Admins', 'admin'),
                             ],
                           ),
+                        ),
+                        BranchFilter(
+                          names: _branchNames,
+                          value: _branchFilter,
+                          onChanged: (value) {
+                            setState(() => _branchFilter = value);
+                            _filterUsers();
+                          },
                         ),
                         const SizedBox(height: AppSpace.sm),
                         Align(
@@ -257,6 +281,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             runSpacing: AppSpace.xs,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              BranchTag(
+                names: _branchNames,
+                branchId: user['branch_id'],
+                noBranchLabel: 'Head office',
+              ),
               if (!active) const TonePill.danger('Inactive'),
               if (verified)
                 const TonePill.success('Verified')

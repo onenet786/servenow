@@ -12,6 +12,7 @@ import '../utils/app_activity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
+import '../services/branch_service.dart';
 import 'package:servenow/services/notifier.dart';
 import '../theme/customer_palette.dart';
 import '../utils/customer_language.dart';
@@ -65,12 +66,9 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   // Map centre used only when no rider/store coordinates are known: the
-  // stores' service area (Kot Addu). With riders on the map the camera fits
-  // their positions instead.
-  static const latlng.LatLng _defaultTrackerCenter = latlng.LatLng(
-    30.4686,
-    70.9661,
-  );
+  // account's branch. With riders on the map the camera fits their positions
+  // instead.
+  latlng.LatLng get _defaultTrackerCenter => BranchService.defaultCenter;
   static const Set<String> _liveRiderTrackerEmails = {
     'admin@servenow.com',
     'nazir@servenow.pk',

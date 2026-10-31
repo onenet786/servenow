@@ -33,9 +33,9 @@ function fakeDb(handler) {
 }
 
 // Answers the auth middleware's account-status check
-function activeAccount(q, userType) {
-  if (/FROM users WHERE id = \?/.test(q) && /is_active/.test(q)) return [[{ is_active: 1, user_type: userType }]];
-  if (/SELECT is_active FROM riders WHERE id = \?/.test(q)) return [[{ is_active: 1 }]];
+function activeAccount(q, userType, branchId = null) {
+  if (/FROM users WHERE id = \?/.test(q) && /is_active/.test(q)) return [[{ is_active: 1, user_type: userType, branch_id: branchId }]];
+  if (/SELECT is_active(, branch_id)? FROM riders WHERE id = \?/.test(q)) return [[{ is_active: 1, branch_id: branchId }]];
   return undefined;
 }
 

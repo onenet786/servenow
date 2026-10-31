@@ -1,6 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { authenticateToken, requireAdmin, requireStoreOwner, requireStaffAccess, requireStaffRight, optionalAuth } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStoreOwner, requireStaffAccess, requireStaffRight, softAuth } = require('../middleware/auth');
+const { filterPrivateData, trustedAdminFlag } = require('../middleware/publicData');
+const { resolveStaffBranch, resolveCustomerBranch, toBranchId, DEFAULT_BRANCH_ID } = require('../utils/branches');
 const fs = require('fs');
 const path = require('path');
 
@@ -384,14 +386,14 @@ async function downloadImageToUploads(remoteUrl) {
 }
 
 // Get all products with optional category filter
-router.get('/', optionalAuth, async (req, res) => {
+router.get('/', softAuth, filterPrivateData, async (req, res) => {
     try {
         await ensureProductSizePricesTable(req.db);
         await ensureStoreOfferCampaignTables(req.db);
-        const { category, store, admin } = req.query;
+        const { category, store } = req.query;
         const isAdminUser = req.user && req.user.user_type === 'admin';
-        const isAdminDataRequest = String(admin || '').toLowerCase() === '1'
-            || String(admin || '').toLowerCase() === 'true';
+        const isAdminDataRequest = trustedAdminFlag(req);
+        const admin = isAdminDataRequest ? '1' : undefined;
         const includeVariants = String(req.query.include_variants || '').toLowerCase() === '1'
             || String(req.query.include_variants || '').toLowerCase() === 'true'
             || !isAdminDataRequest;
@@ -415,6 +417,25 @@ router.get('/', optionalAuth, async (req, res) => {
         if (!admin && !isAdminUser) {
             // whereClauses.push('p.is_available = true');
             whereClauses.push('s.is_active = true');
+        }
+
+        // Branch: customers see their own branch's products (apps that name none get Kot Addu);
+        // a branch account is held to its branch; head office sees all, or one with ?branch_id=.
+        let productBranchId = null;
+        if (isAdminDataRequest && req.user.user_type === 'store_owner') {
+            productBranchId = toBranchId(req.user.branch_id) ?? DEFAULT_BRANCH_ID;
+        } else if (isAdminDataRequest || isAdminUser) {
+            const scope = resolveStaffBranch(req.user, req.query.branch_id);
+            if (scope.error) return res.status(403).json({ success: false, message: scope.error });
+            productBranchId = scope.branchId;
+        } else {
+            const chosen = await resolveCustomerBranch(req.db, req.user, req.query.branch_id);
+            if (chosen.error) return res.json({ success: true, products: [] });
+            productBranchId = chosen.branchId;
+        }
+        if (productBranchId !== null) {
+            whereClauses.push('s.branch_id = ?');
+            queryParams.push(productBranchId);
         }
 
         if (category) {
@@ -597,12 +618,12 @@ router.post('/upload-image', authenticateToken, requireStaffAccess, requireStaff
 });
 
 // Get product by ID
-router.get('/:id', optionalAuth, async (req, res) => {
+router.get('/:id', softAuth, filterPrivateData, async (req, res) => {
     try {
         await ensureProductSizePricesTable(req.db);
         await ensureStoreOfferCampaignTables(req.db);
         const { id } = req.params;
-        const { admin } = req.query;
+        const admin = trustedAdminFlag(req) ? '1' : undefined;
         const isAdminUser = req.user && req.user.user_type === 'admin';
 
         let detailQuery = `

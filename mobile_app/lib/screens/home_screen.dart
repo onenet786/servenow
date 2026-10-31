@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../services/branch_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/notification_provider.dart' as app_notif;
@@ -93,6 +94,15 @@ class _HomeScreenState extends State<HomeScreen> {
           : Future.value(null);
 
       await locationFuture;
+      // Guests choose a city; an account's branch is applied by the server.
+      await BranchService.load();
+      if (!mounted) return;
+      if (Provider.of<AuthProvider>(context, listen: false).isGuest &&
+          BranchService.hasChoice &&
+          BranchService.selectedId == null) {
+        await _chooseCity();
+        if (!mounted) return;
+      }
       final storesFuture = safe(ApiService.getStores(
         latitude: _userLat,
         longitude: _userLng,
@@ -158,6 +168,42 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Lets a guest pick the city whose stores they see. Items already in the
+  /// cart are from the old city, so they are removed when the city changes.
+  Future<void> _chooseCity({bool reload = false}) async {
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(title: Text('Choose your city')),
+            for (final branch in BranchService.open)
+              ListTile(
+                leading: const Icon(Icons.location_city_rounded),
+                title: Text(branch.name),
+                selected: branch.id == BranchService.selectedId,
+                onTap: () => Navigator.of(ctx).pop(branch.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || picked == BranchService.selectedId || !mounted) {
+      return;
+    }
+    final hadCity = BranchService.selectedId != null;
+    await BranchService.select(picked);
+    if (!mounted) return;
+    if (hadCity) {
+      Provider.of<CartProvider>(context, listen: false).clear();
+    }
+    if (reload) {
+      setState(() => _isLoading = true);
+      await _fetchData();
     }
   }
 
@@ -1056,6 +1102,14 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           title: const Text('ServeNow'),
           actions: [
+            if (isGuest && BranchService.hasChoice)
+              IconButton(
+                icon: const Icon(Icons.location_city_rounded),
+                tooltip: BranchService.selectedId == null
+                    ? 'Choose your city'
+                    : BranchService.nameOf(BranchService.selectedId),
+                onPressed: () => _chooseCity(reload: true),
+              ),
             if (!isGuest) const NotificationBellWidget(),
             Consumer<CartProvider>(
               builder: (ctx, cart, child) => Stack(

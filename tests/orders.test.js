@@ -16,8 +16,9 @@ function orderDb(scenario) {
         discount_type: null, discount_value: null, profit_type: null, profit_value: null,
         available_from: null, available_to: null, payment_term: 'credit' }]];
     }
+    if (/FROM branches/.test(q)) return [[{ id: 1, name: 'Kot Addu', is_active: 1 }]];
     if (/FROM stores/.test(q)) {
-      return [[{ id: 1, name: 'Store A', owner_id: 5, is_active: 1, is_closed: 0, opening_time: '00:00:00', closing_time: '23:59:59' }]];
+      return [[{ id: 1, branch_id: 1, name: 'Store A', owner_id: 5, is_active: 1, is_closed: 0, opening_time: '00:00:00', closing_time: '23:59:59' }]];
     }
     if (/SELECT name, stock_quantity FROM products WHERE id = \? FOR UPDATE/.test(q)) return [[{ name: 'Milk', stock_quantity: scenario.stock }]];
     if (/FROM wallets WHERE user_id = \? FOR UPDATE/.test(q)) {

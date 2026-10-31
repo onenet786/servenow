@@ -113,6 +113,7 @@ async function ensureLedgerSchema(db) {
       description VARCHAR(255) NULL,
       fingerprint CHAR(64) NULL,
       reversal_of BIGINT NULL,
+      branch_id INT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY uq_gl_journal_key (journal_key),
       KEY idx_gl_journal_source (source_type, source_id),
@@ -155,7 +156,7 @@ async function buildOrderJournals(db) {
   // Delivery date = the rider's first cash collection for the order, else its last update.
   // (Loaded separately: joining the text reference_id to orders.id cannot use an index.)
   const [orders] = await db.query(`
-    SELECT o.id, o.order_number, o.payment_method, o.total_amount, o.delivery_fee,
+    SELECT o.id, o.order_number, o.payment_method, o.total_amount, o.delivery_fee, o.branch_id,
            DATE_FORMAT(COALESCE(o.updated_at, o.created_at), '%Y-%m-%d') AS journal_date
     FROM orders o
     WHERE o.status = 'delivered'`);
@@ -205,6 +206,7 @@ async function buildOrderJournals(db) {
     if (rounding) lines.push(line('4050', -rounding, 'order', o.id, 'Order total differs from items + delivery fee'));
     return {
       key: `order:${o.id}`,
+      branchId: o.branch_id,
       date: o.journal_date,
       description: `Order ${o.order_number} delivered`,
       lines,
@@ -216,9 +218,11 @@ async function buildWalletJournals(db, storeIdsByName) {
   const [rows] = await db.query(`
     SELECT wt.id, wt.type, wt.amount, wt.description, wt.reference_type, wt.reference_id,
            DATE_FORMAT(wt.created_at, '%Y-%m-%d') AS journal_date,
-           w.user_type, w.user_id, w.rider_id
+           w.user_type, w.user_id, w.rider_id, COALESCE(rd.branch_id, u.branch_id, 1) AS branch_id
     FROM wallet_transactions wt
     JOIN wallets w ON w.id = wt.wallet_id
+    LEFT JOIN riders rd ON rd.id = w.rider_id
+    LEFT JOIN users u ON u.id = w.user_id
     ORDER BY wt.id`);
 
   const storeFromDescription = createPickupStoreResolver(storeIdsByName, await loadPickupStoresOnOrder(db));
@@ -298,14 +302,14 @@ async function buildWalletJournals(db, storeIdsByName) {
     } else {
       continue; // store wallets mirror settlements, which are posted from store_settlements
     }
-    journals.push({ key: `wallet_transaction:${r.id}`, date: r.journal_date, description: desc || `Wallet transaction ${r.id}`, lines });
+    journals.push({ key: `wallet_transaction:${r.id}`, branchId: r.branch_id, date: r.journal_date, description: desc || `Wallet transaction ${r.id}`, lines });
   }
   return journals;
 }
 
 async function buildRiderMovementJournals(db) {
   const [rows] = await db.query(`
-    SELECT rcm.id, rcm.movement_number, rcm.rider_id, rcm.movement_type, rcm.amount, rcm.reference_type,
+    SELECT rcm.id, rcm.movement_number, rcm.rider_id, rcm.movement_type, rcm.amount, rcm.reference_type, rcm.branch_id,
            rcm.description, DATE_FORMAT(rcm.movement_date, '%Y-%m-%d') AS journal_date,
            (SELECT wt.type FROM wallet_transactions wt
              WHERE wt.reference_type = 'rider_cash_movement' AND wt.reference_id = rcm.id
@@ -341,7 +345,7 @@ async function buildRiderMovementJournals(db) {
           ? [line('3900', cents, null, null, memo), line('1100', -cents, ...rider)]
           : [line('1100', cents, ...rider), line('3900', -cents, null, null, memo)];
     }
-    journals.push({ key: `rider_cash_movement:${m.id}`, date: m.journal_date, description: `Rider ${m.movement_type} ${m.movement_number}`, lines });
+    journals.push({ key: `rider_cash_movement:${m.id}`, branchId: m.branch_id, date: m.journal_date, description: `Rider ${m.movement_type} ${m.movement_number}`, lines });
   }
   return journals;
 }
@@ -350,20 +354,20 @@ async function buildDocumentJournals(db) {
   const journals = [];
 
   const [settlements] = await db.query(`
-    SELECT id, settlement_number, store_id, net_amount, payment_method,
+    SELECT id, settlement_number, store_id, net_amount, payment_method, branch_id,
            DATE_FORMAT(COALESCE(paid_at, settlement_date, created_at), '%Y-%m-%d') AS journal_date
     FROM store_settlements WHERE status = 'paid'`);
   for (const s of settlements) {
     const cents = toCents(s.net_amount);
     if (!cents) continue;
     journals.push({
-      key: `store_settlement:${s.id}`, date: s.journal_date, description: `Store settlement ${s.settlement_number}`,
+      key: `store_settlement:${s.id}`, branchId: s.branch_id, date: s.journal_date, description: `Store settlement ${s.settlement_number}`,
       lines: [line('2000', cents, 'store', s.store_id), line(cashOrBank(s.payment_method), -cents)],
     });
   }
 
   const [payments] = await db.query(`
-    SELECT id, voucher_number, payee_type, payee_id, payee_name, purpose, amount, payment_method,
+    SELECT id, voucher_number, payee_type, payee_id, payee_name, purpose, amount, payment_method, branch_id,
            DATE_FORMAT(voucher_date, '%Y-%m-%d') AS journal_date
     FROM cash_payment_vouchers WHERE status IN ('approved', 'paid')`);
   for (const v of payments) {
@@ -377,13 +381,13 @@ async function buildDocumentJournals(db) {
     else if (v.payee_type === 'rider') debit = line(/fuel|petrol/i.test(memo) ? '5400' : '5100', cents, 'rider', v.payee_id, memo);
     else debit = line(expenseAccount(memo), cents, null, null, memo);
     journals.push({
-      key: `payment_voucher:${v.id}`, date: v.journal_date, description: `Payment voucher ${v.voucher_number}`,
+      key: `payment_voucher:${v.id}`, branchId: v.branch_id, date: v.journal_date, description: `Payment voucher ${v.voucher_number}`,
       lines: [debit, line(cashOrBank(v.payment_method), -cents)],
     });
   }
 
   const [receipts] = await db.query(`
-    SELECT id, voucher_number, payer_type, payer_id, payer_name, amount, payment_method,
+    SELECT id, voucher_number, payer_type, payer_id, payer_name, amount, payment_method, branch_id,
            DATE_FORMAT(COALESCE(voucher_date, received_at), '%Y-%m-%d') AS journal_date
     FROM cash_receipt_vouchers WHERE status = 'received'`);
   for (const v of receipts) {
@@ -395,13 +399,13 @@ async function buildDocumentJournals(db) {
     else if (v.payer_type === 'customer' && v.payer_id) credit = line('2100', -cents, 'user', v.payer_id);
     else credit = line('4900', -cents, null, null, v.payer_name);
     journals.push({
-      key: `receipt_voucher:${v.id}`, date: v.journal_date, description: `Receipt voucher ${v.voucher_number}`,
+      key: `receipt_voucher:${v.id}`, branchId: v.branch_id, date: v.journal_date, description: `Receipt voucher ${v.voucher_number}`,
       lines: [line(cashOrBank(v.payment_method), cents), credit],
     });
   }
 
   const [expenses] = await db.query(`
-    SELECT id, expense_number, category, description, vendor_name, amount, payment_method,
+    SELECT id, expense_number, category, description, vendor_name, amount, payment_method, branch_id,
            DATE_FORMAT(expense_date, '%Y-%m-%d') AS journal_date
     FROM admin_expenses WHERE status = 'paid'`);
   for (const e of expenses) {
@@ -409,13 +413,13 @@ async function buildDocumentJournals(db) {
     if (!cents) continue;
     const memo = `${e.category || ''} ${e.vendor_name || ''}`.trim();
     journals.push({
-      key: `admin_expense:${e.id}`, date: e.journal_date, description: `Expense ${e.expense_number}`,
+      key: `admin_expense:${e.id}`, branchId: e.branch_id, date: e.journal_date, description: `Expense ${e.expense_number}`,
       lines: [line(expenseAccount(`${e.category} ${e.description}`), cents, null, null, memo), line(cashOrBank(e.payment_method), -cents)],
     });
   }
 
   const [jvEntries] = await db.query(`
-    SELECT jv.id, jv.voucher_number, DATE_FORMAT(jv.voucher_date, '%Y-%m-%d') AS journal_date,
+    SELECT jv.id, jv.voucher_number, jv.branch_id, DATE_FORMAT(jv.voucher_date, '%Y-%m-%d') AS journal_date,
            e.account_name, e.entity_type, e.entity_id, e.entry_type, e.amount
     FROM journal_vouchers jv
     JOIN journal_voucher_entries e ON e.jnv_id = jv.id
@@ -423,7 +427,7 @@ async function buildDocumentJournals(db) {
     ORDER BY jv.id, e.id`);
   const jvs = new Map();
   for (const e of jvEntries) {
-    if (!jvs.has(e.id)) jvs.set(e.id, { key: `journal_voucher:${e.id}`, date: e.journal_date, description: `Journal voucher ${e.voucher_number}`, lines: [] });
+    if (!jvs.has(e.id)) jvs.set(e.id, { key: `journal_voucher:${e.id}`, branchId: e.branch_id, date: e.journal_date, description: `Journal voucher ${e.voucher_number}`, lines: [] });
     const cents = toCents(e.amount) * (e.entry_type === 'credit' ? -1 : 1);
     const entityType = e.entity_type === 'customer' ? 'user' : e.entity_type;
     jvs.get(e.id).lines.push(line(journalAccount(e.account_name), cents, e.entity_id ? entityType : null, e.entity_id, e.account_name));
@@ -432,20 +436,20 @@ async function buildDocumentJournals(db) {
 
   // Card / gateway payments captured for orders
   const [captured] = await db.query(`
-    SELECT id, order_id, amount, DATE_FORMAT(created_at, '%Y-%m-%d') AS journal_date
+    SELECT id, order_id, amount, branch_id, DATE_FORMAT(created_at, '%Y-%m-%d') AS journal_date
     FROM payments WHERE status IN ('success', 'refunded') AND payment_method = 'card'`);
   for (const p of captured) {
     const cents = toCents(p.amount);
     if (!cents) continue;
     journals.push({
-      key: `payment:${p.id}`, date: p.journal_date, description: `Card payment for order ${p.order_id}`,
+      key: `payment:${p.id}`, branchId: p.branch_id, date: p.journal_date, description: `Card payment for order ${p.order_id}`,
       lines: [line('1010', cents), line('2200', -cents, 'order', p.order_id)],
     });
   }
 
   // Ledger postings entered by hand (not created by any document above)
   const [manual] = await db.query(`
-    SELECT id, transaction_number, transaction_type, category, description, amount, payment_method, reference_type,
+    SELECT id, transaction_number, transaction_type, category, description, amount, payment_method, reference_type, branch_id,
            DATE_FORMAT(created_at, '%Y-%m-%d') AS journal_date
     FROM financial_transactions
     WHERE status = 'completed'
@@ -462,7 +466,7 @@ async function buildDocumentJournals(db) {
     if (t.transaction_type === 'income') lines = [line(cash, cents), line(plug ? '3900' : '4900', -cents, null, null, memo)];
     else if (t.transaction_type === 'expense') lines = [line(plug ? '3900' : expenseAccount(`${t.category} ${memo}`), cents, null, null, memo), line(cash, -cents)];
     else continue; // settlements/adjustments without a document are listed in the reconciliation
-    journals.push({ key: `financial_transaction:${t.id}`, date: t.journal_date, description: `Manual entry ${t.transaction_number}`, lines });
+    journals.push({ key: `financial_transaction:${t.id}`, branchId: t.branch_id, date: t.journal_date, description: `Manual entry ${t.transaction_number}`, lines });
   }
 
   return journals;
@@ -508,9 +512,9 @@ async function insertJournals(conn, journals) {
   for (let i = 0; i < journals.length; i += BATCH) {
     const batch = journals.slice(i, i + BATCH);
     await conn.query(
-      `INSERT INTO gl_journals (journal_key, source_type, source_id, seq, journal_date, description, fingerprint, reversal_of)
-       VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
-      batch.flatMap((j) => [j.journalKey, j.sourceType, j.sourceId, j.seq, j.date, String(j.description || '').slice(0, 255), j.fingerprint, j.reversalOf || null])
+      `INSERT INTO gl_journals (journal_key, source_type, source_id, seq, journal_date, description, fingerprint, reversal_of, branch_id)
+       VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+      batch.flatMap((j) => [j.journalKey, j.sourceType, j.sourceId, j.seq, j.date, String(j.description || '').slice(0, 255), j.fingerprint, j.reversalOf || null, j.branchId || 1])
     );
     const [ids] = await conn.query('SELECT id, journal_key FROM gl_journals WHERE journal_key IN (?)', [batch.map((j) => j.journalKey)]);
     const idByKey = new Map(ids.map((r) => [r.journal_key, r.id]));
@@ -535,7 +539,9 @@ async function insertJournals(conn, journals) {
 }
 
 // Posts missing journals and reverses/reposts changed ones. Returns a summary.
-async function syncLedger(pool, { dryRun = false } = {}) {
+async function syncLedger(handle, { dryRun = false } = {}) {
+  // Always the whole company: reading one branch here would reverse the other branches' journals.
+  const pool = (handle && handle.__unscoped) || handle;
   await ensureLedgerSchemaOnce(pool);
   const conn = await pool.getConnection();
   const summary = { posted: 0, reversed: 0, unchanged: 0, unbalanced: [] };
@@ -557,7 +563,7 @@ async function syncLedger(pool, { dryRun = false } = {}) {
 
       // Active = posted, not a reversal, and not yet reversed
       const [active] = await conn.query(`
-        SELECT j.id, j.source_type, j.source_id, j.fingerprint
+        SELECT j.id, j.source_type, j.source_id, j.fingerprint, j.branch_id
         FROM gl_journals j
         WHERE j.reversal_of IS NULL
           AND NOT EXISTS (SELECT 1 FROM gl_journals r WHERE r.reversal_of = j.id)`);
@@ -597,7 +603,7 @@ async function syncLedger(pool, { dryRun = false } = {}) {
           toInsert.push({
             journalKey: `${key}:${seq}`, sourceType, sourceId: rest.join(':'), seq, date: today,
             description: `Reversal of journal ${current.id} (source document changed)`,
-            fingerprint: null, reversalOf: current.id, lines: byJournal.get(current.id) || [],
+            fingerprint: null, reversalOf: current.id, branchId: current.branch_id, lines: byJournal.get(current.id) || [],
           });
         }
         summary.reversed = reversals.length;
@@ -609,7 +615,7 @@ async function syncLedger(pool, { dryRun = false } = {}) {
         const reposting = activeByKey.has(key);
         toInsert.push({
           journalKey: `${key}:${seq}`, sourceType, sourceId: rest.join(':'), seq,
-          date: reposting ? today : j.date, description: j.description, fingerprint: j.fingerprint, lines: j.lines,
+          date: reposting ? today : j.date, description: j.description, fingerprint: j.fingerprint, branchId: j.branchId, lines: j.lines,
         });
         summary.posted += 1;
       }

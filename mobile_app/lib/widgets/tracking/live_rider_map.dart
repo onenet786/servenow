@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../config/map_config.dart';
+import '../../services/branch_service.dart';
 import '../ui/ui.dart';
 import 'tracking_math.dart';
 
@@ -63,7 +64,7 @@ class LiveRiderMap extends StatefulWidget {
     required this.text,
     this.trail = const <LatLng>[],
     this.destination,
-    this.fallbackCenter = const LatLng(30.4686, 70.9661),
+    this.fallbackCenter,
     this.followZoom = 16,
     this.motionDuration = const Duration(milliseconds: 1300),
     this.showStatusChip = true,
@@ -76,7 +77,8 @@ class LiveRiderMap extends StatefulWidget {
   final TrackingText text;
   final List<LatLng> trail;
   final LatLng? destination;
-  final LatLng fallbackCenter;
+  /// Defaults to the centre of the account's branch.
+  final LatLng? fallbackCenter;
   final double followZoom;
   final Duration motionDuration;
   final bool showStatusChip;
@@ -285,7 +287,11 @@ class _LiveRiderMapState extends State<LiveRiderMap>
     final map = FlutterMap(
       mapController: _map,
       options: MapOptions(
-        initialCenter: rider ?? destination ?? widget.fallbackCenter,
+        initialCenter:
+            rider ??
+            destination ??
+            widget.fallbackCenter ??
+            BranchService.defaultCenter,
         initialZoom: rider != null ? widget.followZoom : 13,
         initialCameraFit: initialPoints.length > 1
             ? CameraFit.coordinates(

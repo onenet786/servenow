@@ -1,4 +1,5 @@
 const db = require('../middleware/auth');
+const { financialEntryBranch } = require('./branchFinance');
 
 async function batchLoadOrderItems(database, orderIds) {
   if (!orderIds || orderIds.length === 0) return {};
@@ -135,10 +136,11 @@ async function recordFinancialTransaction(db, data) {
     }
 
     const transaction_number = await generateFinancialTransactionNumber(db);
+    const branchId = await financialEntryBranch(db, data);
     const [result] = await db.execute(
-      `INSERT INTO financial_transactions 
-       (transaction_number, transaction_type, category, description, amount, payment_method, related_entity_type, related_entity_id, reference_type, reference_id, notes, created_by, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed')`,
+      `INSERT INTO financial_transactions
+       (transaction_number, transaction_type, category, description, amount, payment_method, related_entity_type, related_entity_id, reference_type, reference_id, notes, created_by, status, branch_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?)`,
       [
         transaction_number,
         data.transaction_type,
@@ -151,7 +153,8 @@ async function recordFinancialTransaction(db, data) {
         data.reference_type || null,
         data.reference_id || null,
         data.notes || null,
-        data.created_by
+        data.created_by,
+        branchId
       ]
     );
     return result.insertId;

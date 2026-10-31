@@ -86,6 +86,10 @@ const walletRoutes = require("./routes/wallets");
 const financialRoutes = require("./routes/financial");
 const permissionRoutes = require("./routes/permissions");
 const aiagentRoutes = require("./routes/aiagent");
+const branchRoutes = require("./routes/branches");
+const { branchGuard } = require("./middleware/branchGuard");
+const { getAccountStatus } = require("./middleware/auth");
+const { staffScope, toBranchId, STAFF_TYPES } = require("./utils/branches");
 const { logError } = require("./utils/debugLogger");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -150,10 +154,18 @@ io.use((socket, next) => {
   if (!rawToken) return next(new Error("Authentication required"));
   try {
     socket.user = jwt.verify(rawToken, process.env.JWT_SECRET);
-    return next();
   } catch (_) {
     return next(new Error("Invalid or expired token"));
   }
+  // Staff: which room they join depends on their branch, read from the database (not the token).
+  if (!STAFF_TYPES.has(socket.user.user_type)) return next();
+  getAccountStatus(pool, socket.user)
+    .then((status) => {
+      if (!status.ok) return next(new Error("Account is inactive"));
+      socket.user.branch_id = toBranchId(status.branch_id);
+      return next();
+    })
+    .catch(() => next(new Error("Authentication service unavailable")));
 });
 
 // Export io for use in other files
@@ -188,8 +200,11 @@ io.on("connection", (socket) => {
       socket.join(typeRoom);
       
       if (userType === 'admin' || userType === 'standard_user') {
-        socket.join('admins');
-        console.log(`[Socket.IO] Admin/Manager ${socket.id} joined "admins" room`);
+        // Head office hears every branch; a branch account only its own.
+        const scope = staffScope(socket.user);
+        const staffRoom = scope === null ? 'admins' : `admins_b${scope}`;
+        socket.join(staffRoom);
+        console.log(`[Socket.IO] Admin/Manager ${socket.id} joined "${staffRoom}" room`);
       }
       
       debugLog(`Client ${socket.id} joined rooms: ${userRoom}, ${typeRoom}`);
@@ -515,11 +530,36 @@ async function connectDB() {
     });
     console.log(`Connected to MySQL database pool: ${process.env.DB_NAME}`);
     console.log(`Connection pool size: ${connectionLimit}`);
+    await assertBranchSchema(pool);
     startLedgerSync(pool);
   } catch (error) {
     console.error("Database connection failed:", error);
     process.exit(1);
   }
+}
+
+// Branches need database columns that database/migrations/2026-11-01-branches.sql adds. Refuse
+// to start without them (with the reason) instead of failing on every login.
+async function assertBranchSchema(dbPool) {
+  if (process.env.NODE_ENV === "test") return;
+  const [rows] = await dbPool.execute(
+    `SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'branch_id' AND TABLE_NAME IN ('users','stores','riders','orders')`
+  );
+  const have = new Set(rows.map((r) => r.TABLE_NAME));
+  const missing = ["users", "stores", "riders", "orders"].filter((t) => !have.has(t));
+  if (missing.length) {
+    throw new Error(`Branch columns are missing on: ${missing.join(", ")}. Run database/migrations/2026-11-01-branches.sql in phpMyAdmin first.`);
+  }
+  const [money] = await dbPool.execute(
+    `SELECT TABLE_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'branch_id' AND TABLE_NAME IN ('gl_journals','rider_cash_movements','cash_payment_vouchers','payments')`
+  );
+  if (money.length < 4) {
+    throw new Error("Branch columns are missing on the money tables. Run database/migrations/2026-11-01-branches-2-finance.sql in phpMyAdmin first.");
+  }
+  const [[b]] = await dbPool.execute("SELECT COUNT(*) AS n FROM branches WHERE id = 1");
+  if (!Number(b.n)) throw new Error("Branch 1 (Kot Addu) is missing from the branches table. Run the branches migration.");
 }
 
 // Keep the general ledger current: post new/changed source documents shortly after
@@ -555,8 +595,11 @@ if (process.env.NODE_ENV !== "production") {
 
 // Routes
 console.log("Setting up API routes...");
+// Branch accounts only reach areas that are branch-aware; this runs before every route.
+app.use(branchGuard);
 app.use(aiagentRoutes);
 console.log("AIAgent assistant routes mounted (/api/aiagent, /.well-known/aiagent.json, /integrations/aiagent)");
+app.use("/api/branches", branchRoutes);
 app.use("/api/auth", authRoutes);
 console.log("Auth routes mounted at /api/auth");
 app.use("/api/users", userRoutes);

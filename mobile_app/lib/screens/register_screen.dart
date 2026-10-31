@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../services/branch_service.dart';
 import '../services/notifier.dart';
 import '../utils/customer_language.dart';
 import '../widgets/ui/ui.dart';
@@ -29,11 +30,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   DateTime? _selectedDob;
   bool _obscurePassword = true;
   bool _isUrdu = false;
+  List<Branch> _branches = const [];
+  int? _branchId;
 
   @override
   void initState() {
     super.initState();
     _loadLanguagePreference();
+    _loadBranches();
+  }
+
+  Future<void> _loadBranches() async {
+    final branches = await BranchService.load();
+    if (!mounted) return;
+    setState(() {
+      _branches = branches;
+      _branchId = BranchService.selectedId;
+    });
   }
 
   Future<void> _loadLanguagePreference() async {
@@ -87,6 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             password: _passwordController.text,
             phone: _fullPhone,
             address: _addressController.text,
+            branchId: _branches.length > 1 ? _branchId : null,
           );
 
       if (!mounted) return;
@@ -291,6 +305,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         return null;
                       },
                     ),
+                    if (_branches.length > 1) ...[
+                      const SizedBox(height: AppSpace.md),
+                      DropdownButtonFormField<int>(
+                        initialValue: _branchId,
+                        decoration: InputDecoration(
+                          labelText: _tr('Your city'),
+                          prefixIcon: const Icon(Icons.location_city_rounded),
+                        ),
+                        items: [
+                          for (final branch in _branches)
+                            DropdownMenuItem(
+                              value: branch.id,
+                              child: Text(branch.name),
+                            ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _branchId = value),
+                        validator: (value) =>
+                            value == null ? _tr('Choose your city') : null,
+                      ),
+                    ],
                     const SizedBox(height: AppSpace.md),
                     TextFormField(
                       controller: _addressController,

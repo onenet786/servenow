@@ -203,7 +203,7 @@ test('auto settlement applies store credit once and links the lines it covers', 
   const insert = writes.find((w) => /^INSERT INTO store_settlements/.test(w.q));
   // total, commissions, deductions, net ... kind, credit_applied
   assert.deepEqual(insert.params.slice(5, 9), [600, 60, 0, 0]);
-  assert.deepEqual(insert.params.slice(-2), ['orders', 540]);
+  assert.deepEqual(insert.params.slice(-3, -1), ['orders', 540]);
   const link = writes.find((w) => /^UPDATE order_items SET settlement_id/.test(w.q));
   assert.deepEqual(link.params.slice(1), [4, 5]);
 });

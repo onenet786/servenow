@@ -3607,7 +3607,7 @@ function displayAccounts(accounts) {
 
         row.innerHTML = `
             <td>${account.id}</td>
-            <td>${escapeHtml(account.first_name)} ${escapeHtml(account.last_name)}</td>
+            <td>${escapeHtml(account.first_name)} ${escapeHtml(account.last_name)}${window.BranchScope ? BranchScope.badge(account.branch_id) : ''}</td>
             <td>${escapeHtml(account.email)}</td>
             <td>${escapeHtml(account.phone || '-')}</td>
             <td>${account.user_type}</td>
@@ -3743,6 +3743,7 @@ function editAccount(accountId) {
     
     AppState.editing.accountId = accountId;
     AppState.editing.accountOriginal = {
+        branchId: account.branch_id === undefined ? null : account.branch_id,
         id: account.id,
         firstName: String(account.first_name || '').trim(),
         lastName: String(account.last_name || '').trim(),
@@ -3760,6 +3761,7 @@ function editAccount(accountId) {
     };
     
     document.getElementById('editAccountId').value = accountId;
+    if (window.BranchScope) BranchScope.setField('editAccountForm', account.branch_id === undefined ? null : account.branch_id);
     document.getElementById('editAccountFirstName').value = account.first_name || '';
     document.getElementById('editAccountLastName').value = account.last_name || '';
     document.getElementById('editAccountEmail').value = account.email || '';
@@ -3917,6 +3919,10 @@ async function saveAccount() {
         if (userType !== original.userType) payload.user_type = userType;
         if (isActive !== original.isActive) payload.is_active = isActive;
         if (isVerified !== original.isVerified) payload.is_verified = isVerified;
+        if (window.BranchScope) {
+            const chosen = BranchScope.payload('editAccountForm');
+            if (chosen.branch_id !== undefined && chosen.branch_id !== original.branchId) payload.branch_id = chosen.branch_id;
+        }
 
         const originalStoreId = original.storeId || '';
         if (userType === 'store_owner') {
@@ -3942,7 +3948,8 @@ async function saveAccount() {
             email,
             user_type: userType,
             is_active: isActive,
-            is_verified: isVerified
+            is_verified: isVerified,
+            ...(window.BranchScope ? BranchScope.payload('editAccountForm') : {})
         };
 
         if (phone) payload.phone = phone;
@@ -8656,6 +8663,7 @@ function hideModal(modalId) {
 
 async function showAddStoreModal() {
     AppState.editing.storeId = null;
+    if (window.BranchScope) BranchScope.setField('addStoreForm');
     try {
         await populateStoreCategorySelect();
         await populateStoreBankSelect();
@@ -8722,6 +8730,7 @@ async function saveStore() {
     const discountApplicable = isDiscountPaymentTerm(paymentTermRaw);
     const storeDiscountApply = discountApplicable && !!document.getElementById('storeDiscountApplyAllProducts')?.checked;
     const storeData = {
+        ...(window.BranchScope ? BranchScope.payload('addStoreForm') : {}),
         name: formData.get('name'),
         description: formData.get('description'),
         location: formData.get('location'),
@@ -8865,6 +8874,7 @@ async function editStore(storeId) {
         await populateStoreCategorySelect(selectedCategoryId);
         await populateStoreBankSelect(s.bank_id || null);
         const form = document.getElementById('addStoreForm');
+        if (window.BranchScope) BranchScope.setField('addStoreForm', s.branch_id);
         form.querySelector('#storeName').value = s.name || '';
         form.querySelector('#storeOwner').value = s.owner_name || '';
         form.querySelector('#storeLocation').value = s.location || '';
@@ -11189,6 +11199,7 @@ async function populateVehicleTypeSelect(selectEl, currentValue) {
 
 async function showAddRiderModal() {
     AppState.editing.riderId = null;
+    if (window.BranchScope) BranchScope.setField('addRiderForm');
     const vehicleTypeSelect = document.getElementById('riderVehicleType');
     await populateVehicleTypeSelect(vehicleTypeSelect, null);
     const modal = document.getElementById('addRiderModal');
@@ -11252,6 +11263,7 @@ async function saveRider() {
     const formData = new FormData(document.getElementById('addRiderForm'));
     const fullName = String(formData.get('fullName') || '').trim();
     const riderData = {
+        ...(window.BranchScope ? BranchScope.payload('addRiderForm') : {}),
         fullName,
         email: formData.get('email'),
         phone: formData.get('phone'),
@@ -11372,6 +11384,7 @@ async function editRider(riderId) {
         const vehicleTypeSelect = document.getElementById('riderVehicleType');
         await populateVehicleTypeSelect(vehicleTypeSelect, r.vehicle_type || null);
         const form = document.getElementById('addRiderForm');
+        if (window.BranchScope) BranchScope.setField('addRiderForm', r.branch_id);
         const full = (r.full_name) ? r.full_name : [r.first_name || '', r.last_name || ''].filter(Boolean).join(' ');
         if (form.querySelector('#riderFullName')) form.querySelector('#riderFullName').value = full;
         if (form.querySelector('#riderFatherName')) form.querySelector('#riderFatherName').value = r.father_name || '';
@@ -11956,7 +11969,7 @@ function displayStores(stores) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${store.id}</td>
-            <td>${escapeHtml(store.name)}</td>
+            <td>${escapeHtml(store.name)}${window.BranchScope ? BranchScope.badge(store.branch_id) : ''}</td>
             <td>${escapeHtml(store.location)}</td>
             <td>${ownerDisplay}</td>
             <td>${store.rating} ⭐</td>
@@ -12142,7 +12155,7 @@ function displayRiders(riders) {
     riders.forEach(rider => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${rider.id}</td>
+            <td>${rider.id}${window.BranchScope ? BranchScope.badge(rider.branch_id) : ''}</td>
             <td>${rider.full_name || [rider.first_name || '', rider.last_name || ''].filter(Boolean).join(' ')}</td>
             <td>${escapeHtml(rider.email)}</td>
             <td>${escapeHtml(rider.phone)}</td>

@@ -62,11 +62,11 @@
                         <span class="sn-authx-mark"><img src="images/servenow_brand_logo.png" alt="" width="144" height="82"></span>
                         <span class="sn-authx-word">ServeNow</span>
                     </a>
-                    <p class="sn-authx-tagline">Food &amp; groceries from Kot Addu's stores, at your door</p>
+                    <p class="sn-authx-tagline" data-branch-text="Food &amp; groceries from local stores in {cities}, at your door">Food &amp; groceries from Kot Addu's stores, at your door</p>
 
                     <div class="sn-authx-copy">
-                        <p class="sn-authx-eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> Delivering across Kot Addu</p>
-                        <p class="sn-authx-headline">Food &amp; groceries from Kot Addu's <em>favourite stores</em>, at your door</p>
+                        <p class="sn-authx-eyebrow"><i class="fas fa-location-dot" aria-hidden="true"></i> <span data-branch-text="Delivering across {cities}">Delivering across Kot Addu</span></p>
+                        <p class="sn-authx-headline" data-branch-html="Food &amp; groceries from <em>favourite stores</em> in {cities}, at your door">Food &amp; groceries from Kot Addu's <em>favourite stores</em>, at your door</p>
                         <ul class="sn-authx-points">
                             <li><span class="sn-authx-ico"><i class="fas fa-money-bill-wave" aria-hidden="true"></i></span><div><strong>Cash on delivery</strong><span>No card needed to order.</span></div></li>
                             <li><span class="sn-authx-ico"><i class="fas fa-motorcycle" aria-hidden="true"></i></span><div><strong>Track your rider live</strong><span>See your order move on the map.</span></div></li>
@@ -141,11 +141,20 @@
                                     <p class="sn-hint" id="phoneHint">Type your mobile number, e.g. 0300 1234567 or 300 1234567. Your rider calls this number.</p>
                                 </div>
 
+                                <div class="form-group" id="branchField" hidden>
+                                    <label for="branchSelect">Your city</label>
+                                    <div class="sn-input">
+                                        <i class="fas fa-city sn-input__icon" aria-hidden="true"></i>
+                                        <select id="branchSelect" name="branch_id" disabled></select>
+                                    </div>
+                                    <p class="sn-hint">You will see the stores that deliver in this city.</p>
+                                </div>
+
                                 <div class="form-group">
                                     <label for="address">Delivery address</label>
                                     <div class="sn-input sn-input--area">
                                         <i class="fas fa-location-dot sn-input__icon" aria-hidden="true"></i>
-                                        <textarea id="address" name="address" required autocomplete="street-address" placeholder="House, street, area, Kot Addu" rows="3"></textarea>
+                                        <textarea id="address" name="address" required autocomplete="street-address" placeholder="House, street, area, Kot Addu" data-branch-placeholder="House, street, area, city" rows="3"></textarea>
                                     </div>
                                 </div>
                             </fieldset>
@@ -222,7 +231,8 @@
         </main>
     </div>
 
-    <script src="js/app.js?v=31"></script>
+    <script src="js/app.js?v=32"></script>
+    <script src="js/branches-ui.js?v=2"></script>
     <script>
         // Sidebar Toggle Logic
         const sidebarToggle = document.getElementById('sidebarToggle');
@@ -253,7 +263,7 @@
         });
     </script>
     <script src="js/servenow-auth.js?v=1"></script>
-    <script src="js/google-signin.js?v=1"></script>
+    <script src="js/google-signin.js?v=2"></script>
     <script src="https://accounts.google.com/gsi/client" id="gsiClient" async defer></script>
 </body>
 </html>

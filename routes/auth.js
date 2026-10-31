@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const { sendVerificationEmail, sendPasswordResetOTP } = require("../services/emailService");
 const { authenticateToken } = require("../middleware/auth");
+const { resolveCustomerBranch } = require("../utils/branches");
 const {
   upsertPushToken,
   deactivatePushToken,
@@ -581,6 +582,13 @@ router.post(
       const userType = "customer";
       const dateOfBirth = req.body.dateOfBirth || req.body.date_of_birth || null;
 
+      // Which branch the customer belongs to. Apps that do not send one get Kot Addu; a branch
+      // that is unknown or not open yet is refused.
+      const branch = await resolveCustomerBranch(req.db, null, req.body.branch_id ?? req.body.branchId);
+      if (branch.error) {
+        return res.status(400).json({ success: false, message: branch.error });
+      }
+
       // Check if user already exists
       const [existingUser] = await req.db.execute(
         "SELECT id FROM users WHERE email = ?",
@@ -603,8 +611,8 @@ router.post(
 
       // Insert user
       const [result] = await req.db.execute(
-        `INSERT INTO users (first_name, last_name, date_of_birth, email, phone, address, password, user_type, verification_code, verification_expires_at, is_verified)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (first_name, last_name, date_of_birth, email, phone, address, password, user_type, verification_code, verification_expires_at, is_verified, branch_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           firstName,
           lastName,
@@ -617,6 +625,7 @@ router.post(
           verificationCode,
           verificationExpiresAt,
           false,
+          branch.branchId,
         ]
       );
 
@@ -682,6 +691,7 @@ router.post(
           phone,
           address,
           is_verified: false,
+          branch_id: branch.branchId,
         },
       });
     } catch (error) {
@@ -824,6 +834,7 @@ router.post(
               user_type: user.user_type,
               phone: user.phone,
               address: user.address,
+              branch_id: user.branch_id ?? null,
             },
           });
         }
@@ -895,6 +906,7 @@ router.post(
               last_name: rider.last_name,
               email: rider.email,
               user_type: "rider",
+              branch_id: rider.branch_id ?? null,
             },
           });
         }
@@ -974,9 +986,14 @@ router.post(
           10
         );
 
+        const socialBranch = await resolveCustomerBranch(req.db, null, req.body.branch_id ?? req.body.branchId);
+        if (socialBranch.error) {
+          return res.status(400).json({ success: false, message: socialBranch.error });
+        }
+
         const [result] = await req.db.execute(
-          `INSERT INTO users (first_name, last_name, email, phone, address, password, user_type, is_verified, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO users (first_name, last_name, email, phone, address, password, user_type, is_verified, is_active, branch_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             firstName,
             lastName,
@@ -987,6 +1004,7 @@ router.post(
             "customer",
             true,
             true,
+            socialBranch.branchId,
           ]
         );
 
@@ -1053,6 +1071,7 @@ router.post(
           user_type: user.user_type,
           phone: user.phone || null,
           address: user.address || null,
+          branch_id: user.branch_id ?? null,
         },
       });
     } catch (error) {
@@ -1132,9 +1151,14 @@ router.post(
           10
         );
 
+        const socialBranch = await resolveCustomerBranch(req.db, null, req.body.branch_id ?? req.body.branchId);
+        if (socialBranch.error) {
+          return res.status(400).json({ success: false, message: socialBranch.error });
+        }
+
         const [result] = await req.db.execute(
-          `INSERT INTO users (first_name, last_name, email, phone, address, password, user_type, is_verified, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO users (first_name, last_name, email, phone, address, password, user_type, is_verified, is_active, branch_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             firstName,
             lastName,
@@ -1145,6 +1169,7 @@ router.post(
             "customer",
             true,
             true,
+            socialBranch.branchId,
           ]
         );
 
@@ -1211,6 +1236,7 @@ router.post(
           user_type: user.user_type,
           phone: user.phone || null,
           address: user.address || null,
+          branch_id: user.branch_id ?? null,
         },
       });
     } catch (error) {
@@ -1241,7 +1267,7 @@ router.get("/me", authenticateToken, async (req, res) => {
 
       // Use email check to prevent ID collision with users table
       const [riders] = await req.db.execute(
-        "SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, created_at FROM riders WHERE id = ? AND email = ?",
+        "SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, created_at, branch_id FROM riders WHERE id = ? AND email = ?",
         [req.user.id, req.user.email]
       );
 
@@ -1265,7 +1291,7 @@ router.get("/me", authenticateToken, async (req, res) => {
     // Default to Users table (Admin/Customer/Store Owner)
     // Use email check to prevent ID collision with riders table
     const [users] = await req.db.execute(
-      "SELECT id, first_name, last_name, date_of_birth, email, phone, address, user_type, created_at FROM users WHERE id = ? AND email = ?",
+      "SELECT id, first_name, last_name, date_of_birth, email, phone, address, user_type, created_at, branch_id FROM users WHERE id = ? AND email = ?",
       [req.user.id, req.user.email]
     );
 

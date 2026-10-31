@@ -1989,6 +1989,7 @@ async function handleRegister(e) {
     address: formData.get("address"),
     password: formData.get("password"),
     userType: formData.get("userType") || "customer",
+    branch_id: formData.get("branch_id") || undefined,
   };
 
   // Validate password confirmation
