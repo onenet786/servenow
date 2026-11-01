@@ -87,7 +87,8 @@ const TOOLS = [
     name: 'find_stores',
     who: ['anyone'],
     description: 'Stores on ServeNow, optionally matching a name, area or something they sell, with whether each is open now, '
-      + 'its hours, delivery time and any notice from the store. Use for "which stores are open", "is X open", "who sells Y".',
+      + 'its hours, delivery time and any notice from the store. Use for "which stores are open", "is X open", "who sells Y". '
+      + 'For what a store sells (its menu), call store_products next.',
     inputSchema: {
       type: 'object',
       properties: { search: { type: 'string', description: 'Store name, area, or a product they sell. Leave empty for all stores.' } },
@@ -96,15 +97,31 @@ const TOOLS = [
   {
     name: 'find_products',
     who: ['anyone'],
-    description: 'Search products by name and return price, store, and whether they can be ordered now. '
-      + 'Use for "do you have milk", "price of Coca Cola 1.5L", "what does X store have".',
+    description: 'Search products by name across stores and return price, store, and whether they can be ordered now. '
+      + 'Use for "do you have milk", "price of Coca Cola 1.5L", "who sells biryani". For everything one store sells, '
+      + 'use store_products instead.',
     inputSchema: {
       type: 'object',
       properties: {
         search: { type: 'string', description: 'Product name or part of it' },
         store: { type: 'string', description: 'Optional store name to search in' },
       },
-      required: ['search'],
+    },
+  },
+  {
+    name: 'store_products',
+    who: ['anyone'],
+    description: "One store's products (its menu or catalogue) grouped by category, with prices and whether each can be "
+      + 'ordered now, plus the store\'s hours and delivery time. Use for "what does Aghosh Hotel have", "X ka menu", '
+      + '"products of X", "X ke paas kya kya hai". Narrow with category or search when the list is long.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        store: { type: 'string', description: 'Store name or part of it, e.g. "Aghosh"' },
+        category: { type: 'string', description: 'Optional category, e.g. "Biryani", "Drinks"' },
+        search: { type: 'string', description: 'Optional product name within the store' },
+      },
+      required: ['store'],
     },
   },
   {
@@ -260,8 +277,10 @@ async function findStores(db, args, user) {
 
 async function findProducts(db, args, user) {
   const t = clean(args.search, 50);
-  if (!t) return { error: 'missing', message: 'Ask which product they are looking for.' };
   const store = clean(args.store, 50);
+  // "What does X have?" sometimes arrives here with only a store: answer with that store's list.
+  if (!t && store) return storeProducts(db, { store }, user);
+  if (!t) return { error: 'missing', message: 'Ask which product they are looking for, or which store.' };
   const branchIds = await browseBranchIds(db, user);
   if (!branchIds.length) return { products: [], note: `No product matches "${t}".` };
   const params = [`%${t}%`, ...branchIds];
@@ -287,6 +306,78 @@ async function findProducts(db, args, user) {
       only_between: p.available_from && p.available_to ? `${timeText(p.available_from)}–${timeText(p.available_to)}` : undefined,
       store_open_now: !p.is_closed && openBySchedule(p.opening_time, p.closing_time),
     })),
+  };
+}
+
+const STORE_LIST_LIMIT = 40;
+
+// The one store meant by `name` among the stores the asker may browse; otherwise a reply listing choices.
+async function resolveStore(db, name, branchIds) {
+  const [rows] = await db.execute(
+    `SELECT s.id, s.name, s.location, s.delivery_time, s.opening_time, s.closing_time, sm.is_closed, sm.status_message
+       FROM stores s LEFT JOIN store_status_messages sm ON sm.store_id = s.id
+      WHERE s.is_active = 1 AND COALESCE(s.is_customer_visible, 1) = 1 AND s.branch_id IN (${placeholders(branchIds.length)})
+        AND s.name LIKE ?
+      ORDER BY (s.name = ?) DESC, length(s.name) LIMIT 6`,
+    [...branchIds, `%${name}%`, name]
+  );
+  const exact = rows.filter((s) => s.name.toLowerCase() === name.toLowerCase());
+  if (exact.length === 1 || rows.length === 1) return { store: exact[0] || rows[0] };
+  if (!rows.length) return { reply: { error: 'store_not_found', message: `No store is called "${name}". Use find_stores to show the stores and ask which one.` } };
+  return { reply: { error: 'which_store', message: `Several stores match "${name}". Ask which one they mean.`, stores: rows.map((s) => ({ name: s.name, area: s.location })) } };
+}
+
+async function storeProducts(db, args, user) {
+  const name = clean(args.store, 50);
+  if (!name) return { error: 'missing', message: 'Ask which store they mean.' };
+  const branchIds = await browseBranchIds(db, user);
+  if (!branchIds.length) return { error: 'store_not_found', message: 'No stores are listed right now.' };
+  const found = await resolveStore(db, name, branchIds);
+  if (found.reply) return found.reply;
+  const s = found.store;
+  const category = clean(args.category, 40);
+  const search = clean(args.search, 50);
+  const params = [s.id];
+  let where = 'p.store_id = ? AND p.is_available = 1';
+  if (category) { where += ' AND c.name LIKE ?'; params.push(`%${category}%`); }
+  if (search) { where += ' AND p.name LIKE ?'; params.push(`%${search}%`); }
+  const [[{ total }]] = await db.execute(
+    `SELECT COUNT(*) AS total FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE ${where}`, params
+  );
+  const [rows] = await db.execute(
+    `SELECT p.name, p.price, p.stock_quantity, p.available_from, p.available_to, c.name AS category
+       FROM products p LEFT JOIN categories c ON c.id = p.category_id
+      WHERE ${where}
+      ORDER BY c.name IS NULL, c.name, p.name LIMIT ${STORE_LIST_LIMIT}`,
+    params
+  );
+  const groups = new Map();
+  for (const p of rows) {
+    const key = p.category || 'Other';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({
+      name: p.name,
+      price: money(p.price),
+      in_stock: p.stock_quantity == null ? undefined : Number(p.stock_quantity) > 0,
+      only_between: p.available_from && p.available_to ? `${timeText(p.available_from)}–${timeText(p.available_to)}` : undefined,
+    });
+  }
+  const count = Number(total);
+  return {
+    currency: 'PKR',
+    store: s.name,
+    area: s.location || undefined,
+    open_now: !s.is_closed && openBySchedule(s.opening_time, s.closing_time),
+    hours: s.opening_time && s.closing_time ? `${timeText(s.opening_time)}–${timeText(s.closing_time)}` : undefined,
+    delivery_time: s.delivery_time || undefined,
+    notice: s.status_message || undefined,
+    total_products: count,
+    categories: [...groups].map(([name, products]) => ({ name, products })),
+    note: !count
+      ? (category || search ? 'Nothing matches in this store. Suggest another category or word.' : 'This store has no products listed right now.')
+      : count > rows.length
+        ? `Showing ${rows.length} of ${count}. Mention a few highlights and the categories, then ask which category or item they want.`
+        : 'Present this as a short menu: categories with a few items and prices; offer more detail on request.',
   };
 }
 
@@ -542,7 +633,7 @@ const ACTIONS = {
 };
 
 const HANDLERS = {
-  find_stores: findStores, find_products: findProducts, my_orders: myOrders, order_status: orderStatus,
+  find_stores: findStores, find_products: findProducts, store_products: storeProducts, my_orders: myOrders, order_status: orderStatus,
   my_wallet: myWallet, rider_deliveries: riderDeliveries, store_orders_today: storeOrdersToday, business_today: businessToday,
 };
 

@@ -10,7 +10,8 @@ It never moves money.
 | Tool | Who | What |
 |---|---|---|
 | `find_stores` | anyone | Stores matching a name, area or product; open now, hours, delivery time, store notice |
-| `find_products` | anyone | Products by name, with price, store and whether they can be ordered now |
+| `find_products` | anyone | Products by name across stores, with price, store and whether they can be ordered now |
+| `store_products` | anyone | One store's menu ("what does Aghosh Hotel have"): products grouped by category with prices, hours and delivery time; narrows by category or name when long |
 | `my_orders` | signed-in customers (also store owners and staff who order) | Their latest 5 orders |
 | `order_status` | signed-in | One order in full. Customers see their own orders, riders the orders given to them, store owners their stores' orders, admins and staff with *View orders* all orders |
 | `my_wallet` | customers, riders | Wallet balance and latest transactions |
