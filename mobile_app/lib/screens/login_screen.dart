@@ -102,11 +102,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _continueWithGoogle() async {
-    // A first Google sign-in creates the account, and it needs a city.
-    if (_branches.length > 1 && BranchService.selectedId == null) {
-      Notifier.error(context, _tr('Choose your city'));
-      return;
-    }
+    // Returning users sign in without a city (their account has one). Only a first Google sign-in,
+    // which creates the account, needs it: the server then answers "Choose your city to create your
+    // account", shown below, and the city field is right above the button.
     try {
       await Provider.of<AuthProvider>(context, listen: false).loginWithGoogle();
 
@@ -114,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _goToRoleHome();
     } catch (e) {
       if (mounted) {
-        Notifier.error(context, e.toString());
+        Notifier.error(context, _tr(e.toString().replaceFirst('Exception: ', '')));
       }
     }
   }
@@ -246,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     DropdownButtonFormField<int>(
                       initialValue: BranchService.selectedId,
                       decoration: InputDecoration(
-                        labelText: _tr('Your city'),
+                        labelText: _tr('New here? Your city'),
                         prefixIcon: const Icon(Icons.location_city_rounded),
                       ),
                       items: [

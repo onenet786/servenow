@@ -26,6 +26,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   static const String _launchFlashSeenSignatureKey =
       'customer_launch_flash_seen_signature';
+  // The server shows this branch (Kot Addu) to a guest who has not picked a city (DEFAULT_BRANCH_ID).
+  static const int _serverDefaultBranchId = 1;
+  // A guest who closes the city sheet is not asked again on every refresh of this screen.
+  bool _cityAsked = false;
   List<dynamic> _allStores = [];
   List<dynamic> _filteredStores = [];
   bool _isLoading = true;
@@ -99,7 +103,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (Provider.of<AuthProvider>(context, listen: false).isGuest &&
           BranchService.hasChoice &&
-          BranchService.selectedId == null) {
+          BranchService.selectedId == null &&
+          !_cityAsked) {
+        _cityAsked = true;
         await _chooseCity();
         if (!mounted) return;
       }
@@ -195,10 +201,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (picked == null || picked == BranchService.selectedId || !mounted) {
       return;
     }
-    final hadCity = BranchService.selectedId != null;
+    // Stores differ by city: the cart is emptied whenever the city really changes, including from
+    // the default list a guest browsed before choosing.
+    final previous = BranchService.selectedId ?? _serverDefaultBranchId;
     await BranchService.select(picked);
     if (!mounted) return;
-    if (hadCity) {
+    if (picked != previous) {
       Provider.of<CartProvider>(context, listen: false).clear();
     }
     if (reload) {

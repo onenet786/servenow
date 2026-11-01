@@ -144,7 +144,15 @@ async function checkDocumentUpdate(db, user, docType, id, body) {
   }
 
   const approval = APPROVE_RIGHTS[docType];
-  if (target && target !== current && approval && approval.statuses.includes(target) && user.user_type === 'standard_user') {
+  const approving = target && target !== current && approval && approval.statuses.includes(target);
+  // The approval right depends on the payment method (cash vs bank). Changing the method in the same
+  // request as the approval would let a cash approver approve a bank voucher, so it is refused for
+  // everyone: save the change first, then approve (the right is checked against the saved method).
+  if (approving && body.payment_method !== undefined && 'payment_method' in doc &&
+      String(body.payment_method || 'cash').toLowerCase() !== String(doc.payment_method || 'cash').toLowerCase()) {
+    return { status: 409, message: `Save the new payment method first, then approve the ${cfg.label.toLowerCase()}` };
+  }
+  if (approving && user.user_type === 'standard_user') {
     const key = approval.right(doc);
     const [held] = await db.execute('SELECT 1 FROM user_permissions WHERE user_id = ? AND permission_key = ?', [user.id, key]);
     if (!held.length) {

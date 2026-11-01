@@ -145,8 +145,9 @@ router.post('/:id(\\d+)/copy-stores', requireOwner, async (req, res) => {
     try {
         const pair = await copyBranches(req, res);
         if (!pair) return;
-        // Customers of an open branch must not see copies before they are edited.
-        const hide = Number(pair.to.is_active) === 1;
+        // Copies are always hidden from customers until edited and shown with "Show copied stores": for a
+        // branch that is still closed too, so nothing goes live unedited the moment the branch opens.
+        const hide = true;
         const copied = await copyBranchStores(req.db, pair.fromId, pair.toId, { hide });
         console.log(`[branches] ${req.user.email || req.user.id} copied ${copied.stores} stores, ${copied.products} products from branch ${pair.fromId} to ${pair.toId}`);
         res.json({ success: true, hidden_from_customers: hide, ...copied });

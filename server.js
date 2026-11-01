@@ -531,6 +531,11 @@ async function connectDB() {
     console.log(`Connected to MySQL database pool: ${process.env.DB_NAME}`);
     console.log(`Connection pool size: ${connectionLimit}`);
     await assertBranchSchema(pool);
+    // Staff keep the order, product, fuel and approval actions they already had (once, logged).
+    if (process.env.NODE_ENV !== "test") {
+      await require("./utils/rightsUpgrade").grantSplitRights(pool)
+        .catch((err) => console.error("[rights] upgrade failed (will retry on next start):", err.message));
+    }
     startLedgerSync(pool);
   } catch (error) {
     console.error("Database connection failed:", error);

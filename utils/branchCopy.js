@@ -1,9 +1,11 @@
 // Copies a branch's stores and products into another branch, as a starting point to edit. The new
 // branch does not retype its catalogue; after the copy the two are independent.
 //
-// Copied: store details, products, prices, size prices, stock, images (the file is shared, and
-// files are never deleted). Not copied: orders, money, offers, and anything that identifies the
-// original store's owner or location: owner login, bank details, map pin, priority and rating.
+// Copied: store details, products, prices, size prices, images (the file is shared, and files are
+// never deleted). Not copied: orders, money, offers, stock, and anything that belongs to the original
+// store's owner or location: owner login and contacts, bank details, the commission, payment terms
+// and discounts agreed with that owner, map pin, priority and rating. Those start at the database
+// defaults; the new branch agrees its own terms with its own store owner.
 //
 // Each store is its own transaction and remembers its source, so a copy that stops part way can
 // simply be run again: finished stores are skipped, and the database refuses a duplicate.
@@ -11,9 +13,14 @@
 const STORE_SKIP = new Set([
     'id', 'created_at', 'updated_at', 'branch_id', 'source_store_id',
     'owner_id', 'bank_id', 'store_bank_account_title', 'store_bank_account_number',
-    'latitude', 'longitude', 'priority', 'rating', 'grace_alert_muted_until', 'payment_grace_start_date',
+    'latitude', 'longitude', 'priority', 'rating',
+    // The original owner's agreement and contacts
+    'phone', 'email', 'commission_rate', 'payment_term',
+    'payment_grace_days', 'payment_grace_start_date', 'payment_grace_due_date', 'grace_alert_muted_until',
+    'store_discount_percent', 'store_discount_apply_all_products',
 ]);
-const PRODUCT_SKIP = new Set(['id', 'store_id', 'created_at', 'updated_at']);
+// Stock belongs to the original store's shelf; the copy starts at 0.
+const PRODUCT_SKIP = new Set(['id', 'store_id', 'created_at', 'updated_at', 'stock_quantity']);
 const SIZE_PRICE_SKIP = new Set(['id', 'product_id', 'created_at']);
 
 // Column names come from the database itself, never from a request.

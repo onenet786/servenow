@@ -3,7 +3,7 @@
 // way out and remove those fields unless the caller may see them: staff, or a store owner for
 // their own store. Run them after softAuth.
 
-const { STAFF_TYPES } = require('../utils/branches');
+const { STAFF_TYPES, staffScope, toBranchId } = require('../utils/branches');
 
 const PRIVATE_STORE_KEYS = [
     'owner_id', 'owner_email', 'owner_name', 'owner_first_name', 'owner_last_name',
@@ -58,7 +58,24 @@ function trustedAdminFlag(req) {
 // Wraps res.json so every way out of the route is filtered. The filter is async because a store
 // owner's stores must be looked up; a failed lookup means "not their store" (fails closed).
 function filterPrivateData(req, res, next) {
-    if (isStaff(req.user)) return next();
+    // Head office sees everything.
+    if (isStaff(req.user) && staffScope(req.user) === null) return next();
+    // A branch account sees private fields only on its own branch's rows. Lists are filtered here
+    // whatever the route did with ?branch_id=; single records are already held to the branch by
+    // branchGuard, and stripping them would blank cost prices on the branch's own edit screens.
+    if (isStaff(req.user)) {
+        const own = staffScope(req.user);
+        const ours = (branchId) => toBranchId(branchId) === own;
+        const sendStaff = res.json.bind(res);
+        res.json = (body) => {
+            if (!body || typeof body !== 'object' || body.success === false) return sendStaff(body);
+            const out = { ...body };
+            if (Array.isArray(out.stores)) out.stores = out.stores.map((s) => (ours(s.branch_id) ? s : stripStore(s)));
+            if (Array.isArray(out.products)) out.products = out.products.map((p) => (ours(p.store_branch_id) ? p : stripProduct(p)));
+            return sendStaff(out);
+        };
+        return next();
+    }
     const send = res.json.bind(res);
     res.json = (body) => {
         if (!body || typeof body !== 'object' || body.success === false) return send(body);

@@ -3,7 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin, requireStoreOwner, requireStaffAccess, requireStaffRight, softAuth } = require('../middleware/auth');
 const { filterPrivateData, trustedAdminFlag } = require('../middleware/publicData');
 const { fetchRemoteImage } = require('../utils/safeImageFetch');
-const { resolveStaffBranch, resolveCustomerBranch, toBranchId, STAFF_TYPES, DEFAULT_BRANCH_ID } = require('../utils/branches');
+const { resolveStaffBranch, resolveCustomerBranch, toBranchId, staffScope, STAFF_TYPES, DEFAULT_BRANCH_ID } = require('../utils/branches');
 
 // Who may change a store's products: staff, whose product rights the route has already checked
 // (branchGuard holds branch accounts to their own branch), and the store's owner.
@@ -404,7 +404,7 @@ router.get('/', softAuth, filterPrivateData, async (req, res) => {
             || !isAdminDataRequest;
 
         let query = `
-            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location,
+            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location, s.branch_id as store_branch_id,
                    u.id as unit_id, u.name as unit_name, sz.id as size_id, sz.label as size_label
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
@@ -428,7 +428,8 @@ router.get('/', softAuth, filterPrivateData, async (req, res) => {
         let productBranchId = null;
         if (isAdminDataRequest && req.user.user_type === 'store_owner') {
             productBranchId = toBranchId(req.user.branch_id) ?? DEFAULT_BRANCH_ID;
-        } else if (isAdminDataRequest || isAdminUser) {
+        } else if (isAdminDataRequest || isAdminUser || staffScope(req.user) !== null) {
+            // A branch account is held to its own branch even on the customer view (no ?branch_id=2).
             const scope = resolveStaffBranch(req.user, req.query.branch_id);
             if (scope.error) return res.status(403).json({ success: false, message: scope.error });
             productBranchId = scope.branchId;
@@ -631,7 +632,7 @@ router.get('/:id', softAuth, filterPrivateData, async (req, res) => {
         const isAdminUser = req.user && req.user.user_type === 'admin';
 
         let detailQuery = `
-            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location,
+            SELECT p.*, c.name as category_name, s.name as store_name, s.location as store_location, s.branch_id as store_branch_id,
                    u.id as unit_id, u.name as unit_name, sz.id as size_id, sz.label as size_label
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id

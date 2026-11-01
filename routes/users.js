@@ -154,8 +154,10 @@ router.get('/', authenticateToken, requireUserManagement, async (req, res) => {
 
 // Create user (Admin only)
 router.post('/', authenticateToken, requireAdmin, [
-    body('firstName').trim().isLength({ min: 1 }).withMessage('First name is required'),
-    body('lastName').trim().isLength({ min: 1 }).withMessage('Last name is required'),
+    body('firstName').trim().isLength({ min: 1, max: 50 }).withMessage('First name is required (up to 50 characters)')
+        .not().matches(/[<>]/).withMessage('First name cannot contain < or >'),
+    body('lastName').trim().isLength({ min: 1, max: 50 }).withMessage('Last name is required (up to 50 characters)')
+        .not().matches(/[<>]/).withMessage('Last name cannot contain < or >'),
     body('email').isEmail().withMessage('Invalid email'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
     body('phone').optional({ checkFalsy: true }).trim().matches(/^[\d\s\-\+\(\)]{6,}$/).withMessage('Invalid phone'),
@@ -260,8 +262,10 @@ router.post('/', authenticateToken, requireAdmin, [
 
 // Update user (Admin only)
 router.put('/:id', authenticateToken, requireAdmin, [
-    body('firstName').optional().trim().isLength({ min: 1 }),
-    body('lastName').optional().trim().isLength({ min: 1 }),
+    body('firstName').optional().trim().isLength({ min: 1, max: 50 })
+        .not().matches(/[<>]/).withMessage('First name cannot contain < or >'),
+    body('lastName').optional().trim().isLength({ min: 1, max: 50 })
+        .not().matches(/[<>]/).withMessage('Last name cannot contain < or >'),
     body('email').optional().isEmail().withMessage('Invalid email'),
     body('phone').optional({ checkFalsy: true }).trim().matches(/^[\d\s\-\+\(\)]{6,}$/).withMessage('Invalid phone'),
     body('address').optional({ checkFalsy: true }).trim(),

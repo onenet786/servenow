@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const { sendVerificationEmail, sendPasswordResetOTP } = require("../services/emailService");
 const { authenticateToken, endSessions } = require("../middleware/auth");
-const { resolveCustomerBranch, adminRoomsFor } = require("../utils/branches");
+const { resolveCustomerBranch, adminRoomsFor, listBranches } = require("../utils/branches");
 const {
   upsertPushToken,
   deactivatePushToken,
@@ -254,9 +254,9 @@ async function verifyGoogleIdToken(idToken) {
   return {
     googleId: String(payload.sub || "").trim(),
     email,
-    firstName: String(payload.given_name || "").trim(),
-    lastName: String(payload.family_name || "").trim(),
-    fullName: String(payload.name || "").trim(),
+    firstName: safeName(payload.given_name),
+    lastName: safeName(payload.family_name),
+    fullName: safeName(payload.name, 100),
     picture: String(payload.picture || "").trim(),
   };
 }
@@ -286,10 +286,29 @@ async function verifyFacebookAccessToken(accessToken) {
   return {
     facebookId: String(payload.id || "").trim(),
     email,
-    firstName: String(payload.first_name || "").trim(),
-    lastName: String(payload.last_name || "").trim(),
-    fullName: String(payload.name || "").trim(),
+    firstName: safeName(payload.first_name),
+    lastName: safeName(payload.last_name),
+    fullName: safeName(payload.name, 100),
   };
+}
+
+// Branch for an account created by Google or Facebook sign-in. A returning user never gets here (their
+// account already has a branch). While two or more cities are open, a new account must name its city
+// instead of silently landing in the default branch.
+async function newSocialAccountBranch(db, body) {
+  const requested = body.branch_id ?? body.branchId;
+  if (requested === undefined || requested === null || requested === "") {
+    const open = await listBranches(db, { activeOnly: true });
+    if (open.length > 1) {
+      return { error: "Choose your city to create your account", code: "city_required" };
+    }
+  }
+  return resolveCustomerBranch(db, null, requested);
+}
+
+// Names are shown to other people (wallet transfers, orders, admin lists): no HTML brackets, sane length.
+function safeName(value, max = 50) {
+  return String(value || "").replace(/[<>]/g, "").trim().slice(0, max);
 }
 
 // Forgot Password
@@ -551,12 +570,16 @@ router.post(
   [
     body("firstName")
       .trim()
-      .isLength({ min: 2 })
-      .withMessage("First name must be at least 2 characters"),
+      .isLength({ min: 2, max: 50 })
+      .withMessage("First name must be 2 to 50 characters")
+      .not().matches(/[<>]/)
+      .withMessage("First name cannot contain < or >"),
     body("lastName")
       .trim()
-      .isLength({ min: 2 })
-      .withMessage("Last name must be at least 2 characters"),
+      .isLength({ min: 2, max: 50 })
+      .withMessage("Last name must be 2 to 50 characters")
+      .not().matches(/[<>]/)
+      .withMessage("Last name cannot contain < or >"),
     body("email")
       .isEmail()
       .normalizeEmail()
@@ -1005,9 +1028,9 @@ router.post(
           10
         );
 
-        const socialBranch = await resolveCustomerBranch(req.db, null, req.body.branch_id ?? req.body.branchId);
+        const socialBranch = await newSocialAccountBranch(req.db, req.body);
         if (socialBranch.error) {
-          return res.status(400).json({ success: false, message: socialBranch.error });
+          return res.status(400).json({ success: false, code: socialBranch.code, message: socialBranch.error });
         }
 
         const [result] = await req.db.execute(
@@ -1179,9 +1202,9 @@ router.post(
           10
         );
 
-        const socialBranch = await resolveCustomerBranch(req.db, null, req.body.branch_id ?? req.body.branchId);
+        const socialBranch = await newSocialAccountBranch(req.db, req.body);
         if (socialBranch.error) {
-          return res.status(400).json({ success: false, message: socialBranch.error });
+          return res.status(400).json({ success: false, code: socialBranch.code, message: socialBranch.error });
         }
 
         const [result] = await req.db.execute(

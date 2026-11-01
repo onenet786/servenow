@@ -2265,7 +2265,9 @@ router.post('/rider-cash', [
             });
         }
 
-        const { rider_id, movement_type, amount, description, reference_type, reference_id, notes } = req.body;
+        // reference_type / reference_id are never taken from the client: the server sets them (a fuel payment
+        // taken off a hand-in, a balance reset, a receipt voucher) and the ledger and reports trust them.
+        const { rider_id, movement_type, amount, description, notes } = req.body;
 
         const riderBranch = await documentBranch(req.db, req.user, req.body.branch_id, { rider: rider_id });
         if (riderBranch.error) return res.status(riderBranch.status).json({ success: false, message: riderBranch.error });
@@ -2458,7 +2460,7 @@ router.post('/rider-cash', [
             `INSERT INTO rider_cash_movements 
              (movement_number, rider_id, movement_date, movement_type, amount, description, reference_type, reference_id, recorded_by, notes, status, branch_id)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-            [movement_number, rider_id, movement_date, movement_type, amount, description || null, reference_type || null, reference_id || null, req.user.id, notes || null, riderBranch.branchId]
+            [movement_number, rider_id, movement_date, movement_type, amount, description || null, null, null, req.user.id, notes || null, riderBranch.branchId]
         );
 
         if (movement_type === 'cash_submission' && eligibleOrders.length > 0) {
@@ -2599,15 +2601,20 @@ router.put('/rider-cash/:id', [
             });
         }
 
+        // The rider and type were checked when the movement was created (eligible orders, fuel taken off
+        // a hand-in, the rider's branch), and a hand-in or fuel payment has records linked to it. Changing
+        // them, or a linked movement's amount, would skip those checks: delete it and record a new one.
+        const riderChange = rider_id !== undefined && rider_id !== null && Number(rider_id) !== Number(movement.rider_id);
+        const typeChange = movement_type && movement_type !== movement.movement_type;
+        const linkedType = ['cash_submission', 'fuel_payment'].includes(String(movement.movement_type));
+        if (riderChange || typeChange || (linkedType && requestedAmountChange && movementStatus === 'pending')) {
+            return res.status(409).json({
+                success: false,
+                message: 'The rider, the type and a hand-in or fuel payment amount cannot be changed. Delete this movement and record a new one.'
+            });
+        }
+
         if (movementStatus === 'pending') {
-            if (rider_id !== undefined && rider_id !== null && Number(rider_id) !== Number(movement.rider_id)) {
-                updates.push('rider_id = ?');
-                params.push(rider_id);
-            }
-            if (movement_type && movement_type !== movement.movement_type) {
-                updates.push('movement_type = ?');
-                params.push(movement_type);
-            }
             if (notes !== undefined && notes !== movement.notes) {
                 updates.push('notes = ?');
                 params.push(notes);

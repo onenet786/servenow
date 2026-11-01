@@ -14,7 +14,13 @@
 
   let branches = [];
   let scope = null;
-  let selected = null;
+  // The saved branch filters lists from the very first request, so a page's first lists are never
+  // loaded across all branches by accident. It is confirmed (or dropped) once the branch list
+  // arrives; until then it is never added to a save.
+  const savedAtStart = Number(localStorage.getItem(KEY));
+  let selected = Number.isInteger(savedAtStart) && savedAtStart > 0 ? savedAtStart : null;
+  let confirmed = false;
+  let usedBeforeConfirmed = false;
 
   const headOfficeWithChoice = () => scope === null && branches.length > 1;
   const nameOf = (id) => {
@@ -33,7 +39,8 @@
           if (method === 'GET' && LISTS.test(url.pathname) && !url.searchParams.has('branch_id')) {
             url.searchParams.set('branch_id', String(selected));
             input = url.toString();
-          } else if ((method === 'POST' || method === 'PUT') && SAVES.test(url.pathname) && init && typeof init.body === 'string') {
+            if (!confirmed) usedBeforeConfirmed = true;
+          } else if (confirmed && (method === 'POST' || method === 'PUT') && SAVES.test(url.pathname) && init && typeof init.body === 'string') {
             const body = JSON.parse(init.body);
             if (body && typeof body === 'object' && !Array.isArray(body) && body.branch_id === undefined) {
               body.branch_id = selected;
@@ -122,11 +129,23 @@
     },
   };
 
-  const saved = Number(localStorage.getItem(KEY));
+  const saved = savedAtStart;
+  // A saved branch that turned out wrong (removed, or this login is now a branch account) may already
+  // have filtered the first lists: forget it and load the page once more with the right data.
+  const dropSaved = () => {
+    const reload = selected !== null && usedBeforeConfirmed;
+    selected = null;
+    localStorage.removeItem(KEY);
+    if (reload) window.location.reload();
+    return reload;
+  };
   const ready = baseFetch('/api/branches/options')
     .then((r) => (r.ok ? r.json() : null))
     .then((data) => {
-      if (!data || !data.success) return;
+      if (!data || !data.success) {
+        dropSaved();
+        return;
+      }
       branches = data.branches || [];
       scope = data.scope;
       if (scope !== null) {
@@ -136,15 +155,18 @@
         });
       }
       if (!headOfficeWithChoice()) {
-        localStorage.removeItem(KEY);
+        dropSaved();
         return;
       }
       if (branches.some((b) => b.id === saved)) selected = saved;
-      else localStorage.removeItem(KEY);
+      else if (dropSaved()) return;
+      confirmed = true;
       addPicker();
       addFormFields();
     })
-    .catch(() => {});
+    .catch(() => {
+      // Branch list unreachable: keep filtering lists by the saved branch, but never add it to saves.
+    });
 
   window.BranchScope.ready = ready;
 })();

@@ -3,7 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin, requireStoreOwner, softAuth } = require('../middleware/auth');
 const { filterPrivateData, trustedAdminFlag } = require('../middleware/publicData');
 const {
-    DEFAULT_BRANCH_ID, STAFF_TYPES, toBranchId, isHeadOffice, resolveStaffBranch, resolveWriteBranch, resolveCustomerBranch,
+    DEFAULT_BRANCH_ID, STAFF_TYPES, toBranchId, isHeadOffice, staffScope, resolveStaffBranch, resolveWriteBranch, resolveCustomerBranch,
     latestSetting, settingBranchFor
 } = require('../utils/branches');
 const { sendPushToUser, ensurePushDeviceTokensTable, getPushServiceStatus } = require('../services/pushNotifications');
@@ -715,7 +715,8 @@ router.get('/', softAuth, filterPrivateData, async (req, res) => {
         let listBranchId = null;
         if (admin === '1' && req.user.user_type === 'store_owner') {
             listBranchId = toBranchId(req.user.branch_id) ?? DEFAULT_BRANCH_ID;
-        } else if (admin === '1') {
+        } else if (admin === '1' || staffScope(req.user) !== null) {
+            // A branch account is held to its own branch even on the customer view (no ?branch_id=2).
             const scoped = resolveStaffBranch(req.user, req.query.branch_id);
             if (scoped.error) return res.status(403).json({ success: false, message: scoped.error });
             listBranchId = scoped.branchId;
@@ -775,7 +776,7 @@ router.get('/', softAuth, filterPrivateData, async (req, res) => {
         const [stores] = await req.db.execute(
             liteMode
                 ? `
-            SELECT s.id, s.name, s.payment_term, s.is_active, s.is_customer_visible, sm.is_closed, sm.status_message
+            SELECT s.id, s.branch_id, s.name, s.payment_term, s.is_active, s.is_customer_visible, sm.is_closed, sm.status_message
                  , s.payment_grace_days, s.payment_grace_start_date, s.grace_alert_muted_until
                  , s.store_discount_apply_all_products, s.store_discount_percent, s.bank_id
             FROM stores s
@@ -879,6 +880,7 @@ router.get('/', softAuth, filterPrivateData, async (req, res) => {
                 success: true,
                 stores: (stores || []).map((store) => ({
                     id: store.id,
+                    branch_id: store.branch_id === undefined || store.branch_id === null ? null : Number(store.branch_id),
                     name: store.name,
                     payment_term: store.payment_term || null,
                     payment_grace_days: store.payment_grace_days === null || store.payment_grace_days === undefined ? null : Number(store.payment_grace_days),

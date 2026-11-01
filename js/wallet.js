@@ -508,8 +508,8 @@ async function loadReceivedTransfers() {
             listDiv.innerHTML = data.transfers.map(t => `
                 <div class="transfer-card">
                     <div class="transfer-header">
-                        <strong>From: ${t.sender_name} (${t.sender_email})</strong>
-                        <span class="transfer-status status-${t.status}">${t.status}</span>
+                        <strong>From: ${escapeHtmlPublic(t.sender_name)} (${escapeHtmlPublic(t.sender_email)})</strong>
+                        <span class="transfer-status status-${escapeHtmlPublic(t.status)}">${escapeHtmlPublic(t.status)}</span>
                     </div>
                     <div style="margin-bottom: 10px;">
                         <span style="font-size: 20px; font-weight: bold;">PKR ${parseFloat(t.amount).toFixed(2)}</span>
@@ -520,11 +520,11 @@ async function loadReceivedTransfers() {
                     </div>
                     ${t.status === 'pending' ? `
                         <div>
-                            <button onclick="acceptTransfer(${t.id})" class="btn-small btn-accept">Accept</button>
-                            <button onclick="rejectTransfer(${t.id})" class="btn-small btn-reject">Reject</button>
+                            <button onclick="acceptTransfer(${Number(t.id)})" class="btn-small btn-accept">Accept</button>
+                            <button onclick="rejectTransfer(${Number(t.id)})" class="btn-small btn-reject">Reject</button>
                         </div>
                     ` : ''}
-                    ${t.rejection_reason ? `<div style="font-size: 12px; color: #e74c3c;">Reason: ${t.rejection_reason}</div>` : ''}
+                    ${t.rejection_reason ? `<div style="font-size: 12px; color: #e74c3c;">Reason: ${escapeHtmlPublic(t.rejection_reason)}</div>` : ''}
                 </div>
             `).join('');
         } else {
@@ -548,8 +548,8 @@ async function loadSentTransfers() {
             listDiv.innerHTML = data.transfers.map(t => `
                 <div class="transfer-card">
                     <div class="transfer-header">
-                        <strong>To: ${t.recipient_name}</strong>
-                        <span class="transfer-status status-${t.status}">${t.status}</span>
+                        <strong>To: ${escapeHtmlPublic(t.recipient_name)}</strong>
+                        <span class="transfer-status status-${escapeHtmlPublic(t.status)}">${escapeHtmlPublic(t.status)}</span>
                     </div>
                     <div style="margin-bottom: 10px;">
                         <span style="font-size: 20px; font-weight: bold;">PKR ${parseFloat(t.amount).toFixed(2)}</span>
@@ -560,10 +560,10 @@ async function loadSentTransfers() {
                     </div>
                     ${t.status === 'pending' ? `
                         <div>
-                            <button onclick="cancelTransfer(${t.id})" class="btn-small btn-cancel">Cancel</button>
+                            <button onclick="cancelTransfer(${Number(t.id)})" class="btn-small btn-cancel">Cancel</button>
                         </div>
                     ` : ''}
-                    ${t.rejection_reason ? `<div style="font-size: 12px; color: #e74c3c;">Rejection Reason: ${t.rejection_reason}</div>` : ''}
+                    ${t.rejection_reason ? `<div style="font-size: 12px; color: #e74c3c;">Rejection Reason: ${escapeHtmlPublic(t.rejection_reason)}</div>` : ''}
                 </div>
             `).join('');
         } else {

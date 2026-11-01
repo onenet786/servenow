@@ -90,6 +90,16 @@
         return;
       }
 
+      // The saved city has closed since the visitor picked it: forget it (and its cart, whose stores
+      // can't deliver now) and load the page again with an open city, instead of showing no stores.
+      var saved = localStorage.getItem(CITY_KEY);
+      if (saved && !list.some(function (b) { return String(b.id) === saved; })) {
+        localStorage.removeItem(CITY_KEY);
+        localStorage.removeItem('serveNowCart');
+        window.location.reload();
+        return;
+      }
+
       var cities = join(list.map(function (b) { return b.name; }));
 
       document.querySelectorAll('[data-branch-text]').forEach(function (el) {

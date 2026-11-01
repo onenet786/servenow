@@ -12,7 +12,9 @@ test.beforeEach(() => {
 });
 
 const COLUMNS = {
-  stores: ['id', 'name', 'phone', 'owner_id', 'bank_id', 'store_bank_account_number', 'latitude', 'longitude', 'priority', 'rating', 'branch_id', 'source_store_id', 'created_at'],
+  stores: ['id', 'name', 'address', 'phone', 'email', 'owner_id', 'bank_id', 'store_bank_account_number', 'latitude', 'longitude', 'priority', 'rating',
+    'commission_rate', 'payment_term', 'payment_grace_days', 'payment_grace_due_date', 'store_discount_percent', 'store_discount_apply_all_products',
+    'branch_id', 'source_store_id', 'created_at'],
   products: ['id', 'name', 'price', 'store_id', 'stock_quantity', 'created_at'],
   product_size_prices: ['id', 'product_id', 'price', 'created_at'],
 };
@@ -49,8 +51,26 @@ test('copy: owner, bank, map pin, priority and rating never go across', async ()
   for (const col of ['owner_id', 'bank_id', 'store_bank_account_number', 'latitude', 'longitude', 'priority', 'rating', 'created_at']) {
     assert.ok(!insert.includes(`\`${col}\``), col);
   }
-  assert.ok(insert.includes('`name`') && insert.includes('`phone`'));
+  assert.ok(insert.includes('`name`') && insert.includes('`address`'));
   assert.ok(STORE_SKIP.has('owner_id'));
+});
+
+test("copy: the original owner's contacts and agreed money terms stay behind", async () => {
+  const { db, log } = copyDb();
+  await copyBranchStores(db, 1, 2);
+  const insert = log.find((q) => /^INSERT INTO stores/.test(q));
+  for (const col of ['phone', 'email', 'commission_rate', 'payment_term', 'payment_grace_days', 'payment_grace_due_date',
+    'store_discount_percent', 'store_discount_apply_all_products']) {
+    assert.ok(!insert.includes(`\`${col}\``), col);
+  }
+});
+
+test('copy: stock starts at 0 in the new branch', async () => {
+  const { db, log } = copyDb();
+  await copyBranchStores(db, 1, 2);
+  const insert = log.find((q) => /^INSERT INTO products/.test(q));
+  assert.ok(insert.includes('`name`') && insert.includes('`price`'));
+  assert.ok(!insert.includes('`stock_quantity`'));
 });
 
 test('copy: it never writes to orders, wallets or money', async () => {

@@ -40,7 +40,9 @@ class CustomerLanguage {
     const translations = <String, String>{
       'Home': 'ہوم',
       'Your city': 'آپ کا شہر',
+      'New here? Your city': 'نئے ہیں؟ اپنا شہر',
       'Choose your city': 'اپنا شہر منتخب کریں',
+      'Choose your city to create your account': 'اکاؤنٹ بنانے کے لیے اپنا شہر منتخب کریں',
       'Stores': 'دکانیں',
       'Orders': 'آرڈرز',
       'Cart': 'کارٹ',

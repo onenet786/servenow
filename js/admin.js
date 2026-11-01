@@ -3728,6 +3728,9 @@ function showAddAccountModal() {
         storeGroup.style.display = 'block';
     }
 
+    // reset() put the branch back on its first option (head office): start from the branch being viewed.
+    if (window.BranchScope) BranchScope.setField('editAccountForm');
+
     showModal('editAccountModal');
 }
 
@@ -3960,6 +3963,12 @@ async function saveAccount() {
         if (password) {
             payload.password = password;
         }
+    }
+
+    // A staff account without a branch is head office and sees every branch: never by accident.
+    if ((userType === 'admin' || userType === 'standard_user') && payload.branch_id === null) {
+        const ok = window.confirm('This account will be HEAD OFFICE and see ALL branches.\n\nTo limit it to one branch, press Cancel and choose the branch.');
+        if (!ok) return;
     }
 
     const url = accountId ? `${API_BASE}/api/users/${accountId}` : `${API_BASE}/api/users`;
@@ -12153,12 +12162,12 @@ function displayRiders(riders) {
     riders.forEach(rider => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${rider.id}${window.BranchScope ? BranchScope.badge(rider.branch_id) : ''}</td>
-            <td>${rider.full_name || [rider.first_name || '', rider.last_name || ''].filter(Boolean).join(' ')}</td>
+            <td>${Number(rider.id)}${window.BranchScope ? BranchScope.badge(rider.branch_id) : ''}</td>
+            <td>${escapeHtml(rider.full_name || [rider.first_name || '', rider.last_name || ''].filter(Boolean).join(' '))}</td>
             <td>${escapeHtml(rider.email)}</td>
             <td>${escapeHtml(rider.phone)}</td>
-            <td>${rider.vehicle_type}</td>
-            <td>${rider.license_number}</td>
+            <td>${escapeHtml(rider.vehicle_type)}</td>
+            <td>${escapeHtml(rider.license_number)}</td>
             <td><span class="status-${rider.is_available ? 'active' : 'inactive'}">${rider.is_available ? 'Available' : 'Unavailable'}</span></td>
             <td><span class="status-${rider.is_active ? 'active' : 'inactive'}">${rider.is_active ? 'Active' : 'Inactive'}</span></td>
             <td>

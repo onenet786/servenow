@@ -719,18 +719,39 @@ async function attachItemsToDeliveries(db, deliveries) {
 // Cancelling an order takes the rider's money for it back out of the wallet, so
 // the wallet stays what the rider really holds and the store shows no payment
 // for goods that were not sold. Does nothing if already reversed.
+// The wallet entries of an order that no reversal has undone yet. Each reversal names the entry it
+// undoes ("Reversal [wt:123]: ..."), so every entry is reversed exactly once: a reversal that failed
+// part way is completed on retry, and cancel -> reopen -> cancel also reverses the new entries.
+// Reversals from before this tag are matched to an entry by wallet, amount and opposite direction.
+function unreversedOrderEntries(entries) {
+  const originals = entries.filter((e) => e.reference_type === "order");
+  const reversals = entries.filter((e) => e.reference_type === "order_cancel_reversal");
+  const undone = new Set();
+  const legacy = [];
+  for (const r of reversals) {
+    const tag = /\[wt:(\d+)\]/.exec(String(r.description || ""));
+    if (tag) undone.add(Number(tag[1]));
+    else legacy.push(r);
+  }
+  for (const r of legacy) {
+    const match = originals.find((o) => !undone.has(Number(o.id)) && Number(o.wallet_id) === Number(r.wallet_id)
+      && roundAmount(o.amount) === roundAmount(r.amount) && (o.type === "credit" ? "debit" : "credit") === r.type);
+    if (match) undone.add(Number(match.id));
+  }
+  return originals.filter((o) => !undone.has(Number(o.id)));
+}
+
 async function reverseRiderMoneyForCancelledOrder(db, { orderId, orderNumber }) {
   const [entries] = await db.execute(
-    `SELECT wt.wallet_id, wt.type, wt.amount, wt.reference_type, wt.description, w.rider_id
+    `SELECT wt.id, wt.wallet_id, wt.type, wt.amount, wt.reference_type, wt.description, w.rider_id
      FROM wallet_transactions wt
      JOIN wallets w ON w.id = wt.wallet_id AND w.rider_id IS NOT NULL
-     WHERE wt.reference_id = ? AND wt.reference_type IN ('order', 'order_cancel_reversal')`,
+     WHERE wt.reference_id = ? AND wt.reference_type IN ('order', 'order_cancel_reversal')
+     ORDER BY wt.id`,
     [String(orderId)],
   );
-  const reversed = new Set(entries.filter((e) => e.reference_type === "order_cancel_reversal").map((e) => e.wallet_id));
 
-  for (const e of entries) {
-    if (e.reference_type !== "order" || reversed.has(e.wallet_id)) continue;
+  for (const e of unreversedOrderEntries(entries)) {
     const amount = roundAmount(e.amount);
     if (amount <= 0) continue;
     const undoesCredit = e.type === "credit";
@@ -752,7 +773,7 @@ async function reverseRiderMoneyForCancelledOrder(db, { orderId, orderNumber }) 
           e.wallet_id,
           undoesCredit ? "debit" : "credit",
           amount,
-          `Reversal: ${String(e.description || `order #${orderNumber}`).slice(0, 200)}`,
+          `Reversal [wt:${Number(e.id)}]: ${String(e.description || `order #${orderNumber}`).slice(0, 180)}`,
           orderId,
           roundAmount(Number(balanceRows[0]?.balance || 0)),
         ],
@@ -860,12 +881,21 @@ async function recordPickupPaidStorePaymentsForOrder(db, {
       }
 
       // Older code could leave only the wallet debit behind. Complete that
-      // payment here instead of charging the rider a second time.
+      // payment here instead of charging the rider a second time. A debit that a
+      // cancellation already reversed does not count: after cancel -> reopen the
+      // rider must be charged again at the new pickup.
       const [existingDebit] = await conn.execute(
-        `SELECT id
-         FROM wallet_transactions
-         WHERE wallet_id = ? AND type = 'debit' AND reference_type = 'order'
-           AND reference_id = ? AND description = ?
+        `SELECT wt.id
+         FROM wallet_transactions wt
+         WHERE wt.wallet_id = ? AND wt.type = 'debit' AND wt.reference_type = 'order'
+           AND wt.reference_id = ? AND wt.description = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM wallet_transactions r
+              WHERE r.wallet_id = wt.wallet_id AND r.reference_type = 'order_cancel_reversal'
+                AND r.reference_id = wt.reference_id AND r.type = 'credit'
+                AND (r.description LIKE CONCAT('Reversal [wt:', wt.id, ']%')
+                     OR (r.description NOT LIKE 'Reversal [wt:%' AND r.amount = wt.amount))
+           )
          LIMIT 1`,
         [walletInfo.walletId, String(orderId), description],
       );
@@ -2899,7 +2929,7 @@ router.get(
       const scope = resolveStaffBranch(req.user, req.query.branch_id);
       if (scope.error) return res.status(403).json({ success: false, message: scope.error });
       const [riders] = await req.db.execute(
-        `SELECT id, first_name, last_name, email, phone, vehicle_type FROM riders WHERE is_active = true AND is_available = true ORDER BY first_name ASC LIMIT 500${scope.branchId === null ? '' : ' AND branch_id = ?'}`,
+        `SELECT id, first_name, last_name, email, phone, vehicle_type FROM riders WHERE is_active = true AND is_available = true${scope.branchId === null ? '' : ' AND branch_id = ?'} ORDER BY first_name ASC LIMIT 500`,
         scope.branchId === null ? [] : [scope.branchId],
       );
 
@@ -5078,6 +5108,15 @@ router.put(
         });
       }
 
+      // Cancelling a delivered order reverses the rider's cash and deletes the store payment, while the
+      // customer keeps the goods: only the users allowed to reopen terminal orders may do it.
+      if (status === "cancelled" && currentOrderStatus === "delivered" && !canResetTerminalOrder(req.user)) {
+        return res.status(403).json({
+          success: false,
+          message: "A delivered order cannot be cancelled. Refund the customer with a Payment Voucher, or ask an authorized admin.",
+        });
+      }
+
       if (req.user.user_type === "store_owner") {
         if (!STORE_OWNER_SETTABLE_STATUSES.has(status)) {
           return res.status(403).json({
@@ -7107,6 +7146,7 @@ module.exports = router;
 module.exports.emitRiderLocationUpdate = emitRiderLocationUpdate;
 module.exports.buildRiderLocationUpdatePayload = buildRiderLocationUpdatePayload;
 module.exports.parseRiderMotion = parseRiderMotion;
+module.exports.unreversedOrderEntries = unreversedOrderEntries;
 
 // Schema helpers run their DDL once per process (see utils/runOnce.js)
 const { runOncePerProcess } = require("../utils/runOnce");
