@@ -263,5 +263,21 @@ Admin aur woh staff jinke paas **Edit orders** right hai (wohi right jo admin sc
 5. "Haan" do dafa kehne se do dafa assign **nahi** hota. Summary 10 minute baad expire ho jati hai.
 6. Har aisa kaam `assistant_actions` table mein record hota hai (kis ne, kya, kab).
 
+### 6.4 Customer: chat ya awaaz se order, aur order badalna
+| Kab | Customer kya kehta hai | Kya hota hai |
+| :--- | :--- | :--- |
+| Order se pehle | *"Aghosh Hotel ka menu / link?"* | Menu qeematon ke saath aur page ka link |
+| Order | *"2 biryani Aghosh se less spicy, aur 1 yogurt Shafiq Malik Center se"* | Poori summary: har store, har item size/qeemat/note ke saath, delivery, total, pata, payment. **"Haan"** par order |
+| "Haan" se pehle | *"biryani 3 kar do"*, *"yogurt hata do"* | Nayi poori summary |
+| Order ke baad, store ne accept nahi kiya (cash, 10 minute, 3 dafa tak) | *"mere order mein 1 cold drink aur add kar do"* | **Order khud badal jata hai** (purana vs naya, naya total); store aur team ko foran pata chalta hai |
+| Store accept kar chuka / wallet order / 10 minute guzar gaye | wahi | **Change request** store aur team ko jati hai; staff "Edit orders" se update karte hain |
+| Rider le gaya / deliver ho gaya | wahi | Naya order offer hota hai |
+
+### 6.5 Admin: awaaz mein alerts
+Admin panel har notification (naya order, payment received, delivered, change request) **bol kar** bhi sunata hai: *"New order received, order ending 0 0 1 5, 100 rupees"*.
+- Neeche baen kone mein **🔊 Spoken alerts** button: On / Off. Settings → Utility → **Notifications** mein bhi.
+- Browser awaaz tabhi chalata hai jab page par ek dafa click ho chuka ho: subah panel khol kar ek dafa 🔊 dabayein (test line sunai degi).
+- Sirf admin aur staff logins ke liye; customers ke pages par nahi.
+
 ---
 *Official Production Operations Manual for servenow.pk. Aligned with Live Codebase & Admin Screenshots.*

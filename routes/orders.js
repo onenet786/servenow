@@ -2182,7 +2182,12 @@ router.post("/", authenticateToken, async (req, res) => {
         delivery_fee: roundAmount(delivery_fee),
         total: grandTotal,
         branch: orderBranch.name,
+        branch_id: orderBranchId,
         wallet_balance: walletBalance,
+        // For editing a pending order in the same rules (services/orderEdits.js). In-process only: this
+        // object is handed to the caller directly and never serialised to a browser.
+        prepared: preparedItems.map((i) => ({ ...i })),
+        store_id: storeIds.size === 1 ? Array.from(storeIds)[0] : null,
       });
     }
 

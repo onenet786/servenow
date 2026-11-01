@@ -275,4 +275,4 @@ function placeOrderAction(deps) {
   };
 }
 
-module.exports = { placeOrderAction, resolveOrder, callOrderHandler, MAX_QTY };
+module.exports = { placeOrderAction, resolveOrder, callOrderHandler, orderReview, rs, MAX_QTY };

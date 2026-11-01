@@ -144,11 +144,94 @@
         }
     }
 
+    // ---- Spoken alerts for admin and staff: each notification is also read aloud ("New order received,
+    // order ending 0015, 100 rupees"). On by default, switched with the 🔊 button; remembered per browser.
+    // Browsers only allow speech after the page was clicked once, which the 🔊 button also does.
+    const VOICE_KEY = 'serveNowVoiceAlerts';
+    function isStaffUser() {
+        const u = getCurrentUser();
+        return !!u && (u.user_type === 'admin' || u.user_type === 'standard_user');
+    }
+    function voiceAlertsOn() {
+        try { return localStorage.getItem(VOICE_KEY) !== 'off'; } catch (_) { return true; }
+    }
+    function spokenText(title, body) {
+        return `${String(title || '').trim()}. ${String(body || '').trim()}`
+            // "Order Ord2611010015" / "order ORD-1730000000" -> "order ending 0 0 1 5" (the whole number is noise)
+            .replace(/\b(?:order\s+)?ORD[-\s#]?[A-Z0-9]*?(\d{4})\b/gi, (m, last4) => `order ending ${last4.split('').join(' ')}`)
+            .replace(/\bPKR\s*([\d,.]+)/gi, '$1 rupees')
+            .replace(/\bRs\.?\s*([\d,.]+)/gi, '$1 rupees')
+            .replace(/\s*•\s*/g, ', ')
+            .slice(0, 220);
+    }
+    function pickVoice() {
+        if (!('speechSynthesis' in window)) return null;
+        const voices = window.speechSynthesis.getVoices() || [];
+        return voices.find((v) => /en-(IN|PK)/i.test(v.lang)) || voices.find((v) => /en-GB/i.test(v.lang))
+            || voices.find((v) => /^en/i.test(v.lang)) || null;
+    }
+    function speakAlert(title, body, { force = false } = {}) {
+        if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
+        if (!force && (!isStaffUser() || !voiceAlertsOn())) return;
+        try {
+            const utterance = new SpeechSynthesisUtterance(spokenText(title, body));
+            const voice = pickVoice();
+            if (voice) utterance.voice = voice;
+            utterance.lang = voice ? voice.lang : 'en-GB';
+            utterance.rate = 1;
+            window.speechSynthesis.speak(utterance);
+        } catch (_) { /* no speech on this browser */ }
+    }
+    function setVoiceAlerts(on) {
+        try { localStorage.setItem(VOICE_KEY, on ? 'on' : 'off'); } catch (_) {}
+        document.querySelectorAll('[data-voice-alerts]').forEach((el) => {
+            el.innerHTML = on ? '<i class="fas fa-volume-up"></i> Spoken alerts: On' : '<i class="fas fa-volume-mute"></i> Spoken alerts: Off';
+            el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        if (on) speakAlert('Spoken alerts are on', 'New orders and payments will be read aloud', { force: true });
+        else if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+    function initVoiceAlerts() {
+        if (!isStaffUser() || !('speechSynthesis' in window)) return;
+        const makeButton = (extraStyle) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn btn-secondary';
+            b.setAttribute('data-voice-alerts', '1');
+            b.title = 'Read new orders and payments aloud';
+            if (extraStyle) b.style.cssText = extraStyle;
+            b.addEventListener('click', () => setVoiceAlerts(!voiceAlertsOn()));
+            return b;
+        };
+        // In the admin panel's Notifications tools, next to "Send Test Tray Notification".
+        const testBtn = document.getElementById('testTrayNotificationBtn');
+        if (testBtn && testBtn.parentElement && !testBtn.parentElement.querySelector('[data-voice-alerts]')) {
+            testBtn.parentElement.appendChild(makeButton());
+        }
+        // A small quick-mute button on the admin screen (bottom left; the chat assistant is bottom right).
+        if (/admin\.html$/.test(window.location.pathname) && !document.getElementById('voiceAlertsQuick')) {
+            const quick = makeButton('position:fixed;left:16px;bottom:16px;z-index:9990;border-radius:999px;padding:6px 12px;font-size:12px;opacity:.9;box-shadow:0 4px 14px rgba(0,0,0,.15);');
+            quick.id = 'voiceAlertsQuick';
+            document.body.appendChild(quick);
+        }
+        setVoiceAlertsLabel();
+        // Voices load asynchronously in Chrome.
+        if (window.speechSynthesis.onvoiceschanged === null) window.speechSynthesis.onvoiceschanged = () => {};
+    }
+    function setVoiceAlertsLabel() {
+        const on = voiceAlertsOn();
+        document.querySelectorAll('[data-voice-alerts]').forEach((el) => {
+            el.innerHTML = on ? '<i class="fas fa-volume-up"></i> Spoken alerts: On' : '<i class="fas fa-volume-mute"></i> Spoken alerts: Off';
+            el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+    }
+
     function systemNotify(title, body) {
         const key = `${String(title || '').trim()}|${String(body || '').trim()}`;
         const now = Date.now();
         const last = systemNotifyDedup.get(key) || 0;
         if ((now - last) < 10000) return true;
+        speakAlert(title, body);
         if (typeof window.__serveNowSystemNotifyHandler === 'function') {
             try {
                 const handled = window.__serveNowSystemNotifyHandler(title, body, { socket });
@@ -579,11 +662,13 @@
         }
     });
 
-    // Initialize notification bell when DOM is ready
+    // Initialize notification bell (and the spoken-alert switch for staff) when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initNotificationBell);
+        document.addEventListener('DOMContentLoaded', initVoiceAlerts);
     } else {
         initNotificationBell();
+        initVoiceAlerts();
     }
 
     window.ServeNowNotifications = Object.assign(
@@ -595,7 +680,9 @@
             getCurrentUser,
             getSocket: () => socket,
             isConnected: () => !!socket.connected,
-            addNotification
+            addNotification,
+            speakAlert,
+            setVoiceAlerts
         }
     );
 

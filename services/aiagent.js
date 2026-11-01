@@ -12,6 +12,7 @@ const { DEFAULT_BRANCH_ID, toBranchId, staffScope, listBranches } = require('../
 const { checkAssignment, assignRider } = require('./riderAssignment');
 const { placeOrderAction } = require('./assistantOrders');
 const { orderChangeRequestAction, changeRequestsFor } = require('./orderChangeRequests');
+const { editOrderAction } = require('./orderEdits');
 
 const TOKEN_TTL_SECONDS = 2 * 3600;
 const OPEN_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'out_for_delivery'];
@@ -210,6 +211,42 @@ const TOOLS = [
         notes: { type: 'string', description: 'Note for the whole order (store or rider)' },
       },
       required: ['items'],
+    },
+  },
+  {
+    // An action: the customer confirms the old and new order before it is changed.
+    name: 'edit_order',
+    action: true,
+    who: ['customer'],
+    description: 'Change the customer\'s own order directly while the store has not accepted it yet: cash on delivery, '
+      + 'within 10 minutes of ordering, up to 3 times. Add, remove or change items, sizes, quantities, notes or the '
+      + 'address, from stores of their city. First get the current items with order_status, then send the FULL new list '
+      + '(every item it should have afterwards). If it can no longer be changed directly, this says so: then use '
+      + 'request_order_change to send the change to the store and team.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        order_number: { type: 'string', description: 'The order to change' },
+        store: { type: 'string', description: 'Store for items that do not name their own' },
+        items: {
+          type: 'array',
+          description: 'The whole order after the change, every item',
+          items: {
+            type: 'object',
+            properties: {
+              product: { type: 'string' },
+              quantity: { type: 'integer', description: '1-50' },
+              size: { type: 'string' },
+              store: { type: 'string' },
+              note: { type: 'string' },
+            },
+            required: ['product', 'quantity'],
+          },
+        },
+        delivery_address: { type: 'string', description: 'Only if the address changes' },
+        notes: { type: 'string', description: 'Note for the whole order' },
+      },
+      required: ['order_number', 'items'],
     },
   },
   {
@@ -532,7 +569,7 @@ async function orderStatus(db, args, user) {
     page: o.user_id === user.id ? pages.order(o.order_number) : undefined,
     change_requests: await changeRequestsFor(db, o.id).then((list) => (list.length ? list : undefined)).catch(() => undefined),
     note: o.user_id === user.id
-      ? `${LINK_NOTE} To change this order before the rider picks it up, use request_order_change.`
+      ? `${LINK_NOTE} To change this order: edit_order while the store has not accepted it (cash, 10 minutes), otherwise request_order_change.`
       : undefined,
   };
 }
@@ -684,6 +721,7 @@ async function resolveAssignment(db, args, user) {
 const ACTIONS = {
   place_order: placeOrderAction({ resolveStore, browseBranchIds, orderPage: pages.order }),
   request_order_change: orderChangeRequestAction(),
+  edit_order: editOrderAction({ resolveStore, browseBranchIds, orderPage: pages.order }),
   assign_rider: {
     async preview(db, args, user) {
       const found = await resolveAssignment(db, args, user);
