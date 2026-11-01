@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, requireAdmin, forgetAccountStatus } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, forgetAccountStatus, endSessions } = require('../middleware/auth');
 const { DEFAULT_BRANCH_ID, getBranch, toBranchId, isHeadOffice, isOwnerEmail, resolveStaffBranch } = require('../utils/branches');
 
 const BRANCH_USER_TYPES = ['customer', 'store_owner'];
@@ -423,6 +423,7 @@ router.put('/:id', authenticateToken, requireAdmin, [
         );
         // Role, branch or active changes apply on the next request, not after the 60 s cache.
         forgetAccount(Number(id));
+        if (password !== undefined && password !== '') await endSessions(req.db, 'user', Number(id));
 
         await syncStoreOwnerAssignment(req.db, {
             userId: id,

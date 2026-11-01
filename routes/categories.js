@@ -9,6 +9,7 @@ const sharp = (() => {
 })();
 const upload = createImageUpload();
 
+const { fetchRemoteImage } = require('../utils/safeImageFetch');
 const router = express.Router();
 
 // Get all categories (cached for 60s)
@@ -228,27 +229,14 @@ async function downloadImageToUploads(remoteUrl) {
         if (!remoteUrl || !/^https?:\/\//i.test(remoteUrl)) return null;
         const uploadDir = path.join(__dirname, '..', 'uploads');
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-        const resp = await fetch(remoteUrl);
-        if (!resp.ok) return null;
-        const contentType = resp.headers.get('content-type') || '';
-        let ext = '.jpg';
-        if (contentType.includes('png')) ext = '.png';
-        else if (contentType.includes('gif')) ext = '.gif';
-        else if (contentType.includes('webp')) ext = '.webp';
-        else if (contentType.includes('svg')) ext = '.svg';
-        else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
-        try {
-            const u = new URL(remoteUrl);
-            const urlExt = path.extname(decodeURIComponent(u.pathname)) || '';
-            if (urlExt && urlExt.length <= 5) {
-                ext = urlExt.toLowerCase();
-            }
-        } catch (e) {}
+        const image = await fetchRemoteImage(remoteUrl);
+        if (!image) return null;
+        const { ext } = image;
+
         const baseName = `category_${Date.now()}_${Math.round(Math.random()*1000)}`;
         const outName = `${baseName}${ext}`;
         const outPath = path.join(uploadDir, outName);
-        const buffer = Buffer.from(await resp.arrayBuffer());
-        fs.writeFileSync(outPath, buffer);
+        fs.writeFileSync(outPath, image.buffer);
         if (sharp) {
             const sizes = [320, 640, 1024];
             for (const w of sizes) {

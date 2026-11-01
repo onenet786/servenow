@@ -122,13 +122,16 @@ async function branchOfRow(db, table, id) {
 async function documentBranch(db, user, requested, from = {}) {
     const found = new Set();
     const sources = [['riders', from.rider], ['stores', from.store], ['users', from.customer], ['orders', from.order]];
+    const own = staffScope(user);
     for (const [table, id] of sources) {
+        if (!id) continue;
         const branch = await branchOfRow(db, table, id);
         if (branch !== null) found.add(branch);
+        // No branch means head-office staff or nothing at all: neither is a branch account's to name
+        else if (own !== null) return { error: 'This belongs to another branch', status: 403 };
     }
     if (found.size > 1) return { error: 'One document cannot cover more than one branch', status: 400 };
 
-    const own = staffScope(user);
     const wanted = toBranchId(requested);
     if (found.size === 1) {
         const branchId = [...found][0];
@@ -156,7 +159,7 @@ function journalEntryParties(entries) {
         if (!e || !e.entity_id) continue;
         if (e.entity_type === 'rider') from.rider.add(e.entity_id);
         else if (e.entity_type === 'store') from.store.add(e.entity_id);
-        else if (e.entity_type === 'customer' || e.entity_type === 'user') from.customer.add(e.entity_id);
+        else if (['customer', 'user', 'employee'].includes(e.entity_type)) from.customer.add(e.entity_id);
     }
     return from;
 }
@@ -168,6 +171,7 @@ async function journalVoucherBranch(db, user, requested, entries) {
         for (const id of ids) {
             const branch = await branchOfRow(db, table, id);
             if (branch !== null) found.add(branch);
+            else if (staffScope(user) !== null) return { error: 'This belongs to another branch', status: 403 };
         }
     }
     if (found.size > 1) return { error: 'One document cannot cover more than one branch', status: 400 };

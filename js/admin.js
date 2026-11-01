@@ -3032,8 +3032,8 @@ function displayRiderActiveDeliveries(deliveries) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>#${delivery.id}</td>
-            <td>${customerName}</td>
-            <td>${storeName}</td>
+            <td>${escapeHtml(customerName)}</td>
+            <td>${escapeHtml(storeName)}</td>
             <td><span class="status-pending">${status}</span></td>
             <td>${createdAt}</td>
             <td>${itemCount} item${itemCount !== 1 ? 's' : ''}</td>
@@ -3069,8 +3069,8 @@ function displayRiderCompletedDeliveries(deliveries) {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>#${delivery.id}</td>
-            <td>${customerName}</td>
-            <td>${storeName}</td>
+            <td>${escapeHtml(customerName)}</td>
+            <td>${escapeHtml(storeName)}</td>
             <td><span class="status-active">${status}</span></td>
             <td>${updatedAt}</td>
             <td>${itemCount} item${itemCount !== 1 ? 's' : ''}</td>
@@ -3173,7 +3173,7 @@ async function loadBackups() {
                 <td>${mtime}</td>
                 <td>
                     <button class="btn btn-small btn-info" onclick="downloadBackup('${encodeURIComponent(b.filename)}')">Download</button>
-                    <button class="btn btn-small btn-warning" onclick="restoreBackup('${b.filename}')">Restore</button>
+                    <button class="btn btn-small btn-warning owner-tool" onclick="restoreBackup('${b.filename}')">Restore</button>
                 </td>
             `;
             body.appendChild(tr);
@@ -6986,7 +6986,7 @@ async function viewOrderDetails(orderId) {
                 html += `
                     <tr style="border-bottom: 1px solid #f9f9f9;">
                         <td style="padding: 8px;">${escapeHtml(item.product_name)}</td>
-                        <td style="padding: 8px;">${item.variant_label || '-'}</td>
+                        <td style="padding: 8px;">${escapeHtml(item.variant_label || '-')}</td>
                         <td style="padding: 8px;">${item.quantity}</td>
                         <td style="padding: 8px;">PKR ${price.toFixed(2)}</td>
                         <td style="padding: 8px;">PKR ${subtotal.toFixed(2)}</td>
@@ -10018,13 +10018,19 @@ function bindProductSizePricesUI() {
     }
 }
 
+// Sets the whole list in one go. Adding to innerHTML in a loop rebuilds every earlier option each
+// time, which freezes the page with thousands of products.
+function _fillProductItemSelect(itemSelect, products) {
+    const options = (products || []).map(p => {
+        const label = p.category_name ? `${p.name} - ${p.category_name}` : p.name;
+        return `<option value="${p.id}">${escapeHtml(label)}</option>`;
+    });
+    itemSelect.innerHTML = `<option value="">None</option>${options.join('')}`;
+}
+
 function _renderProductItemOptions(itemSelect, products, selectedId = '') {
     if (!itemSelect) return;
-    itemSelect.innerHTML = '<option value="">None</option>';
-    (products || []).forEach(p => {
-        const label = p.category_name ? `${p.name} - ${p.category_name}` : p.name;
-        itemSelect.innerHTML += `<option value="${p.id}">${label}</option>`;
-    });
+    _fillProductItemSelect(itemSelect, products);
     if (selectedId !== undefined && selectedId !== null && String(selectedId).trim().length) {
         itemSelect.value = String(selectedId);
     }
@@ -10092,7 +10098,7 @@ async function showAddProductModal() {
     // Load stores and categories for dropdowns
     try {
         const [storesResponse, categoriesResponse, unitsResp, sizesResp] = await Promise.all([
-            fetch(`${API_BASE}/api/stores?lite=1`),
+            fetch(`${API_BASE}/api/stores?admin=1&lite=1`),
             fetch(`${API_BASE}/api/categories?includeInactive=true&ts=${Date.now()}`, { cache: 'no-store' }),
             fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' }),
             fetch(`${API_BASE}/api/sizes?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' })
@@ -10128,12 +10134,8 @@ async function showAddProductModal() {
             // build map for quick lookup
             const productsById = {};
             if (productsData && productsData.success && Array.isArray(productsData.products)) {
-                itemSelect.innerHTML = '<option value="">None</option>';
-                productsData.products.forEach(p => {
-                    productsById[p.id] = p;
-                    const label = p.category_name ? `${p.name} — ${p.category_name}` : p.name;
-                    itemSelect.innerHTML += `<option value="${p.id}">${label}</option>`;
-                });
+                productsData.products.forEach(p => { productsById[p.id] = p; });
+                _fillProductItemSelect(itemSelect, productsData.products);
             }
             const nameEl = document.getElementById('productName');
             const descEl = document.getElementById('productDescription');
@@ -10497,7 +10499,7 @@ async function editProduct(productId) {
         const persistedManualVariantCost = !!p.manual_variant_cost_override;
         AppState.editing.productStoreId = p.store_id || null;
         const [storesResponse, categoriesResponse, unitsResp, sizesResp] = await Promise.all([
-            fetch(`${API_BASE}/api/stores?lite=1`),
+            fetch(`${API_BASE}/api/stores?admin=1&lite=1`),
             fetch(`${API_BASE}/api/categories?includeInactive=true&ts=${Date.now()}`, { cache: 'no-store' }),
             fetch(`${API_BASE}/api/units?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' }),
             fetch(`${API_BASE}/api/sizes?ts=${Date.now()}`, { headers: { 'Authorization': `Bearer ${authToken}` }, cache: 'no-store' })
@@ -10556,12 +10558,8 @@ async function editProduct(productId) {
         const productsById = {};
         if (itemSelect) {
             if (productsData && productsData.success && Array.isArray(productsData.products)) {
-                itemSelect.innerHTML = '<option value="">None</option>';
-                productsData.products.forEach(prod => {
-                    productsById[prod.id] = prod;
-                    const label = prod.category_name ? `${prod.name} — ${prod.category_name}` : prod.name;
-                    itemSelect.innerHTML += `<option value="${prod.id}">${label}</option>`;
-                });
+                productsData.products.forEach(prod => { productsById[prod.id] = prod; });
+                _fillProductItemSelect(itemSelect, productsData.products);
             }
 
             const nameEl = document.getElementById('productName');

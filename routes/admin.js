@@ -1,5 +1,5 @@
 const express = require("express");
-const { authenticateToken, requireAdmin, requireStaffAccess, requirePermission } = require("../middleware/auth");
+const { authenticateToken, requireAdmin, requireStaffAccess, requirePermission, requireOwner } = require("../middleware/auth");
 const { recordFinancialTransaction } = require("../utils/dbHelpers");
 const feeBranch = require("../utils/branches");
 const feeCache = require("../utils/cache");
@@ -209,7 +209,7 @@ function ensureBackupDir() {
 router.post(
   "/execute-sql",
   authenticateToken,
-  requirePermission('menu_settings_database'),
+  requireOwner,
   async (req, res) => {
     try {
       // SECURITY: Restrict to full admin role
@@ -289,7 +289,7 @@ router.get(
 router.get(
   "/push-notification-status",
   authenticateToken,
-  requireStaffAccess,
+  requireAdmin,
   async (req, res) => {
     try {
       await ensurePushDeviceTokensTable(req.db);
@@ -3089,6 +3089,12 @@ router.get(
   requireStaffAccess,
   async (req, res) => {
     try {
+      const rights = ["menu_stores", "menu_report_stores", "report_store_settlement", "report_store_payments"];
+      const allowed = await Promise.all(rights.map((key) => hasPermission(req, key)));
+      if (!allowed.some(Boolean)) {
+        return res.status(403).json({ success: false, message: "Access denied" });
+      }
+
       const [rows] = await req.db.execute(`
             SELECT
                 s.id as store_id,
@@ -3137,7 +3143,7 @@ router.get(
 router.post(
   "/backup-db",
   authenticateToken,
-  requirePermission('menu_settings_backup'),
+  requirePermission("menu_settings_backup"),
   async (req, res) => {
   let filepath = null;
   try {
@@ -3253,7 +3259,7 @@ router.post(
 router.get(
   "/backup-db/list",
   authenticateToken,
-  requirePermission('menu_settings_backup'),
+  requirePermission("menu_settings_backup"),
   async (req, res) => {
     try {
       ensureBackupDir();
@@ -3279,7 +3285,7 @@ router.get(
 router.get(
   "/backup-db/check",
   authenticateToken,
-  requirePermission('menu_settings_backup'),
+  requirePermission("menu_settings_backup"),
   async (req, res) => {
     try {
       ensureBackupDir();
@@ -3339,7 +3345,7 @@ router.get(
 router.get(
   "/backup-db/download",
   authenticateToken,
-  requirePermission('menu_settings_backup'),
+  requirePermission("menu_settings_backup"),
   async (req, res) => {
     try {
       // SECURITY: Require admin role for full database export download
@@ -3390,7 +3396,7 @@ router.get(
 router.post(
   "/restore-db",
   authenticateToken,
-  requirePermission('menu_settings_backup'),
+  requireOwner,
   async (req, res) => {
     try {
       const { filename } = req.body || {};
@@ -3601,7 +3607,7 @@ router.post(
 router.post(
   "/migrate/items",
   authenticateToken,
-  requireAdmin,
+  requireOwner,
   async (req, res) => {
     try {
       const createItemsSql = `
@@ -4223,7 +4229,7 @@ router.get(
 router.post(
   "/clear-transactional-data",
   authenticateToken,
-  requirePermission('menu_settings_database'),
+  requireOwner,
   async (req, res) => {
     // Erasing orders and financial history must be a deliberate, temporary
     // decision: disabled unless ENABLE_DATA_RESET=true, and admin-only.
@@ -4458,7 +4464,7 @@ router.post(
 router.get(
   "/clearable-tables",
   authenticateToken,
-  requirePermission("menu_settings_database"),
+  requireOwner,
   async (req, res) => {
     try {
       const tables = await getAllBaseTables(req.db);
@@ -4483,7 +4489,7 @@ router.get(
 router.post(
   "/shrink-database",
   authenticateToken,
-  requirePermission("menu_settings_database"),
+  requireOwner,
   async (req, res) => {
     let connection;
     try {

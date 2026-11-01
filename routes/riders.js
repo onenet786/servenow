@@ -277,7 +277,7 @@ router.post('/upload-image', authenticateToken, requireAdmin, upload.single('ima
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
         const originalPath = req.file.path;
         const ext = path.extname(req.file.originalname) || '.jpg';
-        const baseName = `rider_${Date.now()}_${Math.round(Math.random()*1000)}`;
+        const baseName = `rider_${crypto.randomBytes(16).toString('hex')}`;
         const outName = `${baseName}${ext}`;
         const outPath = path.join(uploadDir, outName);
         fs.renameSync(originalPath, outPath);

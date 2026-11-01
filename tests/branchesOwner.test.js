@@ -267,3 +267,19 @@ test('settings: a branch account cannot set another branch or all branches... of
   assert.equal(r.status, 403);
   assert.ok(!log.some((q) => /^INSERT INTO global_delivery_status/.test(q)));
 });
+
+test('hidden stores: customers get none of their products; staff still do', async () => {
+  const products = require('../routes/products');
+  let sql = '';
+  const mk = (type) => fakeDb((q) => {
+    const a = activeAccount(q, type);
+    if (a) return a;
+    if (/FROM branches/.test(q)) return [[{ id: 1, name: 'Kot Addu', is_active: 1 }]];
+    if (/FROM products p/.test(q)) { sql = q; return [[]]; }
+    return undefined;
+  }).db;
+  await request(products, '/api/products', mk('customer'), { path: '/api/products' });
+  assert.match(sql, /is_customer_visible/);
+  await request(products, '/api/products', mk('admin'), { path: '/api/products?admin=1', user: asUser(5) });
+  assert.doesNotMatch(sql, /is_customer_visible/);
+});

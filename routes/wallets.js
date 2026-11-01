@@ -504,7 +504,7 @@ router.post('/transfers/send', authenticateToken, requireCustomerWallet, [
         await conn.beginTransaction();
 
         const [recipients] = await conn.execute(
-            'SELECT id FROM users WHERE id = ?',
+            "SELECT id FROM users WHERE id = ? AND user_type = 'customer' AND is_active = 1",
             [recipientId]
         );
 
@@ -573,7 +573,7 @@ router.get('/transfers/sent', authenticateToken, requireCustomerWallet, async (r
         const limitVal = Math.max(1, parseInt(limit) || 20);
         const offsetVal = Math.max(0, parseInt(offset) || 0);
 
-        let query = `SELECT t.*, u.email as recipient_email, CONCAT(u.first_name, ' ', u.last_name) as recipient_name
+        let query = `SELECT t.*, CONCAT(u.first_name, ' ', LEFT(COALESCE(u.last_name, ''), 1), '.') as recipient_name
                    FROM wallet_transfers t
                    JOIN users u ON t.recipient_id = u.id
                    WHERE t.sender_id = ?`;

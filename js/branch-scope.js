@@ -5,7 +5,7 @@
 (function () {
   const KEY = 'serveNowAdminBranch';
   const LISTS = /^\/api\/(orders|stores|riders|users|products|admin|financial|wallet|payments)(\/|$)/;
-  const SAVES = /^\/api\/(stores\/(global-delivery-status|live-promotions|customer-flash-message|customer-push-notification)|admin\/delivery-fee-settings|financial\/)/;
+  const SAVES = /^\/api\/(stores$|stores\/(global-delivery-status|live-promotions|customer-flash-message|customer-push-notification)|admin\/delivery-fee-settings|financial\/)/;
   const FORMS = [
     { id: 'addStoreForm', blank: null },
     { id: 'addRiderForm', blank: null },
@@ -46,15 +46,21 @@
     return baseFetch(input, init);
   };
 
+  // In the sidebar, like the theme box: the page's top bar only shows on phones.
   function addPicker() {
-    const host = document.querySelector('.app-header .header-right');
-    if (!host) return;
+    const themeItem = document.querySelector('.sidebar-theme-item');
+    if (!themeItem) return;
+    const item = document.createElement('li');
+    item.className = 'sidebar-theme-item';
+    const box = document.createElement('div');
+    box.className = 'sidebar-theme-settings';
     const label = document.createElement('label');
-    label.style.cssText = 'display:inline-flex;align-items:center;gap:.5rem;font-size:.9rem;';
-    label.textContent = 'Branch:';
+    label.className = 'theme-label';
+    label.htmlFor = 'adminBranchPicker';
+    label.innerHTML = '<i class="fas fa-code-branch"></i> Branch';
     const select = document.createElement('select');
     select.id = 'adminBranchPicker';
-    select.setAttribute('aria-label', 'Branch you are working in');
+    select.className = 'theme-select';
     select.add(new Option('All branches', ''));
     branches.forEach((b) => select.add(new Option(b.is_active ? b.name : `${b.name} (closed)`, String(b.id))));
     select.value = selected === null ? '' : String(selected);
@@ -63,8 +69,9 @@
       else localStorage.removeItem(KEY);
       window.location.reload();
     });
-    label.appendChild(select);
-    host.appendChild(label);
+    box.append(label, select);
+    item.appendChild(box);
+    themeItem.parentNode.insertBefore(item, themeItem);
   }
 
   function addFormFields() {
@@ -122,6 +129,12 @@
       if (!data || !data.success) return;
       branches = data.branches || [];
       scope = data.scope;
+      if (scope !== null) {
+        document.querySelectorAll('#db-backup .utility-icon-backup, #db-backup .utility-icon-restore').forEach((icon) => {
+          const widget = icon.closest('.utility-widget');
+          if (widget) widget.remove();
+        });
+      }
       if (!headOfficeWithChoice()) {
         localStorage.removeItem(KEY);
         return;

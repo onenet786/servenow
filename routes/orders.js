@@ -194,12 +194,24 @@ function formatVariantLabel(sizeLabel, unitName, unitAbbreviation) {
   return safeSize || safeUnit || null;
 }
 
-async function getAdminPushRecipients(db) {
+// Rights that make a staff login someone who works with orders. A staff login with none of these
+// has no business reading customers' names, phones and addresses.
+const ORDER_READ_RIGHTS = [
+  "menu_orders", "menu_dashboard", "menu_riders", "action_edit_order", "action_order_status",
+  "action_order_payment", "action_order_cancel", "menu_financial_rider_cash", "menu_financial_settlements",
+  "menu_report_orders", "menu_report_sales", "report_order_summary", "report_sales",
+];
+const RIDER_READ_RIGHTS = ["menu_riders", "action_edit_order", "menu_orders"];
+
+// Staff of the order's branch and head office. A branch account hears nothing of other branches.
+async function getAdminPushRecipients(db, branchId) {
   try {
     const [rows] = await db.execute(
       `SELECT id, user_type
        FROM users
-       WHERE LOWER(COALESCE(user_type, '')) IN ('admin', 'standard_user')`
+       WHERE LOWER(COALESCE(user_type, '')) IN ('admin', 'standard_user')
+         AND (branch_id IS NULL OR branch_id = ?)`,
+      [toBranchId(branchId)]
     );
     return (rows || [])
       .map((row) => ({
@@ -1190,6 +1202,15 @@ function summarizeLocationRows(rows) {
   };
 }
 
+// Every named store must be in the order's branch.
+async function storesInOrderBranch(db, order, storeIds) {
+  const ids = (storeIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  if (!ids.length) return true;
+  const branches = await storeBranches(db, ids);
+  const orderBranch = toBranchId(order.branch_id) ?? DEFAULT_BRANCH_ID;
+  return ids.every((sid) => branches.get(sid) === orderBranch);
+}
+
 function roundAmount(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
@@ -1514,6 +1535,10 @@ async function assertNoWalletOrderCreditConflict(db, orderId, riderId, walletId)
 // Get user's orders
 router.get("/my-orders", authenticateToken, async (req, res) => {
   try {
+    // Rider ids come from a separate table and would read the customer with the same number
+    if (req.user.user_type === "rider") {
+      return res.status(403).json({ success: false, message: "Access denied" });
+    }
     await ensureOrderItemsSchema(req.db);
 
     const { status } = req.query;
@@ -1765,10 +1790,17 @@ router.post("/", authenticateToken, async (req, res) => {
       });
     }
 
-    if (!["cash", "wallet", "card"].includes(payment_method)) {
+    // No card is ever charged at checkout, so a card order would be free.
+    if (payment_method === "card") {
       return res.status(400).json({
         success: false,
-        message: "Payment method must be cash, wallet or card",
+        message: "Card payment is not available right now. Please choose cash on delivery or wallet.",
+      });
+    }
+    if (!["cash", "wallet"].includes(payment_method)) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment method must be cash or wallet",
       });
     }
 
@@ -2352,7 +2384,7 @@ router.post("/", authenticateToken, async (req, res) => {
         logEvent(`WARNING: req.io missing for order ${order_number}`);
       }
 
-      const adminRecipients = await getAdminPushRecipients(req.db);
+      const adminRecipients = await getAdminPushRecipients(req.db, orderBranchId);
       for (const adminRecipient of adminRecipients) {
         try {
           await sendPushToUser(req.db, {
@@ -2411,7 +2443,7 @@ router.post("/", authenticateToken, async (req, res) => {
 router.get(
   "/admin/manual-products",
   authenticateToken,
-  requireStaffAccess,
+  requireDispatchAccess,
   async (req, res) => {
     try {
       const storeId = parseInt(String(req.query.store_id || ""), 10);
@@ -2420,6 +2452,14 @@ router.get(
           success: false,
           message: "Valid store_id is required",
         });
+      }
+
+      const manualScope = staffScope(req.user);
+      if (manualScope !== null) {
+        const branches = await storeBranches(req.db, [storeId]);
+        if (branches.get(storeId) !== manualScope) {
+          return res.status(404).json({ success: false, message: "Store not found" });
+        }
       }
 
       const [products] = await req.db.execute(
@@ -2450,7 +2490,7 @@ router.post(
   "/admin/manual-create",
   authenticateToken,
   requireStaffRight("action_order_create"),
-  requireStaffAccess,
+  requireDispatchAccess,
   async (req, res) => {
     try {
       await ensureOrderItemsSchema(req.db);
@@ -2475,6 +2515,10 @@ router.post(
         category_id,
         save_for_future = true,
       } = req.body || {};
+
+      if (!["cash", "wallet"].includes(String(payment_method || "cash"))) {
+        return res.status(400).json({ success: false, message: "Payment method must be cash or wallet" });
+      }
 
       const isParcelDelivery = String(order_type || "").trim() === "parcel_delivery";
       const customerId = parseInt(String(customer_id || ""), 10);
@@ -2794,7 +2838,7 @@ router.post(
             user_id: customerId,
           });
         }
-        const adminRecipients = await getAdminPushRecipients(req.db);
+        const adminRecipients = await getAdminPushRecipients(req.db, manualBranchId);
         for (const adminRecipient of adminRecipients) {
           try {
             await sendPushToUser(req.db, {
@@ -2849,10 +2893,14 @@ router.get(
   "/available-riders",
   authenticateToken,
   requireDispatchAccess,
+  requireStaffRight(RIDER_READ_RIGHTS),
   async (req, res) => {
     try {
+      const scope = resolveStaffBranch(req.user, req.query.branch_id);
+      if (scope.error) return res.status(403).json({ success: false, message: scope.error });
       const [riders] = await req.db.execute(
-        "SELECT id, first_name, last_name, email, phone, vehicle_type FROM riders WHERE is_active = true AND is_available = true ORDER BY first_name ASC LIMIT 500",
+        `SELECT id, first_name, last_name, email, phone, vehicle_type FROM riders WHERE is_active = true AND is_available = true ORDER BY first_name ASC LIMIT 500${scope.branchId === null ? '' : ' AND branch_id = ?'}`,
+        scope.branchId === null ? [] : [scope.branchId],
       );
 
       res.json({
@@ -2943,6 +2991,7 @@ router.get("/rider/deliveries", authenticateToken, async (req, res) => {
 router.get(
   "/rider/:riderId/deliveries",
   authenticateToken,
+  requireStaffRight([...RIDER_READ_RIGHTS, "menu_report_riders", "report_rider_performance", "menu_financial_rider_cash"]),
   async (req, res) => {
     try {
       await ensureOrderItemsSchema(req.db);
@@ -4517,7 +4566,8 @@ router.get("/:id(\\d+)", authenticateToken, async (req, res) => {
       }
     }
 
-    const isStaff = req.user.user_type === "admin" || req.user.user_type === "standard_user";
+    const isStaff = req.user.user_type === "admin"
+      || (req.user.user_type === "standard_user" && await staffHasRight(req.db, req.user.id, ORDER_READ_RIGHTS));
     const isOrderCustomer = req.user.user_type !== "rider" && req.user.id === order.user_id;
     const isAssignedRider = req.user.user_type === "rider" && req.user.id === order.rider_id;
 
@@ -5189,8 +5239,7 @@ router.put(
 
         // 1. Wallet refund (atomic, locked, idempotent via the order_refund reference)
         const isWalletPayment = String(order.payment_method || "").toLowerCase() === "wallet";
-        const refundAmount = parseFloat(order.total_amount || 0);
-        if (isWalletPayment && refundAmount > 0 && order.user_id) {
+        if (isWalletPayment && order.user_id) {
           const refundConn = await req.db.getConnection();
           try {
             await refundConn.beginTransaction();
@@ -5203,11 +5252,13 @@ router.put(
               [id],
             );
             const [walletDebit] = await refundConn.execute(
-              "SELECT id FROM wallet_transactions WHERE reference_type = 'order' AND reference_id = ? AND type = 'debit' LIMIT 1",
+              "SELECT id, amount FROM wallet_transactions WHERE reference_type = 'order' AND reference_id = ? AND type = 'debit'",
               [id],
             );
-            // Only refund what was actually debited, and only once
-            if (userWallet.length > 0 && existingRefund.length === 0 && walletDebit.length > 0) {
+            // Refund what the wallet really paid, never the order's current total, which staff can
+            // change after payment. Only once.
+            const refundAmount = roundAmount(walletDebit.reduce((sum, row) => sum + parseFloat(row.amount || 0), 0));
+            if (userWallet.length > 0 && existingRefund.length === 0 && refundAmount > 0) {
               const newBalance = roundAmount(parseFloat(userWallet[0].balance || 0) + refundAmount);
               await refundConn.execute(
                 "UPDATE wallets SET balance = balance + ?, total_spent = GREATEST(0, total_spent - ?) WHERE id = ?",
@@ -5511,7 +5562,7 @@ router.put(
   "/:id(\\d+)/delivery-fee",
   authenticateToken,
   requireStaffRight("action_edit_order"),
-  requireStaffAccess,
+  requireDispatchAccess,
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -5519,13 +5570,19 @@ router.put(
 
       // Check if order exists
       const [orders] = await req.db.execute(
-        "SELECT id, total_amount, delivery_fee as old_delivery_fee FROM orders WHERE id = ?",
+        "SELECT id, total_amount, delivery_fee as old_delivery_fee, payment_status FROM orders WHERE id = ?",
         [id],
       );
       if (orders.length === 0) {
         return res.status(404).json({
           success: false,
           message: "Order not found",
+        });
+      }
+      if (orders[0].payment_status === "paid") {
+        return res.status(400).json({
+          success: false,
+          message: "The delivery fee of a paid order cannot be changed",
         });
       }
 
@@ -6325,7 +6382,7 @@ router.put(
   "/:id(\\d+)/items",
   authenticateToken,
   requireStaffRight("action_edit_order"),
-  requireStaffAccess,
+  requireDispatchAccess,
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -6360,6 +6417,9 @@ router.put(
       }
 
       const order = orders[0];
+      if (!(await storesInOrderBranch(req.db, order, [store_id, ...items.map((it) => it && it.store_id)]))) {
+        return res.status(400).json({ success: false, message: "That store belongs to another branch" });
+      }
 
       if (order.status === "delivered" || order.status === "cancelled") {
         return res.status(400).json({
@@ -6438,7 +6498,8 @@ router.put(
 router.get(
   "/:id(\\d+)/items",
   authenticateToken,
-  requireStaffAccess,
+  requireDispatchAccess,
+  requireStaffRight(ORDER_READ_RIGHTS),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -6473,8 +6534,9 @@ router.get(
               FROM stores s
               INNER JOIN products p ON s.id = p.store_id
               WHERE s.is_active = true AND p.is_available = true
+                AND s.branch_id = (SELECT branch_id FROM orders WHERE id = ?)
               ORDER BY s.name ASC
-          `),
+          `, [id]),
       ]);
       const [orders] = ordersResult;
 
@@ -6508,7 +6570,7 @@ router.put(
   "/:id(\\d+)/customer",
   authenticateToken,
   requireStaffRight("action_edit_order"),
-  requireStaffAccess,
+  requireDispatchAccess,
   [
     body("customer_id").isInt({ min: 1 }).withMessage("Valid customer is required"),
     body("delivery_address")
@@ -6540,7 +6602,7 @@ router.put(
           : String(req.body.special_instructions).trim();
 
       const [orders] = await req.db.execute(
-        "SELECT id, status, delivery_address FROM orders WHERE id = ?",
+        "SELECT id, status, delivery_address, branch_id FROM orders WHERE id = ?",
         [id]
       );
       if (!orders.length) {
@@ -6559,13 +6621,15 @@ router.put(
       }
 
       const [customers] = await req.db.execute(
-        `SELECT id, first_name, last_name, phone, email, address
+        `SELECT id, first_name, last_name, phone, email, address, branch_id
            FROM users
           WHERE id = ? AND user_type = 'customer'
           LIMIT 1`,
         [customerId]
       );
-      if (!customers.length) {
+      // Same answer as for no such customer, so other branches' customers cannot be looked up.
+      if (!customers.length
+        || (toBranchId(customers[0].branch_id) ?? DEFAULT_BRANCH_ID) !== (toBranchId(orders[0].branch_id) ?? DEFAULT_BRANCH_ID)) {
         return res.status(404).json({
           success: false,
           message: "Customer not found",
@@ -6625,7 +6689,7 @@ router.post(
   "/:id(\\d+)/items/add",
   authenticateToken,
   requireStaffRight("action_edit_order"),
-  requireStaffAccess,
+  requireDispatchAccess,
   async (req, res) => {
     try {
       await ensureProductsProfitSchema(req.db);
@@ -6679,6 +6743,9 @@ router.post(
           message: `Cannot add items to ${order.status} orders`,
         });
       }
+      if (!(await storesInOrderBranch(req.db, order, [store_id]))) {
+        return res.status(400).json({ success: false, message: "That store belongs to another branch" });
+      }
 
       const [products] = await req.db.execute(
         `SELECT p.id, p.name, p.price, p.cost_price, p.store_id, p.size_id, p.unit_id,
@@ -6699,6 +6766,9 @@ router.post(
       }
 
       const product = products[0];
+      if (!(await storesInOrderBranch(req.db, order, [product.store_id]))) {
+        return res.status(400).json({ success: false, message: "That product belongs to another branch" });
+      }
       const timeInfo = checkProductTimeAvailability(product.available_from, product.available_to);
       if (!timeInfo.isTimeAvailable) {
         return res.status(400).json({
@@ -6829,7 +6899,7 @@ router.delete(
   "/:id(\\d+)/items/:itemId(\\d+)",
   authenticateToken,
   requireStaffRight("action_edit_order"),
-  requireStaffAccess,
+  requireDispatchAccess,
   async (req, res) => {
     try {
       const { id, itemId } = req.params;

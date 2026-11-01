@@ -37,6 +37,10 @@ function classify(method, path) {
 
     if (p === '/api/orders') return read ? { allow: true } : { deny: true };
     if (p === '/api/orders/admin/manual-create') return { allow: true };
+    // Both cut to the branch by the route.
+    if (p === '/api/orders/admin/manual-products' || p === '/api/orders/available-riders') {
+        return read ? { allow: true } : { deny: true };
+    }
     if (p === '/api/orders/delivery-fee-config' || p === '/api/orders/customer-support-contact') {
         return read ? { allow: true } : { deny: true };
     }
@@ -60,11 +64,18 @@ function classify(method, path) {
     // Customer accounts: the list is cut to the branch by the route; changes stay head office.
     if (p === '/api/users') return read ? { allow: true } : { deny: true };
 
-    // Products are read-only for branch accounts; the list is cut to the branch by the route
-    // and a single product must belong to a store in the branch.
-    if (p === '/api/products') return read ? { allow: true } : { deny: true };
+    // Products: the list is cut to the branch by the route. A change must be to a product of the
+    // branch, and any store named in the request must be in the branch too, so a product cannot be
+    // added to another branch or moved there. The routes still check the staff rights.
+    if (p === '/api/products') {
+        if (read) return { allow: true };
+        return m === 'POST' ? { bodyStore: true } : { deny: true };
+    }
+    if (p === '/api/products/upload-image') return m === 'POST' ? { allow: true } : { deny: true };
     if ((hit = p.match(/^\/api\/products\/(\d+)$/))) {
-        return read ? { check: 'products', id: Number(hit[1]) } : { deny: true };
+        const rule = { check: 'products', id: Number(hit[1]) };
+        if (read || m === 'DELETE') return rule;
+        return m === 'PUT' ? { ...rule, bodyStore: true } : { deny: true };
     }
 
     // Money and reports: every read goes through the branch filter in utils/branchFinance.js, and
@@ -94,7 +105,8 @@ const TABLES = {
 
 async function branchGuard(req, res, next) {
     try {
-        const path = (req.originalUrl || req.url || '').split('?')[0];
+        // Express routing ignores case, so the guard must too: /API/admin reaches the same route.
+        const path = String(req.path || '').toLowerCase();
         if (!/^\/(api|integrations)(\/|$)/.test(path)) return next();
 
         const token = tokenFrom(req);
@@ -117,12 +129,26 @@ async function branchGuard(req, res, next) {
         if (rule.deny) return res.status(403).json({ success: false, message: DENY_MESSAGE });
         if (rule.allow) return next();
 
-        const [rows] = await req.db.execute(TABLES[rule.check], [rule.id]);
         // Unknown record: let the route answer 404. A record in another branch: refuse, and
         // say the same thing as for a missing one so ids in other branches are not confirmed.
-        if (!rows.length) return next();
-        if (toBranchId(rows[0].branch_id) !== branchId) {
-            return res.status(404).json({ success: false, message: 'Not found' });
+        const inOtherBranch = async (table, id) => {
+            const [rows] = await req.db.execute(TABLES[table], [id]);
+            return rows.length > 0 && toBranchId(rows[0].branch_id) !== branchId;
+        };
+        const notFound = () => res.status(404).json({ success: false, message: 'Not found' });
+
+        if (rule.check && (await inOtherBranch(rule.check, rule.id))) return notFound();
+        if (rule.bodyStore) {
+            const named = req.body && req.body.store_id;
+            const storeId = Number(named);
+            // Adding needs a store. An edit that names none stays in the product's own store.
+            if (named === undefined || named === null || named === '') {
+                if (!rule.check) return res.status(400).json({ success: false, message: 'Store is required' });
+            } else if (!Number.isInteger(storeId) || storeId <= 0) {
+                return res.status(400).json({ success: false, message: 'Invalid store' });
+            } else if (await inOtherBranch('stores', storeId)) {
+                return notFound();
+            }
         }
         return next();
     } catch (err) {

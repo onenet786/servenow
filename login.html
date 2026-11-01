@@ -150,6 +150,13 @@
                         </form>
 
                         <div class="sn-google" id="snGoogleArea" data-context="signin" hidden>
+                            <div class="form-group" id="branchField" hidden>
+                                <label for="branchSelect">New to ServeNow? Your city</label>
+                                <div class="sn-input">
+                                    <i class="fas fa-city sn-input__icon" aria-hidden="true"></i>
+                                    <select id="branchSelect" disabled></select>
+                                </div>
+                            </div>
                             <div class="sn-or">or</div>
                             <div class="sn-google__slot" id="snGoogleSlot">
                                 <div id="snGoogleBtn"></div>
@@ -181,7 +188,7 @@
         </main>
     </div>
 
-    <script src="js/app.js?v=32"></script>
+    <script src="js/app.js?v=33"></script>
     <script src="js/branches-ui.js?v=2"></script>
     <script>
         // Sidebar Toggle Logic

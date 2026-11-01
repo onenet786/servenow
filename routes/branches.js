@@ -1,6 +1,6 @@
 const express = require('express');
-const { authenticateToken } = require('../middleware/auth');
-const { listBranches, clearBranchCache, isOwnerEmail, staffScope, toBranchId, STAFF_TYPES } = require('../utils/branches');
+const { authenticateToken, requireOwner } = require('../middleware/auth');
+const { listBranches, clearBranchCache, staffScope, toBranchId, STAFF_TYPES } = require('../utils/branches');
 
 const { copyPreview, copyBranchStores } = require('../utils/branchCopy');
 
@@ -49,32 +49,13 @@ router.get('/options', authenticateToken, async (req, res) => {
     }
 });
 
-// Only the owner account manages branches. The email is read from the database. Everyone else,
-// other admins included, gets the same answer as for an address that does not exist.
-const requireOwner = [authenticateToken, async (req, res, next) => {
-    const notFound = () => res.status(404).json({ success: false, message: 'Not found' });
-    if (req.user.user_type !== 'admin') return notFound();
-    try {
-        const [rows] = await req.db.execute(
-            'SELECT email, user_type, is_active, branch_id FROM users WHERE id = ? LIMIT 1',
-            [req.user.id]
-        );
-        const u = rows[0];
-        if (!u || u.user_type !== 'admin' || !u.is_active || toBranchId(u.branch_id) !== null || !isOwnerEmail(u.email)) {
-            return notFound();
-        }
-        next();
-    } catch (error) {
-        console.error('Branch owner check failed:', error);
-        return notFound();
-    }
-}];
-
 router.get('/all', requireOwner, async (req, res) => {
     try {
         const [rows] = await req.db.execute(
             `SELECT b.*,
                     (SELECT COUNT(*) FROM stores s WHERE s.branch_id = b.id) AS stores,
+                    (SELECT COUNT(*) FROM stores s WHERE s.branch_id = b.id AND s.source_store_id IS NOT NULL
+                       AND s.is_customer_visible = 0) AS hidden_copies,
                     (SELECT COUNT(*) FROM riders r WHERE r.branch_id = b.id) AS riders,
                     (SELECT COUNT(*) FROM users u WHERE u.branch_id = b.id AND u.user_type = 'customer') AS customers
                FROM branches b ORDER BY b.sort_order ASC, b.id ASC`
@@ -177,6 +158,28 @@ router.post('/:id(\\d+)/copy-stores', requireOwner, async (req, res) => {
             message: `The copy stopped after ${done.stores} stores. Run it again: finished stores are skipped.`,
             ...done,
         });
+    }
+});
+
+// Shows the copied stores of a branch to customers once they are edited. Only copies: a store
+// someone hid on purpose stays hidden.
+router.post('/:id(\\d+)/show-copied-stores', requireOwner, async (req, res) => {
+    try {
+        const id = toBranchId(req.params.id);
+        const all = await listBranches(req.db);
+        if (!all.some((b) => Number(b.id) === id)) {
+            return res.status(404).json({ success: false, message: 'Branch not found' });
+        }
+        const [result] = await req.db.execute(
+            `UPDATE stores SET is_customer_visible = 1
+              WHERE branch_id = ? AND source_store_id IS NOT NULL AND is_customer_visible = 0`,
+            [id]
+        );
+        console.log(`[branches] ${req.user.email || req.user.id} showed ${result.affectedRows} copied stores in branch ${id}`);
+        res.json({ success: true, shown: result.affectedRows });
+    } catch (e) {
+        console.error('Error showing copied stores:', e);
+        res.status(500).json({ success: false, message: 'Failed to show the stores' });
     }
 });
 

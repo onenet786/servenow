@@ -99,7 +99,7 @@ function statusDb(scenario, userType) {
     if (/SELECT item_status FROM order_items/.test(q)) return [[{ item_status: scenario.to }]];
     if (/FROM wallets WHERE user_id = \? LIMIT 1 FOR UPDATE/.test(q)) return [[{ id: 9, balance: 0 }]];
     if (/reference_type = 'order_refund'/.test(q)) return [scenario.alreadyRefunded ? [{ id: 1 }] : []];
-    if (/reference_type = 'order' AND reference_id = \? AND type = 'debit'/.test(q)) return [[{ id: 3 }]];
+    if (/reference_type = 'order' AND reference_id = \? AND type = 'debit'/.test(q)) return [[{ id: 3, amount: scenario.paid ?? 500 }]];
     if (/UPDATE orders SET stock_deducted = 0/.test(q)) return [{ affectedRows: scenario.deducted ? 1 : 0 }];
     if (/SUM\(quantity\) AS qty/.test(q)) return [[{ product_id: 7, qty: 2 }]];
     return undefined;

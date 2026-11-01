@@ -565,6 +565,13 @@ async function assertBranchSchema(dbPool) {
   if (!copyColumn.length) {
     throw new Error("Column stores.source_store_id is missing. Run the latest database/migrations/2026-11-01-branches.sql in phpMyAdmin first.");
   }
+  const [sessionColumns] = await dbPool.execute(
+    `SELECT 1 FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'password_changed_at' AND TABLE_NAME IN ('users','riders')`
+  );
+  if (sessionColumns.length < 2) {
+    throw new Error("Column password_changed_at is missing. Run database/migrations/2026-11-01-branches-3-security.sql in phpMyAdmin first.");
+  }
   const [[b]] = await dbPool.execute("SELECT COUNT(*) AS n FROM branches WHERE id = 1");
   if (!Number(b.n)) throw new Error("Branch 1 (Kot Addu) is missing from the branches table. Run the branches migration.");
 }

@@ -21,7 +21,8 @@
     />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0" defer></script>
     <link rel="icon" type="image/png" href="images/servenow_brand_logo.png" />
-  </head>
+      <style>body:not(.is-owner) .owner-tool { display: none !important; }</style>
+</head>
   <body class="sn-ui sn-admin">
     <!-- Toast Notification Container -->
     <div id="toastContainer" class="toast-container"></div>
@@ -1225,7 +1226,7 @@
                 <i class="fas fa-chevron-down utility-chevron"></i>
               </summary>
               <div class="utility-widget-body">
-                <div class="filter-controls utility-control-grid utility-restore-grid">
+                <div class="filter-controls utility-control-grid utility-restore-grid owner-tool">
                   <div class="filter-group">
                     <label for="utilUsername">Restore Username</label>
                     <input
@@ -1284,7 +1285,7 @@
               </div>
             </details>
 
-            <details class="utility-widget utility-widget-danger" name="utility-tool">
+            <details data-owner-only style="display:none" class="utility-widget utility-widget-danger" name="utility-tool">
               <summary>
                 <span class="utility-summary-icon utility-icon-danger"><i class="fas fa-exclamation-triangle"></i></span>
                 <span class="utility-summary-copy">
@@ -5240,7 +5241,6 @@
                 <select id="manualOrderPaymentMethod" class="form-control" style="height: 38px;">
                   <option value="cash">Cash</option>
                   <option value="wallet">Wallet</option>
-                  <option value="card">Card</option>
                 </select>
               </div>
             </div>
@@ -5437,8 +5437,8 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=32" defer></script>
-    <script src="js/branch-scope.js?v=1" defer></script>
+    <script src="js/app.js?v=33" defer></script>
+    <script src="js/branch-scope.js?v=4" defer></script>
     <script src="/socket.io/socket.io.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -5448,8 +5448,8 @@
     <script src="js/store-payments.js?v=2" defer></script>
     <script src="js/reports-centre.js?v=1" defer></script>
     <script src="js/user-rights.js?v=1" defer></script>
-    <script src="js/admin.js?v=53" defer></script>
-    <script src="js/branch-admin.js?v=4" defer></script>
+    <script src="js/admin.js?v=57" defer></script>
+    <script src="js/branch-admin.js?v=8" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");

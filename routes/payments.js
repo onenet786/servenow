@@ -58,6 +58,10 @@ router.post('/process', authenticateToken, [
         if (order.status === 'cancelled') {
             return sendError(res, 'This order has been cancelled', 400);
         }
+        // Paying sets the order back to pending or confirmed, so it must not have moved on yet
+        if (order.status !== 'pending') {
+            return sendError(res, 'This order can no longer be paid here', 400);
+        }
         const [existingPayment] = await req.db.execute(
             'SELECT id FROM payments WHERE order_id = ? AND status IN (?, ?)',
             [orderId, 'success', 'pending']
@@ -390,6 +394,11 @@ router.get('/:orderId', authenticateToken, async (req, res) => {
         const { orderId } = req.params;
         const userId = req.user.id;
 
+        // Rider ids come from a separate table and could match a customer's user_id
+        if (req.user.user_type === 'rider') {
+            return sendError(res, 'Access denied', 403);
+        }
+
         // Verify order belongs to user (unless admin)
         if (!req.user.user_type.includes('admin')) {
             const [orders] = await req.db.execute(
@@ -471,6 +480,16 @@ router.post('/:paymentId/refund', authenticateToken, requireAdmin, [
             return sendError(res, 'This order was already refunded when it was cancelled', 400);
         }
 
+        // Claim the payment first: of two refunds at the same moment, only one gets past here.
+        const [claim] = await req.db.execute(
+            "UPDATE payments SET status = 'refunded' WHERE id = ? AND status = 'success'",
+            [paymentId]
+        );
+        if (!claim.affectedRows) {
+            return sendError(res, 'This payment was already refunded', 409);
+        }
+        const releaseClaim = () => req.db.execute("UPDATE payments SET status = 'success' WHERE id = ?", [paymentId]);
+
         // 4. Create refund record (user_id = the customer receiving the refund)
         const [result] = await req.db.execute(
             `INSERT INTO refunds (payment_id, order_id, user_id, refund_amount, reason, status)
@@ -513,6 +532,7 @@ router.post('/:paymentId/refund', authenticateToken, requireAdmin, [
                     'UPDATE refunds SET status = ?, notes = ? WHERE id = ?',
                     ['failed', stripeError.message, result.insertId]
                 );
+                await releaseClaim();
                 return sendError(res, 'Refund processing failed', 400);
             }
         } else if (payment.payment_method === 'wallet') {
@@ -554,6 +574,7 @@ router.post('/:paymentId/refund', authenticateToken, requireAdmin, [
                     'UPDATE refunds SET status = ?, notes = ? WHERE id = ?',
                     ['failed', walletErr.message, result.insertId]
                 );
+                await releaseClaim();
                 return sendError(res, 'Refund processing failed', 400);
             } finally {
                 conn.release();
@@ -572,6 +593,9 @@ router.post('/:paymentId/refund', authenticateToken, requireAdmin, [
 // Get user's payment history
 router.get('/', authenticateToken, async (req, res) => {
     try {
+        if (req.user.user_type === 'rider') {
+            return sendError(res, 'Access denied', 403);
+        }
         const userId = req.user.id;
         const { limit, offset } = req.query;
         const limitVal = Math.max(1, parseInt(limit) || 10);

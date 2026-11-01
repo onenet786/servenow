@@ -80,8 +80,7 @@ test('guard: a branch account is shut out of everything not made branch-aware', 
     ['GET', '/api/permissions/groups'],
     ['POST', '/api/users'],
     ['PUT', '/api/users/5'],
-    ['POST', '/api/products'],
-    ['DELETE', '/api/products/3'],
+    ['PATCH', '/api/products/3'],
     ['POST', '/api/categories'],
     ['PUT', '/api/stores/app-update-notification'],
     ['DELETE', '/api/riders/fuel-history/3'],
@@ -161,6 +160,38 @@ test("guard: another branch's order, store, rider and product look like they do 
   assert.equal((await through(accountDb(kotRider, MZG).db, { method: 'PUT', path: '/api/riders/3', user: mzgAdmin })).status, 404);
   const kotProduct = (q) => (/FROM products p JOIN stores s/.test(q) ? [[{ branch_id: KOT }]] : undefined);
   assert.equal((await through(accountDb(kotProduct, MZG).db, { path: '/api/products/3', user: mzgAdmin })).status, 404);
+});
+
+test('guard: a branch account changes products only in its own branch', async () => {
+  const data = (q, p) => {
+    if (/FROM products p JOIN stores s/.test(q)) return [[{ branch_id: p[0] === 1 ? MZG : KOT }]];
+    if (/FROM stores WHERE id = \?/.test(q)) return [[{ branch_id: p[0] === 5 ? MZG : KOT }]];
+    return undefined;
+  };
+  const send = async (method, path, body) => {
+    require('../middleware/auth').clearAccountStatusCache();
+    const { db } = accountDb(data, MZG);
+    return request(guardApp(db), '/', db, { method, path, user: mzgAdmin, body });
+  };
+  assert.equal((await send('POST', '/api/products', { store_id: 5 })).body.reached, true);
+  assert.equal((await send('POST', '/api/products', { store_id: 6 })).status, 404, 'adding to a Kot Addu store');
+  assert.equal((await send('POST', '/api/products', {})).status, 400, 'no store named');
+  assert.equal((await send('POST', '/api/products', { store_id: '5 OR 1=1' })).status, 400);
+  assert.equal((await send('PUT', '/api/products/1', { price: 5 })).body.reached, true);
+  assert.equal((await send('PUT', '/api/products/1', { store_id: 5 })).body.reached, true);
+  assert.equal((await send('PUT', '/api/products/1', { store_id: 6 })).status, 404, 'moving out of the branch');
+  assert.equal((await send('PUT', '/api/products/2', { price: 5 })).status, 404, 'a Kot Addu product');
+  assert.equal((await send('DELETE', '/api/products/2')).status, 404);
+  assert.equal((await send('DELETE', '/api/products/1')).body.reached, true);
+});
+
+test('guard: writing the path differently does not get past it', async () => {
+  const { db } = accountDb(null, MZG);
+  for (const path of ['/API/admin/backup-db', '/Api/Users', '/api/ADMIN/restore-db', '/API/financial/gl/sync', '/INTEGRATIONS/aiagent/tools']) {
+    const r = await through(db, { method: 'POST', path, user: mzgAdmin });
+    assert.equal(r.status, 403, path);
+    assert.equal(r.body.reached, undefined, path);
+  }
 });
 
 test('guard: if the branch cannot be worked out, a branch account gets nothing (fails closed)', async () => {

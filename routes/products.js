@@ -2,7 +2,30 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin, requireStoreOwner, requireStaffAccess, requireStaffRight, softAuth } = require('../middleware/auth');
 const { filterPrivateData, trustedAdminFlag } = require('../middleware/publicData');
-const { resolveStaffBranch, resolveCustomerBranch, toBranchId, DEFAULT_BRANCH_ID } = require('../utils/branches');
+const { fetchRemoteImage } = require('../utils/safeImageFetch');
+const { resolveStaffBranch, resolveCustomerBranch, toBranchId, STAFF_TYPES, DEFAULT_BRANCH_ID } = require('../utils/branches');
+
+// Who may change a store's products: staff, whose product rights the route has already checked
+// (branchGuard holds branch accounts to their own branch), and the store's owner.
+// Cost and margin decide what the store is paid, so a store owner cannot set them: they stay as
+// they are on an edit, and the normal defaults apply to a new product.
+const PRICING_FIELDS = ['cost_price', 'discount_type', 'discount_value', 'profit_type', 'profit_value', 'manual_variant_cost_override'];
+function dropOwnerPricingFields(req) {
+    if (req.user.user_type !== 'store_owner') return;
+    for (const field of PRICING_FIELDS) delete req.body[field];
+    for (const key of ['size_variants', 'variants']) {
+        if (Array.isArray(req.body[key])) {
+            req.body[key] = req.body[key].map((v) => {
+                if (!v || typeof v !== 'object') return v;
+                const { cost_price, ...rest } = v;
+                return rest;
+            });
+        }
+    }
+}
+
+const mayManageStore = (user, ownerId) =>
+    STAFF_TYPES.has(user.user_type) || Number(ownerId) === Number(user.id);
 const fs = require('fs');
 const path = require('path');
 
@@ -325,36 +348,15 @@ async function downloadImageToUploads(remoteUrl) {
         const uploadDir = path.join(__dirname, '..', 'uploads');
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-        const resp = await fetch(remoteUrl);
-        if (!resp.ok) {
-            console.warn('Failed to fetch remote image', remoteUrl, resp.status);
-            return null;
-        }
-        const contentType = resp.headers.get('content-type') || '';
-        // Try to determine extension from content-type first, then fall back to URL path
-        let ext = '.jpg';
-        if (contentType.includes('png')) ext = '.png';
-        else if (contentType.includes('gif')) ext = '.gif';
-        else if (contentType.includes('webp')) ext = '.webp';
-        else if (contentType.includes('svg')) ext = '.svg';
-        else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
-        // If content-type is not present or unknown, attempt to parse extension from URL path
-        if (!ext || ext === '.jpg') {
-            try {
-                const u = new URL(remoteUrl);
-                const urlExt = path.extname(decodeURIComponent(u.pathname)) || '';
-                if (urlExt && urlExt.length <= 5) {
-                    ext = urlExt.toLowerCase();
-                }
-            } catch (e) { /* ignore URL parse errors */ }
-        }
+        const image = await fetchRemoteImage(remoteUrl);
+        if (!image) return null;
+        const { ext } = image;
 
         const baseName = `remote_${Date.now()}_${Math.round(Math.random()*1000)}`;
         const filename = `${baseName}${ext}`;
         const filePath = path.join(uploadDir, filename);
 
-        const arrayBuffer = await resp.arrayBuffer();
-        fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+        fs.writeFileSync(filePath, image.buffer);
 
         const publicPath = '/uploads/' + filename;
 
@@ -417,6 +419,8 @@ router.get('/', softAuth, filterPrivateData, async (req, res) => {
         if (!admin && !isAdminUser) {
             // whereClauses.push('p.is_available = true');
             whereClauses.push('s.is_active = true');
+            // Same rule as the store list: customers never see products of a hidden store.
+            whereClauses.push('COALESCE(s.is_customer_visible, 1) = 1');
         }
 
         // Branch: customers see their own branch's products (apps that name none get Kot Addu);
@@ -841,6 +845,7 @@ router.post('/', authenticateToken, requireStaffAccess, requireStaffRight('actio
             });
         }
 
+        dropOwnerPricingFields(req);
         const name = req.body.name;
         const description = req.body.description ?? null;
         const category_id = req.body.category_id ?? null;
@@ -873,7 +878,7 @@ router.post('/', authenticateToken, requireStaffAccess, requireStaffRight('actio
         }
 
         // Check ownership permission
-        if (req.user.user_type !== 'admin' && stores[0].owner_id !== req.user.id) {
+        if (!mayManageStore(req.user, stores[0].owner_id)) {
             return res.status(403).json({
                 success: false,
                 message: 'You do not have permission to add products to this store'
@@ -1155,13 +1160,14 @@ router.put('/:id', authenticateToken, requireStaffAccess, requireStaffRight('act
         const product = products[0];
 
         // Check ownership permission
-        if (req.user.user_type !== 'admin' && product.owner_id !== req.user.id) {
+        if (!mayManageStore(req.user, product.owner_id)) {
             return res.status(403).json({
                 success: false,
                 message: 'You do not have permission to update this product'
             });
         }
 
+        dropOwnerPricingFields(req);
         const name = req.body.name;
         const description = req.body.description;
         const category_id = req.body.category_id;
@@ -1200,7 +1206,7 @@ router.put('/:id', authenticateToken, requireStaffAccess, requireStaffRight('act
                 });
             }
             const targetStore = targetStores[0];
-            if (req.user.user_type !== 'admin' && Number(targetStore.owner_id) !== Number(req.user.id)) {
+            if (!mayManageStore(req.user, targetStore.owner_id)) {
                 return res.status(403).json({
                     success: false,
                     message: 'You do not have permission to move this product to the selected store'
@@ -1555,7 +1561,7 @@ router.delete('/:id', authenticateToken, requireStaffAccess, requireStaffRight('
         const product = products[0];
 
         // Check ownership permission
-        if (req.user.user_type !== 'admin' && product.owner_id !== req.user.id) {
+        if (!mayManageStore(req.user, product.owner_id)) {
             return res.status(403).json({
                 success: false,
                 message: 'You do not have permission to delete this product'

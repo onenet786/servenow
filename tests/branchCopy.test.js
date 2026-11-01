@@ -124,3 +124,29 @@ test('copy: the preview reports counts for the owner', async () => {
 test('copy: the guard lets the request reach the route, which refuses non-owners itself', () => {
   assert.equal(classify('POST', '/api/branches/2/copy-stores').allow, true);
 });
+
+test('show stores: the owner shows only copied stores of that branch; nobody else can', async () => {
+  const run = (type, email) => {
+    let sql = '';
+    let params;
+    const { db } = fakeDb((q, p) => {
+      if (/SELECT email, user_type, is_active, branch_id FROM users/.test(q)) return [[{ email, user_type: type, is_active: 1, branch_id: null }]];
+      const a = activeAccount(q, type, null);
+      if (a) return a;
+      if (/FROM branches/.test(q)) return [rows];
+      if (/^UPDATE stores/.test(q)) { sql = q; params = p; return [{ affectedRows: 67 }]; }
+      return undefined;
+    });
+    return request(router, '/api/branches', db, { method: 'POST', path: '/api/branches/2/show-copied-stores', user: { id: 3, user_type: type, email }, body: {} })
+      .then((r) => ({ r, sql, params }));
+  };
+  const owner = await run('admin', OWNER);
+  assert.equal(owner.r.status, 200);
+  assert.equal(owner.r.body.shown, 67);
+  assert.match(owner.sql, /source_store_id IS NOT NULL/);
+  assert.deepEqual(owner.params, [2]);
+  clearAccountStatusCache();
+  const other = await run('admin', 'second@servenow.com');
+  assert.equal(other.r.status, 404);
+  assert.equal(other.sql, '', 'nothing changed');
+});

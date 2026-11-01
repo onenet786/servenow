@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { toBranchId } = require('../utils/branches');
+const { toBranchId, isOwnerEmail } = require('../utils/branches');
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -83,31 +83,55 @@ async function getAccountStatus(db, user) {
     const cacheKey = `${user.user_type}:${user.id}`;
     const cached = accountStatusCache.get(cacheKey);
     if (cached && cached.expires > Date.now()) {
-        return cached.status;
+        return checkSessionAge(cached.status, user);
     }
 
     let status;
     if (user.user_type === 'rider') {
-        const [rows] = await db.execute('SELECT is_active, branch_id FROM riders WHERE id = ?', [user.id]);
+        const [rows] = await db.execute('SELECT is_active, branch_id, UNIX_TIMESTAMP(password_changed_at) AS password_changed_ts FROM riders WHERE id = ?', [user.id]);
         if (!rows.length || !rows[0].is_active) {
             status = { ok: false, message: 'Account is inactive or no longer exists. Please log in again.' };
         } else {
-            status = { ok: true, branch_id: toBranchId(rows[0].branch_id) };
+            status = { ok: true, branch_id: toBranchId(rows[0].branch_id), password_changed_ts: rows[0].password_changed_ts };
         }
     } else {
-        const [rows] = await db.execute('SELECT is_active, user_type, branch_id FROM users WHERE id = ?', [user.id]);
+        const [rows] = await db.execute('SELECT is_active, user_type, branch_id, UNIX_TIMESTAMP(password_changed_at) AS password_changed_ts FROM users WHERE id = ?', [user.id]);
         if (!rows.length || rows[0].is_active === 0 || rows[0].is_active === false) {
             status = { ok: false, message: 'Account is inactive or no longer exists. Please log in again.' };
         } else if (rows[0].user_type !== user.user_type) {
             status = { ok: false, message: 'Your account role has changed. Please log in again.' };
         } else {
-            status = { ok: true, branch_id: toBranchId(rows[0].branch_id) };
+            status = { ok: true, branch_id: toBranchId(rows[0].branch_id), password_changed_ts: rows[0].password_changed_ts };
         }
     }
 
     if (accountStatusCache.size > 10000) accountStatusCache.clear();
     accountStatusCache.set(cacheKey, { status, expires: Date.now() + ACCOUNT_STATUS_TTL_MS });
+    return checkSessionAge(status, user);
+}
+
+// A login issued before the password last changed no longer counts. Accounts whose password has
+// not changed since this check was added have no date, so their sessions carry on.
+function checkSessionAge(status, user) {
+    const changed = Number(status.password_changed_ts);
+    if (status.ok && changed > 0 && Number(user.iat) > 0 && Number(user.iat) < changed) {
+        return { ok: false, message: 'Your password was changed. Please log in again.' };
+    }
     return status;
+}
+
+// Ends every session of an account: after this, tokens issued earlier and refresh tokens are dead.
+async function endSessions(db, accountType, id) {
+    const rider = accountType === 'rider';
+    await db.execute(`UPDATE ${rider ? 'riders' : 'users'} SET password_changed_at = NOW() WHERE id = ?`, [id]);
+    await db.execute(
+        `UPDATE refresh_tokens SET revoked_at = NOW()
+          WHERE user_id = ? AND revoked_at IS NULL AND user_type ${rider ? "= 'rider'" : "<> 'rider'"}`,
+        [id]
+    );
+    for (const type of rider ? ['rider'] : ['customer', 'store_owner', 'admin', 'standard_user']) {
+        forgetAccountStatus(type, id);
+    }
 }
 
 // Drop the cached status so a change to an account (its branch, or being switched off) applies at once.
@@ -118,6 +142,27 @@ function clearAccountStatusCache() {
 function forgetAccountStatus(userType, id) {
     accountStatusCache.delete(`${userType}:${id}`);
 }
+
+// Only the owner account. The email is read from the database. Everyone else, other admins
+// included, gets the same answer as for an address that does not exist.
+const requireOwner = [authenticateToken, async (req, res, next) => {
+    const notFound = () => res.status(404).json({ success: false, message: 'Not found' });
+    if (req.user.user_type !== 'admin') return notFound();
+    try {
+        const [rows] = await req.db.execute(
+            'SELECT email, user_type, is_active, branch_id FROM users WHERE id = ? LIMIT 1',
+            [req.user.id]
+        );
+        const u = rows[0];
+        if (!u || u.user_type !== 'admin' || !u.is_active || toBranchId(u.branch_id) !== null || !isOwnerEmail(u.email)) {
+            return notFound();
+        }
+        next();
+    } catch (error) {
+        console.error('Owner check failed:', error);
+        return notFound();
+    }
+}];
 
 // Middleware to check if user is admin
 const requireAdmin = (req, res, next) => {
@@ -277,6 +322,8 @@ module.exports = {
     getAccountStatus,
     forgetAccountStatus,
     clearAccountStatusCache,
+    endSessions,
+    requireOwner,
     staffHasRight,
     requireStaffRight,
     authenticateToken,

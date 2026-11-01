@@ -856,13 +856,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             const SizedBox(height: AppSpace.sm),
             _buildPaymentOption(
-              title: 'Credit/Debit Card',
-              value: 'card',
-              icon: Icons.credit_card_rounded,
-              subtitle: 'Pay securely with your card',
-            ),
-            const SizedBox(height: AppSpace.sm),
-            _buildPaymentOption(
               title: 'Wallet',
               value: 'wallet',
               icon: Icons.account_balance_wallet_outlined,

@@ -44,10 +44,11 @@
             <thead><tr><th>Branch</th><th>City</th><th>Stores</th><th>Riders</th><th>Customers</th><th>Status</th><th></th></tr></thead>
             <tbody>${branches.map((b) => `
               <tr>
-                <td>${esc(b.name)}</td><td>${esc(b.city)}</td><td>${esc(b.stores)}</td><td>${esc(b.riders)}</td><td>${esc(b.customers)}</td>
+                <td>${esc(b.name)}</td><td>${esc(b.city)}</td><td>${esc(b.stores)}${Number(b.hidden_copies) ? ` <small style="opacity:.7;">(${esc(b.hidden_copies)} hidden)</small>` : ''}</td><td>${esc(b.riders)}</td><td>${esc(b.customers)}</td>
                 <td><span class="status-${Number(b.is_active) ? 'active' : 'inactive'}">${Number(b.is_active) ? 'Open' : 'Closed'}</span></td>
                 <td>
                   <button type="button" class="btn-small btn-edit" data-edit="${esc(b.id)}">Edit</button>
+                  ${Number(b.hidden_copies) ? `<button type="button" class="btn-small btn-primary" data-show="${esc(b.id)}">Show stores</button>` : ''}
                   <button type="button" class="btn-small ${Number(b.is_active) ? 'btn-danger' : 'btn-edit'}" data-toggle="${esc(b.id)}">${Number(b.is_active) ? 'Close' : 'Open'}</button>
                 </td>
               </tr>`).join('')}</tbody>
@@ -110,6 +111,16 @@
       widget.querySelector('#branchCancelBtn').hidden = false;
     }));
 
+    widget.querySelectorAll('[data-show]').forEach((btn) => btn.addEventListener('click', async () => {
+      const b = branches.find((x) => String(x.id) === btn.dataset.show);
+      if (!b) return;
+      const question = `Show ${b.hidden_copies} copied stores in ${b.name} to customers? Do this after editing their addresses, phones, owners and prices. Stores hidden on purpose stay hidden.`;
+      if (!window.confirm(question)) return;
+      const r = await send(`/api/branches/${b.id}/show-copied-stores`, 'POST', {});
+      say(r.ok, r.ok ? 'Saved' : 'Not saved', r.ok ? `${r.shown} stores are now visible to customers.` : r.message);
+      if (r.ok) load(host, true);
+    }));
+
     widget.querySelectorAll('[data-toggle]').forEach((btn) => btn.addEventListener('click', async () => {
       const b = branches.find((x) => String(x.id) === btn.dataset.toggle);
       if (!b) return;
@@ -169,6 +180,8 @@
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data || !data.success) return;
+        document.body.classList.add('is-owner');
+        document.querySelectorAll('#db-backup [data-owner-only]').forEach((widget) => { widget.style.display = ''; });
         draw(host, data.branches || []);
         if (open) document.getElementById('branchManager').open = true;
       })

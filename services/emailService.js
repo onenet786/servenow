@@ -1,5 +1,8 @@
 const nodemailer = require('nodemailer');
 
+// Text typed on a public form must not become part of the email's HTML.
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
 // Create transporter only if credentials exist
 let transporter = null;
 
@@ -74,8 +77,8 @@ async function sendDeletionRequestEmail(userEmail, reason) {
         <div style="font-family: Arial, sans-serif; padding: 20px;">
             <h2>Account Deletion Request</h2>
             <p>A new account deletion request has been received from the web form.</p>
-            <p><strong>User Email:</strong> ${userEmail}</p>
-            <p><strong>Reason:</strong> ${reason || 'Not provided'}</p>
+            <p><strong>User Email:</strong> ${escapeHtml(userEmail)}</p>
+            <p><strong>Reason:</strong> ${escapeHtml(reason || 'Not provided')}</p>
             <p>Please process this request within 48-72 hours.</p>
         </div>
     `;

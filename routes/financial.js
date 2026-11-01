@@ -14,6 +14,10 @@ const fs = require('fs');
 const path = require('path');
 
 const router = express.Router();
+
+// The path as Express matches it: any case, with or without a trailing slash. Rules below must
+// compare against this, or /REPORTS/generate/ reaches a route without passing them.
+const routePath = (req) => req.path.toLowerCase().replace(/\/+$/, '') || '/';
 let _legacyCpvBackfillDone = false;
 
 const SUPPORTED_FINANCIAL_REPORT_TYPES = [
@@ -582,7 +586,7 @@ router.use(async (req, res, next) => {
     }
 
     // Check specific permissions based on path
-    const path = req.path;
+    const path = routePath(req);
     let requiredPerm = null;
 
     // One table holds cash and bank vouchers, so the right follows the method.
@@ -669,7 +673,7 @@ router.use(async (req, res, next) => {
 // Reading: every GET, and report generation, sees one branch when the caller is a branch account
 // or head office asked for one (branch_id). See utils/branchFinance.js.
 router.use((req, res, next) => {
-    if (req.method === 'GET' || req.method === 'HEAD' || req.path === '/reports/generate') {
+    if (req.method === 'GET' || req.method === 'HEAD' || routePath(req) === '/reports/generate') {
         return applyBranchScope(req, res, next);
     }
     return next();
@@ -680,8 +684,8 @@ router.use((req, res, next) => {
 const DOCUMENT_ROUTES = [
     [/^\/payment-vouchers\/(\d+)/, 'cash_payment_vouchers', 'payee'],
     [/^\/receipt-vouchers\/(\d+)/, 'cash_receipt_vouchers', 'payer'],
-    [/^\/rider-cash\/(\d+)/, 'rider_cash_movements'],
-    [/^\/store-settlements\/(\d+)/, 'store_settlements'],
+    [/^\/rider-cash\/(\d+)/, 'rider_cash_movements', 'rider'],
+    [/^\/store-settlements\/(\d+)/, 'store_settlements', 'store'],
     [/^\/expenses\/(\d+)/, 'admin_expenses'],
     [/^\/journal-vouchers\/(\d+)/, 'journal_vouchers'],
     [/^\/reports\/(\d+)/, 'financial_reports'],
@@ -690,15 +694,20 @@ const partyOf = (type, id) => {
     if (!id) return {};
     if (type === 'rider') return { rider: id };
     if (type === 'store') return { store: id };
-    if (type === 'customer') return { customer: id };
+    if (type === 'customer' || type === 'employee' || type === 'user') return { customer: id };
     return {};
 };
+
+// A status change only applies if nobody changed the document first, so two approvals at the same
+// moment cannot both post money. mysql2 reports matched rows, so an unchanged row still counts.
+const ifStatusIs = (document) => (document ? { sql: ' AND status = ?', params: [document.status] } : { sql: '', params: [] });
+const CHANGED_MESSAGE = 'Someone else just changed this document. Refresh the page and try again.';
 
 router.use(async (req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD') return next();
     try {
         for (const [pattern, table, party] of DOCUMENT_ROUTES) {
-            const hit = req.path.match(pattern);
+            const hit = routePath(req).match(pattern);
             if (!hit) continue;
             const [rows] = await req.db.execute(`SELECT * FROM ${table} WHERE id = ? LIMIT 1`, [Number(hit[1])]);
             if (!rows.length) return next(); // the route answers 404
@@ -710,7 +719,7 @@ router.use(async (req, res, next) => {
             req.docBranch = docBranch;
             if (party && req.body && req.body[`${party}_id`]) {
                 const named = await documentBranch(req.db, req.user, docBranch,
-                    partyOf(req.body[`${party}_type`] || rows[0][`${party}_type`], req.body[`${party}_id`]));
+                    partyOf(req.body[`${party}_type`] || rows[0][`${party}_type`] || party, req.body[`${party}_id`]));
                 if (named.error) return res.status(named.status).json({ success: false, message: named.error });
             }
             return next();
@@ -1511,10 +1520,14 @@ router.put('/payment-vouchers/:id', [
 
         params.push(id);
 
-        await req.db.execute(
-            `UPDATE cash_payment_vouchers SET ${updates.join(', ')} WHERE id = ?`,
-            params
+        const onlyIf = ifStatusIs(existingVoucher);
+        const [voucherUpdate] = await req.db.execute(
+            `UPDATE cash_payment_vouchers SET ${updates.join(', ')} WHERE id = ?${onlyIf.sql}`,
+            [...params, ...onlyIf.params]
         );
+        if (!voucherUpdate.affectedRows) {
+            return res.status(409).json({ success: false, message: CHANGED_MESSAGE });
+        }
 
         // Create CPV financial posting only once when voucher transitions into approved/paid.
         const previousStatus = String(existingVoucher?.status || '').toLowerCase();
@@ -1856,10 +1869,14 @@ router.put('/receipt-vouchers/:id', [
         const conn = await req.db.getConnection();
         try {
             await conn.beginTransaction();
-            await conn.execute(
-                `UPDATE cash_receipt_vouchers SET ${updates.join(', ')} WHERE id = ?`,
-                params
+            const onlyIf = ifStatusIs(existingVoucher);
+            const [receiptUpdate] = await conn.execute(
+                `UPDATE cash_receipt_vouchers SET ${updates.join(', ')} WHERE id = ?${onlyIf.sql}`,
+                [...params, ...onlyIf.params]
             );
+            if (!receiptUpdate.affectedRows) {
+                throw Object.assign(new Error(CHANGED_MESSAGE), { statusCode: 409 });
+            }
 
             if (isNewReceipt) {
                 // If payer is a rider, record cash submission and update wallet
@@ -1945,9 +1962,9 @@ router.put('/receipt-vouchers/:id', [
         });
     } catch (error) {
         console.error('Error updating receipt voucher:', error);
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: 'Failed to update receipt voucher',
+            message: error.statusCode ? error.message : 'Failed to update receipt voucher',
             error: error.message
         });
     }
@@ -2745,10 +2762,14 @@ if (status === 'approved') {
 
         params.push(id);
 
-        await req.db.execute(
-            `UPDATE rider_cash_movements SET ${updates.join(', ')} WHERE id = ?`,
-            params
+        const onlyIf = ifStatusIs(movement);
+        const [movementUpdate] = await req.db.execute(
+            `UPDATE rider_cash_movements SET ${updates.join(', ')} WHERE id = ?${onlyIf.sql}`,
+            [...params, ...onlyIf.params]
         );
+        if (!movementUpdate.affectedRows) {
+            return res.status(409).json({ success: false, message: CHANGED_MESSAGE });
+        }
 
         res.json({
             success: true,
@@ -3153,14 +3174,12 @@ router.put('/store-settlements/:id', [
         const { status, net_amount, notes } = req.body;
 
         // Get existing settlement data if we're marking it as paid
-        let existingSettlement = null;
+        const [settlementRows] = await req.db.execute('SELECT * FROM store_settlements WHERE id = ?', [id]);
+        if (settlementRows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Settlement not found' });
+        }
+        const existingSettlement = settlementRows[0];
         if (status === 'paid') {
-            const [rows] = await req.db.execute('SELECT * FROM store_settlements WHERE id = ?', [id]);
-            if (rows.length === 0) {
-                return res.status(404).json({ success: false, message: 'Settlement not found' });
-            }
-            existingSettlement = rows[0];
-            
             if (existingSettlement.status === 'paid') {
                 return res.status(400).json({ success: false, message: 'Settlement is already marked as paid' });
             }
@@ -3169,6 +3188,11 @@ router.put('/store-settlements/:id', [
         const updates = [];
         const params = [];
 
+        // Manual settlements are admin-only to create, and the amount is what leaves the bank.
+        if (net_amount && req.user.user_type !== 'admin' && existingSettlement
+            && Number(net_amount) !== Number(existingSettlement.net_amount)) {
+            return res.status(403).json({ success: false, message: 'Only an admin can change a settlement amount' });
+        }
         if (net_amount) {
             updates.push('net_amount = ?');
             params.push(net_amount);
@@ -3198,10 +3222,14 @@ router.put('/store-settlements/:id', [
 
         params.push(id);
 
-        await req.db.execute(
-            `UPDATE store_settlements SET ${updates.join(', ')} WHERE id = ?`,
-            params
+        const onlyIf = ifStatusIs(existingSettlement);
+        const [settlementUpdate] = await req.db.execute(
+            `UPDATE store_settlements SET ${updates.join(', ')} WHERE id = ?${onlyIf.sql}`,
+            [...params, ...onlyIf.params]
         );
+        if (!settlementUpdate.affectedRows) {
+            return res.status(409).json({ success: false, message: CHANGED_MESSAGE });
+        }
 
         // A cancelled (never paid) settlement releases its order lines so the
         // store payable is settled again later instead of being lost.
@@ -3461,10 +3489,14 @@ router.put('/expenses/:id', [
 
         params.push(id);
 
-        await req.db.execute(
-            `UPDATE admin_expenses SET ${updates.join(', ')} WHERE id = ?`,
-            params
+        const onlyIf = ifStatusIs(existingExpense);
+        const [expenseUpdate] = await req.db.execute(
+            `UPDATE admin_expenses SET ${updates.join(', ')} WHERE id = ?${onlyIf.sql}`,
+            [...params, ...onlyIf.params]
         );
+        if (!expenseUpdate.affectedRows) {
+            return res.status(409).json({ success: false, message: CHANGED_MESSAGE });
+        }
 
         // Create financial transaction if status changed to paid
         if (status === 'paid' && existingExpense) {

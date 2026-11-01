@@ -92,6 +92,16 @@ async function ensureGlobalDeliveryStatusTable(db) {
     }
 }
 
+// What a store earns and owes is agreed with ServeNow, so only admins set it.
+const ADMIN_ONLY_STORE_FIELDS = [
+    'payment_term', 'payment_grace_days', 'payment_grace_start_date',
+    'store_discount_apply_all_products', 'store_discount_percent', 'commission_rate',
+];
+function dropAdminOnlyStoreFields(req) {
+    if (req.user.user_type === 'admin') return;
+    for (const field of ADMIN_ONLY_STORE_FIELDS) delete req.body[field];
+}
+
 async function ensureLivePromotionsTable(db) {
     await db.execute(`
         CREATE TABLE IF NOT EXISTS live_promotions (
@@ -2694,6 +2704,8 @@ router.post('/', authenticateToken, requireStoreOwner, [
             });
         }
 
+        dropAdminOnlyStoreFields(req);
+
         const {
             name,
             description,
@@ -2932,6 +2944,7 @@ router.put('/:id', authenticateToken, requireStoreOwner, [
             });
         }
 
+        dropAdminOnlyStoreFields(req);
         const { id } = req.params;
 
         // Check if store exists and user has permission

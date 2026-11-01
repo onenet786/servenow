@@ -2219,8 +2219,9 @@ async function changePassword(currentPassword, newPassword) {
 
     const data = await response.json();
     if (data.success) {
-      showSuccess("Success", "Password changed successfully!");
+      showSuccess("Success", "Password changed. Please log in again.");
       hideChangePasswordModal();
+      setTimeout(logout, 1500);
     } else {
       showError("Error", data.message || "Failed to change password");
     }

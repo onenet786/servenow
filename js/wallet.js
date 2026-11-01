@@ -548,7 +548,7 @@ async function loadSentTransfers() {
             listDiv.innerHTML = data.transfers.map(t => `
                 <div class="transfer-card">
                     <div class="transfer-header">
-                        <strong>To: ${t.recipient_name} (${t.recipient_email})</strong>
+                        <strong>To: ${t.recipient_name}</strong>
                         <span class="transfer-status status-${t.status}">${t.status}</span>
                     </div>
                     <div style="margin-bottom: 10px;">

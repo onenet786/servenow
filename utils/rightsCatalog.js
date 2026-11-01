@@ -93,8 +93,8 @@ const RIGHTS = [
 
   R('menu_settings_general', 'System settings', 'System', 'high', 'Delivery fees and app-wide settings'),
   R('menu_settings_problems', 'Problems and diagnostics', 'System', 'medium'),
-  R('menu_settings_backup', 'Database backups', 'System', 'high', 'A backup holds all customer and financial data'),
-  R('menu_settings_database', 'Database restore tools', 'System', 'high', 'Can overwrite the whole database'),
+  R('menu_settings_backup', 'Database backups: take and download', 'System', 'high', 'A backup holds all customer and financial data. Restoring stays with the owner account'),
+  R('menu_settings_database', 'Utilities page (other tools)', 'System', 'high', 'Clear data, shrink and SQL stay with the owner account'),
 ];
 
 const MODULES = [...new Set(RIGHTS.map((r) => r.module))];
@@ -103,6 +103,8 @@ const KEYS = new Set(RIGHTS.map((r) => r.key));
 // Never delegated, whatever a group holds. Listed so the screen can say so.
 const ADMIN_ONLY = [
   'Manage user rights and groups',
+  'Restore a database backup (owner account only)',
+  'Clear data, shrink the database or run SQL (owner account only)',
   'Create, edit or deactivate users',
   'Create, edit or delete riders',
   'Add, edit or delete stores (store owners can edit their own)',

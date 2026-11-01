@@ -5,8 +5,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const { sendVerificationEmail, sendPasswordResetOTP } = require("../services/emailService");
-const { authenticateToken } = require("../middleware/auth");
-const { resolveCustomerBranch } = require("../utils/branches");
+const { authenticateToken, endSessions } = require("../middleware/auth");
+const { resolveCustomerBranch, adminRoomsFor } = require("../utils/branches");
 const {
   upsertPushToken,
   deactivatePushToken,
@@ -14,20 +14,24 @@ const {
 
 const router = express.Router();
 
-// In-memory brute-force protection for password reset OTPs
+// In-memory brute-force protection for password reset OTPs. Each email + IP gets five tries, so
+// a stranger guessing cannot lock the real person out. Far more failures on one email, from any
+// mix of addresses, cancel the code.
 const otpAttemptsMap = new Map();
 const MAX_OTP_ATTEMPTS = 5;
+const MAX_OTP_ATTEMPTS_PER_EMAIL = 20;
 const OTP_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 
-function checkOtpLockout(email) {
-  const normEmail = (email || "").toLowerCase().trim();
-  const record = otpAttemptsMap.get(normEmail);
+const otpKey = (email, ip) => `${(email || "").toLowerCase().trim()}|${ip || ""}`;
+
+function checkOtpLockout(key, max = MAX_OTP_ATTEMPTS) {
+  const record = otpAttemptsMap.get(key);
   if (!record) return { locked: false, attempts: 0 };
   if (Date.now() - record.lastAttempt > OTP_LOCKOUT_MS) {
-    otpAttemptsMap.delete(normEmail);
+    otpAttemptsMap.delete(key);
     return { locked: false, attempts: 0 };
   }
-  if (record.attempts >= MAX_OTP_ATTEMPTS) {
+  if (record.attempts >= max) {
     return {
       locked: true,
       attempts: record.attempts,
@@ -37,19 +41,26 @@ function checkOtpLockout(email) {
   return { locked: false, attempts: record.attempts };
 }
 
-function recordOtpFailure(email) {
-  const normEmail = (email || "").toLowerCase().trim();
-  const record = otpAttemptsMap.get(normEmail) || { attempts: 0, lastAttempt: Date.now() };
+function recordOtpFailure(key) {
+  const record = otpAttemptsMap.get(key) || { attempts: 0, lastAttempt: Date.now() };
   record.attempts += 1;
   record.lastAttempt = Date.now();
-  otpAttemptsMap.set(normEmail, record);
+  otpAttemptsMap.set(key, record);
   return record.attempts;
 }
 
 function clearOtpAttempts(email) {
-  const normEmail = (email || "").toLowerCase().trim();
-  otpAttemptsMap.delete(normEmail);
+  const prefix = otpKey(email, "");
+  for (const key of otpAttemptsMap.keys()) {
+    if (key.startsWith(prefix)) otpAttemptsMap.delete(key);
+  }
 }
+
+// Reset codes are stored only as keyed hashes, so a database backup cannot be used to reset a
+// password, and a 6-digit code cannot be worked out from its hash without the server secret.
+// The kind keeps a code from ever matching where a reset token is expected.
+const resetHash = (kind, value) =>
+  crypto.createHmac("sha256", process.env.JWT_SECRET).update(`${kind}:${value}`).digest("hex");
 
 const ACCESS_TOKEN_EXPIRE = process.env.JWT_EXPIRE || "7d";
 const REFRESH_TOKEN_EXPIRE_DAYS = parseInt(
@@ -315,43 +326,35 @@ router.post(
         [email]
       );
 
-      if (users.length === 0 && riders.length === 0) {
-        // SECURITY: Don't reveal if email exists, but for UX we might.
-        // The requirement says "via email address he added at registration time"
-        return res.status(404).json({
-          success: false,
-          message: "No account found with that email address.",
-        });
-      }
+      // The same answer whether or not the email has an account, so emails cannot be tested here.
+      // The mail is not awaited for the same reason: its delay would show which ones exist.
+      const answer = {
+        success: true,
+        message: "If this email has an account, a reset code has been sent to it.",
+      };
+      if (users.length === 0 && riders.length === 0) return res.json(answer);
 
       const otp = crypto.randomInt(100000, 999999).toString();
       const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const table = users.length > 0 ? "users" : "riders";
+      const accountId = users.length > 0 ? users[0].id : riders[0].id;
 
-      if (users.length > 0) {
-        await req.db.execute(
-          "UPDATE users SET reset_password_token = ?, reset_password_expires = ? WHERE id = ?",
-          [otp, expires, users[0].id]
-        );
-      } else if (riders.length > 0) {
-        await req.db.execute(
-          "UPDATE riders SET reset_password_token = ?, reset_password_expires = ? WHERE id = ?",
-          [otp, expires, riders[0].id]
-        );
-      }
+      await req.db.execute(
+        `UPDATE ${table} SET reset_password_token = ?, reset_password_expires = ? WHERE id = ?`,
+        [resetHash("otp", otp), expires, accountId]
+      );
 
-      await sendPasswordResetOTP(email, otp);
       clearOtpAttempts(email);
-
-      return res.json({
-        success: true,
-        message: "Password reset OTP has been sent to your email.",
+      Promise.resolve(sendPasswordResetOTP(email, otp)).catch((mailError) => {
+        console.error("Password reset email failed:", mailError.message);
       });
+
+      return res.json(answer);
     } catch (error) {
       console.error("Forgot password error:", error);
       return res.status(500).json({
         success: false,
         message: "Failed to process forgot password request.",
-        error: error.message,
       });
     }
   }
@@ -377,8 +380,13 @@ router.post(
 
       const { email, otp } = req.body;
 
+      if (typeof otp !== "string" || !/^\d{6}$/.test(otp)) {
+        return res.status(400).json({ success: false, message: "Valid 6-digit OTP is required" });
+      }
+
       // Check brute-force lockout
-      const lockout = checkOtpLockout(email);
+      const senderKey = otpKey(email, req.ip);
+      const lockout = checkOtpLockout(senderKey);
       if (lockout.locked) {
         return res.status(429).json({
           success: false,
@@ -389,18 +397,19 @@ router.post(
       // Check users
       const [users] = await req.db.execute(
         "SELECT id FROM users WHERE email = ? AND reset_password_token = ? AND reset_password_expires > NOW()",
-        [email, otp]
+        [email, resetHash("otp", otp)]
       );
 
       // Check riders
       const [riders] = await req.db.execute(
         "SELECT id FROM riders WHERE email = ? AND reset_password_token = ? AND reset_password_expires > NOW()",
-        [email, otp]
+        [email, resetHash("otp", otp)]
       );
 
       if (users.length === 0 && riders.length === 0) {
-        const attempts = recordOtpFailure(email);
-        if (attempts >= MAX_OTP_ATTEMPTS) {
+        const attempts = recordOtpFailure(senderKey);
+        const onThisEmail = recordOtpFailure(otpKey(email, "*"));
+        if (onThisEmail >= MAX_OTP_ATTEMPTS_PER_EMAIL) {
           // Invalidate tokens immediately in the database
           await req.db.execute(
             "UPDATE users SET reset_password_token = NULL, reset_password_expires = NULL WHERE email = ?",
@@ -413,6 +422,12 @@ router.post(
           return res.status(429).json({
             success: false,
             message: "Maximum verification attempts exceeded. Your OTP has been invalidated for security. Please request a new OTP.",
+          });
+        }
+        if (attempts >= MAX_OTP_ATTEMPTS) {
+          return res.status(429).json({
+            success: false,
+            message: "Too many failed attempts. Please wait 15 minutes or request a new OTP.",
           });
         }
 
@@ -433,12 +448,12 @@ router.post(
       if (users.length > 0) {
         await req.db.execute(
           "UPDATE users SET reset_password_token = ?, reset_password_expires = ? WHERE id = ?",
-          [resetToken, expires, users[0].id]
+          [resetHash("reset", resetToken), expires, users[0].id]
         );
       } else {
         await req.db.execute(
           "UPDATE riders SET reset_password_token = ?, reset_password_expires = ? WHERE id = ?",
-          [resetToken, expires, riders[0].id]
+          [resetHash("reset", resetToken), expires, riders[0].id]
         );
       }
 
@@ -477,39 +492,44 @@ router.post(
         });
       }
 
-      const { token, password } = req.body;
+      const { token, password, email } = req.body;
 
-      // Find user or rider with this token
+      // Only the 256-bit token issued after the code is verified, never the 6-digit code itself.
+      // That token alone identifies the account, so apps that send no email stay safe; an email
+      // that is sent must match.
+      const invalid = () => res.status(400).json({
+        success: false,
+        message: "Password reset token is invalid or has expired.",
+      });
+      if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return invalid();
+      if (email !== undefined && typeof email !== "string") return invalid();
+
+      const stored = resetHash("reset", token);
       const [users] = await req.db.execute(
-        "SELECT id FROM users WHERE reset_password_token = ? AND reset_password_expires > NOW()",
-        [token]
+        "SELECT id, email FROM users WHERE reset_password_token = ? AND reset_password_expires > NOW()",
+        [stored]
       );
-
       const [riders] = await req.db.execute(
-        "SELECT id FROM riders WHERE reset_password_token = ? AND reset_password_expires > NOW()",
-        [token]
+        "SELECT id, email FROM riders WHERE reset_password_token = ? AND reset_password_expires > NOW()",
+        [stored]
       );
 
-      if (users.length === 0 && riders.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Password reset token is invalid or has expired.",
-        });
+      const account = users[0] || riders[0];
+      if (!account) return invalid();
+      if (email !== undefined && email.trim().toLowerCase() !== String(account.email).toLowerCase()) {
+        return invalid();
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-
-      if (users.length > 0) {
-        await req.db.execute(
-          "UPDATE users SET password = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?",
-          [hashedPassword, users[0].id]
-        );
-      } else if (riders.length > 0) {
-        await req.db.execute(
-          "UPDATE riders SET password = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?",
-          [hashedPassword, riders[0].id]
-        );
-      }
+      const isRider = users.length === 0;
+      await req.db.execute(
+        `UPDATE ${isRider ? "riders" : "users"}
+            SET password = ?, reset_password_token = NULL, reset_password_expires = NULL
+          WHERE id = ?`,
+        [hashedPassword, account.id]
+      );
+      await endSessions(req.db, isRider ? "rider" : "user", account.id);
+      clearOtpAttempts(account.email);
 
       return res.json({
         success: true,
@@ -520,7 +540,6 @@ router.post(
       return res.status(500).json({
         success: false,
         message: "Failed to reset password.",
-        error: error.message,
       });
     }
   }
@@ -635,7 +654,7 @@ router.post(
       // Emit new_user event to admin
       try {
         if (req.io) {
-          req.io.emit('new_user', {
+          req.io.to(adminRoomsFor(branch.branchId)).emit('new_user', {
             id: result.insertId,
             first_name: firstName,
             last_name: lastName,
@@ -1023,10 +1042,14 @@ router.post(
           date_of_birth: null,
         };
       } else if (!isTrue(user.is_verified)) {
+        // Whoever registered this unverified account may not own the email. The real owner has now
+        // proved it, so their password and any sessions must not survive.
+        const unknownPassword = await bcrypt.hash(crypto.randomBytes(24).toString("hex"), 10);
         await req.db.execute(
-          "UPDATE users SET is_verified = 1, verification_code = NULL, verification_expires_at = NULL WHERE id = ?",
-          [user.id]
+          "UPDATE users SET is_verified = 1, password = ?, verification_code = NULL, verification_expires_at = NULL WHERE id = ?",
+          [unknownPassword, user.id]
         );
+        await endSessions(req.db, "user", user.id);
         user.is_verified = 1;
       }
 
@@ -1098,6 +1121,11 @@ router.post(
       .withMessage("Facebook access token is required"),
   ],
   async (req, res) => {
+    // No ServeNow app uses Facebook sign-in, and a token issued to anyone else's Facebook app would
+    // be accepted here as proof of an email. Before enabling this, check the token's app id.
+    if (process.env.ENABLE_FACEBOOK_LOGIN !== "true") {
+      return res.status(403).json({ success: false, message: "Facebook sign-in is not available" });
+    }
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -1188,10 +1216,14 @@ router.post(
           date_of_birth: null,
         };
       } else if (!isTrue(user.is_verified)) {
+        // Whoever registered this unverified account may not own the email. The real owner has now
+        // proved it, so their password and any sessions must not survive.
+        const unknownPassword = await bcrypt.hash(crypto.randomBytes(24).toString("hex"), 10);
         await req.db.execute(
-          "UPDATE users SET is_verified = 1, verification_code = NULL, verification_expires_at = NULL WHERE id = ?",
-          [user.id]
+          "UPDATE users SET is_verified = 1, password = ?, verification_code = NULL, verification_expires_at = NULL WHERE id = ?",
+          [unknownPassword, user.id]
         );
+        await endSessions(req.db, "user", user.id);
         user.is_verified = 1;
       }
 
@@ -1469,6 +1501,7 @@ router.post(
         hashedNewPassword,
         userId,
       ]);
+      await endSessions(req.db, req.user.user_type === "rider" ? "rider" : "user", req.user.id);
 
       return res.json({
         success: true,
@@ -1493,6 +1526,18 @@ router.get("/profile", authenticateToken, async (req, res) => {
         success: true,
         user: buildGuestProfileFromToken(req.user),
       });
+    }
+
+    // Riders live in another table and their ids overlap with users.
+    if (req.user.user_type === "rider") {
+      const [riders] = await req.db.execute(
+        "SELECT id, first_name, last_name, email, phone, vehicle_type, license_number, is_available, created_at, branch_id FROM riders WHERE id = ? AND email = ?",
+        [req.user.id, req.user.email]
+      );
+      if (riders.length === 0) {
+        return res.status(404).json({ success: false, message: "Rider not found" });
+      }
+      return res.json({ success: true, user: { ...riders[0], user_type: "rider" } });
     }
 
     const [users] = await req.db.execute(

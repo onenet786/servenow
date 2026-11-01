@@ -62,10 +62,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         _newPasswordController.text,
       );
       if (mounted) {
+        // Changing the password ends every session, this one included.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_tr('Password changed successfully'))),
         );
-        Navigator.of(context).pop();
+        await Provider.of<AuthProvider>(context, listen: false).logout();
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
       }
     } catch (e) {
       if (mounted) {

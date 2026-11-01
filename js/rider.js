@@ -891,9 +891,10 @@ async function submitChangePassword() {
 
         const data = await response.json();
         if (data.success) {
-            showSuccess('Success', 'Password changed successfully');
+            showSuccess('Success', 'Password changed. Please log in again.');
             closeModal('changePasswordModal');
             document.getElementById('changePasswordForm').reset();
+            setTimeout(logout, 1500);
         } else {
             showError('Error', data.message || 'Failed to change password');
         }
