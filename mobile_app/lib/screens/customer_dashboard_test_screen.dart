@@ -16,6 +16,7 @@ import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/notification_provider.dart' as app_notif;
 import '../services/api_service.dart';
+import '../services/branch_service.dart';
 import '../utils/app_activity.dart';
 import '../utils/customer_language.dart';
 import '../utils/cart_counts.dart';
@@ -62,6 +63,10 @@ class _CustomerDashboardTestScreenState
   double? _userLat;
   double? _userLng;
   String? _userCity;
+  // The server shows this branch (Kot Addu) to a guest who has not picked a city.
+  static const int _serverDefaultBranchId = 1;
+  // A guest who closes the city sheet is not asked again on every refresh.
+  bool _cityAsked = false;
   final PageController _bannerController = PageController(
     viewportFraction: 0.92,
   );
@@ -379,6 +384,18 @@ class _CustomerDashboardTestScreenState
         }
       }
 
+      // Guests choose a city; an account's branch is applied by the server.
+      await BranchService.load().catchError((_) => const <Branch>[]);
+      if (!mounted) return;
+      if (Provider.of<AuthProvider>(context, listen: false).isGuest &&
+          BranchService.hasChoice &&
+          BranchService.selectedId == null &&
+          !_cityAsked) {
+        _cityAsked = true;
+        await _chooseCity();
+        if (!mounted) return;
+      }
+
       final futures = await Future.wait<dynamic>([
         loadGlobalStatus(),
         loadPromotions(),
@@ -445,6 +462,51 @@ class _CustomerDashboardTestScreenState
         });
       }
     }
+  }
+
+  Future<void> _chooseCity({bool reload = false}) async {
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(title: Text(_tr('Choose your city'), style: AppText.title)),
+            for (final branch in BranchService.open)
+              ListTile(
+                leading: const Icon(Icons.location_city_rounded),
+                title: Text(branch.name),
+                selected: branch.id == BranchService.selectedId,
+                onTap: () => Navigator.of(ctx).pop(branch.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || picked == BranchService.selectedId || !mounted) {
+      return;
+    }
+    // Stores differ by city: the cart is emptied whenever the city really changes, including from
+    // the default list a guest browsed before choosing.
+    final previous = BranchService.selectedId ?? _serverDefaultBranchId;
+    await BranchService.select(picked);
+    if (!mounted) return;
+    if (picked != previous) {
+      Provider.of<CartProvider>(context, listen: false).clear();
+    }
+    setState(() {});
+    if (reload) await _refreshStoresForResolvedLocation();
+  }
+
+  // The city the customer is shopping in: their account's branch, or the one a guest chose.
+  String _areaLabel(User? user) {
+    if (BranchService.hasChoice) {
+      final isGuest = user?.isGuest == true;
+      final branchId = isGuest ? BranchService.selectedId : user?.branchId;
+      if (branchId != null) return BranchService.nameOf(branchId);
+      if (isGuest) return _tr('Choose your city');
+    }
+    return _userCity?.isNotEmpty == true ? _userCity! : _tr('Your area');
   }
 
   Future<void> _refreshStoresForResolvedLocation() async {
@@ -1675,7 +1737,8 @@ class _CustomerDashboardTestScreenState
               ? '${_tr('Hi')} ${Fmt.isolate(firstName)}'
               : '${_tr('Hi')}, $firstName')
         : _tr('Welcome to ServeNow');
-    final area = _userCity?.isNotEmpty == true ? _userCity! : _tr('Your area');
+    final area = _areaLabel(user);
+    final canChangeCity = user?.isGuest == true && BranchService.hasChoice;
     final units = context.select<CartProvider, int>((c) => c.totalUnits);
 
     return Padding(
@@ -1711,24 +1774,33 @@ class _CustomerDashboardTestScreenState
                     leadingDistribution: TextLeadingDistribution.even,
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.location_on_rounded,
-                      size: 16,
-                      color: AppColors.primary,
+                Semantics(
+                  button: canChangeCity,
+                  label: canChangeCity ? _tr('Choose your city') : null,
+                  child: InkWell(
+                    onTap: canChangeCity ? () => _chooseCity(reload: true) : null,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.location_on_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 2),
+                        Flexible(
+                          child: Text(
+                            area,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.title,
+                          ),
+                        ),
+                        if (canChangeCity)
+                          const Icon(Icons.arrow_drop_down_rounded, size: 20),
+                      ],
                     ),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      child: Text(
-                        area,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.title,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),

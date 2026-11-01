@@ -5,7 +5,7 @@ This is ready-to-paste copy and an asset plan for the Play Console **Main store 
 > **Check before publishing.** Every claim below must stay true:
 > - Cash on delivery.
 > - Order status tracking with rider call/WhatsApp.
-> - Local stores in **Kot Addu**. Add other cities only once you deliver there.
+> - Local stores in **Kot Addu** and **Muzaffargarh**. Add a city here, and to the images, when it opens. Remove one if it closes.
 > - The Urdu app interface.
 >
 > **Have a native Urdu speaker proofread the Urdu text.**
@@ -22,19 +22,20 @@ ServeNow: Food & Grocery
 
 **Short description (80 max):**
 ```
-Order food & groceries in Kot Addu. Cash on delivery, track every order.
+Food & groceries in Kot Addu & Muzaffargarh. Cash on delivery, track orders.
 ```
-(72 characters)
+(76 characters)
 
 **Full description (4,000 max):**
 ```
-ServeNow brings your favourite Kot Addu restaurants, bakeries and grocery shops to your door. Order in a few taps and pay cash when your order arrives.
+ServeNow brings your favourite local restaurants, bakeries and grocery shops in Kot Addu and Muzaffargarh to your door. Order in a few taps and pay cash when your order arrives.
 
 WHY SERVENOW
 • Cash on delivery: pay the rider at your door. Paid orders show "Paid", so there is nothing extra to pay.
 • Clear prices: see item prices and the delivery fee before you place your order.
 • Track your order: follow each step from confirmed to on the way to delivered, and call or WhatsApp your rider in one tap.
 • Local stores you know: restaurants, fast food, bakeries, sweets, drinks, fruit, vegetables and everyday grocery from shops in your area.
+• Your city: choose Kot Addu or Muzaffargarh and see the stores that deliver there.
 • Urdu and English: use the whole app in Urdu or English.
 
 WHAT YOU CAN ORDER
@@ -57,13 +58,13 @@ ServeNow riders and partner stores use the same app to manage deliveries and ord
 SUPPORT
 Need help with an order? Open the order and tap Support to call or WhatsApp us.
 
-ServeNow currently delivers in Kot Addu. More areas are coming soon.
+ServeNow delivers in Kot Addu and Muzaffargarh. More cities are coming soon.
 ```
 (about 1,500 characters; enough room to add a city section later)
 
 **Release notes, "What's new" (500 max):**
 ```
-A fresh new look! Faster store pages with prices on every item, one-tap Add, a "View cart" bar, an Order again row, clearer order tracking with "Pay rider" amounts, and better Urdu support. Riders and store partners get simpler, easier-to-read screens.
+Now in Muzaffargarh as well as Kot Addu! Choose your city and see the stores that deliver there. Plus a fresh new look, prices on every item, one-tap Add, an Order again row, clearer order tracking and a help chat. Pay cash on delivery or with your wallet.
 ```
 
 ---
@@ -77,18 +78,19 @@ A fresh new look! Faster store pages with prices on every item, one-tap Add, a "
 
 **Short description:**
 ```
-کوٹ ادو میں کھانا اور گروسری گھر منگوائیں۔ کیش آن ڈیلیوری، ہر آرڈر ٹریک کریں۔
+کوٹ ادو اور مظفرگڑھ میں کھانا اور گروسری۔ کیش آن ڈیلیوری، ہر آرڈر ٹریک کریں۔
 ```
 
 **Full description:**
 ```
-سرو ناؤ کوٹ ادو کے آپ کے پسندیدہ ریسٹورنٹس، بیکریاں اور کریانہ اسٹورز آپ کے دروازے تک لاتا ہے۔ چند ٹیپ میں آرڈر کریں اور آرڈر پہنچنے پر نقد ادائیگی کریں۔
+سرو ناؤ کوٹ ادو اور مظفرگڑھ کے آپ کے پسندیدہ ریسٹورنٹس، بیکریاں اور کریانہ اسٹورز آپ کے دروازے تک لاتا ہے۔ چند ٹیپ میں آرڈر کریں اور آرڈر پہنچنے پر نقد ادائیگی کریں۔
 
 سرو ناؤ کیوں؟
 • کیش آن ڈیلیوری: رائیڈر کو دروازے پر ادائیگی کریں۔ ادا شدہ آرڈر پر "ادا شدہ" لکھا ہوتا ہے، کوئی اضافی رقم نہیں۔
 • واضح قیمتیں: آرڈر سے پہلے ہر چیز کی قیمت اور ڈیلیوری فیس دیکھیں۔
 • آرڈر ٹریک کریں: کنفرم سے لے کر راستے میں اور ڈیلیور ہونے تک ہر مرحلہ دیکھیں، اور ایک ٹیپ میں رائیڈر کو کال یا واٹس ایپ کریں۔
 • مقامی اسٹورز: ریسٹورنٹس، فاسٹ فوڈ، بیکری، مٹھائی، مشروبات، پھل، سبزی اور روزمرہ کا سودا سلف۔
+• آپ کا شہر: کوٹ ادو یا مظفرگڑھ منتخب کریں اور وہاں ڈیلیوری کرنے والی دکانیں دیکھیں۔
 • اردو اور انگریزی: پوری ایپ اردو یا انگریزی میں استعمال کریں۔
 
 آپ کیا منگوا سکتے ہیں
@@ -105,19 +107,19 @@ A fresh new look! Faster store pages with prices on every item, one-tap Add, a "
 مدد
 آرڈر میں مدد چاہیے؟ آرڈر کھولیں اور "سپورٹ" پر ٹیپ کر کے ہمیں کال یا واٹس ایپ کریں۔
 
-سرو ناؤ فی الحال کوٹ ادو میں ڈیلیوری کرتا ہے۔
+سرو ناؤ کوٹ ادو اور مظفرگڑھ میں ڈیلیوری کرتا ہے۔ مزید شہر جلد آ رہے ہیں۔
 ```
 
 **Release notes:**
 ```
-نیا اور تازہ ڈیزائن! ہر چیز پر قیمت، ایک ٹیپ میں شامل کریں، "کارٹ دیکھیں" بار، دوبارہ آرڈر، واضح آرڈر ٹریکنگ اور بہتر اردو۔ رائیڈرز اور اسٹور پارٹنرز کے لیے آسان اسکرینز۔
+اب کوٹ ادو کے ساتھ مظفرگڑھ میں بھی! اپنا شہر منتخب کریں اور وہاں ڈیلیوری کرنے والی دکانیں دیکھیں۔ ساتھ ہی نیا ڈیزائن، ہر چیز پر قیمت، ایک ٹیپ میں شامل کریں، دوبارہ آرڈر، بہتر آرڈر ٹریکنگ اور مدد کی چیٹ۔ ادائیگی ڈیلیوری پر نقد یا والٹ سے کریں۔
 ```
 
 ---
 
 ## 3. Keywords (there is no keyword field, so weave these in naturally)
 Google indexes the title and the short and full descriptions. The copy above already uses most of these terms once or twice. Don't add keyword lists, because Google penalises that.
-- **English:** food delivery, grocery delivery, order food, cash on delivery, Kot Addu, biryani, broast, pizza, burger, bakery, fruit, vegetables.
+- **English:** food delivery, grocery delivery, order food, cash on delivery, Kot Addu, Muzaffargarh, biryani, broast, pizza, burger, bakery, fruit, vegetables.
 - **Roman Urdu** (not yet in the copy; test them in a custom listing or ads): khana order, ghar pe delivery, sauda salaf, kiryana, sabzi, doodh, atta.
 - **Urdu:** کھانا، ڈیلیوری، گروسری، سودا سلف، کریانہ.
 - **After launch:** check Play Console → Statistics → *Store listing acquisition → Search terms* every month, and adjust the short description towards the terms that convert.
@@ -126,20 +128,23 @@ Google indexes the title and the short and full descriptions. The copy above alr
 | Asset | Spec | Content |
 |---|---|---|
 | App icon | 512×512 PNG | The current ServeNow cart logo on a plain white or light background, with no text. |
-| Feature graphic | 1024×500, JPEG or 24-bit PNG without transparency | A green `#15803D` background with the white "ServeNow" wordmark, the line "Food & grocery, delivered in Kot Addu", and a photo collage of local food and grocery. Keep the text centred, because Google crops the edges on some screens. |
-| Phone screenshots | 1080×1920 portrait, 6 in English and 6 in Urdu | Use the redesigned app (§5), each with one short caption above the phone frame. |
+| Feature graphic | 1024×500, JPEG or 24-bit PNG without transparency | A green `#15803D` background with the white "ServeNow" wordmark, the line "Food & grocery, delivered in Kot Addu & Muzaffargarh", and a photo collage of local food and grocery. Keep the text centred, because Google crops the edges on some screens. |
+| Phone screenshots | 1080×1920 portrait, 7 in English and 7 in Urdu | Use the redesigned app (§5), each with one short caption above the phone frame. |
 
 ## 5. Screenshot order and captions
 Build these from the redesigned screens in `docs/app-screens/after/` once the redesign is final, using **demo data, not real customer names or addresses**.
 
 | # | Screen | English caption | Urdu caption |
 |---|---|---|---|
-| 1 | Home (search, featured, order again) | Food & groceries in Kot Addu | کوٹ ادو میں کھانا اور گروسری |
-| 2 | Store page with prices and ADD | Prices on every item | ہر چیز کی قیمت سامنے |
-| 3 | Cart and checkout, cash on delivery | Pay cash at your door | دروازے پر نقد ادائیگی |
-| 4 | Order tracking with rider call | Track every order | ہر آرڈر ٹریک کریں |
-| 5 | Order again row and orders list | Reorder in seconds | سیکنڈوں میں دوبارہ آرڈر |
-| 6 | The app in Urdu | Available in Urdu | اردو میں دستیاب |
+| 1 | Home with the city at the top | Food & groceries in your city | آپ کے شہر میں کھانا اور گروسری |
+| 2 | Choose your city | Now in Kot Addu & Muzaffargarh | اب کوٹ ادو اور مظفرگڑھ میں |
+| 3 | Store page with prices and ADD | Prices on every item | ہر چیز کی قیمت سامنے |
+| 4 | Cart and checkout, cash on delivery | Pay cash at your door | دروازے پر نقد ادائیگی |
+| 5 | Order tracking with rider call | Track every order | ہر آرڈر ٹریک کریں |
+| 6 | Order again row and orders list | Reorder in seconds | سیکنڈوں میں دوبارہ آرڈر |
+| 7 | The app in Urdu | Available in Urdu | اردو میں دستیاب |
+
+The current images are in `docs/play-store/screenshots/` (`en`, `ur`, `feature-graphic.png`), taken from app 1.2.12 with demo data.
 
 Don't show "% off", "free" or "#1" on any image.
 

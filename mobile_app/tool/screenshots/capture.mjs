@@ -390,7 +390,7 @@ async function captureRole(role, page) {
       page.mocks = sc.mock || {};
       await page.boot(await makeSession(sc.session || role), { semantics: !sc.raw });
       await settle(page, sc.bootWait ?? 3500);
-      await runSteps(page, [...(sc.raw ? [] : ['dismiss']), ...(sc.steps || []), ...(sc.expect ? [`until:${sc.expect}`] : [])]);
+      await runSteps(page, [...(sc.raw || sc.keepOpen ? [] : ['dismiss']), ...(sc.steps || []), ...(sc.expect ? [`until:${sc.expect}`] : [])]);
       await settle(page, sc.wait ?? 2500);
       await page.screenshot(file);
       })()]);

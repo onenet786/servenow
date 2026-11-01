@@ -72,6 +72,10 @@ starts from a fresh page load, so one failure does not cascade. A failed
 scenario leaves `DIR/<role>/_failed_<name>.png` showing where it got stuck.
 The process exits non-zero if anything failed.
 
+### Play Store images
+
+The `play_en` and `play_ur` roles use a fictional customer (id 990001) and need a demo database holding that customer, a demo rider and demo orders, with every store open and a fresh rider position. Never run them with a real customer. Run with `--roles play_en,play_ur`, then place each capture on a 1080x1920 canvas with its caption: the raw 780x1688 images are too tall for Play, which allows at most 2:1.
+
 ### Exploring and debugging steps
 
 Use `--dump` to print every visible semantics label (with x,y position) after

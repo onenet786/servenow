@@ -102,6 +102,33 @@ SCENARIOS.guest = [
   { name: '17_guest_orders', steps: [DASH_ORDERS_TAB] },
 ];
 
+// Play Store images. Use the seeded demo customer (id 990001), never a real one, and only with a
+// demo database: run these with --roles play_en,play_ur.
+const DEMO = { id: 990001, email: 'ali.raza@demo.servenow.pk', user_type: 'customer', first_name: 'Ali', last_name: 'Raza', phone: '03001234567', address: 'House 12, Main Bazaar, Kot Addu', is_verified: true };
+ROLES.play_en = { user: DEMO, prefs: { ...EN }, cart: CART };
+ROLES.play_ur = { user: DEMO, prefs: { ...URDU }, cart: CART };
+ROLES.play_guest_ur = { user: GUEST, prefs: { ...URDU } };
+
+SCENARIOS.play_en = [
+  { name: '01_home', wait: 4000 },
+  { name: '02_city', session: 'guest', keepOpen: true, steps: ['wait:6000'], expect: 'Muzaffargarh' },
+  { name: '03_store', steps: [...OPEN_STORE], wait: 3000, expect: 'Store Details' },
+  { name: '04_checkout_payment', steps: [DASH_CART, 'tap:Proceed to Checkout', 'scroll:700'], wait: 2000 },
+  { name: '05_track_order', steps: [DASH_ORDERS_TAB, 'tapx:View details', 'wait:1500', 'scroll:2500', 'tap:Track Order'], wait: 4000 },
+  { name: '06_orders', steps: [DASH_ORDERS_TAB, 'tapx:History'], wait: 2000 },
+];
+
+SCENARIOS.play_ur = [
+  { name: '01_home', wait: 4000 },
+  { name: '02_city', session: 'play_guest_ur', keepOpen: true, steps: ['wait:6000'], expect: 'Muzaffargarh' },
+  { name: '03_store', steps: [...UR_OPEN_STORE], wait: 3000 },
+  { name: '04_checkout_payment', steps: [UR_CART, `tap:${UR.checkout}`, 'scroll:700'], wait: 2000 },
+  { name: '05_order_details', steps: [UR_ORDERS_TAB, `tapx:${UR.viewDetails}`], wait: 2500 },
+  // Tapping a filter moves the pointer off the tab, so its tooltip does not show.
+  { name: '06_orders', steps: [UR_ORDERS_TAB, 'wait:800', 'tapx:سب'], wait: 2500 },
+  { name: '07_account', steps: [UR_ACCOUNT_TAB], wait: 2000 },
+];
+
 SCENARIOS.customer = [
   { name: '01_home', wait: 3500 },
   { name: '02_home_scrolled', steps: ['scroll:900'] },
