@@ -59,7 +59,7 @@ const connector = createConnector({
       const denied = await ai.accessError(db, t, user);
       return denied ? denied.message : true;
     },
-    preview: t.action ? (args, { db, user }) => ai.ACTIONS[t.name].preview(db, args, user) : undefined,
+    preview: t.action ? (args, { db, io, user }) => ai.ACTIONS[t.name].preview(db, args, user, io) : undefined,
     run: t.action
       ? (args, { db, io, user }) => ai.ACTIONS[t.name].run(db, args, user, io)
       : (args, { db, user }) => ai.runTool(db, t.name, args, user),

@@ -26,7 +26,12 @@ else's order get the same "not found" answer. Branch accounts only hear about th
 
 | Action | Who | What |
 |---|---|---|
+| `place_order` | signed-in customers | "2 chicken biryani aur 1 cold drink Aghosh Hotel se": finds the products and sizes (asks when unclear), uses the saved address unless another is given, cash on delivery or wallet. The order goes through the website's own order handler (`POST /api/orders`), first as a dry run for the summary, so prices, offers, stock, store hours, branch, delivery fee and wallet balance follow the website exactly |
 | `assign_rider` | admins, staff with *Edit orders* (the right the admin screen's Assign rider needs) | "Assign Ali to order ORD-…": finds the rider by name among the order's branch riders; lists them if several or none match |
+
+Answers about stores, products and orders carry their page links (`store.html?id=…`,
+`order-confirmation.html?order_number=…`, `orders.html`) so the assistant can share them; set
+`PUBLIC_SITE_URL` if the site is not `https://servenow.pk`.
 
 How an action runs (utils/aiagent-connect.js):
 

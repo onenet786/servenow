@@ -2162,6 +2162,30 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const grandTotal = roundAmount(itemsSubtotal + delivery_fee);
 
+    // Price check without placing the order (the chat assistant's summary before the customer says yes).
+    // Everything above only reads, so this returns before anything is written. The flag can only be set
+    // inside the server (services/assistantOrders.js), never from a request body or query.
+    if (req.assistantDryRun === true) {
+      let walletBalance = null;
+      if (payment_method === "wallet") {
+        const [w] = await req.db.execute("SELECT balance FROM wallets WHERE user_id = ?", [req.user.id]);
+        walletBalance = w.length ? roundAmount(parseFloat(w[0].balance)) : 0;
+      }
+      return res.json({
+        success: true,
+        dry_run: true,
+        items: preparedItems.map((i) => ({
+          product_id: i.productId, quantity: Number(i.quantity), unit_price: roundAmount(i.unitPrice),
+          variant_label: i.variantLabel || null, store_id: i.storeId,
+        })),
+        items_subtotal: roundAmount(itemsSubtotal),
+        delivery_fee: roundAmount(delivery_fee),
+        total: grandTotal,
+        branch: orderBranch.name,
+        wallet_balance: walletBalance,
+      });
+    }
+
     // Persist the order atomically: stock check, wallet debit, order, items,
     // stock decrement and wallet/payment records all commit or all roll back.
     // Schema helpers run DDL (implicit commit), so they must run before the transaction.

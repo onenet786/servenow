@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const { staffHasRight } = require('../middleware/auth');
 const { DEFAULT_BRANCH_ID, toBranchId, staffScope, listBranches } = require('../utils/branches');
 const { checkAssignment, assignRider } = require('./riderAssignment');
+const { placeOrderAction } = require('./assistantOrders');
 
 const TOKEN_TTL_SECONDS = 2 * 3600;
 const OPEN_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'out_for_delivery'];
@@ -173,6 +174,39 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    // An action: the customer confirms the summary (items, delivery, total, address, payment) first.
+    name: 'place_order',
+    action: true,
+    who: ['customer'],
+    description: 'Place an order for the signed-in customer from one store, by chat, voice or Live: e.g. "2 chicken biryani '
+      + 'aur 1 cold drink Aghosh Hotel se". Use store_products first if they need the menu. If a product has sizes, ask '
+      + 'which one; if they give no address, their saved address is used (say so). Payment: cash on delivery or wallet. '
+      + 'Prices, offers, delivery fee and store hours are the same as on the website.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        store: { type: 'string', description: 'Store name' },
+        items: {
+          type: 'array',
+          description: 'What to order',
+          items: {
+            type: 'object',
+            properties: {
+              product: { type: 'string', description: 'Product name as on the menu' },
+              quantity: { type: 'integer', description: 'How many (1-50)' },
+              size: { type: 'string', description: 'Size or pack, when the product has several (e.g. "1.5 litre")' },
+            },
+            required: ['product', 'quantity'],
+          },
+        },
+        delivery_address: { type: 'string', description: 'Only if different from their saved address' },
+        payment_method: { type: 'string', enum: ['cash', 'wallet'], description: 'Default cash on delivery' },
+        notes: { type: 'string', description: 'Optional note for the store or rider' },
+      },
+      required: ['store', 'items'],
+    },
+  },
+  {
     // An action: the connector asks the person to confirm a summary before anything changes.
     name: 'assign_rider',
     action: true,
@@ -210,6 +244,15 @@ const money = (n) => {
 const clean = (v, max = 60) => String(v ?? '').replace(/[%_\\]/g, ' ').trim().slice(0, max);
 const statusOf = (s) => ({ status: s, meaning: STATUS_TEXT[s] || s });
 const timeText = (t) => (t ? String(t).slice(0, 5) : null);
+// Full addresses of the website's pages, so the assistant can share links (the chat shows them clickable).
+const siteBase = () => String(process.env.PUBLIC_SITE_URL || 'https://servenow.pk').trim().replace(/\/+$/, '');
+const pages = {
+  store: (id) => `${siteBase()}/store.html?id=${encodeURIComponent(id)}`,
+  order: (no) => `${siteBase()}/order-confirmation.html?order_number=${encodeURIComponent(no)}`,
+  myOrders: () => `${siteBase()}/orders.html`,
+  stores: () => `${siteBase()}/stores.html`,
+};
+const LINK_NOTE = 'Share the page link (page / store_page) in your answer so they can open it with one tap.';
 const when = (d) => (d ? new Date(d).toISOString() : null);
 
 // Same rule as the store list: inside opening hours (overnight hours allowed), server time.
@@ -271,7 +314,10 @@ async function findStores(db, args, user) {
       notice: s.status_message || undefined,
       delivery_time: s.delivery_time || undefined,
       rating: s.rating == null ? undefined : Number(s.rating),
+      page: pages.store(s.id),
     })),
+    all_stores_page: pages.stores(),
+    note: LINK_NOTE,
   };
 }
 
@@ -287,7 +333,7 @@ async function findProducts(db, args, user) {
   let where = `p.is_available = 1 AND p.name LIKE ? AND s.is_active = 1 AND COALESCE(s.is_customer_visible, 1) = 1 AND s.branch_id IN (${placeholders(branchIds.length)})`;
   if (store) { where += ' AND s.name LIKE ?'; params.push(`%${store}%`); }
   const [rows] = await db.execute(
-    `SELECT p.name, p.price, p.stock_quantity, p.available_from, p.available_to, s.name AS store_name,
+    `SELECT p.name, p.price, p.stock_quantity, p.available_from, p.available_to, s.id AS store_id, s.name AS store_name,
             s.opening_time, s.closing_time, sm.is_closed
        FROM products p JOIN stores s ON s.id = p.store_id
        LEFT JOIN store_status_messages sm ON sm.store_id = s.id
@@ -305,7 +351,9 @@ async function findProducts(db, args, user) {
       in_stock: p.stock_quantity == null ? undefined : Number(p.stock_quantity) > 0,
       only_between: p.available_from && p.available_to ? `${timeText(p.available_from)}–${timeText(p.available_to)}` : undefined,
       store_open_now: !p.is_closed && openBySchedule(p.opening_time, p.closing_time),
+      store_page: pages.store(p.store_id),
     })),
+    note: `${LINK_NOTE} To order, use place_order.`,
   };
 }
 
@@ -371,13 +419,15 @@ async function storeProducts(db, args, user) {
     hours: s.opening_time && s.closing_time ? `${timeText(s.opening_time)}–${timeText(s.closing_time)}` : undefined,
     delivery_time: s.delivery_time || undefined,
     notice: s.status_message || undefined,
+    page: pages.store(s.id),
     total_products: count,
     categories: [...groups].map(([name, products]) => ({ name, products })),
-    note: !count
+    note: (!count
       ? (category || search ? 'Nothing matches in this store. Suggest another category or word.' : 'This store has no products listed right now.')
       : count > rows.length
         ? `Showing ${rows.length} of ${count}. Mention a few highlights and the categories, then ask which category or item they want.`
-        : 'Present this as a short menu: categories with a few items and prices; offer more detail on request.',
+        : 'Present this as a short menu: categories with a few items and prices; offer more detail on request.')
+      + ` ${LINK_NOTE} They can order here by saying what they want (place_order).`,
   };
 }
 
@@ -396,7 +446,10 @@ async function myOrders(db, args, user) {
     orders: rows.map((o) => ({
       order_number: o.order_number, store: o.store_name, ...statusOf(o.status),
       total: money(o.total_amount), payment: o.payment_method, placed_at: when(o.created_at),
+      page: pages.order(o.order_number),
     })),
+    all_orders_page: pages.myOrders(),
+    note: LINK_NOTE,
   };
 }
 
@@ -451,6 +504,9 @@ async function orderStatus(db, args, user) {
     delivery_fee: money(o.delivery_fee),
     total: money(o.total_amount),
     payment: { method: o.payment_method, status: o.payment_status },
+    // The order page is the customer's own; staff see it in the admin panel.
+    page: o.user_id === user.id ? pages.order(o.order_number) : undefined,
+    note: o.user_id === user.id ? LINK_NOTE : undefined,
   };
 }
 
@@ -599,6 +655,7 @@ async function resolveAssignment(db, args, user) {
 }
 
 const ACTIONS = {
+  place_order: placeOrderAction({ resolveStore, browseBranchIds, orderPage: pages.order }),
   assign_rider: {
     async preview(db, args, user) {
       const found = await resolveAssignment(db, args, user);
