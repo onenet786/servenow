@@ -134,6 +134,44 @@ MAX_FILE_SIZE=5242880
 UPLOAD_PATH=uploads/
 ```
 
+**Optional: AI chat assistant (AIAgent)** — leave `AIAGENT_URL` empty to keep it off:
+```env
+AIAGENT_URL=https://aiagent.binishaqsoft.com   # without /api
+AIAGENT_CHANNEL_KEY=<AIAgent → Channels → Website → key>
+AIAGENT_IDENTITY_SECRET=<same channel → Signed-in users → secret>
+AIAGENT_TOOL_SECRET=<AIAgent → Tools → Connected systems → Connect → secret>
+```
+
+---
+
+## AI Chat Assistant (AIAgent)
+
+Full details: [docs/AIAGENT.md](docs/AIAGENT.md). On the aaPanel server:
+
+1. **Files**: `services/aiagent.js`, `services/riderAssignment.js`, `routes/aiagent.js`, `utils/aiagent-connect.js`,
+   `js/aiagent.js`, `assistant.html` (the mobile app's chat page) and `server.js`.
+2. **Nginx** (Website → servenow.pk → Config): aaPanel's `location /.well-known/` block serves SSL files, so add
+   this **above** it, then save:
+   ```nginx
+   location = /.well-known/aiagent.json {
+       proxy_pass http://127.0.0.1:3002;
+       proxy_set_header Host $host;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+   Check: `https://servenow.pk/.well-known/aiagent.json` lists the tools.
+3. **AIAgent on the same server**: add `servenow.pk` to AIAgent's `TRUSTED_HOSTS`, add `127.0.0.1 servenow.pk` to
+   `/etc/hosts`, restart AIAgent (`sudo pm2 restart aiagent-api --update-env`).
+4. **Connect** in AIAgent (Tools → Connected systems), put the 4 settings above in `.env`, restart ServeNow from
+   aaPanel's **Node project** page, then press **Check** in AIAgent. After new tools are added to ServeNow, press
+   **Refresh** there.
+5. **Check**: `https://servenow.pk/api/aiagent/widget` shows `"enabled":true` and `"src":".../api/widget.js"`
+   (`/api` once, not twice).
+
+The assistant reads data; its one action, assigning a rider, runs only after the person confirms a summary and is
+recorded in the `assistant_actions` table (created automatically).
+
 ---
 
 ## Rate Limiting Protection
@@ -206,6 +244,11 @@ for i in {1..101}; do curl http://localhost:3002/api/products; done
 | "JWT authentication failing" | Verify JWT_SECRET matches |
 | "Database connection refused" | Check DB_HOST, DB_USER, DB_PASSWORD |
 | "Port 3002 already in use" | Change PORT in .env or kill process |
+| `/api/aiagent/widget` says "API endpoint not found" | The new files aren't running: upload them and restart ServeNow |
+| `src` shows `/api/api/widget.js` | Remove `/api` from the end of `AIAGENT_URL` |
+| AIAgent Connect: "Couldn't reach …/.well-known/aiagent.json" | Add the Nginx block above; for the same server also `TRUSTED_HOSTS` + `/etc/hosts` in AIAgent |
+| Chat shows, but no Live button or greeting for signed-in users | Old `js/app.js` cached: upload the latest and hard-refresh (it must load `app.js?v=31`) |
+| App: "Chat isn't set up on the server yet" | Upload `assistant.html` and `server.js`, restart ServeNow |
 
 ---
 

@@ -208,6 +208,11 @@ $$\text{Store Net Payable} = \text{Gross Order Amount} - \text{10\% Platform Com
 | **"Different Store in Cart" Block** | Customer ne Store A ke baad Store B ka item add kiya. | Single-store policy active hai. Cart screen par ja kar previous store ka cart clear karein. |
 | **Rider Cannot Receive Orders** | Rider ka cash debt Rs. 15,000 threshold exceed kar chuka hai. | Rider company hub par cash deposit karwaye. Admin `admin.html#receipt-vouchers` me CRV post karega to limit unblock ho jayegi. |
 | **Socket Realtime Disconnect** | Network timeout ya device sleep mode. | Page refresh karein ya check karein ke server heartbeat `/health` endpoint par active hai. |
+| **Chat button nazar nahi aata** | Assistant server par on nahi (`AIAGENT_` settings khali), ya login/register page khula hai. | Kisi aur page par jayein aur **Ctrl+F5**. Phir bhi na ho to IT ko `docs/AIAGENT.md` dikhayein. |
+| **Live button nahi** | AIAgent dashboard mein Live off hai. | AIAgent → Channels → Website → **Show the Live button** tick → **Save widget**, 1 minute baad Ctrl+F5. |
+| **App mein "Chat isn't set up on the server yet"** | Server par `assistant.html` upload nahi hui. | IT se `assistant.html` aur `server.js` upload karwa kar ServeNow restart karwayein. |
+| **Assistant kehta hai "user rights do not include this"** | Staff ke paas zaroori right nahi. | Admin → **User Rights** mein *View orders* / *View dashboard* / *Edit orders* dein. |
+| **"Ali" ke bajaye galat rider samjha** | Ek jaise naam. | Pura naam bolein (*"Ali Raza"*). Assistant summary mein naam sunata hai: ghalat ho to "nahi" kahein. |
 
 ---
 
@@ -220,7 +225,43 @@ $$\text{Store Net Payable} = \text{Gross Order Amount} - \text{10\% Platform Com
 *Jawab:* Admin console ke `admin.html#rider-cash` tab mein har rider ka "Cash in Hand" running balance live track hota hai. Agar koi rider Rs. 15,000 se ziada cash hold kare to system use naye orders dena block kar deta hai.
 
 **Q3: Kya admin kisi order ko force-assign kar sakta hai?**  
-*Jawab:* Haan! Orders Management desk (`admin.html#orders`) par har order ke sath **"Manual Reassign"** button mojood hai jis se operations team kisi bhi specific rider ko emergency mein order assign kar sakti hai.
+*Jawab:* Haan! Orders Management desk (`admin.html#orders`) par har order ke sath **"Manual Reassign"** button mojood hai jis se operations team kisi bhi specific rider ko emergency mein order assign kar sakti hai. Ab yeh **ServeNow Help chat** se bol kar bhi ho sakta hai (Section 6.3).
+
+**Q4: Kya chat assistant khud order place ya cancel karta hai, ya paise move karta hai?**  
+*Jawab:* Nahi. Assistant sirf maloomat deta hai. Sirf ek kaam karta hai jo kuch badalta hai: staff ke kehne par **rider assign karna**, aur woh bhi pehle summary suna kar aur aap ke "haan" ke baad (Section 6.3).
+
+---
+
+# SECTION 6: SERVENOW HELP (AI CHAT ASSISTANT)
+
+ServeNow par ek AI assistant hai jo text, voice message aur **Live** (phone call jaisi) baat-cheet se jawab deta hai: English, اردو aur Roman Urdu mein. Yeh live ServeNow data se jawab deta hai, andaze se nahi.
+
+### 6.1 Kahan milta hai
+- **Website**: har page ke neeche dayen kone mein chat button (login, register aur password pages par nahi, taake sign-in screens saaf rahein).
+- **Mobile app**: customer home par neeche dayen gol chat button; rider, store owner aur admin screens par upar ghanti (🔔) ke saath **headset** icon. Is se **ServeNow help** screen khulti hai.
+- **Microphone**: voice message ya **Live** pehli dafa dabane par phone/browser microphone ki ijazat maangta hai: **Allow** karein.
+
+### 6.2 Kaun kya pooch sakta hai
+| Kaun | Misaal |
+| :--- | :--- |
+| Koi bhi (bina sign-in) | "Kaun se stores abhi khule hain?", "Doodh hai? Qeemat?" |
+| Customer | "Mera aakhri order kahan hai?", "Order ORD-… ka status?", "Mere wallet mein kitne paise hain?" |
+| Rider | "Meri pending deliveries?", "Mera wallet?" |
+| Store owner | "Aaj mere store ke orders?" |
+| Admin / staff (rights ke mutabiq) | "Aaj ka business?", "Order ORD-… kis rider ke paas hai?" |
+
+- Har shakhs sirf **apna** data dekhta hai. Kisi aur ka order number poochne par jawab aata hai "yeh order nahi mila".
+- **Branch** accounts sirf apni branch ka data dekhte hain.
+- Staff ke liye **User Rights** lagu hain: *View orders* ke baghair orders nahi, *View dashboard* ke baghair aaj ke figures nahi.
+
+### 6.3 Bol kar rider assign karna (dispatch)
+Admin aur woh staff jinke paas **Edit orders** right hai (wohi right jo admin screen par "Assign rider" ke liye chahiye):
+1. Kahein: *"Ali ko order ORD-1730000000 de do"* (text, voice ya Live).
+2. Assistant **pehle summary sunata hai**, kuch badla nahi hota: *"Order ORD-… (Fresh Mart, Rs 1,250, ready) Ali Khan ko dena hai? Unke paas 2 deliveries pehle se hain."*
+3. Sirf saaf **"haan"** par assign hota hai. Rider, store owner aur customer ko wohi notifications jaati hain jo admin screen se jaati hain.
+4. Do Ali hon to assistant poochta hai kaun sa; naam na mile to us branch ke available riders ki list deta hai.
+5. "Haan" do dafa kehne se do dafa assign **nahi** hota. Summary 10 minute baad expire ho jati hai.
+6. Har aisa kaam `assistant_actions` table mein record hota hai (kis ne, kya, kab).
 
 ---
 *Official Production Operations Manual for servenow.pk. Aligned with Live Codebase & Admin Screenshots.*
