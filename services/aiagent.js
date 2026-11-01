@@ -11,6 +11,7 @@ const { staffHasRight } = require('../middleware/auth');
 const { DEFAULT_BRANCH_ID, toBranchId, staffScope, listBranches } = require('../utils/branches');
 const { checkAssignment, assignRider } = require('./riderAssignment');
 const { placeOrderAction } = require('./assistantOrders');
+const { orderChangeRequestAction, changeRequestsFor } = require('./orderChangeRequests');
 
 const TOKEN_TTL_SECONDS = 2 * 3600;
 const OPEN_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'out_for_delivery'];
@@ -209,6 +210,24 @@ const TOOLS = [
         notes: { type: 'string', description: 'Note for the whole order (store or rider)' },
       },
       required: ['items'],
+    },
+  },
+  {
+    // An action: the customer confirms the change request before it is sent.
+    name: 'request_order_change',
+    action: true,
+    who: ['customer'],
+    description: 'After an order is placed, the customer asks to change it: add or remove items, quantity, size, a note '
+      + 'or the address, e.g. "mere order mein 1 cold drink aur add kar do". The store and the team get it at once and '
+      + 'update the order (the total may change). Only for their own order, and only before the rider picks it up; '
+      + 'after that offer a new order (place_order). Write the change clearly: what, how many, which size.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        order_number: { type: 'string', description: 'The order to change (from my_orders if they do not know it)' },
+        change: { type: 'string', description: 'The change, clearly, e.g. "Add 1 × Cold Drink (1.5 litre)" or "Remove the yogurt"' },
+      },
+      required: ['order_number', 'change'],
     },
   },
   {
@@ -511,7 +530,10 @@ async function orderStatus(db, args, user) {
     payment: { method: o.payment_method, status: o.payment_status },
     // The order page is the customer's own; staff see it in the admin panel.
     page: o.user_id === user.id ? pages.order(o.order_number) : undefined,
-    note: o.user_id === user.id ? LINK_NOTE : undefined,
+    change_requests: await changeRequestsFor(db, o.id).then((list) => (list.length ? list : undefined)).catch(() => undefined),
+    note: o.user_id === user.id
+      ? `${LINK_NOTE} To change this order before the rider picks it up, use request_order_change.`
+      : undefined,
   };
 }
 
@@ -661,6 +683,7 @@ async function resolveAssignment(db, args, user) {
 
 const ACTIONS = {
   place_order: placeOrderAction({ resolveStore, browseBranchIds, orderPage: pages.order }),
+  request_order_change: orderChangeRequestAction(),
   assign_rider: {
     async preview(db, args, user) {
       const found = await resolveAssignment(db, args, user);
