@@ -218,11 +218,13 @@ const TOOLS = [
     name: 'edit_order',
     action: true,
     who: ['customer'],
-    description: 'Change the customer\'s own order directly while the store has not accepted it yet: cash on delivery, '
-      + 'within 10 minutes of ordering, up to 3 times. Add, remove or change items, sizes, quantities, notes or the '
-      + 'address, from stores of their city. First get the current items with order_status, then send the FULL new list '
-      + '(every item it should have afterwards). If it can no longer be changed directly, this says so: then use '
-      + 'request_order_change to send the change to the store and team.',
+    description: 'Use this first whenever a customer wants to add to, remove from or change an order they already placed '
+      + '(e.g. "is order mein Sarwar Drinks se 1 drink bhi add kar do"). It changes the order directly while the store '
+      + 'has not accepted it yet (cash on delivery, within 10 minutes, up to 3 times). Items may come from a DIFFERENT '
+      + 'store than the original order (any store of their city): that is allowed, give that item its own store, and the '
+      + 'delivery fee adjusts. Do not hand the customer to a person for this. First get the current items with '
+      + 'order_status, then send the FULL new list (old items they keep plus the new ones). If it can no longer be '
+      + 'changed directly, the reply says so: then use request_order_change, which sends it to the store and team.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -254,10 +256,12 @@ const TOOLS = [
     name: 'request_order_change',
     action: true,
     who: ['customer'],
-    description: 'After an order is placed, the customer asks to change it: add or remove items, quantity, size, a note '
-      + 'or the address, e.g. "mere order mein 1 cold drink aur add kar do". The store and the team get it at once and '
-      + 'update the order (the total may change). Only for their own order, and only before the rider picks it up; '
-      + 'after that offer a new order (place_order). Write the change clearly: what, how many, which size.',
+    description: 'Second step for changing a placed order: use it when edit_order says the order can no longer be changed '
+      + 'directly (the store accepted it, it is paid by wallet, or 10 minutes passed). Sends the change (add or remove '
+      + 'items, also from another store, quantity, size, a note or the address) to the store and team at once; they '
+      + 'update the order and the total may change. Only for their own order, and only before the rider picks it up; '
+      + 'after that offer a new order (place_order). Write the change clearly: what, how many, which size, which store. '
+      + 'Prefer this over handing them to a person.',
     inputSchema: {
       type: 'object',
       properties: {
