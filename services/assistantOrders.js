@@ -83,18 +83,30 @@ async function resolveOrder(db, args, user, { resolveStore, browseBranchIds }) {
   if (!customer || customer.user_type !== 'customer') {
     return { reply: { error: 'not_permitted', message: 'Only customer accounts can order through the assistant.' } };
   }
-  const storeName = clean(args.store, 50);
-  if (!storeName) return { reply: { error: 'missing', message: 'Ask which store they want to order from.' } };
-  const found = await resolveStore(db, storeName, await browseBranchIds(db, user));
-  if (found.reply) return found;
-  const store = found.store;
-
   const wanted = Array.isArray(args.items) ? args.items : [];
   if (!wanted.length) return { reply: { error: 'missing', message: 'Ask what they would like to order and how many.' } };
   if (wanted.length > MAX_LINES) return { reply: { error: 'too_many', message: `At most ${MAX_LINES} different items by chat; suggest the website for a bigger order.` } };
 
+  // Items may come from several stores of the customer's city (one order, as a mixed cart on the
+  // website). Each item names its store, or uses the order's store. Stores of another city are not
+  // offered to this customer, so they are "not found" here; the order handler checks the branch again.
+  const branchIds = await browseBranchIds(db, user);
+  const storesByName = new Map();
+  const storeOf = async (rawName) => {
+    const name = clean(rawName, 50);
+    if (!name) return { reply: { error: 'missing', message: 'Ask which store each item is from.' } };
+    const key = name.toLowerCase();
+    if (!storesByName.has(key)) storesByName.set(key, await resolveStore(db, name, branchIds));
+    const found = storesByName.get(key);
+    if (found.reply && found.reply.error === 'store_not_found') {
+      return { reply: { ...found.reply, message: `No store called "${name}" delivers to this customer's city. Use find_stores to show the stores here.` } };
+    }
+    return found;
+  };
+
   const items = [];
   const lines = [];
+  const itemNotes = [];
   for (const raw of wanted) {
     const name = clean(raw && raw.product, 60);
     const qty = Number(raw && raw.quantity);
@@ -102,6 +114,9 @@ async function resolveOrder(db, args, user, { resolveStore, browseBranchIds }) {
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) {
       return { reply: { error: 'bad_quantity', message: `Ask how many "${name}" they want (a whole number from 1 to ${MAX_QTY}).` } };
     }
+    const found = await storeOf((raw && raw.store) || args.store);
+    if (found.reply) return found;
+    const store = found.store;
     const [matches] = await db.execute(
       `SELECT p.id, p.name, p.price, p.size_id, p.unit_id, sz.label AS size_label, u.name AS unit_name
          FROM products p
@@ -137,39 +152,78 @@ async function resolveOrder(db, args, user, { resolveStore, browseBranchIds }) {
       if (choice.size_id) item.size_id = choice.size_id;
       if (choice.unit_id) item.unit_id = choice.unit_id;
     }
+    // The size read back: the one chosen, or the product's own built-in size (e.g. "500 g").
+    const size = choice ? choice.label : (product.size_label || product.unit_name || '');
+    const note = String((raw && raw.note) || '').replace(/\s+/g, ' ').trim().slice(0, 120);
     items.push(item);
-    lines.push({ name: choice ? `${product.name} (${choice.label})` : product.name, quantity: qty });
+    lines.push({ product_id: product.id, product: product.name, size, quantity: qty, note, store_id: store.id, store: store.name });
+    if (note) itemNotes.push(`${product.name}${size ? ` (${size})` : ''}: ${note}`);
   }
 
   const address = String(args.delivery_address || customer.address || '').trim().slice(0, 500);
   if (!address) return { reply: { error: 'missing_address', message: 'Ask for the delivery address (house, street, area, landmark).' } };
   const payment = ['cash', 'wallet'].includes(args.payment_method) ? args.payment_method : 'cash';
-  const notes = String(args.notes || '').trim().slice(0, 300);
+  const orderNote = String(args.notes || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  // One order note for the store and rider: the general note, then each item's note.
+  const notes = [orderNote, ...itemNotes].filter(Boolean).join(' | ').slice(0, 500);
 
+  const stores = [...new Map(lines.map((l) => [l.store_id, { id: l.store_id, name: l.store }])).values()];
   return {
     customer,
-    store,
+    stores,
     lines,
+    orderNote,
     body: { items, delivery_address: address, payment_method: payment, ...(notes ? { special_instructions: notes } : {}) },
   };
 }
 
-function summaryText(resolved, priced) {
-  const byProduct = new Map();
+/**
+ * The order as the website priced it, grouped by store: every line with its size and price (free offer
+ * lines too), each item's note, the order note, delivery (by number of stores), total, payment and
+ * address. Built from the order handler's own dry-run lines, so what is read back is what is placed.
+ */
+function orderReview(resolved, priced) {
+  const productName = new Map(resolved.lines.map((l) => [Number(l.product_id), l.product]));
+  const noteFor = new Map(resolved.lines.filter((l) => l.note).map((l) => [`${l.product_id}|${l.size}`, l.note]));
+  const sizeFor = new Map(resolved.lines.map((l) => [Number(l.product_id), l.size]));
+  const byStore = new Map(resolved.stores.map((s) => [Number(s.id), { store: s.name, lines: [] }]));
+  const noteShown = new Set(); // an offer's free line belongs to the same item: its note is read once
   for (const it of priced.items || []) {
-    const key = it.product_id;
-    if (!byProduct.has(key)) byProduct.set(key, []);
-    byProduct.get(key).push(it);
+    const group = byStore.get(Number(it.store_id)) || { store: 'Store', lines: [] };
+    if (!byStore.has(Number(it.store_id))) byStore.set(Number(it.store_id), group);
+    const size = it.variant_label || sizeFor.get(Number(it.product_id)) || '';
+    const free = Number(it.unit_price) === 0;
+    const noteKey = `${it.product_id}|${sizeFor.get(Number(it.product_id))}`;
+    const note = noteShown.has(noteKey) ? undefined : noteFor.get(noteKey);
+    if (note) noteShown.add(noteKey);
+    group.lines.push({
+      quantity: it.quantity,
+      product: productName.get(Number(it.product_id)) || 'Item',
+      size: size || undefined,
+      each: free ? undefined : { value: it.unit_price, text: rs(it.unit_price) },
+      line_total: { value: Math.round(it.unit_price * it.quantity * 100) / 100, text: rs(it.unit_price * it.quantity) },
+      free_offer: free || undefined,
+      note: note || undefined,
+    });
   }
-  const parts = resolved.lines.map((l, i) => {
-    const priceLines = byProduct.get(resolved.body.items[i].product_id) || [];
-    const each = priceLines.find((p) => p.unit_price > 0);
-    const free = priceLines.filter((p) => p.unit_price === 0).reduce((n, p) => n + p.quantity, 0);
-    return `${l.quantity} × ${l.name}${each ? ` (${rs(each.unit_price)} each)` : ''}${free ? `, ${free} free with an offer` : ''}`;
+  const stores = [...byStore.values()].filter((g) => g.lines.length);
+  return { stores, store_count: stores.length };
+}
+
+function summaryText(resolved, priced, review) {
+  const storeText = review.stores.map((g) => {
+    const lines = g.lines.map((l) => {
+      const what = `${l.quantity} × ${l.product}${l.size ? ` (${l.size})` : ''}`;
+      const price = l.free_offer ? 'free with an offer' : `${l.each.text} each = ${l.line_total.text}`;
+      return `${what}, ${price}${l.note ? `, note: "${l.note}"` : ''}`;
+    });
+    return `${g.store}: ${lines.join('; ')}`;
   });
-  return `Order from ${resolved.store.name}: ${parts.join('; ')}. Delivery ${rs(priced.delivery_fee)}. `
-    + `Total ${rs(priced.total)}, paid by ${PAYMENT_TEXT[resolved.body.payment_method]}. `
-    + `Deliver to: ${resolved.body.delivery_address}. Place this order?`;
+  const delivery = `Delivery ${rs(priced.delivery_fee)}${review.store_count > 1 ? ` (${review.store_count} stores)` : ''}`;
+  return `${storeText.join('. ')}. Items ${rs(priced.items_subtotal)}. ${delivery}. Total ${rs(priced.total)}, `
+    + `paid by ${PAYMENT_TEXT[resolved.body.payment_method]}. Deliver to: ${resolved.body.delivery_address}.`
+    + `${resolved.orderNote ? ` Note: "${resolved.orderNote}".` : ''}`
+    + ' Anything to add, remove or change? Say "yes" to place it.';
 }
 
 function placeOrderAction(deps) {
@@ -186,13 +240,19 @@ function placeOrderAction(deps) {
       if (resolved.body.payment_method === 'wallet' && p.wallet_balance !== null && p.wallet_balance < p.total) {
         return { error: 'wallet_too_low', message: `The wallet has ${rs(p.wallet_balance)} but the order is ${rs(p.total)}. Offer cash on delivery or a smaller order.` };
       }
+      const review = orderReview(resolved, p);
       return {
-        summary: summaryText(resolved, p),
-        store: resolved.store.name,
+        summary: summaryText(resolved, p, review),
+        stores: review.stores,
+        items_total: { value: p.items_subtotal, text: rs(p.items_subtotal) },
+        delivery_fee: { value: p.delivery_fee, text: rs(p.delivery_fee), stores: review.store_count },
         total: { value: p.total, text: rs(p.total) },
-        delivery_fee: { value: p.delivery_fee, text: rs(p.delivery_fee) },
         payment: PAYMENT_TEXT[resolved.body.payment_method],
         deliver_to: resolved.body.delivery_address,
+        note: resolved.orderNote || undefined,
+        how_to_present: 'Read every line with its size, price and note, then the delivery fee, total, payment and address. '
+          + 'If they add, remove or change anything (an item, size, quantity, store, note, address or payment), call '
+          + 'place_order again with the FULL updated list and no confirm_token, and read the new summary.',
       };
     },
     async run(db, args, user, io) {
@@ -208,7 +268,8 @@ function placeOrderAction(deps) {
         order_number: o.order_number,
         total: { value: Number(o.total_amount), text: rs(o.total_amount) },
         page: deps.orderPage(o.order_number),
-        message: `Order ${o.order_number} is placed. The store has been told. Share the order page link so they can follow it.`,
+        stores: resolved.stores.map((s) => s.name),
+        message: `Order ${o.order_number} is placed. ${resolved.stores.length > 1 ? 'The stores have' : 'The store has'} been told. Share the order page link so they can follow it.`,
       };
     },
   };

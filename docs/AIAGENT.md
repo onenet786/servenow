@@ -26,7 +26,7 @@ else's order get the same "not found" answer. Branch accounts only hear about th
 
 | Action | Who | What |
 |---|---|---|
-| `place_order` | signed-in customers | "2 chicken biryani aur 1 cold drink Aghosh Hotel se": finds the products and sizes (asks when unclear), uses the saved address unless another is given, cash on delivery or wallet. The order goes through the website's own order handler (`POST /api/orders`), first as a dry run for the summary, so prices, offers, stock, store hours, branch, delivery fee and wallet balance follow the website exactly |
+| `place_order` | signed-in customers | "2 chicken biryani Aghosh Hotel se, aur 1 yogurt Shafiq Malik Center se": one order from one or several stores of the customer's city (delivery fee per number of stores, as on the website); finds the products and sizes (asks when unclear), keeps a note per item and for the order, uses the saved address unless another is given, cash on delivery or wallet. The summary reads every line by store with size, price, free offer items and notes, then delivery, total, payment and address, and asks "anything to add, remove or change?"; any change before "yes" gives a new summary from the full list. The order goes through the website's own order handler (`POST /api/orders`), first as a dry run for the summary, so prices, offers, stock, store hours, branch, delivery fee and wallet balance follow the website exactly |
 | `assign_rider` | admins, staff with *Edit orders* (the right the admin screen's Assign rider needs) | "Assign Ali to order ORD-…": finds the rider by name among the order's branch riders; lists them if several or none match |
 
 Answers about stores, products and orders carry their page links (`store.html?id=…`,

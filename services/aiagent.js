@@ -178,32 +178,37 @@ const TOOLS = [
     name: 'place_order',
     action: true,
     who: ['customer'],
-    description: 'Place an order for the signed-in customer from one store, by chat, voice or Live: e.g. "2 chicken biryani '
-      + 'aur 1 cold drink Aghosh Hotel se". Use store_products first if they need the menu. If a product has sizes, ask '
-      + 'which one; if they give no address, their saved address is used (say so). Payment: cash on delivery or wallet. '
-      + 'Prices, offers, delivery fee and store hours are the same as on the website.',
+    description: 'Place an order for the signed-in customer by chat, voice or Live, from one or several stores of their '
+      + 'city in one order: e.g. "2 chicken biryani Aghosh Hotel se, aur 1 yogurt Shafiq Malik Center se". Use '
+      + 'store_products first if they need a menu. If a product has sizes, ask which one. Keep any note they give '
+      + '("less spicy") on that item, or as the order note. No address given: their saved address is used (say so). '
+      + 'Payment: cash on delivery or wallet. Before they say yes they may add, remove or change anything: then call '
+      + 'again with the FULL updated list (not just the change) and read the new summary. Prices, offers, delivery fee '
+      + '(more for each extra store) and store hours are the same as on the website.',
     inputSchema: {
       type: 'object',
       properties: {
-        store: { type: 'string', description: 'Store name' },
+        store: { type: 'string', description: 'Store for items that do not name their own' },
         items: {
           type: 'array',
-          description: 'What to order',
+          description: 'The whole order, every item (also when only one thing changed)',
           items: {
             type: 'object',
             properties: {
               product: { type: 'string', description: 'Product name as on the menu' },
               quantity: { type: 'integer', description: 'How many (1-50)' },
               size: { type: 'string', description: 'Size or pack, when the product has several (e.g. "1.5 litre")' },
+              store: { type: 'string', description: 'Store of this item, when the order has items from several stores' },
+              note: { type: 'string', description: 'Note for this item, e.g. "less spicy", "no onion"' },
             },
             required: ['product', 'quantity'],
           },
         },
         delivery_address: { type: 'string', description: 'Only if different from their saved address' },
         payment_method: { type: 'string', enum: ['cash', 'wallet'], description: 'Default cash on delivery' },
-        notes: { type: 'string', description: 'Optional note for the store or rider' },
+        notes: { type: 'string', description: 'Note for the whole order (store or rider)' },
       },
-      required: ['store', 'items'],
+      required: ['items'],
     },
   },
   {
