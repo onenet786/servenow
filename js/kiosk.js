@@ -70,7 +70,7 @@
   const stateText = (p) => ({
     in: () => `In since ${time(p.check_in_at)}`,
     away: () => `Out: ${p.reason} since ${time(p.check_out_at)}`,
-    done: () => `Finished at ${time(p.check_out_at)}`,
+    done: () => `Duty complete at ${time(p.check_out_at)}`,
   }[p.state] || (() => 'Not in yet'))();
 
   const clockText = (ms) => {
@@ -85,7 +85,7 @@
   }
 
   function waitText(person, left) {
-    const next = { in: 'Check Out', away: 'Check In', done: 'Check In Again' }[person.state];
+    const next = { in: 'Check Out', away: 'Check In' }[person.state];
     const now = person.state === 'in' ? 'checked in' : 'checked out';
     return `${person.name}, you are ${now}. ${next} opens in ${clockText(left)}`;
   }
@@ -176,14 +176,13 @@
   const NOTES = {
     in: (p) => `In since ${time(p.check_in_at)}. Why are you leaving?`,
     away: (p) => `Welcome back from ${p.reason}. Look at the camera.`,
-    done: (p) => `You finished at ${time(p.check_out_at)}. Came back to work?`,
     out: () => 'Look at the camera.',
   };
 
   function open(person, { autoCheckIn }) {
     current = person;
     const leaving = person.state === 'in';
-    const label = person.state === 'done' ? 'Check In Again' : 'Check In';
+    const label = 'Check In';
     $('personName').textContent = person.name;
     $('personNote').textContent = NOTES[person.state](person);
     $('confirm').textContent = label;
@@ -224,7 +223,13 @@
     idleTimer = setTimeout(close, RESULT_MS);
   }
 
+  const dutyDone = (person) => `${person.name}, your duty for today is complete. See you tomorrow.`;
+
   function tapped(person) {
+    if (person.state === 'done') {
+      showResult(dutyDone(person), true);
+      return;
+    }
     if (person.face) {
       showResult(`${person.name}, please look at the camera.`, false);
       return;
@@ -240,7 +245,6 @@
   function recognised(match) {
     rest(match.id);
     pass = match.pass;
-    // After Going Home, passing the camera must not reopen the day: only a press does.
     open(match, { autoCheckIn: match.state === 'out' || match.state === 'away' });
   }
 
@@ -265,6 +269,12 @@
     if (!match) {
       seenId = null;
       status('Not recognised. If you are not enrolled, tap your name.');
+      return;
+    }
+    // Going Home ended the day: walking past the camera only says so.
+    if (match.state === 'done') {
+      seenId = null;
+      status(dutyDone(match), true);
       return;
     }
     // Standing here just after a mark is neither leaving nor coming back, so it only shows the time left.

@@ -37,7 +37,7 @@ const mark = (database, body, { user = staff, ua } = {}) => request(hr, '/api/hr
 const PHONE = 'Mozilla/5.0 (Linux; Android 12) Chrome/120 Mobile Safari/537.36';
 const PC = 'Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36';
 
-test.after(() => fs.rmSync(PHOTOS, { recursive: true, force: true }));
+test.after(() => { try { fs.rmSync(PHOTOS, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); } catch (_) { /* another test file is using it */ } });
 
 test('payroll: a full month pays the full salary', () => {
   const days = Array.from({ length: 31 }, (_, i) => ({ date: `2026-10-${String(i + 1).padStart(2, '0')}`, status: 'present' }));
@@ -208,7 +208,7 @@ test('a salary voucher is a draft on 5100 and touches no wallet', async () => {
     const a = activeAccount(q, 'admin');
     if (a) return a;
     if (/SELECT \* FROM employees WHERE id = \?/.test(q)) return [[employee]];
-    if (/FROM employees e\s+LEFT JOIN payroll_lines/.test(q)) return [[{ ...employee, bonus: 0, deduction: 0 }]];
+    if (/FROM employees e\s+LEFT JOIN shifts/.test(q)) return [[{ ...employee, bonus: 0, deduction: 0 }]];
     if (/FROM attendance/.test(q)) return [Array.from({ length: 31 }, (_, i) => ({ employee_id: 9, date: `2026-10-${String(i + 1).padStart(2, '0')}`, status: 'present' }))];
     return undefined;
   });

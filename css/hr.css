@@ -110,6 +110,23 @@
 .hr-rate .hr-meter { flex: 1; margin: 0; }
 .hr-rate b { width: 40px; text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 
+.hr-view-tools { display: flex; justify-content: flex-end; padding: 12px 18px 0; }
+.hr-view-tools .btn { min-height: 36px; border-radius: 9px; }
+.hr-stack b { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hr-stack small { display: block; font-size: 11.5px; color: var(--sn-muted, #6b7280); white-space: nowrap; }
+.hr-stack small.warn { color: #b45309; font-weight: 600; }
+
+/* Wide sheets stay inside the page */
+#hrPayrollKpis { grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); }
+#hrPayrollKpis .hr-kpi-value { font-size: 19px; }
+#hr-payroll .hr-table th, #hr-payroll .hr-table td, #hr-employees .hr-table th, #hr-employees .hr-table td { padding-left: 9px; padding-right: 9px; }
+#hr-payroll .hr-table th:first-child, #hr-payroll .hr-table td:first-child, #hr-employees .hr-table th:first-child, #hr-employees .hr-table td:first-child { padding-left: 16px; }
+#hr-payroll .hr-person, #hr-employees .hr-person { min-width: 138px; gap: 8px; }
+#hr-payroll .hr-ava, #hr-employees .hr-ava { width: 30px; height: 30px; font-size: 11px; }
+#hr-payroll .hr-stack b { white-space: nowrap; }
+#hr-payroll .hr-money-input { width: 66px; padding: 0 6px; }
+#hr-employees .hr-row-actions { flex-wrap: wrap; justify-content: flex-start; min-width: 118px; }
+
 /* Row actions */
 .hr-row-actions { display: flex; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
 .hr-page .hr-table .hr-row-actions .btn-small { margin: 0; min-height: 30px; padding: 5px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; box-shadow: none; transform: none;

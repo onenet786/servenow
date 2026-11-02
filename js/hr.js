@@ -19,6 +19,24 @@
 
   const failed = (error) => showError('Error', error.message);
 
+  const clock = (value) => {
+    if (!value) return '';
+    const [hours, minutes] = String(value).split(':').map(Number);
+    return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'am' : 'pm'}`;
+  };
+  const shiftTime = (start, end) => (start ? `${clock(start)} to ${clock(end)}` : '');
+  const hoursText = (minutes) => {
+    const total = Math.round(Number(minutes || 0));
+    return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, '0')}m`;
+  };
+  const INCENTIVES = {
+    monthly: (a) => `${rupees(a)} a month`,
+    per_day: (a) => `${rupees(a)} a day worked`,
+    per_delivery: (a) => `${rupees(a)} a delivery`,
+    full_attendance: (a) => `${rupees(a)} for no absence`,
+  };
+  const incentiveText = (e) => (INCENTIVES[e.incentive_type] ? INCENTIVES[e.incentive_type](e.incentive_amount) : '');
+
   const ICONS = { day: 'fa-calendar-day', month: 'fa-calendar-alt', kiosk: 'fa-desktop', staff: 'fa-users', pay: 'fa-wallet' };
 
   function avatar(name) {
@@ -52,9 +70,11 @@
   function employeeRow(e) {
     return `<tr>
       <td>${person(e.name, e.designation || '')}</td>
+      <td>${e.shift_name ? `<div class="hr-stack"><b>${esc(e.shift_name)}</b><small>${esc(shiftTime(e.shift_start, e.shift_end))}</small></div>` : '<span class="hr-none">No shift</span>'}</td>
       <td>${e.rider_id ? 'Rider login' : e.user_id ? 'Staff login' : '<span class="hr-none">No login</span>'}</td>
       <td>${esc(e.branch_name || '-')}</td>
       <td class="hr-pay-only hr-num" style="${canSeePay ? '' : 'display:none'}">${rupees(e.monthly_salary)}</td>
+      <td class="hr-pay-only" style="${canSeePay ? '' : 'display:none'}">${esc(incentiveText(e)) || '<span class="hr-none">None</span>'}</td>
       <td>${e.is_active ? pill('good', 'Active') : pill('', 'Left')}</td>
       <td>${e.face_samples ? pill('good', 'Enrolled') : pill('warn', 'Not enrolled')}</td>
       <td><div class="hr-row-actions"><button type="button" class="btn-small btn-info" data-hr-edit="${e.id}">Edit</button>
@@ -73,7 +93,7 @@
     });
     $('hrEmployeeCount').textContent = `${rows.length} of ${employees.length} shown`;
     $('hrEmployeesBody').innerHTML = rows.map(employeeRow).join('')
-      || empty(7, 'fa-users', employees.length ? 'Nobody matches this search.' : 'No employees yet. Press Add Employee.');
+      || empty(9, 'fa-users', employees.length ? 'Nobody matches this search.' : 'No employees yet. Press Add Employee.');
   }
 
   function employeeKpis() {
@@ -93,7 +113,7 @@
 
   async function loadHrEmployees() {
     const body = $('hrEmployeesBody');
-    body.innerHTML = loadingRow(7);
+    body.innerHTML = loadingRow(9);
     try {
       const data = await api('/employees');
       employees = data.employees;
@@ -102,9 +122,23 @@
       employeeKpis();
       showEmployees();
     } catch (error) {
-      body.innerHTML = empty(7, 'fa-exclamation-circle', 'Could not load employees.');
+      body.innerHTML = empty(9, 'fa-exclamation-circle', 'Could not load employees.');
       failed(error);
     }
+  }
+
+  function showIncentive() {
+    const on = $('hrEmployeeIncentive').value !== 'none' && canSeePay;
+    $('hrIncentiveAmountGroup').style.display = on ? '' : 'none';
+    $('hrIncentiveNoteGroup').style.display = on ? '' : 'none';
+  }
+
+  async function fillShifts(current) {
+    const box = $('hrEmployeeShift');
+    const { shifts } = await api('/shifts');
+    box.innerHTML = '<option value="">No shift</option>';
+    shifts.forEach((s) => box.add(new Option(`${s.name} (${shiftTime(s.start_time, s.end_time)})`, s.id)));
+    box.value = current || '';
   }
 
   async function fillLinks(current) {
@@ -131,12 +165,16 @@
     $('hrEmployeePhone').value = e.phone || '';
     $('hrEmployeeSalary').value = e.monthly_salary ?? '';
     $('hrEmployeeOff').value = e.weekly_off ?? '';
+    $('hrEmployeeIncentive').value = e.incentive_type || 'none';
+    $('hrEmployeeIncentiveAmount').value = Number(e.incentive_amount) || '';
+    $('hrEmployeeIncentiveNote').value = e.incentive_note || '';
+    showIncentive();
     $('hrEmployeeJoined').value = e.joined_on ? new Date(e.joined_on).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) : '';
     $('hrEmployeeActive').value = e.id && !e.is_active ? '0' : '1';
     $('hrEmployeeActiveGroup').style.display = e.id ? '' : 'none';
     document.querySelector('#hrEmployeeModal h2').textContent = e.id ? 'Edit Employee' : 'Add Employee';
     try {
-      await fillLinks(e.id ? linkOf(e) : null);
+      await Promise.all([fillLinks(e.id ? linkOf(e) : null), fillShifts(e.shift_id)]);
     } catch (error) {
       failed(error);
     }
@@ -153,9 +191,15 @@
       weekly_off: $('hrEmployeeOff').value,
       joined_on: $('hrEmployeeJoined').value,
       link: $('hrEmployeeLink').value,
+      shift_id: $('hrEmployeeShift').value,
       is_active: $('hrEmployeeActive').value === '1',
     };
-    if (canSeePay) payload.monthly_salary = $('hrEmployeeSalary').value || 0;
+    if (canSeePay) {
+      payload.monthly_salary = $('hrEmployeeSalary').value || 0;
+      payload.incentive_type = $('hrEmployeeIncentive').value;
+      payload.incentive_amount = $('hrEmployeeIncentiveAmount').value || 0;
+      payload.incentive_note = $('hrEmployeeIncentiveNote').value;
+    }
     try {
       const data = await api(id ? `/employees/${id}` : '/employees', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
       showSuccess('Saved', data.message);
@@ -271,8 +315,8 @@
     const [kind, label] = STATUS[r.day_status] || ['', r.day_status];
     const inside = r.check_in_at && !r.check_out_at;
     return `<tr>
-      <td>${person(r.name, r.designation || '')}</td>
-      <td>${pill(kind, label)}${inside ? '<span class="hr-sub">In now</span>' : ''}</td>
+      <td>${person(r.name, [r.designation, r.shift_name ? `${r.shift_name}, ${shiftTime(r.shift_start, r.shift_end)}` : ''].filter(Boolean).join(' · '))}</td>
+      <td>${pill(kind, label)}${inside ? '<span class="hr-sub">In now</span>' : ''}${r.late_minutes ? `<span class="hr-sub">Late ${r.late_minutes} min</span>` : ''}${r.early_minutes ? `<span class="hr-sub">Left ${r.early_minutes} min early</span>` : ''}${r.check_out_at && r.check_out_reason === 'Going Home' ? '<span class="hr-sub">Duty complete</span>' : ''}</td>
       <td>${mark(r, 'in')}</td>
       <td>${mark(r, 'out')}</td>
       <td>${tripList(r)}${r.note ? `<span class="hr-sub">${esc(r.note)}</span>` : (r.trips.length ? '' : '<span class="hr-none">-</span>')}</td>
@@ -310,7 +354,73 @@
       failed(error);
     }
     loadHrMonth();
+    loadHrShifts();
     loadHrKiosks();
+  }
+
+  // ------------------------------------------------------------ shifts
+  let shifts = [];
+
+  async function loadHrShifts() {
+    const body = $('hrShiftBody');
+    try {
+      shifts = (await api('/shifts')).shifts;
+      body.innerHTML = shifts.map((s) => `<tr>
+          <td><b>${esc(s.name)}</b></td>
+          <td>${esc(shiftTime(s.start_time, s.end_time))}</td>
+          <td class="hr-num">${s.hours}</td>
+          <td class="hr-num">${s.grace_minutes} min</td>
+          <td>${esc(s.branch_name || '-')}</td>
+          <td class="hr-num">${s.employees}</td>
+          <td><div class="hr-row-actions"><button type="button" class="btn-small btn-info" data-hr-shift-edit="${s.id}">Edit</button>
+            <button type="button" class="btn-small btn-danger" data-hr-shift-remove="${s.id}">Remove</button></div></td>
+        </tr>`).join('') || empty(7, 'fa-clock', 'No shifts yet. Press Add Shift, then choose it for each employee.');
+    } catch (error) {
+      body.innerHTML = empty(7, 'fa-exclamation-circle', 'Could not load shifts.');
+    }
+  }
+
+  function openShift(shift) {
+    const s = shift || {};
+    $('hrShiftId').value = s.id || '';
+    $('hrShiftName').value = s.name || '';
+    $('hrShiftStart').value = String(s.start_time || '').slice(0, 5);
+    $('hrShiftEnd').value = String(s.end_time || '').slice(0, 5);
+    $('hrShiftGrace').value = s.grace_minutes ?? 10;
+    $('hrShiftTitle').textContent = s.id ? 'Edit Shift' : 'Add Shift';
+    openModal('hrShiftModal');
+  }
+
+  async function saveShift(event) {
+    event.preventDefault();
+    const id = $('hrShiftId').value;
+    try {
+      const data = await api(id ? `/shifts/${id}` : '/shifts', {
+        method: id ? 'PUT' : 'POST',
+        body: JSON.stringify({
+          name: $('hrShiftName').value,
+          start_time: $('hrShiftStart').value,
+          end_time: $('hrShiftEnd').value,
+          grace_minutes: $('hrShiftGrace').value,
+        }),
+      });
+      showSuccess('Saved', data.message);
+      closeModal('hrShiftModal');
+      loadHrShifts();
+    } catch (error) {
+      failed(error);
+    }
+  }
+
+  async function removeShift(id) {
+    if (!window.confirm('Remove this shift?')) return;
+    try {
+      const data = await api(`/shifts/${id}`, { method: 'DELETE' });
+      showSuccess('Removed', data.message);
+      loadHrShifts();
+    } catch (error) {
+      failed(error);
+    }
   }
 
   function shiftDay(step) {
@@ -332,7 +442,7 @@
     loadHrPayroll();
   }
 
-  const VIEW_TITLES = { Day: 'Daily attendance', Month: 'Month summary', Kiosk: 'Kiosk screens' };
+  const VIEW_TITLES = { Day: 'Daily attendance', Month: 'Month summary', Shift: 'Shifts', Kiosk: 'Kiosk screens' };
 
   function showView(name) {
     Object.keys(VIEW_TITLES).forEach((key) => { $(`hrView${key}`).hidden = key !== name; });
@@ -386,11 +496,11 @@
       if (!$('hrViewMonth').hidden) $('hrViewTitle').textContent = `${VIEW_TITLES.Month}, ${longMonth(month)}`;
       body.innerHTML = data.attendance.map((r) => {
         const rate = percentOf(Number(r.present) + Number(r.leave), Number(r.present) + Number(r.leave) + Number(r.absent));
-        return `<tr><td>${person(r.name)}</td><td class="hr-num">${r.present}</td><td class="hr-num">${r.leave}</td><td class="hr-num">${r.absent}</td><td class="hr-num">${r.off}</td>
-          <td><div class="hr-rate">${meter(rate)}<b>${rate}%</b></div></td></tr>`;
-      }).join('') || empty(6, ICONS.month, 'Nothing yet.');
+        return `<tr><td>${person(r.name, r.shift_name || '')}</td><td class="hr-num">${r.working_days}</td><td class="hr-num">${r.present}</td><td class="hr-num">${r.leave}</td><td class="hr-num">${r.absent}</td><td class="hr-num">${r.off}</td>
+          <td class="hr-num">${r.late_days}</td><td class="hr-num">${hoursText(r.worked_minutes)}</td><td><div class="hr-rate">${meter(rate)}<b>${rate}%</b></div></td></tr>`;
+      }).join('') || empty(9, ICONS.month, 'Nothing yet.');
     } catch (error) {
-      body.innerHTML = empty(6, 'fa-exclamation-circle', 'Could not load the month.');
+      body.innerHTML = empty(9, 'fa-exclamation-circle', 'Could not load the month.');
     }
   }
 
@@ -439,18 +549,29 @@
   }
 
   // ------------------------------------------------------------ payroll
+  let payrollOpen = false;
+
   function payrollRow(r) {
     const lockedValue = (value) => esc(rupees(value));
     const money = (name, value) => `<input type="number" min="0" step="1" class="form-control hr-money-input ${name}" value="${Number(value)}" aria-label="${name === 'hr-bonus' ? 'Bonus' : 'Deduction'}">`;
+    const lost = Number(r.absent) + Number(r.not_joined);
+    const hours = r.required_minutes ? `${hoursText(r.worked_minutes)} of ${hoursText(r.required_minutes)}` : hoursText(r.worked_minutes);
+    const flags = [
+      r.late_days ? `Late ${r.late_days} ${r.late_days === 1 ? 'day' : 'days'}` : '',
+      r.short_minutes ? `Short ${hoursText(r.short_minutes)}` : '',
+      r.missed_checkouts ? `${r.missed_checkouts} no check-out` : '',
+    ].filter(Boolean);
     return `<tr data-hr-pay="${r.employee_id}">
-      <td>${person(r.name, `${r.present} present, ${r.leave} leave, ${r.off} off`)}</td>
+      <td>${person(r.name, r.shift_name || 'No shift')}</td>
+      <td><div class="hr-stack"><b>${r.present} of ${r.working_days ?? r.days_in_month} worked</b><small>${r.days_in_month} in month, ${r.off} off</small><small class="${lost ? 'warn' : ''}">${r.leave} leave, ${lost} lost</small></div></td>
+      <td><div class="hr-stack"><b>${hours}</b>${flags.map((f) => `<small class="warn">${esc(f)}</small>`).join('')}</div></td>
       <td class="hr-num">${rupees(r.salary)}</td>
-      <td class="hr-num">${r.absent + r.not_joined}</td>
       <td class="hr-num">${rupees(r.absence_deduction)}</td>
+      <td class="hr-num"><div class="hr-stack"><b>${rupees(r.incentive)}</b>${incentiveText(r) ? `<small>${esc(incentiveText(r))}</small>` : ''}</div></td>
       <td class="hr-num">${r.locked ? lockedValue(r.bonus) : money('hr-bonus', r.bonus)}</td>
       <td class="hr-num">${r.locked ? lockedValue(r.deduction) : money('hr-deduction', r.deduction)}</td>
       <td class="hr-num hr-net">${rupees(r.net)}</td>
-      <td>${r.locked ? `<div class="hr-voucher"><b>${esc(r.voucher_number)}</b>${pill('good', r.voucher_status)}</div>` : '<div class="hr-row-actions" style="justify-content:flex-start"><button type="button" class="btn-small btn-success" data-hr-voucher="1">Create voucher</button></div>'}</td>
+      <td>${r.locked ? `<div class="hr-voucher"><b>${esc(r.voucher_number)}</b>${pill('good', r.voucher_status)}</div>` : payrollOpen ? '<div class="hr-row-actions" style="justify-content:flex-start"><button type="button" class="btn-small btn-success" data-hr-voucher="1">Create voucher</button></div>' : '<span class="hr-none">Not yet</span>'}</td>
     </tr>`;
   }
 
@@ -459,29 +580,34 @@
     if (!monthBox.value) monthBox.value = today().slice(0, 7);
     const body = $('hrPayrollBody');
     const foot = $('hrPayrollFoot');
-    body.innerHTML = loadingRow(8);
+    body.innerHTML = loadingRow(10);
     foot.innerHTML = '';
     try {
       const data = await api(`/payroll?month=${monthBox.value}`);
       const t = data.totals;
       const rows = data.payroll;
       const paid = rows.filter((r) => r.locked).length;
-      body.innerHTML = rows.map(payrollRow).join('') || empty(8, ICONS.pay, 'No employees yet.');
+      payrollOpen = data.can_generate;
+      const gate = $('hrPayrollGate');
+      gate.textContent = payrollOpen ? 'Open: vouchers can be created' : `Opens on ${new Date(`${data.opens_on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}, the last day of the month`;
+      gate.className = `hr-pill ${payrollOpen ? 'good' : 'warn'}`;
+      body.innerHTML = rows.map(payrollRow).join('') || empty(10, ICONS.pay, 'No employees yet.');
       if (rows.length) {
-        foot.innerHTML = `<tr><td>Total</td><td class="hr-num">${rupees(t.salary)}</td><td></td><td class="hr-num">${rupees(t.absence_deduction)}</td>
-          <td class="hr-num">${rupees(t.bonus)}</td><td class="hr-num">${rupees(t.deduction)}</td><td class="hr-num hr-net">${rupees(t.net)}</td><td></td></tr>`;
+        foot.innerHTML = `<tr><td>Total</td><td></td><td></td><td class="hr-num">${rupees(t.salary)}</td><td class="hr-num">${rupees(t.absence_deduction)}</td>
+          <td class="hr-num">${rupees(t.incentive)}</td><td class="hr-num">${rupees(t.bonus)}</td><td class="hr-num">${rupees(t.deduction)}</td><td class="hr-num hr-net">${rupees(t.net)}</td><td></td></tr>`;
       }
       $('hrPayrollTotals').textContent = `${longMonth(monthBox.value)}: ${rows.length} employees`;
       $('hrPayrollKpis').innerHTML = [
         { label: 'Net pay', value: rupees(t.net), note: longMonth(monthBox.value), icon: ICONS.pay, tone: 'lead' },
         { label: 'Salaries', value: rupees(t.salary), icon: 'fa-money-bill-wave', tone: 'good' },
         { label: 'Absence', value: rupees(t.absence_deduction), icon: 'fa-user-times', tone: Number(t.absence_deduction) ? 'bad' : '' },
+        { label: 'Incentives', value: rupees(t.incentive), icon: 'fa-star', tone: 'info' },
         { label: 'Bonus', value: rupees(t.bonus), icon: 'fa-gift', tone: 'info' },
         { label: 'Deductions', value: rupees(t.deduction), icon: 'fa-minus-circle', tone: Number(t.deduction) ? 'warn' : '' },
         { label: 'Vouchers', value: `${paid} / ${rows.length}`, bar: percentOf(paid, rows.length), icon: 'fa-file-invoice', tone: 'good' },
       ].map(kpi).join('');
     } catch (error) {
-      body.innerHTML = empty(8, 'fa-exclamation-circle', 'Could not load payroll.');
+      body.innerHTML = empty(10, 'fa-exclamation-circle', 'Could not load payroll.');
       failed(error);
     }
   }
@@ -513,6 +639,11 @@
     const target = event.target;
     if (target.closest?.('#hrAddEmployee')) openEmployee(null);
     if (target.closest?.('#hrSetUpKiosk')) setUpKiosk();
+    if (target.closest?.('#hrAddShift')) openShift(null);
+    const shiftEdit = target.closest?.('[data-hr-shift-edit]');
+    if (shiftEdit) openShift(shifts.find((s) => s.id === Number(shiftEdit.dataset.hrShiftEdit)));
+    const shiftRemove = target.closest?.('[data-hr-shift-remove]');
+    if (shiftRemove) removeShift(shiftRemove.dataset.hrShiftRemove);
     if (target.closest?.('#hrFaceCancel')) stopEnrolling();
     const face = target.closest?.('[data-hr-face]');
     if (face) enrollFace(employees.find((e) => e.id === Number(face.dataset.hrFace)));
@@ -548,6 +679,7 @@
   document.addEventListener('change', (event) => {
     if (event.target.id === 'hrAttendanceDate') loadHrAttendance();
     if (event.target.id === 'hrPayrollMonth') loadHrPayroll();
+    if (event.target.id === 'hrEmployeeIncentive') showIncentive();
     if (event.target.classList?.contains('hr-bonus') || event.target.classList?.contains('hr-deduction')) {
       savePayLine(event.target.closest('tr')).then(loadHrPayroll).catch(failed);
     }
@@ -560,6 +692,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     $('hrEmployeeOff').innerHTML = `<option value="">No weekly off</option>${WEEKDAYS.map((d, i) => `<option value="${i}">${d}</option>`).join('')}`;
     $('hrEmployeeForm').addEventListener('submit', saveEmployee);
+    $('hrShiftForm').addEventListener('submit', saveShift);
     $('hrCorrectForm').addEventListener('submit', saveCorrection);
   });
 

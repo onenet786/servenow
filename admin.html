@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="css/servenow-ui.css?v=14">
-    <link rel="stylesheet" href="css/hr.css?v=2">
+    <link rel="stylesheet" href="css/hr.css?v=4">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
@@ -2158,7 +2158,7 @@
               <div class="table-container hr-table">
                 <table>
                   <thead>
-                    <tr><th>Employee</th><th>Marks with</th><th>Branch</th><th class="hr-pay-only hr-num">Monthly salary</th><th>Status</th><th>Face</th><th>Actions</th></tr>
+                    <tr><th>Employee</th><th>Shift</th><th>Marks with</th><th>Branch</th><th class="hr-pay-only hr-num">Monthly salary</th><th class="hr-pay-only">Incentive</th><th>Status</th><th>Face</th><th>Actions</th></tr>
                   </thead>
                   <tbody id="hrEmployeesBody"></tbody>
                 </table>
@@ -2192,6 +2192,7 @@
                 <div class="hr-segments" role="group" aria-label="View">
                   <button type="button" class="is-on" data-hr-view="Day">Daily</button>
                   <button type="button" data-hr-view="Month">Month</button>
+                  <button type="button" data-hr-view="Shift">Shifts</button>
                   <button type="button" data-hr-view="Kiosk">Kiosk screens</button>
                 </div>
               </div>
@@ -2209,9 +2210,20 @@
                 <div class="table-container hr-table">
                   <table>
                     <thead>
-                      <tr><th>Employee</th><th class="hr-num">Present</th><th class="hr-num">Leave</th><th class="hr-num">Absent</th><th class="hr-num">Weekly off</th><th>Attendance</th></tr>
+                      <tr><th>Employee</th><th class="hr-num">Work days</th><th class="hr-num">Present</th><th class="hr-num">Leave</th><th class="hr-num">Absent</th><th class="hr-num">Weekly off</th><th class="hr-num">Late days</th><th class="hr-num">Hours</th><th>Attendance</th></tr>
                     </thead>
                     <tbody id="hrMonthBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="hr-view" id="hrViewShift" hidden>
+                <div class="hr-view-tools"><button type="button" class="btn btn-primary" id="hrAddShift"><i class="fas fa-plus"></i> Add Shift</button></div>
+                <div class="table-container hr-table">
+                  <table>
+                    <thead>
+                      <tr><th>Shift</th><th>Timing</th><th class="hr-num">Hours</th><th class="hr-num">Late after</th><th>Branch</th><th class="hr-num">Employees</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="hrShiftBody"></tbody>
                   </table>
                 </div>
               </div>
@@ -2248,12 +2260,13 @@
             <div class="hr-kpis" id="hrPayrollKpis"></div>
             <div class="hr-card">
               <div class="hr-card-head">
-                <h3>Salary sheet<small>Bonus and deduction save by themselves. A voucher locks the line.</small></h3>
+                <h3>Salary sheet<small>Attendance reconciled with each person's shift. Bonus and deduction save by themselves.</small></h3>
+                <span class="hr-pill" id="hrPayrollGate"></span>
               </div>
               <div class="table-container hr-table">
                 <table>
                   <thead>
-                    <tr><th>Employee</th><th class="hr-num">Salary</th><th class="hr-num">Days lost</th><th class="hr-num">Absence</th><th class="hr-num">Bonus</th><th class="hr-num">Deduction</th><th class="hr-num">Net pay</th><th>Voucher</th></tr>
+                    <tr><th>Employee</th><th>Days</th><th>Hours</th><th class="hr-num">Salary</th><th class="hr-num">Absence</th><th class="hr-num">Incentive</th><th class="hr-num">Bonus</th><th class="hr-num">Deduction</th><th class="hr-num">Net pay</th><th>Voucher</th></tr>
                   </thead>
                   <tbody id="hrPayrollBody"></tbody>
                   <tfoot id="hrPayrollFoot"></tfoot>
@@ -5619,7 +5632,7 @@
     <script src="js/reports-centre.js?v=1" defer></script>
     <script src="js/face.js?v=1" defer></script>
     <script src="js/dashboard.js?v=3" defer></script>
-    <script src="js/hr.js?v=7" defer></script>
+    <script src="js/hr.js?v=9" defer></script>
     <script src="js/user-rights.js?v=1" defer></script>
     <script src="js/admin.js?v=62" defer></script>
     <script src="js/branch-admin.js?v=8" defer></script>
@@ -6628,10 +6641,38 @@
           <div class="form-group"><label>Phone</label><input type="text" id="hrEmployeePhone" class="form-control" maxlength="30" /></div>
           <div class="form-group hr-pay-only"><label>Monthly salary (Rs)</label><input type="number" id="hrEmployeeSalary" class="form-control" min="0" step="1" /></div>
           <div class="form-group"><label>Weekly off day</label><select id="hrEmployeeOff" class="form-control"></select></div>
+          <div class="form-group"><label>Shift</label><select id="hrEmployeeShift" class="form-control"></select></div>
+          <div class="form-group hr-pay-only"><label>Incentive this person can earn</label><select id="hrEmployeeIncentive" class="form-control">
+            <option value="none">No incentive</option>
+            <option value="monthly">Fixed amount every month</option>
+            <option value="per_day">Amount for each day worked</option>
+            <option value="per_delivery">Amount for each delivery (riders)</option>
+            <option value="full_attendance">Amount for a month with no absence</option>
+          </select></div>
+          <div class="form-group hr-pay-only" id="hrIncentiveAmountGroup"><label>Incentive amount (Rs)</label><input type="number" id="hrEmployeeIncentiveAmount" class="form-control" min="0" step="1" /></div>
+          <div class="form-group hr-pay-only" id="hrIncentiveNoteGroup"><label>Incentive terms (optional)</label><input type="text" id="hrEmployeeIncentiveNote" class="form-control" maxlength="200" /></div>
           <div class="form-group"><label>Joining date</label><input type="date" id="hrEmployeeJoined" class="form-control" /></div>
           <div class="form-group" id="hrEmployeeActiveGroup"><label>Status</label><select id="hrEmployeeActive" class="form-control"><option value="1">Active</option><option value="0">Left</option></select></div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal('hrEmployeeModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="hrShiftModal" class="modal persistent-modal">
+      <div class="modal-content" style="max-width: 480px;">
+        <div class="modal-header"><h2 id="hrShiftTitle">Add Shift</h2></div>
+        <form id="hrShiftForm">
+          <input type="hidden" id="hrShiftId" />
+          <div class="form-group"><label>Shift name</label><input type="text" id="hrShiftName" class="form-control" maxlength="60" placeholder="Morning" required /></div>
+          <div class="form-group"><label>Start time</label><input type="time" id="hrShiftStart" class="form-control" required /></div>
+          <div class="form-group"><label>End time</label><input type="time" id="hrShiftEnd" class="form-control" required /></div>
+          <p class="hr-sub">An end time before the start time means the shift runs past midnight.</p>
+          <div class="form-group"><label>Late after (grace minutes)</label><input type="number" id="hrShiftGrace" class="form-control" min="0" max="120" step="1" value="10" /></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('hrShiftModal')">Cancel</button>
             <button type="submit" class="btn btn-primary">Save</button>
           </div>
         </form>
@@ -6644,7 +6685,7 @@
         <form id="hrCorrectForm">
           <p id="hrCorrectName"></p>
           <input type="hidden" id="hrCorrectEmployee" />
-          <div class="form-group"><label>Status</label><select id="hrCorrectStatus" class="form-control"><option value="present">Present</option><option value="leave">Leave (paid)</option><option value="absent">Absent</option></select></div>
+          <div class="form-group"><label>Status</label><select id="hrCorrectStatus" class="form-control"><option value="present">Present</option><option value="leave">Leave (paid)</option><option value="absent">Absent</option><option value="reopen">Reopen today (Going Home pressed by mistake)</option></select></div>
           <div class="form-group"><label>Reason</label><input type="text" id="hrCorrectNote" class="form-control" maxlength="200" required /></div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal('hrCorrectModal')">Cancel</button>

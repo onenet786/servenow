@@ -185,6 +185,11 @@
       }
       $('who').textContent = me.employee.name;
       $('today').textContent = `${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${me.employee.designation ? ` · ${me.employee.designation}` : ''}`;
+      if (me.shift) $('today').textContent += ` · ${me.shift.name}`;
+      if (me.next_action === 'done') {
+        finish('Your duty for today is complete. See you tomorrow.', true);
+        return;
+      }
       action = me.next_action;
       if (action === 'out') {
         showReasons(me.reasons);

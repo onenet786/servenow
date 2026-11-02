@@ -39,7 +39,14 @@ const LEAVE_REASONS = [
   { key: 'home', label: 'Going Home' },
 ];
 const HOME = 'home';
-const reasonLabel = (key) => (LEAVE_REASONS.find((r) => r.key === key) || LEAVE_REASONS[LEAVE_REASONS.length - 1]).label;
+const REOPENED = 'reopened'; // HR undid a Going Home pressed by mistake
+const reasonLabel = (key) => (key === REOPENED ? 'Reopened by HR' : (LEAVE_REASONS.find((r) => r.key === key) || LEAVE_REASONS[LEAVE_REASONS.length - 1]).label);
+// Going Home ends the duty: nobody checks in again that day unless HR reopens it.
+const dutyComplete = (reason) => !reason || reason === HOME;
+// Time out on these is still work. Lunch, personal work and anything else is not counted as hours.
+const DUTY_TRIPS = ['bank', 'market', 'delivery', 'office'];
+const INCENTIVE_TYPES = ['none', 'monthly', 'per_day', 'per_delivery', 'full_attendance'];
+const DEFAULT_GRACE_MINUTES = 10;
 const FACE_SIZE = 128;
 const FACE_MATCH = 0.5; // below this distance, two faces are the same person
 const FACE_MARGIN = 0.04; // and the next closest person must be clearly further away
@@ -107,6 +114,28 @@ const ensureTables = runOncePerProcess(async (db) => {
       back_longitude DECIMAL(10,7) NULL,
       KEY idx_trip_attendance (attendance_id)
     )`);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS shifts (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      branch_id INT NOT NULL,
+      name VARCHAR(60) NOT NULL,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      grace_minutes INT NOT NULL DEFAULT 10,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_shift_branch (branch_id)
+    )`);
+  await db.execute('ALTER TABLE employees ADD COLUMN IF NOT EXISTS shift_id INT NULL');
+  await db.execute(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentive_type VARCHAR(20) NOT NULL DEFAULT 'none'`);
+  await db.execute('ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentive_amount DECIMAL(12,2) NOT NULL DEFAULT 0');
+  await db.execute('ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentive_note VARCHAR(200) NULL');
+  // The shift as it was that day, so changing a shift later never rewrites past attendance.
+  await db.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS shift_name VARCHAR(60) NULL');
+  await db.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS shift_start TIME NULL');
+  await db.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS shift_end TIME NULL');
+  await db.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS late_minutes INT NOT NULL DEFAULT 0');
+  await db.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS early_minutes INT NOT NULL DEFAULT 0');
   await db.execute(`
     CREATE TABLE IF NOT EXISTS payroll_lines (
       id INT PRIMARY KEY AUTO_INCREMENT,
@@ -368,6 +397,26 @@ const attendanceView = (row) => (row ? {
   check_out_at: row.check_out_at,
 } : null);
 
+// ---------------------------------------------------------------- shifts
+
+const minutesOf = (time) => {
+  const [hours, minutes] = String(time || '0:0').split(':').map(Number);
+  return hours * 60 + minutes;
+};
+const nowMinutes = (date = new Date()) => minutesOf(date.toLocaleTimeString('en-GB', { timeZone: TIME_ZONE, hour12: false }));
+// a minus b on a 24 hour clock, between -12 and +12 hours, so a night shift works across midnight.
+const clockGap = (a, b) => ((a - b + 2160) % 1440) - 720;
+const lateBy = (shift, now) => Math.max(0, clockGap(now, minutesOf(shift.start_time)) - Number(shift.grace_minutes || 0));
+const earlyBy = (shiftEnd, now) => Math.max(0, clockGap(minutesOf(shiftEnd), now));
+/** A shift's length. End before start means it runs past midnight. */
+const shiftLength = (start, end) => ((minutesOf(end) - minutesOf(start) + 1440) % 1440) || 1440;
+
+async function shiftOf(db, employee) {
+  if (!employee.shift_id) return null;
+  const [rows] = await db.execute('SELECT * FROM shifts WHERE id = ? AND is_active = 1', [employee.shift_id]);
+  return rows[0] || null;
+}
+
 // ---------------------------------------------------------------- marking (the employee)
 
 // A shift still open from today or last night: the next mark closes it.
@@ -387,11 +436,13 @@ router.get('/me', async (req, res) => {
     const today = ymdIn();
     const open = await openShift(req.db, employee.id);
     const [rows] = await req.db.execute('SELECT * FROM attendance WHERE employee_id = ? AND work_date = ?', [employee.id, today]);
+    const shift = await shiftOf(req.db, employee);
     return res.json({
       success: true,
       employee: { name: employee.name, designation: employee.designation },
       today,
-      next_action: open ? 'out' : 'in',
+      next_action: open ? 'out' : rows[0]?.check_out_at && dutyComplete(rows[0].check_out_reason) ? 'done' : 'in',
+      shift: shift ? { name: shift.name, start: shift.start_time, end: shift.end_time } : null,
       reasons: LEAVE_REASONS,
       record: attendanceView(open || rows[0] || null),
     });
@@ -420,15 +471,15 @@ async function recordMark(db, employee, { bytes, source, location, reason, reaso
       const why = reason || HOME;
       savedName = await savePhoto(bytes, today);
       const [done] = await db.execute(
-        `UPDATE attendance SET check_out_at = NOW(), check_out_reason = ?, check_out_source = ?, check_out_photo = ?, check_out_latitude = ?,
+        `UPDATE attendance SET check_out_at = NOW(), check_out_reason = ?, early_minutes = ?, check_out_source = ?, check_out_photo = ?, check_out_latitude = ?,
                 check_out_longitude = ?, check_out_accuracy = ? WHERE id = ? AND check_out_at IS NULL`,
-        [why, source, savedName, location?.latitude ?? null, location?.longitude ?? null, location?.accuracy ?? null, open.id]
+        [why, why === HOME && open.shift_end ? earlyBy(open.shift_end, nowMinutes()) : 0, source, savedName, location?.latitude ?? null, location?.longitude ?? null, location?.accuracy ?? null, open.id]
       );
       if (!done.affectedRows) {
         await fs.promises.unlink(path.join(PHOTO_ROOT, savedName)).catch(() => {});
         return refused(409, 'You have already checked out.');
       }
-      const message = why === HOME ? 'Checked out. Thank you.' : `Checked out for ${reasonLabel(why)}. See you soon.`;
+      const message = why === HOME ? 'Duty complete for today. Thank you.' : `Checked out for ${reasonLabel(why)}. See you soon.`;
       return { status: 200, body: { success: true, action: 'out', reason: why, message } };
     }
 
@@ -436,6 +487,7 @@ async function recordMark(db, employee, { bytes, source, location, reason, reaso
     const day = rows[0];
 
     if (day && day.check_in_at && day.check_out_at) {
+      if (dutyComplete(day.check_out_reason)) return refused(409, 'Your duty for today is complete. See you tomorrow.');
       if ((await secondsSince(day.check_out_at)) < DOUBLE_TAP_SECONDS) return refused(409, 'You have just checked out.');
       savedName = await savePhoto(bytes, today);
       const [back] = await db.execute(
@@ -457,15 +509,21 @@ async function recordMark(db, employee, { bytes, source, location, reason, reaso
     }
 
     savedName = await savePhoto(bytes, today);
+    const shift = await shiftOf(db, employee);
+    const late = shift ? lateBy(shift, nowMinutes()) : 0;
     // A day HR marked ahead (leave or absent) becomes present when the person actually comes in.
     await db.execute(
-      `INSERT INTO attendance (employee_id, work_date, status, check_in_at, check_in_source, check_in_photo, check_in_latitude, check_in_longitude, check_in_accuracy)
-       VALUES (?, ?, 'present', NOW(), ?, ?, ?, ?, ?)
+      `INSERT INTO attendance (employee_id, work_date, status, check_in_at, check_in_source, check_in_photo, check_in_latitude, check_in_longitude, check_in_accuracy,
+         shift_name, shift_start, shift_end, late_minutes)
+       VALUES (?, ?, 'present', NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE status = 'present', check_in_at = NOW(), check_in_source = VALUES(check_in_source), check_in_photo = VALUES(check_in_photo),
-         check_in_latitude = VALUES(check_in_latitude), check_in_longitude = VALUES(check_in_longitude), check_in_accuracy = VALUES(check_in_accuracy)`,
-      [employee.id, today, source, savedName, location?.latitude ?? null, location?.longitude ?? null, location?.accuracy ?? null]
+         check_in_latitude = VALUES(check_in_latitude), check_in_longitude = VALUES(check_in_longitude), check_in_accuracy = VALUES(check_in_accuracy),
+         shift_name = VALUES(shift_name), shift_start = VALUES(shift_start), shift_end = VALUES(shift_end), late_minutes = VALUES(late_minutes)`,
+      [employee.id, today, source, savedName, location?.latitude ?? null, location?.longitude ?? null, location?.accuracy ?? null,
+        shift?.name ?? null, shift?.start_time ?? null, shift?.end_time ?? null, late]
     );
-    return { status: 200, body: { success: true, action: 'in', message: 'Checked in. Have a good day.' } };
+    const message = late ? `Checked in, ${late} minutes late for ${shift.name}.` : 'Checked in. Have a good day.';
+    return { status: 200, body: { success: true, action: 'in', message, late_minutes: late } };
   } catch (err) {
     if (savedName) await fs.promises.unlink(path.join(PHOTO_ROOT, savedName)).catch(() => {});
     throw err;
@@ -544,18 +602,107 @@ router.delete('/kiosk/devices/:id(\\d+)', requireRight('menu_hr'), async (req, r
 
 // ---------------------------------------------------------------- employees (HR)
 
+// ---------------------------------------------------------------- shift setup (HR)
+
+const validTime = (value) => (/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(value || '')) ? String(value).slice(0, 5) : null);
+
+function readShift(body) {
+  const name = String(body.name || '').trim().slice(0, 60);
+  if (!name) return { error: 'Enter the shift name.' };
+  const start = validTime(body.start_time);
+  const end = validTime(body.end_time);
+  if (!start || !end) return { error: 'Enter the start and end time.' };
+  if (start === end) return { error: 'Start and end time cannot be the same.' };
+  const grace = body.grace_minutes === undefined || body.grace_minutes === '' ? DEFAULT_GRACE_MINUTES : Number(body.grace_minutes);
+  if (!Number.isInteger(grace) || grace < 0 || grace > 120) return { error: 'Grace must be 0 to 120 minutes.' };
+  return { name, start, end, grace };
+}
+
+async function shiftInScope(req, id) {
+  const [rows] = await req.db.execute('SELECT * FROM shifts WHERE id = ? AND is_active = 1', [Number(id) || 0]);
+  const row = rows[0];
+  if (!row) return null;
+  const { branchId } = resolveStaffBranch(req.user);
+  return branchId !== null && Number(row.branch_id) !== branchId ? null : row;
+}
+
+router.get('/shifts', requireRight('menu_hr', 'menu_hr_payroll'), async (req, res) => {
+  try {
+    const branchId = branchOf(req, res);
+    if (branchId === undefined) return undefined;
+    const [rows] = await req.db.execute(
+      `SELECT s.*, b.name AS branch_name,
+              (SELECT COUNT(*) FROM employees e WHERE e.shift_id = s.id AND e.is_active = 1) AS employees
+         FROM shifts s LEFT JOIN branches b ON b.id = s.branch_id
+        WHERE s.is_active = 1${branchId === null ? '' : ' AND s.branch_id = ?'} ORDER BY s.start_time, s.name`,
+      branchId === null ? [] : [branchId]
+    );
+    return res.json({ success: true, shifts: rows.map((r) => ({ ...r, hours: Math.round((shiftLength(r.start_time, r.end_time) / 60) * 100) / 100 })) });
+  } catch (err) {
+    console.error('[hr] shifts failed:', err.message);
+    return res.status(500).json({ success: false, message: 'Could not load shifts' });
+  }
+});
+
+router.post('/shifts', requireRight('menu_hr'), async (req, res) => {
+  try {
+    const shift = readShift(req.body);
+    if (shift.error) return res.status(400).json({ success: false, message: shift.error });
+    const branch = await resolveWriteBranch(req.db, req.user, req.body.branch_id);
+    if (branch.error) return res.status(400).json({ success: false, message: branch.error });
+    const [result] = await req.db.execute(
+      'INSERT INTO shifts (branch_id, name, start_time, end_time, grace_minutes) VALUES (?, ?, ?, ?, ?)',
+      [branch.branchId, shift.name, shift.start, shift.end, shift.grace]
+    );
+    return res.status(201).json({ success: true, id: result.insertId, message: 'Shift added' });
+  } catch (err) {
+    console.error('[hr] add shift failed:', err.message);
+    return res.status(500).json({ success: false, message: 'Could not add the shift' });
+  }
+});
+
+router.put('/shifts/:id(\\d+)', requireRight('menu_hr'), async (req, res) => {
+  try {
+    const current = await shiftInScope(req, req.params.id);
+    if (!current) return res.status(404).json({ success: false, message: 'Shift not found' });
+    const shift = readShift(req.body);
+    if (shift.error) return res.status(400).json({ success: false, message: shift.error });
+    await req.db.execute('UPDATE shifts SET name = ?, start_time = ?, end_time = ?, grace_minutes = ? WHERE id = ?',
+      [shift.name, shift.start, shift.end, shift.grace, current.id]);
+    return res.json({ success: true, message: 'Shift saved. Days already marked keep their old times.' });
+  } catch (err) {
+    console.error('[hr] save shift failed:', err.message);
+    return res.status(500).json({ success: false, message: 'Could not save the shift' });
+  }
+});
+
+router.delete('/shifts/:id(\\d+)', requireRight('menu_hr'), async (req, res) => {
+  try {
+    const current = await shiftInScope(req, req.params.id);
+    if (!current) return res.status(404).json({ success: false, message: 'Shift not found' });
+    const [[{ people }]] = await req.db.execute('SELECT COUNT(*) AS people FROM employees WHERE shift_id = ? AND is_active = 1', [current.id]);
+    if (Number(people)) return res.status(409).json({ success: false, message: `Move everyone off this shift first (${people} now).` });
+    await req.db.execute('UPDATE shifts SET is_active = 0 WHERE id = ?', [current.id]);
+    return res.json({ success: true, message: 'Shift removed' });
+  } catch (err) {
+    console.error('[hr] remove shift failed:', err.message);
+    return res.status(500).json({ success: false, message: 'Could not remove the shift' });
+  }
+});
+
 router.get('/employees', requireRight('menu_hr', 'menu_hr_payroll'), async (req, res) => {
   try {
     const branchId = branchOf(req, res);
     if (branchId === undefined) return undefined;
     const [rows] = await req.db.execute(
-      `SELECT e.*, b.name AS branch_name, (SELECT COUNT(*) FROM employee_faces f WHERE f.employee_id = e.id) AS face_samples
-         FROM employees e LEFT JOIN branches b ON b.id = e.branch_id
+      `SELECT e.*, b.name AS branch_name, s.name AS shift_name, s.start_time AS shift_start, s.end_time AS shift_end,
+              (SELECT COUNT(*) FROM employee_faces f WHERE f.employee_id = e.id) AS face_samples
+         FROM employees e LEFT JOIN branches b ON b.id = e.branch_id LEFT JOIN shifts s ON s.id = e.shift_id
         ${branchId === null ? '' : 'WHERE e.branch_id = ?'} ORDER BY e.is_active DESC, e.name`,
       branchId === null ? [] : [branchId]
     );
     const pay = await canSeePay(req);
-    return res.json({ success: true, can_see_pay: Boolean(pay), employees: rows.map((e) => (pay ? e : { ...e, monthly_salary: undefined })) });
+    return res.json({ success: true, can_see_pay: Boolean(pay), employees: rows.map((e) => (pay ? e : { ...e, monthly_salary: undefined, incentive_type: undefined, incentive_amount: undefined, incentive_note: undefined })) });
   } catch (err) {
     console.error('[hr] employees failed:', err.message);
     return res.status(500).json({ success: false, message: 'Could not load employees' });
@@ -595,7 +742,18 @@ function readEmployee(body) {
   if (off !== null && !(Number.isInteger(off) && off >= 0 && off <= 6)) return { error: 'Choose a valid weekly off day.' };
   const joined = body.joined_on ? validDate(body.joined_on) : null;
   if (body.joined_on && !joined) return { error: 'Enter a valid joining date.' };
+  const incentiveType = body.incentive_type === undefined ? undefined : String(body.incentive_type);
+  if (incentiveType !== undefined && !INCENTIVE_TYPES.includes(incentiveType)) return { error: 'Choose a valid incentive.' };
+  const incentiveAmount = Number(body.incentive_amount || 0);
+  if (!Number.isFinite(incentiveAmount) || incentiveAmount < 0) return { error: 'Enter a valid incentive amount.' };
+  if (incentiveType && incentiveType !== 'none' && !incentiveAmount) return { error: 'Enter the incentive amount.' };
   return {
+    shiftId: Number(body.shift_id) || null,
+    incentive: incentiveType === undefined ? undefined : {
+      type: incentiveType,
+      amount: incentiveType === 'none' ? 0 : incentiveAmount,
+      note: incentiveType === 'none' ? null : String(body.incentive_note || '').trim().slice(0, 200) || null,
+    },
     name,
     designation: String(body.designation || '').trim().slice(0, 80) || null,
     phone: String(body.phone || '').trim().slice(0, 30) || null,
@@ -603,6 +761,12 @@ function readEmployee(body) {
     off,
     joined,
   };
+}
+
+async function shiftAllowed(db, shiftId, branchId) {
+  if (!shiftId) return true;
+  const [rows] = await db.execute('SELECT id FROM shifts WHERE id = ? AND branch_id = ? AND is_active = 1', [shiftId, branchId]);
+  return rows.length > 0;
 }
 
 const fromLink = (link) => {
@@ -623,11 +787,14 @@ router.post('/employees', requireRight('menu_hr', 'menu_hr_payroll'), async (req
     if (e.salary && !(await canSeePay(req))) return res.status(403).json({ success: false, message: 'Setting a salary needs the Payroll right.' });
     const branch = await resolveWriteBranch(req.db, req.user, req.body.branch_id);
     if (branch.error) return res.status(400).json({ success: false, message: branch.error });
+    if (e.incentive?.amount && !(await canSeePay(req))) return res.status(403).json({ success: false, message: 'Setting an incentive needs the Payroll right.' });
+    if (!(await shiftAllowed(req.db, e.shiftId, branch.branchId))) return res.status(400).json({ success: false, message: 'Choose a shift of this branch.' });
     const link = fromLink(req.body.link);
     const [result] = await req.db.execute(
-      `INSERT INTO employees (branch_id, user_id, rider_id, name, designation, phone, monthly_salary, weekly_off, joined_on)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [branch.branchId, link.user_id, link.rider_id, e.name, e.designation, e.phone, e.salary || 0, e.off, e.joined]
+      `INSERT INTO employees (branch_id, user_id, rider_id, name, designation, phone, monthly_salary, weekly_off, joined_on, shift_id, incentive_type, incentive_amount, incentive_note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [branch.branchId, link.user_id, link.rider_id, e.name, e.designation, e.phone, e.salary || 0, e.off, e.joined, e.shiftId,
+        e.incentive?.type || 'none', e.incentive?.amount || 0, e.incentive?.note || null]
     );
     return res.status(201).json({ success: true, id: result.insertId, message: 'Employee added' });
   } catch (err) {
@@ -647,10 +814,17 @@ router.put('/employees/:id', requireRight('menu_hr', 'menu_hr_payroll'), async (
     const salary = pay && e.salary !== undefined ? e.salary : current.monthly_salary;
     const link = req.body.link === undefined ? current : fromLink(req.body.link);
     const active = req.body.is_active === undefined ? current.is_active : (req.body.is_active ? 1 : 0);
+    const shiftId = req.body.shift_id === undefined ? current.shift_id : e.shiftId;
+    if (shiftId !== current.shift_id && !(await shiftAllowed(req.db, shiftId, current.branch_id))) {
+      return res.status(400).json({ success: false, message: 'Choose a shift of this branch.' });
+    }
+    const incentive = pay && e.incentive ? e.incentive : { type: current.incentive_type, amount: current.incentive_amount, note: current.incentive_note };
     await req.db.execute(
-      `UPDATE employees SET name = ?, designation = ?, phone = ?, monthly_salary = ?, weekly_off = ?, joined_on = ?, user_id = ?, rider_id = ?, is_active = ?
+      `UPDATE employees SET name = ?, designation = ?, phone = ?, monthly_salary = ?, weekly_off = ?, joined_on = ?, user_id = ?, rider_id = ?, is_active = ?,
+              shift_id = ?, incentive_type = ?, incentive_amount = ?, incentive_note = ?
         WHERE id = ?`,
-      [e.name, e.designation, e.phone, salary, e.off, e.joined, link.user_id, link.rider_id, active, current.id]
+      [e.name, e.designation, e.phone, salary, e.off, e.joined, link.user_id, link.rider_id, active, shiftId ?? null,
+        incentive.type ?? 'none', incentive.amount ?? 0, incentive.note ?? null, current.id]
     );
     // Face data is kept only while the person works here.
     if (!active) await req.db.execute('DELETE FROM employee_faces WHERE employee_id = ?', [current.id]);
@@ -712,8 +886,10 @@ router.get('/attendance', requireRight('menu_hr'), async (req, res) => {
       `SELECT e.id AS employee_id, e.name, e.designation, e.weekly_off, a.id, a.status, a.check_in_at, a.check_in_source,
               a.check_in_latitude, a.check_in_longitude, a.check_in_accuracy, a.check_in_photo IS NOT NULL AS has_in_photo,
               a.check_out_at, a.check_out_source, a.check_out_latitude, a.check_out_longitude, a.check_out_accuracy,
-              a.check_out_photo IS NOT NULL AS has_out_photo, a.check_out_reason, a.note
+              a.check_out_photo IS NOT NULL AS has_out_photo, a.check_out_reason, a.note, a.late_minutes, a.early_minutes,
+              COALESCE(a.shift_name, s.name) AS shift_name, COALESCE(a.shift_start, s.start_time) AS shift_start, COALESCE(a.shift_end, s.end_time) AS shift_end
          FROM employees e LEFT JOIN attendance a ON a.employee_id = e.id AND a.work_date = ?
+         LEFT JOIN shifts s ON s.id = e.shift_id
         WHERE e.is_active = 1${branchId === null ? '' : ' AND e.branch_id = ?'} ORDER BY e.name`,
       branchId === null ? [date] : [date, branchId]
     );
@@ -757,8 +933,19 @@ router.put('/attendance', requireRight('menu_hr'), async (req, res) => {
     if (date > ymdIn()) {
       if (req.body.status !== 'leave') return res.status(400).json({ success: false, message: 'Only leave can be set for a future day.' });
     }
-    if (!['present', 'leave', 'absent'].includes(req.body.status)) return res.status(400).json({ success: false, message: 'Choose present, leave or absent.' });
     const note = String(req.body.note || '').trim().slice(0, 200);
+    if (req.body.status === 'reopen') {
+      if (!note) return res.status(400).json({ success: false, message: 'Write the reason.' });
+      if (date !== ymdIn()) return res.status(400).json({ success: false, message: 'Only today can be reopened.' });
+      const [reopened] = await req.db.execute(
+        `UPDATE attendance SET check_out_reason = ?, early_minutes = 0, note = ?, changed_by = ?
+          WHERE employee_id = ? AND work_date = ? AND check_out_at IS NOT NULL AND (check_out_reason IS NULL OR check_out_reason = ?)`,
+        [REOPENED, note, req.user.id, employee.id, date, HOME]
+      );
+      if (!reopened.affectedRows) return res.status(409).json({ success: false, message: 'This person has not gone home today.' });
+      return res.json({ success: true, message: 'Day reopened. They can check in again.' });
+    }
+    if (!['present', 'leave', 'absent'].includes(req.body.status)) return res.status(400).json({ success: false, message: 'Choose present, leave or absent.' });
     if (!note) return res.status(400).json({ success: false, message: 'Write the reason.' });
     await req.db.execute(
       `INSERT INTO attendance (employee_id, work_date, status, note, changed_by) VALUES (?, ?, ?, ?, ?)
@@ -820,43 +1007,102 @@ function daysOf(month) {
   });
 }
 
+const lastDayOf = (month) => daysOf(month).pop().date;
+
+function incentiveFor(employee, { present, absent, deliveries }) {
+  const amount = money(employee.incentive_amount);
+  switch (employee.incentive_type) {
+    case 'monthly': return amount;
+    case 'per_day': return money(amount * present);
+    case 'per_delivery': return money(amount * deliveries);
+    case 'full_attendance': return absent === 0 ? amount : 0;
+    default: return 0;
+  }
+}
+
 /**
  * One person's month. Salary is for the whole month, so a day is worth salary / days in the month.
  * Only days lost are deducted: an absent working day, or a day before joining. Weekly off and leave
- * are paid, and days still to come are not counted against anyone.
+ * are paid, and days still to come are not counted against anyone. Late days and hours are shown
+ * for HR to judge; they take nothing off by themselves (use Deduction).
  */
-function monthFigures(employee, records, month, { bonus = 0, deduction = 0, today = ymdIn() } = {}) {
+function monthFigures(employee, records, month, { bonus = 0, deduction = 0, today = ymdIn(), deliveries = 0 } = {}) {
   const days = daysOf(month);
   const salary = money(employee.monthly_salary);
   const joined = employee.joined_on ? ymdIn(new Date(employee.joined_on)) : null;
-  const byDate = new Map(records.map((r) => [r.date, r.status]));
+  const byDate = new Map(records.map((r) => [r.date, r]));
+  const shiftMinutes = employee.shift_start && employee.shift_end ? shiftLength(employee.shift_start, employee.shift_end) : 0;
   let present = 0;
   let leave = 0;
   let absent = 0;
   let off = 0;
   let notJoined = 0;
+  let workingDays = 0;
+  let workedMinutes = 0;
+  let shortMinutes = 0;
+  let lateDays = 0;
+  let lateMinutes = 0;
+  let earlyMinutes = 0;
+  let missedOut = 0;
   for (const { date, weekday } of days) {
     if (joined && date < joined) { notJoined += 1; continue; }
-    const status = byDate.get(date);
-    if (status === 'present') present += 1;
-    else if (status === 'leave') leave += 1;
+    if (employee.weekly_off !== weekday) workingDays += 1;
+    const record = byDate.get(date);
+    const status = record?.status;
+    if (status === 'present') {
+      present += 1;
+      const late = Number(record.late_minutes || 0);
+      if (late) { lateDays += 1; lateMinutes += late; }
+      earlyMinutes += Number(record.early_minutes || 0);
+      let worked = shiftMinutes; // a day HR entered by hand counts as the full shift
+      if (record.checked_in) {
+        if (record.span === null || record.span === undefined) {
+          worked = 0;
+          if (date < today) missedOut += 1;
+        } else {
+          worked = Math.max(0, Number(record.span) - Number(record.away || 0));
+        }
+      }
+      workedMinutes += worked;
+      if (shiftMinutes && date < today) shortMinutes += Math.max(0, shiftMinutes - worked);
+    } else if (status === 'leave') leave += 1;
     else if (status === 'absent' && date <= today) absent += 1;
     else if (employee.weekly_off === weekday) off += 1;
     else if (date <= today) absent += 1;
   }
   const perDay = salary / days.length;
   const lost = money(perDay * (absent + notJoined));
-  const net = Math.max(0, money(salary - lost + Number(bonus) - Number(deduction)));
+  const incentive = incentiveFor(employee, { present, absent, deliveries });
+  const net = Math.max(0, money(salary - lost + incentive + Number(bonus) - Number(deduction)));
   return {
-    days_in_month: days.length, present, leave, absent, off, not_joined: notJoined,
+    days_in_month: days.length, working_days: workingDays, present, leave, absent, off, not_joined: notJoined,
+    shift_name: employee.shift_name || null,
+    worked_minutes: workedMinutes, required_minutes: workingDays * shiftMinutes, short_minutes: shortMinutes,
+    late_days: lateDays, late_minutes: lateMinutes, early_minutes: earlyMinutes, missed_checkouts: missedOut,
+    incentive_type: employee.incentive_type || 'none', incentive_amount: money(employee.incentive_amount), incentive_note: employee.incentive_note || null,
+    deliveries, incentive,
     salary, absence_deduction: lost, bonus: money(bonus), deduction: money(deduction), net,
   };
 }
 
+// Delivered orders per rider, for a per-delivery incentive.
+async function deliveriesByRider(db, month, riderIds) {
+  if (!riderIds.length) return new Map();
+  const [rows] = await db.execute(
+    `SELECT rider_id, COUNT(*) AS n FROM orders
+      WHERE status = 'delivered' AND created_at >= ? AND created_at < ? + INTERVAL 1 DAY
+        AND rider_id IN (${riderIds.map(() => '?').join(', ')}) GROUP BY rider_id`,
+    [`${month}-01`, lastDayOf(month), ...riderIds]
+  );
+  return new Map(rows.map((r) => [Number(r.rider_id), Number(r.n)]));
+}
+
 async function monthRows(db, month, branchId) {
   const [employees] = await db.execute(
-    `SELECT e.*, p.bonus, p.deduction, p.note, p.voucher_id, p.snapshot, v.voucher_number, v.status AS voucher_status
+    `SELECT e.*, s.name AS shift_name, s.start_time AS shift_start, s.end_time AS shift_end,
+            p.bonus, p.deduction, p.note, p.voucher_id, p.snapshot, v.voucher_number, v.status AS voucher_status
        FROM employees e
+       LEFT JOIN shifts s ON s.id = e.shift_id
        LEFT JOIN payroll_lines p ON p.employee_id = e.id AND p.month = ?
        LEFT JOIN cash_payment_vouchers v ON v.id = p.voucher_id
       WHERE (e.is_active = 1 OR p.voucher_id IS NOT NULL)${branchId === null ? '' : ' AND e.branch_id = ?'} ORDER BY e.name`,
@@ -864,14 +1110,19 @@ async function monthRows(db, month, branchId) {
   );
   if (!employees.length) return [];
   const [records] = await db.execute(
-    `SELECT employee_id, DATE_FORMAT(work_date, '%Y-%m-%d') AS date, status FROM attendance
-      WHERE work_date BETWEEN ? AND LAST_DAY(?) AND employee_id IN (${employees.map(() => '?').join(', ')})`,
-    [`${month}-01`, `${month}-01`, ...employees.map((e) => e.id)]
+    `SELECT a.employee_id, DATE_FORMAT(a.work_date, '%Y-%m-%d') AS date, a.status, a.late_minutes, a.early_minutes,
+            a.check_in_at IS NOT NULL AS checked_in, TIMESTAMPDIFF(MINUTE, a.check_in_at, a.check_out_at) AS span,
+            (SELECT COALESCE(SUM(TIMESTAMPDIFF(MINUTE, t.out_at, t.back_at)), 0) FROM attendance_trips t
+              WHERE t.attendance_id = a.id AND t.reason NOT IN (${DUTY_TRIPS.map(() => '?').join(', ')})) AS away
+       FROM attendance a
+      WHERE a.work_date BETWEEN ? AND LAST_DAY(?) AND a.employee_id IN (${employees.map(() => '?').join(', ')})`,
+    [...DUTY_TRIPS, `${month}-01`, `${month}-01`, ...employees.map((e) => e.id)]
   );
+  const delivered = await deliveriesByRider(db, month, employees.filter((e) => e.incentive_type === 'per_delivery' && e.rider_id).map((e) => e.rider_id));
   return employees.map((e) => {
     // Once a voucher exists the line is frozen at what was sent, unless that voucher was cancelled.
     const frozen = e.voucher_id && e.voucher_status !== 'cancelled' && e.snapshot ? JSON.parse(e.snapshot) : null;
-    const figures = frozen || monthFigures(e, records.filter((r) => r.employee_id === e.id), month, { bonus: e.bonus || 0, deduction: e.deduction || 0 });
+    const figures = frozen || monthFigures(e, records.filter((r) => r.employee_id === e.id), month, { bonus: e.bonus || 0, deduction: e.deduction || 0, deliveries: delivered.get(Number(e.rider_id)) || 0 });
     return {
       employee_id: e.id, name: e.name, designation: e.designation, branch_id: e.branch_id, user_id: e.user_id, rider_id: e.rider_id,
       ...figures, note: e.note, voucher_number: frozen ? e.voucher_number : null, voucher_status: frozen ? e.voucher_status : null, locked: Boolean(frozen),
@@ -888,7 +1139,9 @@ router.get('/attendance/monthly', requireRight('menu_hr', 'menu_hr_payroll'), as
     return res.json({
       success: true,
       month,
-      attendance: rows.map(({ employee_id, name, designation, days_in_month, present, leave, absent, off }) => ({ employee_id, name, designation, days_in_month, present, leave, absent, off })),
+      attendance: rows.map(({ employee_id, name, designation, days_in_month, working_days, present, leave, absent, off, late_days, worked_minutes, required_minutes, shift_name }) => ({
+        employee_id, name, designation, days_in_month, working_days, present, leave, absent, off, late_days, worked_minutes, required_minutes, shift_name,
+      })),
     });
   } catch (err) {
     console.error('[hr] monthly failed:', err.message);
@@ -907,7 +1160,9 @@ router.get('/payroll', requireRight('menu_hr_payroll'), async (req, res) => {
       success: true,
       month,
       payroll: rows,
-      totals: { salary: total('salary'), absence_deduction: total('absence_deduction'), bonus: total('bonus'), deduction: total('deduction'), net: total('net') },
+      opens_on: lastDayOf(month),
+      can_generate: ymdIn() >= lastDayOf(month),
+      totals: { salary: total('salary'), absence_deduction: total('absence_deduction'), incentive: total('incentive'), bonus: total('bonus'), deduction: total('deduction'), net: total('net') },
     });
   } catch (err) {
     console.error('[hr] payroll failed:', err.message);
@@ -956,6 +1211,9 @@ router.post('/payroll/:employeeId(\\d+)/voucher', requireRight('menu_hr_payroll'
     const line = (await monthRows(req.db, month, toBranchId(employee.branch_id))).find((r) => r.employee_id === employee.id);
     if (!line) return res.status(404).json({ success: false, message: 'Employee not found' });
     if (line.locked) return res.status(409).json({ success: false, message: `Voucher ${line.voucher_number} already exists for this month.` });
+    if (ymdIn() < lastDayOf(month)) {
+      return res.status(409).json({ success: false, message: `Payroll for ${month} opens on the last day of the month, ${lastDayOf(month)}.` });
+    }
     if (line.net <= 0) return res.status(400).json({ success: false, message: 'There is nothing to pay for this month.' });
 
     conn = await req.db.getConnection();
@@ -982,12 +1240,10 @@ router.post('/payroll/:employeeId(\\d+)/voucher', requireRight('menu_hr_payroll'
          (voucher_number, voucher_date, payee_name, payee_type, payee_id, amount, purpose, description, payment_method, status, prepared_by, branch_id, gl_account_code)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cash', 'draft', ?, ?, ?)`,
       [number, ymdIn(), employee.name, rider ? 'rider' : 'employee', rider ? employee.rider_id : null, line.net,
-        `Salary ${month}`, `Payroll: ${line.present} present, ${line.leave} leave, ${line.absent} absent`, req.user.id, employee.branch_id, SALARY_ACCOUNT]
+        `Salary ${month}`, `Payroll: worked ${line.present} of ${line.working_days} days, ${line.leave} leave, ${line.absent} absent, incentive ${line.incentive}`, req.user.id, employee.branch_id, SALARY_ACCOUNT]
     );
-    const snapshot = JSON.stringify({
-      days_in_month: line.days_in_month, present: line.present, leave: line.leave, absent: line.absent, off: line.off, not_joined: line.not_joined,
-      salary: line.salary, absence_deduction: line.absence_deduction, bonus: line.bonus, deduction: line.deduction, net: line.net,
-    });
+    const { employee_id: _id, name: _name, designation: _role, branch_id: _branch, user_id: _user, rider_id: _rider, note: _note, voucher_number: _number, voucher_status: _status, locked: _locked, ...figures } = line;
+    const snapshot = JSON.stringify(figures);
     await conn.execute('UPDATE payroll_lines SET voucher_id = ?, snapshot = ? WHERE month = ? AND employee_id = ?', [voucher.insertId, snapshot, month, employee.id]);
     await conn.commit();
     return res.status(201).json({ success: true, voucher_number: number, message: `Draft voucher ${number} created. Approve it in Payment Vouchers.` });
@@ -1003,6 +1259,9 @@ router.post('/payroll/:employeeId(\\d+)/voucher', requireRight('menu_hr_payroll'
 router.monthFigures = monthFigures;
 router.matchFace = matchFace;
 // For the assistant (services/assistantHr.js): the same tables, day, reasons and shift rule as this screen.
-router.hr = { ensureTables, ymdIn, reasonLabel, daysOf, TIME_ZONE, OPEN_SHIFT_HOURS, HOME };
+router.hr = { ensureTables, ymdIn, reasonLabel, daysOf, deliveriesByRider, TIME_ZONE, OPEN_SHIFT_HOURS, HOME };
+router.lateBy = lateBy;
+router.earlyBy = earlyBy;
+router.shiftLength = shiftLength;
 
 module.exports = router;

@@ -8,7 +8,7 @@ const { clearAccountStatusCache } = require('../middleware/auth');
 const hr = require('../routes/hr');
 
 test.beforeEach(() => clearAccountStatusCache());
-test.after(() => fs.rmSync(path.join(__dirname, '..', 'private_uploads', 'attendance'), { recursive: true, force: true }));
+test.after(() => { try { fs.rmSync(path.join(__dirname, '..', 'private_uploads', 'attendance'), { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); } catch (_) { /* another test file is using it */ } });
 
 const KEY = 'b'.repeat(64);
 const HASH = crypto.createHash('sha256').update(KEY).digest('hex');
