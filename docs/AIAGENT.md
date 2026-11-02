@@ -120,6 +120,7 @@ If AIAgent and ServeNow run on the same server, add `servenow.pk` to AIAgent's `
 The assistant never moves a chat by itself. When it offers a team member, AIAgent shows **Yes** and **No** buttons under
 the question, on the website and in the app (the app shows the same chat). Yes, pressed, typed or said, goes to the
 team. No stays with the assistant. Anything else gets a normal answer and the buttons stay until the person chooses.
+This works the same in text, voice messages and Live calls.
 Asking outright for a person ("human", "staff se baat") still connects at once.
 
 ## How it works
