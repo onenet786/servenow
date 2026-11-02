@@ -8,6 +8,7 @@ import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'attendance_screen.dart';
 import '../utils/app_activity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
@@ -19,6 +20,7 @@ import '../utils/customer_language.dart';
 import '../widgets/notification_bell_widget.dart';
 import 'assistant_screen.dart';
 import '../widgets/admin/admin_ui.dart';
+import '../widgets/admin/daily_sale_report_card.dart';
 import '../widgets/tracking/tracking.dart';
 import '../widgets/ui/ui.dart';
 import 'admin_rider_day_transactions_screen.dart';
@@ -105,6 +107,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   DateTime _selectedDailySalesDate = DateTime.now();
   bool _isDailySalesLoading = false;
   Map<String, dynamic> _dailySalesSummary = {};
+  Map<String, dynamic> _dailySaleReport = {};
   List<dynamic> _dailyRiderCashBreakdown = [];
   List<dynamic> _dailyRiderTravelSummary = [];
 
@@ -1034,6 +1037,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       _logger.w('Daily sales summary API unavailable, using orders: $e');
     }
 
+    // Read straight after the summary so the two describe the same moment.
+    // A server without this report simply leaves the section out.
+    Map<String, dynamic> dailySaleReport = <String, dynamic>{};
+    try {
+      final response = await ApiService.getDailySaleReport(token, dateKey);
+      if (response['report'] is Map) {
+        dailySaleReport = Map<String, dynamic>.from(response['report'] as Map);
+      }
+    } catch (e) {
+      _logger.w('Daily sale report unavailable: $e');
+    }
+
     await _ensureStorePaymentTerms(token);
 
     if (data.isEmpty || data['summary'] is! Map) {
@@ -1087,6 +1102,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
 
     data['summary'] = summary;
+    data['report'] = dailySaleReport;
     return data;
   }
 
@@ -1094,6 +1110,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final rawSummary = dailySalesData['summary'];
     _dailySalesSummary = rawSummary is Map
         ? Map<String, dynamic>.from(rawSummary)
+        : <String, dynamic>{};
+    final rawReport = dailySalesData['report'];
+    _dailySaleReport = rawReport is Map
+        ? Map<String, dynamic>.from(rawReport)
         : <String, dynamic>{};
     _dailyRiderCashBreakdown = dailySalesData['rider_cash_breakdown'] is List
         ? dailySalesData['rider_cash_breakdown'] as List<dynamic>
@@ -1110,6 +1130,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (!canViewRestrictedReports) {
       setState(() {
         _dailySalesSummary = {};
+        _dailySaleReport = {};
         _dailyRiderCashBreakdown = const [];
         _dailyRiderTravelSummary = const [];
         _isDailySalesLoading = false;
@@ -2782,6 +2803,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           _applyDailySalesSummaryData(dailySalesData);
         } else {
           _dailySalesSummary = {};
+          _dailySaleReport = {};
           _dailyRiderCashBreakdown = const [];
         }
         _dailyRiderTravelSummary =
@@ -3642,6 +3664,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ('Cash purchase', _formatPkr(cashPurchase)),
             ('Total store credit', _formatPkr(totalStoreCredit)),
           ]),
+          if (_dailySaleReport.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.lg),
+            DailySaleReportCard(
+              report: _dailySaleReport,
+              todaysSale: grossSales,
+            ),
+          ],
           if (riderRows.isNotEmpty) ...[
             const SizedBox(height: AppSpace.lg),
             Text('Rider cash today', style: AppText.title),
@@ -3814,6 +3843,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             icon: Icons.receipt_long_rounded,
             label: 'Orders',
             onTap: _openManageOrdersForAssignment,
+          ),
+          const SizedBox(height: AppSpace.sm),
+          _buildSideMenuEntry(
+            icon: Icons.how_to_reg_rounded,
+            label: 'Attendance',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AttendanceScreen()),
+            ),
           ),
           if (showRiderDay) ...[
             const SizedBox(height: AppSpace.sm),

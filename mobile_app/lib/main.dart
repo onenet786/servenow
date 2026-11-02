@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -618,6 +620,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _precached = false;
+  final Completer<void> _splashIntro = Completer<void>();
 
   @override
   void initState() {
@@ -644,7 +647,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _checkAuth() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    await auth.tryAutoLogin();
+    await Future.wait([auth.tryAutoLogin(), _splashIntro.future]);
 
     if (!mounted) return;
 
@@ -665,6 +668,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return const SplashScreen();
+    return SplashScreen(
+      onIntroDone: () {
+        if (!_splashIntro.isCompleted) _splashIntro.complete();
+      },
+    );
   }
 }

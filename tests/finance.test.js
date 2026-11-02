@@ -60,9 +60,9 @@ test('receipt voucher: "approved" is accepted as received, but not by its prepar
 });
 
 test('journal vouchers must balance to the paisa', async () => {
-  const unbalanced = { voucher_date: '2026-10-28', total_amount: 500, entries: [{ entry_type: 'debit', amount: 500 }, { entry_type: 'credit', amount: 300 }] };
+  const unbalanced = { voucher_date: '2026-10-28', total_amount: 500, entries: [{ account_name: '5200 Rent', entry_type: 'debit', amount: 500 }, { account_name: '1000 Office cash', entry_type: 'credit', amount: 300 }] };
   assert.equal((await call(admin, {}, 'POST', '/api/financial/journal-vouchers', unbalanced)).status, 400);
-  const floaty = { voucher_date: '2026-10-28', total_amount: 0.3, entries: [{ entry_type: 'debit', amount: 0.1 }, { entry_type: 'debit', amount: 0.2 }, { entry_type: 'credit', amount: 0.3 }] };
+  const floaty = { voucher_date: '2026-10-28', total_amount: 0.3, entries: [{ account_name: '5200 Rent', entry_type: 'debit', amount: 0.1 }, { account_name: '5200 Rent', entry_type: 'debit', amount: 0.2 }, { account_name: '1000 Office cash', entry_type: 'credit', amount: 0.3 }] };
   assert.equal((await call(admin, {}, 'POST', '/api/financial/journal-vouchers', floaty)).status, 201);
 });
 

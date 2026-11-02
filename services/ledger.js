@@ -90,6 +90,67 @@ function journalAccount(name) {
   return '3900';
 }
 
+// Accounts a person may choose on a voucher. The control accounts (store payables, rider cash, wallets,
+// clearing) are left out: their balances are proven against their own records, so only those documents post there.
+const typeIs = (...types) => ACCOUNTS.filter(([, , type]) => types.includes(type)).map(([code]) => code);
+const VOUCHER_ACCOUNTS = {
+  payment: new Set([...typeIs('expense'), '1300', '1000', '1010']),
+  receipt: new Set([...typeIs('income', 'expense'), '1300', '1000', '1010']),
+  expense: new Set(typeIs('expense')),
+};
+
+// The account a voucher posts to when nobody chose one. `locked` means nobody can: the party has its own balance.
+function voucherAccount(kind, doc) {
+  if (kind === 'expense') return { code: expenseAccount(`${doc.category} ${doc.description}`), locked: false };
+  if (kind === 'receipt') {
+    if (doc.payer_type === 'rider' && doc.payer_id) return { code: '1100', locked: true };
+    if (doc.payer_type === 'store' && doc.payer_id) return { code: '2000', locked: true };
+    if (doc.payer_type === 'customer' && doc.payer_id) return { code: '2100', locked: true };
+    return { code: '4900', locked: false };
+  }
+  const memo = `${doc.payee_name || ''} ${doc.purpose || ''}`.trim().slice(0, 200);
+  if (doc.payee_type === 'store' && doc.payee_id) return { code: '2000', locked: true };
+  if (/store purchase/i.test(memo)) return { code: '2000', locked: true };
+  if (doc.payee_type === 'rider') return { code: /fuel|petrol/i.test(memo) ? '5400' : '5100', locked: false };
+  return { code: expenseAccount(memo), locked: false };
+}
+
+const voucherAccountCode = (kind, doc) => {
+  const auto = voucherAccount(kind, doc);
+  return (!auto.locked && doc.gl_account_code) || auto.code;
+};
+
+/** The account to save on a voucher: { code } (null means automatic), or { error } to show the person. */
+function chooseVoucherAccount(kind, doc, requested) {
+  const code = String(requested ?? '').trim();
+  if (!code) return { code: null };
+  const auto = voucherAccount(kind, doc);
+  if (auto.locked) {
+    if (code === auto.code) return { code: null };
+    return { error: `This voucher always posts to ${auto.code} ${ACCOUNT_NAMES[auto.code]}, because that party has its own balance.` };
+  }
+  if (code !== auto.code && !VOUCHER_ACCOUNTS[kind].has(code)) return { error: 'Choose a ledger account from the list.' };
+  const method = doc.payment_method === 'cheque' ? 'check' : doc.payment_method;
+  if (kind !== 'expense' && code === cashOrBank(method)) {
+    return { error: `The money already moves through ${code} ${ACCOUNT_NAMES[code]}. Choose the other side of the voucher.` };
+  }
+  return { code };
+}
+
+/** True when a journal line names a real account, so it cannot fall into Suspense by a typing mistake. */
+function isJournalAccount(name) {
+  const t = String(name || '').trim().toLowerCase();
+  const code = t.match(/^(\d{4})\b/);
+  return Boolean(code && ACCOUNT_NAMES[code[1]]) || ACCOUNTS.some(([, n]) => n.toLowerCase() === t);
+}
+
+const voucherAccountList = () => ACCOUNTS.map(([code, name, type]) => ({
+  code, name, type,
+  payment: VOUCHER_ACCOUNTS.payment.has(code),
+  receipt: VOUCHER_ACCOUNTS.receipt.has(code),
+  expense: VOUCHER_ACCOUNTS.expense.has(code),
+}));
+
 const cashOrBank = (method) => (['bank_transfer', 'check', 'card'].includes(String(method || '').toLowerCase()) ? '1010' : '1000');
 
 // ---------------------------------------------------------------------------
@@ -367,19 +428,20 @@ async function buildDocumentJournals(db) {
   }
 
   const [payments] = await db.query(`
-    SELECT id, voucher_number, payee_type, payee_id, payee_name, purpose, amount, payment_method, branch_id,
+    SELECT id, voucher_number, payee_type, payee_id, payee_name, purpose, amount, payment_method, branch_id, gl_account_code,
            DATE_FORMAT(voucher_date, '%Y-%m-%d') AS journal_date
     FROM cash_payment_vouchers WHERE status IN ('approved', 'paid')`);
   for (const v of payments) {
     const cents = toCents(v.amount);
     if (!cents) continue;
     const memo = `${v.payee_name || ''} ${v.purpose || ''}`.trim().slice(0, 200);
+    const code = voucherAccountCode('payment', v);
     let debit;
-    if (v.payee_type === 'store' && v.payee_id) debit = line('2000', cents, 'store', v.payee_id, memo);
+    if (v.payee_type === 'store' && v.payee_id) debit = line(code, cents, 'store', v.payee_id, memo);
     // Bulk payment to stores without a store named: reduces store payables, unallocated
-    else if (/store purchase/i.test(memo)) debit = line('2000', cents, null, null, `Unallocated: ${memo}`);
-    else if (v.payee_type === 'rider') debit = line(/fuel|petrol/i.test(memo) ? '5400' : '5100', cents, 'rider', v.payee_id, memo);
-    else debit = line(expenseAccount(memo), cents, null, null, memo);
+    else if (/store purchase/i.test(memo)) debit = line(code, cents, null, null, `Unallocated: ${memo}`);
+    else if (v.payee_type === 'rider') debit = line(code, cents, 'rider', v.payee_id, memo);
+    else debit = line(code, cents, null, null, memo);
     journals.push({
       key: `payment_voucher:${v.id}`, branchId: v.branch_id, date: v.journal_date, description: `Payment voucher ${v.voucher_number}`,
       lines: [debit, line(cashOrBank(v.payment_method), -cents)],
@@ -387,7 +449,7 @@ async function buildDocumentJournals(db) {
   }
 
   const [receipts] = await db.query(`
-    SELECT id, voucher_number, payer_type, payer_id, payer_name, amount, payment_method, branch_id,
+    SELECT id, voucher_number, payer_type, payer_id, payer_name, amount, payment_method, branch_id, gl_account_code,
            DATE_FORMAT(COALESCE(voucher_date, received_at), '%Y-%m-%d') AS journal_date
     FROM cash_receipt_vouchers WHERE status = 'received'`);
   for (const v of receipts) {
@@ -397,7 +459,7 @@ async function buildDocumentJournals(db) {
     if (v.payer_type === 'rider' && v.payer_id) credit = line('1100', -cents, 'rider', v.payer_id);
     else if (v.payer_type === 'store' && v.payer_id) credit = line('2000', -cents, 'store', v.payer_id);
     else if (v.payer_type === 'customer' && v.payer_id) credit = line('2100', -cents, 'user', v.payer_id);
-    else credit = line('4900', -cents, null, null, v.payer_name);
+    else credit = line(voucherAccountCode('receipt', v), -cents, null, null, v.payer_name);
     journals.push({
       key: `receipt_voucher:${v.id}`, branchId: v.branch_id, date: v.journal_date, description: `Receipt voucher ${v.voucher_number}`,
       lines: [line(cashOrBank(v.payment_method), cents), credit],
@@ -405,7 +467,7 @@ async function buildDocumentJournals(db) {
   }
 
   const [expenses] = await db.query(`
-    SELECT id, expense_number, category, description, vendor_name, amount, payment_method, branch_id,
+    SELECT id, expense_number, category, description, vendor_name, amount, payment_method, branch_id, gl_account_code,
            DATE_FORMAT(expense_date, '%Y-%m-%d') AS journal_date
     FROM admin_expenses WHERE status = 'paid'`);
   for (const e of expenses) {
@@ -414,7 +476,7 @@ async function buildDocumentJournals(db) {
     const memo = `${e.category || ''} ${e.vendor_name || ''}`.trim();
     journals.push({
       key: `admin_expense:${e.id}`, branchId: e.branch_id, date: e.journal_date, description: `Expense ${e.expense_number}`,
-      lines: [line(expenseAccount(`${e.category} ${e.description}`), cents, null, null, memo), line(cashOrBank(e.payment_method), -cents)],
+      lines: [line(voucherAccountCode('expense', e), cents, null, null, memo), line(cashOrBank(e.payment_method), -cents)],
     });
   }
 
@@ -867,6 +929,10 @@ async function reconciliation(db) {
 }
 
 module.exports = {
+  voucherAccount,
+  chooseVoucherAccount,
+  voucherAccountList,
+  isJournalAccount,
   ACCOUNTS,
   ACCOUNT_NAMES,
   ACCOUNT_TYPES,

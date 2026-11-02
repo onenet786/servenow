@@ -24,6 +24,7 @@ function canViewRestrictedFinancialReports(req) {
   if (RESTRICTED_FINANCIAL_REPORT_EMAILS.size === 0) return true;
   return RESTRICTED_FINANCIAL_REPORT_EMAILS.has(email);
 }
+const { listBranches } = require("../utils/branches");
 const fs = require("fs");
 const path = require("path");
 const { exec, spawn } = require("child_process");
@@ -600,6 +601,265 @@ router.get(
         message: "Failed to fetch daily sales summary",
         error: error.message,
       });
+    }
+  }
+);
+
+// One day's sale, split by the store's payment term (the same split as the Sales by Payment report).
+// Cancelled orders are left out. Cash + credit + delivery + adjustments always equals gross_sales,
+// the same figure as Gross sale in daily-sales-summary: an order whose total differs from its items
+// (old edits, items no longer on the order) shows as an adjustment and is never hidden.
+async function loadDailySaleReport(db, date) {
+  const money = (value) => Number(Number(value || 0).toFixed(2));
+  const [orderRows] = await db.execute(`
+    SELECT
+      COUNT(*) AS total_orders,
+      SUM(CASE WHEN LOWER(TRIM(COALESCE(status, ''))) = 'delivered' THEN 1 ELSE 0 END) AS delivered_orders,
+      COALESCE(SUM(COALESCE(total_amount, 0)), 0) AS gross_sales,
+      COALESCE(SUM(COALESCE(delivery_fee, 0)), 0) AS delivery_charges
+    FROM orders
+    WHERE DATE(created_at) = ?
+      AND LOWER(TRIM(COALESCE(status, ''))) <> 'cancelled'
+  `, [date]);
+
+  const [lineRows] = await db.execute(`
+    SELECT
+      CASE WHEN LOWER(TRIM(COALESCE(s.payment_term, ''))) LIKE '%credit%' THEN 'credit' ELSE 'cash' END AS sale_type,
+      COUNT(DISTINCT o.id) AS orders,
+      SUM(oi.quantity * oi.price) AS sale,
+      SUM(oi.quantity * (oi.price - COALESCE(oi.cost_price, (
+        SELECT MIN(psp.cost_price)
+        FROM product_size_prices psp
+        WHERE psp.product_id = oi.product_id
+          AND ((oi.size_id IS NOT NULL AND psp.size_id = oi.size_id)
+            OR (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id))
+      ), p.cost_price, 0))) AS profit,
+      SUM(CASE WHEN oi.price > 0 AND COALESCE(oi.cost_price, (
+        SELECT MIN(psp.cost_price)
+        FROM product_size_prices psp
+        WHERE psp.product_id = oi.product_id
+          AND ((oi.size_id IS NOT NULL AND psp.size_id = oi.size_id)
+            OR (oi.unit_id IS NOT NULL AND psp.unit_id = oi.unit_id))
+      ), p.cost_price, 0) <= 0 THEN 1 ELSE 0 END) AS lines_without_cost
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN products p ON p.id = oi.product_id
+    LEFT JOIN stores s ON s.id = COALESCE(oi.store_id, p.store_id, o.store_id)
+    WHERE DATE(o.created_at) = ?
+      AND LOWER(TRIM(COALESCE(o.status, ''))) <> 'cancelled'
+    GROUP BY sale_type
+  `, [date]);
+
+  const line = (type) => lineRows.find((row) => row.sale_type === type) || {};
+  const cash = line("cash");
+  const credit = line("credit");
+  const totals = orderRows[0] || {};
+  const grossSales = money(totals.gross_sales);
+  const deliveryCharges = money(totals.delivery_charges);
+  const cashSale = money(cash.sale);
+  const creditSale = money(credit.sale);
+  const cashProfit = money(cash.profit);
+  const creditProfit = money(credit.profit);
+  return {
+    date,
+    total_orders: Number(totals.total_orders || 0),
+    delivered_orders: Number(totals.delivered_orders || 0),
+    cash_orders: Number(cash.orders || 0),
+    credit_orders: Number(credit.orders || 0),
+    cash_sale: cashSale,
+    credit_sale: creditSale,
+    delivery_charges: deliveryCharges,
+    adjustments: money(grossSales - cashSale - creditSale - deliveryCharges),
+    total_sale: grossSales,
+    gross_sales: grossSales,
+    cash_profit: cashProfit,
+    credit_profit: creditProfit,
+    total_profit: money(cashProfit + creditProfit),
+    lines_without_cost: Number(cash.lines_without_cost || 0) + Number(credit.lines_without_cost || 0),
+  };
+}
+
+router.get(
+  "/daily-sale-report",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      if (!canViewRestrictedFinancialReports(req)) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: restricted financial report access required",
+        });
+      }
+      const canViewDashboard =
+        req.user.user_type === "admin" ||
+        (req.user.user_type === "standard_user" &&
+          ((await hasPermission(req, "menu_dashboard")) || (await hasPermission(req, "report_sales"))));
+      if (!canViewDashboard) {
+        return res.status(403).json({
+          success: false,
+          message: "Permission denied: dashboard or sales report access required",
+        });
+      }
+      const date = String(req.query.date || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ success: false, message: "A date (YYYY-MM-DD) is required" });
+      }
+      return res.json({ success: true, report: await loadDailySaleReport(req.db, date) });
+    } catch (error) {
+      console.error("Daily sale report error:", error);
+      return res.status(500).json({ success: false, message: "Failed to load the daily sale report" });
+    }
+  }
+);
+
+// Everything the admin dashboard shows, in one request. Reads go through the branch filter (scopeReads)
+// like every report here. The money half needs the same right as the Financial Dashboard: without it the
+// person sees the day's work and nothing about money.
+const OPEN_ORDER_STATUSES = "('pending','confirmed','preparing','ready','picked_up','out_for_delivery')";
+
+async function loadDashboardMoney(db) {
+  const money = (value) => Number(Number(value || 0).toFixed(2));
+  await require("../services/ledger").syncLedgerIfStale(db).catch((err) => console.error("Dashboard ledger sync:", err.message));
+
+  const [voucherRows] = await db.execute(`
+    SELECT status, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS amount
+    FROM cash_payment_vouchers
+    GROUP BY status
+  `);
+  const voucher = (status) => voucherRows.find((row) => row.status === status) || {};
+  const [[expense]] = await db.execute(`SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS amount FROM admin_expenses WHERE status = 'pending'`);
+  const [[balance]] = await db.execute(`
+    SELECT
+      COALESCE(SUM(CASE WHEN l.account_code = '1000' THEN l.debit - l.credit END), 0) AS cash,
+      COALESCE(SUM(CASE WHEN l.account_code = '1010' THEN l.debit - l.credit END), 0) AS bank,
+      COALESCE(SUM(CASE WHEN l.account_code = '1100' THEN l.debit - l.credit END), 0) AS riders,
+      COALESCE(SUM(CASE WHEN l.account_code = '2000' THEN l.credit - l.debit END), 0) AS stores
+    FROM gl_lines l
+    WHERE l.account_code IN ('1000', '1010', '1100', '2000')
+  `);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Karachi" });
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const [[sale]] = await db.execute(
+    `SELECT COALESCE(SUM(total_amount), 0) AS month_sale FROM orders WHERE status <> 'cancelled' AND created_at >= ?`,
+    [monthStart]
+  );
+  const [[month]] = await db.execute(`
+    SELECT
+      COALESCE(SUM(CASE WHEN l.account_code LIKE '4%' THEN l.credit - l.debit END), 0) AS month_income,
+      COALESCE(SUM(CASE WHEN l.account_code LIKE '5%' THEN l.debit - l.credit END), 0) AS month_expense
+    FROM gl_lines l JOIN gl_journals j ON j.id = l.journal_id
+    WHERE j.journal_date >= ?
+  `, [monthStart]);
+
+  const [year, monthNo] = today.split("-").map(Number);
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(year, monthNo - 12 + i, 1));
+    return d.toISOString().slice(0, 7);
+  });
+  const [chartRows] = await db.execute(`
+    SELECT DATE_FORMAT(j.journal_date, '%Y-%m') AS ym,
+      COALESCE(SUM(CASE WHEN l.account_code LIKE '4%' THEN l.credit - l.debit END), 0) AS income,
+      COALESCE(SUM(CASE WHEN l.account_code LIKE '5%' THEN l.debit - l.credit END), 0) AS expense
+    FROM gl_lines l JOIN gl_journals j ON j.id = l.journal_id
+    WHERE j.journal_date >= ?
+    GROUP BY ym
+  `, [`${months[0]}-01`]);
+
+  const [topRiders] = await db.execute(`
+    SELECT TRIM(CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, ''))) AS name, SUM(l.debit - l.credit) AS amount
+    FROM gl_lines l JOIN riders r ON r.id = l.entity_id
+    WHERE l.account_code = '1100' AND l.entity_type = 'rider'
+    GROUP BY r.id, name HAVING amount >= 1 ORDER BY amount DESC LIMIT 5
+  `);
+  const [topStores] = await db.execute(`
+    SELECT s.name, SUM(l.credit - l.debit) AS amount
+    FROM gl_lines l JOIN stores s ON s.id = l.entity_id
+    WHERE l.account_code = '2000' AND l.entity_type = 'store'
+    GROUP BY s.id, s.name HAVING amount >= 1 ORDER BY amount DESC LIMIT 5
+  `);
+  const [drafts] = await db.execute(`
+    SELECT v.voucher_number, v.payment_method, v.voucher_date, v.payee_name, v.purpose, v.amount, v.status
+    FROM cash_payment_vouchers v
+    WHERE v.status IN ('draft', 'pending')
+    ORDER BY v.id DESC LIMIT 8
+  `);
+
+  return {
+    vouchers: {
+      draft_count: Number(voucher("draft").n || 0), draft_amount: money(voucher("draft").amount),
+      pending_count: Number(voucher("pending").n || 0), pending_amount: money(voucher("pending").amount),
+      approved_count: Number(voucher("approved").n || 0), approved_amount: money(voucher("approved").amount),
+    },
+    expenses: { count: Number(expense.n || 0), amount: money(expense.amount) },
+    balances: { cash: money(balance.cash), bank: money(balance.bank), riders: money(balance.riders), stores: money(balance.stores) },
+    month: { sale: money(sale.month_sale), income: money(month.month_income), expense: money(month.month_expense) },
+    chart: months.map((ym) => {
+      const row = chartRows.find((r) => r.ym === ym) || {};
+      return { month: ym, income: money(row.income), expense: money(row.expense) };
+    }),
+    top_riders: topRiders.map((r) => ({ name: r.name, amount: money(r.amount) })),
+    top_stores: topStores.map((s) => ({ name: s.name, amount: money(s.amount) })),
+    drafts: drafts.map((v) => ({ ...v, amount: money(v.amount) })),
+  };
+}
+
+router.get(
+  "/dashboard-overview",
+  authenticateToken,
+  requireStaffAccess,
+  async (req, res) => {
+    try {
+      const isAdmin = req.user.user_type === "admin";
+      if (!isAdmin && !(req.user.user_type === "standard_user" && (await hasPermission(req, "menu_dashboard")))) {
+        return res.status(403).json({ success: false, message: "Permission denied: menu_dashboard required" });
+      }
+      const [[orders]] = await req.db.execute(`
+        SELECT
+          SUM(status = 'pending') AS new_orders,
+          SUM(status IN ${OPEN_ORDER_STATUSES}) AS to_deliver,
+          COALESCE(SUM(CASE WHEN status IN ${OPEN_ORDER_STATUSES} THEN total_amount END), 0) AS to_deliver_value,
+          SUM(rider_id IS NULL AND status IN ('confirmed', 'preparing', 'ready')) AS waiting_rider,
+          SUM(DATE(created_at) = CURDATE()) AS today_orders,
+          SUM(DATE(created_at) = CURDATE() AND status = 'delivered') AS today_delivered,
+          SUM(DATE(created_at) = CURDATE() AND status = 'cancelled') AS today_cancelled
+        FROM orders
+        WHERE status IN ${OPEN_ORDER_STATUSES} OR DATE(created_at) = CURDATE()
+      `);
+      const [[riders]] = await req.db.execute(`
+        SELECT COUNT(*) AS riders_active, COALESCE(SUM(is_available = 1), 0) AS riders_available
+        FROM riders WHERE is_active = 1
+      `);
+      const [attention] = await req.db.execute(`
+        SELECT o.order_number, o.status, o.total_amount, o.rider_id IS NOT NULL AS has_rider,
+               TIMESTAMPDIFF(MINUTE, o.created_at, NOW()) AS minutes, s.name AS store_name
+        FROM orders o LEFT JOIN stores s ON s.id = o.store_id
+        WHERE o.status IN ${OPEN_ORDER_STATUSES}
+        ORDER BY (o.rider_id IS NULL) DESC, o.created_at ASC
+        LIMIT 10
+      `);
+      const seesMoney = isAdmin || (await hasPermission(req, "menu_financial_dashboard"));
+      const whole = (value) => Number(value || 0);
+      return res.json({
+        success: true,
+        branch: req.branchId ? (await listBranches(req.db)).find((b) => Number(b.id) === Number(req.branchId))?.name || "Branch" : "All branches",
+        operations: {
+          new_orders: whole(orders.new_orders),
+          to_deliver: whole(orders.to_deliver),
+          to_deliver_value: Number(Number(orders.to_deliver_value || 0).toFixed(2)),
+          waiting_rider: whole(orders.waiting_rider),
+          today_orders: whole(orders.today_orders),
+          today_delivered: whole(orders.today_delivered),
+          today_cancelled: whole(orders.today_cancelled),
+          riders_active: whole(riders.riders_active),
+          riders_available: whole(riders.riders_available),
+        },
+        attention: attention.map((o) => ({ ...o, total_amount: Number(o.total_amount || 0), has_rider: Boolean(o.has_rider) })),
+        money: seesMoney ? await loadDashboardMoney(req.db) : null,
+      });
+    } catch (error) {
+      console.error("Dashboard overview error:", error);
+      return res.status(500).json({ success: false, message: "Failed to load the dashboard" });
     }
   }
 );

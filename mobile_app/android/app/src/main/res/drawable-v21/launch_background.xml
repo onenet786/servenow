@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Native launch screen: the app's white surface, in light and dark mode,
-     matching the first Flutter frame (white with the green brand). -->
+<!-- Native launch screen, up to Android 11: the logo's cream with its round
+     badge, where the Flutter splash picks it up. Android 12+ uses
+     values-v31/styles.xml instead. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/launch_background" />
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/splash_badge_native" />
+    </item>
 </layer-list>

@@ -4,8 +4,8 @@
 // accounts get no picker: the server holds them to their own branch whatever is sent here.
 (function () {
   const KEY = 'serveNowAdminBranch';
-  const LISTS = /^\/api\/(orders|stores|riders|users|products|admin|financial|wallet|payments)(\/|$)/;
-  const SAVES = /^\/api\/(stores$|stores\/(global-delivery-status|live-promotions|customer-flash-message|customer-push-notification)|admin\/delivery-fee-settings|financial\/)/;
+  const LISTS = /^\/api\/(orders|stores|riders|users|products|admin|financial|wallet|payments|hr)(\/|$)/;
+  const SAVES = /^\/api\/(hr\/employees$|hr\/kiosk\/devices$|stores$|stores\/(global-delivery-status|live-promotions|customer-flash-message|customer-push-notification)|admin\/delivery-fee-settings|financial\/)/;
   const FORMS = [
     { id: 'addStoreForm', blank: null },
     { id: 'addRiderForm', blank: null },

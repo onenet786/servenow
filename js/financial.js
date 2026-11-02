@@ -148,7 +148,7 @@ function addJnvEntryRow(data = null) {
     row.className = 'jnv-entry-row';
     
     row.innerHTML = `
-        <td><input type="text" class="form-control jnv-account" placeholder="e.g. Sales, Cash" value="${data ? data.account_name : ''}" required></td>
+        <td><select class="form-control jnv-account" required></select></td>
         <td>
             <select class="form-control jnv-entity-type">
                 <option value="platform" ${data?.entity_type === 'platform' ? 'selected' : ''}>Platform</option>
@@ -172,6 +172,7 @@ function addJnvEntryRow(data = null) {
     `;
     
     tbody.appendChild(row);
+    fillJournalAccount(row.querySelector('.jnv-account'), data?.account_name);
     
     // Add listeners for total calculation
     row.querySelector('.jnv-amount').addEventListener('input', calculateJnvTotals);
@@ -357,7 +358,32 @@ async function viewJournalVoucher(id) {
     }
 }
 
+// The Ledger Account box of each form (js/financial_helpers.js).
+const ledgerFields = {};
+
+function initializeLedgerFields() {
+    const text = (id) => document.getElementById(id)?.value || '';
+    ledgerFields.payment = createLedgerAccountField({
+        selectId: 'paymentGlAccount', hintId: 'paymentGlHint', kind: 'payment',
+        watch: ['payeeType', 'payeeSelect', 'payeeName', 'paymentPurpose'],
+        read: () => (text('payeeType') ? {
+            payee_type: text('payeeType'), payee_id: text('payeeId'), payee_name: text('payeeName'), purpose: text('paymentPurpose')
+        } : null)
+    });
+    ledgerFields.receipt = createLedgerAccountField({
+        selectId: 'receiptGlAccount', hintId: 'receiptGlHint', kind: 'receipt',
+        watch: ['payerType', 'payerSelect', 'payerName'],
+        read: () => (text('payerType') ? { payer_type: text('payerType'), payer_id: text('payerId') } : null)
+    });
+    ledgerFields.expense = createLedgerAccountField({
+        selectId: 'expenseGlAccount', hintId: 'expenseGlHint', kind: 'expense',
+        watch: ['expenseCategory', 'expenseDescription'],
+        read: () => ({ category: text('expenseCategory'), description: text('expenseDescription') })
+    });
+}
+
 function initializeFinancialForms() {
+    initializeLedgerFields();
     // Initialize dynamic voucher type handlers
     if (window.handleVoucherTypeChange) {
         handleVoucherTypeChange('payeeType', 'payeeName', 'payeeSelect', 'payeeId', 'addExpenseTypeBtn');
@@ -1835,6 +1861,7 @@ function createPaymentVoucher() {
     document.querySelector('#paymentVoucherModal h2').textContent = 'Create Cash Payment Voucher (CPV)';
     document.querySelector('#paymentVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
+    ledgerFields.payment?.reset();
     formChangedState['paymentVoucherModal'] = false;
     openModal('paymentVoucherModal');
 }
@@ -1854,6 +1881,7 @@ function createBankPaymentVoucher() {
     document.querySelector('#paymentVoucherModal h2').textContent = 'Create Bank Payment Voucher (BPV)';
     document.querySelector('#paymentVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
+    ledgerFields.payment?.reset();
     formChangedState['paymentVoucherModal'] = false;
     openModal('paymentVoucherModal');
 }
@@ -1877,7 +1905,8 @@ async function submitPaymentVoucher() {
         description: '',
         payment_method: paymentMethod,
         check_number: (paymentMethod === 'cheque') ? chequeNumber : null,
-        bank_details: null
+        bank_details: null,
+        gl_account_code: ledgerFields.payment?.value() ?? ''
     };
 
     try {
@@ -1951,6 +1980,7 @@ async function editPaymentVoucher(id) {
     } else {
         nameInput.value = voucher.payee_name;
     }
+    await ledgerFields.payment?.show(voucher.gl_account_code);
 
     document.querySelector('#paymentVoucherModal h2').textContent = voucher.payment_method === 'cash' ? 'Edit Cash Payment Voucher' : 'Edit Bank Payment Voucher';
     document.querySelector('#paymentVoucherModal button[type="submit"]').textContent = 'Update Voucher';
@@ -1974,6 +2004,7 @@ function createReceiptVoucher() {
     document.querySelector('#receiptVoucherModal h2').textContent = 'Create Cash Receipt Voucher (CRV)';
     document.querySelector('#receiptVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
+    ledgerFields.receipt?.reset();
     formChangedState['receiptVoucherModal'] = false;
     openModal('receiptVoucherModal');
 }
@@ -1993,6 +2024,7 @@ function createBankReceiptVoucher() {
     document.querySelector('#receiptVoucherModal h2').textContent = 'Create Bank Receive Voucher (BRV)';
     document.querySelector('#receiptVoucherModal button[type="submit"]').textContent = 'Create Voucher';
     
+    ledgerFields.receipt?.reset();
     formChangedState['receiptVoucherModal'] = false;
     openModal('receiptVoucherModal');
 }
@@ -2015,7 +2047,8 @@ async function submitReceiptVoucher() {
         details: '',
         payment_method: paymentMethod,
     cheque_number: null,
-    bank_details: null
+    bank_details: null,
+    gl_account_code: ledgerFields.receipt?.value() ?? ''
     };
 
     try {
@@ -2078,6 +2111,7 @@ async function editReceiptVoucher(id) {
     } else {
         nameInput.value = voucher.payer_name;
     }
+    await ledgerFields.receipt?.show(voucher.gl_account_code);
 
     document.querySelector('#receiptVoucherModal h2').textContent = 'Edit Receipt Voucher';
     document.querySelector('#receiptVoucherModal button[type="submit"]').textContent = 'Update Voucher';
@@ -2755,6 +2789,7 @@ function createExpense() {
     document.querySelector('#expenseModal h2').textContent = 'Record Expense';
     document.querySelector('#expenseModal .btn-primary').textContent = 'Record Expense';
 
+    ledgerFields.expense?.reset();
     formChangedState['expenseModal'] = false;
     openModal('expenseModal');
 }
@@ -2772,7 +2807,8 @@ async function submitExpense() {
         description,
         amount,
         vendor_name: vendorName,
-        payment_method: paymentMethod
+        payment_method: paymentMethod,
+        gl_account_code: ledgerFields.expense?.value() ?? ''
     };
 
     try {
@@ -2812,6 +2848,7 @@ function editExpense(id) {
     document.getElementById('expenseAmount').value = expense.amount;
     document.getElementById('vendorName').value = expense.vendor_name || '';
     document.getElementById('expensePaymentMethod').value = expense.payment_method;
+    ledgerFields.expense?.show(expense.gl_account_code);
 
     document.querySelector('#expenseModal h2').textContent = 'Edit Expense';
     document.querySelector('#expenseModal .btn-primary').textContent = 'Update Expense';

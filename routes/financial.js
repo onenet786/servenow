@@ -599,7 +599,7 @@ router.use(async (req, res, next) => {
         else requiredPerm = method === 'cash' ? cashRight : bankRight;
     }
     else if (path.startsWith('/riders/')) requiredPerm = 'menu_financial_rider_cash';
-    else if (path === '/entities') requiredPerm = ['menu_financial_cpv', 'menu_financial_bpv', 'menu_financial_crv', 'menu_financial_brv', 'menu_financial_jnv', 'menu_financial_rider_cash', 'menu_financial_settlements', 'menu_financial_expenses', 'report_centre_riders', 'report_centre_stores', 'report_centre_sales', 'report_store_payments'];
+    else if (path === '/entities' || path === '/voucher-accounts') requiredPerm = ['menu_financial_cpv', 'menu_financial_bpv', 'menu_financial_crv', 'menu_financial_brv', 'menu_financial_jnv', 'menu_financial_rider_cash', 'menu_financial_settlements', 'menu_financial_expenses', 'report_centre_riders', 'report_centre_stores', 'report_centre_sales', 'report_store_payments'];
     else if (path.startsWith('/store-settlements')) requiredPerm = 'menu_financial_settlements';
     else if (path.startsWith('/expenses')) requiredPerm = 'menu_financial_expenses';
     else if (path.startsWith('/rider-cash')) requiredPerm = 'menu_financial_rider_cash';
@@ -1365,6 +1365,21 @@ router.get('/entities', async (req, res) => {
     }
 });
 
+// The ledger accounts for the voucher forms, and the account this voucher would post to as it stands.
+router.get('/voucher-accounts', (req, res) => {
+    const kind = ['payment', 'receipt', 'expense'].includes(req.query.kind) ? req.query.kind : null;
+    const suggested = kind ? ledger.voucherAccount(kind, req.query) : undefined;
+    res.json({ success: true, accounts: ledger.voucherAccountList(), suggested });
+});
+
+// A change to the ledger account on a saved voucher: null when the request names none.
+async function voucherAccountChange(req, kind, table, id) {
+    if (req.body.gl_account_code === undefined) return null;
+    const [rows] = await req.db.execute(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+    if (!rows.length) return null;
+    return ledger.chooseVoucherAccount(kind, { ...rows[0], ...req.body }, req.body.gl_account_code);
+}
+
 router.post('/payment-vouchers', [
     body('payee_name').trim().notEmpty(),
     body('payee_type').isIn(['store', 'rider', 'vendor', 'employee', 'expense', 'customer', 'bank', 'other']),
@@ -1388,6 +1403,9 @@ router.post('/payment-vouchers', [
         const voucher_number = generateVoucherNumber('CPV');
         const voucher_date = new Date().toISOString().split('T')[0];
 
+        const account = ledger.chooseVoucherAccount('payment', { ...req.body, payee_type, payment_method }, req.body.gl_account_code);
+        if (account.error) return res.status(400).json({ success: false, message: account.error });
+
         const voucherBranch = await documentBranch(req.db, req.user, req.body.branch_id, partyOf(payee_type, payee_id));
         if (voucherBranch.error) return res.status(voucherBranch.status).json({ success: false, message: voucherBranch.error });
 
@@ -1396,9 +1414,9 @@ router.post('/payment-vouchers', [
 
         const [result] = await req.db.execute(
             `INSERT INTO cash_payment_vouchers 
-             (voucher_number, voucher_date, payee_name, payee_type, payee_id, amount, purpose, description, payment_method, check_number, bank_details, prepared_by, status, branch_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
-            [voucher_number, voucher_date, payee_name, payee_type, payee_id || null, amount, purpose || null, description || null, payment_method, finalChequeNumber, bank_details || null, req.user.id, voucherBranch.branchId]
+             (gl_account_code, voucher_number, voucher_date, payee_name, payee_type, payee_id, amount, purpose, description, payment_method, check_number, bank_details, prepared_by, status, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)`,
+            [account.code, voucher_number, voucher_date, payee_name, payee_type, payee_id || null, amount, purpose || null, description || null, payment_method, finalChequeNumber, bank_details || null, req.user.id, voucherBranch.branchId]
         );
 
         res.status(201).json({
@@ -1469,6 +1487,12 @@ router.put('/payment-vouchers/:id', [
         const updates = [];
         const params = [];
 
+        const account = await voucherAccountChange(req, 'payment', 'cash_payment_vouchers', id);
+        if (account?.error) return res.status(400).json({ success: false, message: account.error });
+        if (account) {
+            updates.push('gl_account_code = ?');
+            params.push(account.code);
+        }
         if (payee_name) {
             updates.push('payee_name = ?');
             params.push(payee_name);
@@ -1696,6 +1720,9 @@ router.post('/receipt-vouchers', [
         const voucher_number = generateVoucherNumber('CRV');
         const voucher_date = new Date().toISOString().split('T')[0];
 
+        const account = ledger.chooseVoucherAccount('receipt', { ...req.body, payer_type, payment_method }, req.body.gl_account_code);
+        if (account.error) return res.status(400).json({ success: false, message: account.error });
+
         const voucherBranch = await documentBranch(req.db, req.user, req.body.branch_id, partyOf(payer_type, payer_id));
         if (voucherBranch.error) return res.status(voucherBranch.status).json({ success: false, message: voucherBranch.error });
 
@@ -1704,10 +1731,11 @@ router.post('/receipt-vouchers', [
         try {
             const insertSqlCheque = `
                 INSERT INTO cash_receipt_vouchers 
-                (voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, cheque_number, bank_details, prepared_by, status, branch_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)
+                (gl_account_code, voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, cheque_number, bank_details, prepared_by, status, branch_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)
             `;
             const insertParamsCheque = [
+                account.code,
                 voucher_number,
                 voucher_date,
                 payer_name,
@@ -1728,10 +1756,11 @@ router.post('/receipt-vouchers', [
             if (msg.includes('unknown column') && msg.includes('cheque_number')) {
                 const insertSqlCheck = `
                     INSERT INTO cash_receipt_vouchers 
-                    (voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, check_number, bank_details, prepared_by, status, branch_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)
+                    (gl_account_code, voucher_number, voucher_date, payer_name, payer_type, payer_id, amount, description, details, payment_method, check_number, bank_details, prepared_by, status, branch_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?)
                 `;
                 const insertParamsCheck = [
+                    account.code,
                     voucher_number,
                     voucher_date,
                     payer_name,
@@ -1817,6 +1846,12 @@ router.put('/receipt-vouchers/:id', [
         const updates = [];
         const params = [];
 
+        const account = await voucherAccountChange(req, 'receipt', 'cash_receipt_vouchers', id);
+        if (account?.error) return res.status(400).json({ success: false, message: account.error });
+        if (account) {
+            updates.push('gl_account_code = ?');
+            params.push(account.code);
+        }
         if (payer_name) {
             updates.push('payer_name = ?');
             params.push(payer_name);
@@ -1973,7 +2008,7 @@ router.put('/receipt-vouchers/:id', [
 router.get('/rider-cash', async (req, res) => {
     try {
         const { rider_id, type, status, page = 1, limit = 500, from, to, date } = req.query;
-        const normalizedLimit = Math.max(1, Math.min(2000, parseInt(limit, 10) || 500));
+        const normalizedLimit = Math.max(1, Math.min(20000, parseInt(limit, 10) || 500));
         const normalizedPage = Math.max(1, parseInt(page, 10) || 1);
         const offset = (normalizedPage - 1) * normalizedLimit;
 
@@ -3403,14 +3438,17 @@ router.post('/expenses', [
         const expense_number = generateVoucherNumber('EXP');
         const expense_date = new Date().toISOString().split('T')[0];
 
+        const account = ledger.chooseVoucherAccount('expense', req.body, req.body.gl_account_code);
+        if (account.error) return res.status(400).json({ success: false, message: account.error });
+
         const expenseBranch = await documentBranch(req.db, req.user, req.body.branch_id, {});
         if (expenseBranch.error) return res.status(expenseBranch.status).json({ success: false, message: expenseBranch.error });
 
         const [result] = await req.db.execute(
             `INSERT INTO admin_expenses 
-             (expense_number, expense_date, category, description, amount, payment_method, vendor_name, receipt_number, notes, submitted_by, status, branch_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-            [expense_number, expense_date, category, description || null, amount, payment_method, vendor_name || null, receipt_number || null, notes || null, req.user.id, expenseBranch.branchId]
+             (gl_account_code, expense_number, expense_date, category, description, amount, payment_method, vendor_name, receipt_number, notes, submitted_by, status, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+            [account.code, expense_number, expense_date, category, description || null, amount, payment_method, vendor_name || null, receipt_number || null, notes || null, req.user.id, expenseBranch.branchId]
         );
 
         res.status(201).json({
@@ -3470,6 +3508,12 @@ router.put('/expenses/:id', [
         const updates = [];
         const params = [];
 
+        const account = await voucherAccountChange(req, 'expense', 'admin_expenses', id);
+        if (account?.error) return res.status(400).json({ success: false, message: account.error });
+        if (account) {
+            updates.push('gl_account_code = ?');
+            params.push(account.code);
+        }
         if (amount) {
             updates.push('amount = ?');
             params.push(amount);
@@ -7420,6 +7464,9 @@ router.post('/journal-vouchers', [
             const paisa = Math.round(Number(entry?.amount) * 100);
             if (!Number.isFinite(paisa) || paisa <= 0 || !['debit', 'credit'].includes(entry?.entry_type)) {
                 return res.status(400).json({ success: false, message: 'Each entry needs a positive amount and an entry_type of debit or credit' });
+            }
+            if (!ledger.isJournalAccount(entry.account_name)) {
+                return res.status(400).json({ success: false, message: 'Choose a ledger account from the list for every entry.' });
             }
             if (entry.entry_type === 'debit') debitPaisa += paisa;
             else creditPaisa += paisa;

@@ -147,7 +147,30 @@
     // ---- Spoken alerts for admin and staff: each notification is also read aloud ("New order received,
     // order ending 0015, 100 rupees"). On by default, switched with the 🔊 button; remembered per browser.
     // Browsers only allow speech after the page was clicked once, which the 🔊 button also does.
+    // English or Urdu is chosen per browser. Voices come from the browser: Edge has Urdu, Chrome usually not,
+    // so Urdu falls back to Roman Urdu read by an English voice rather than staying silent.
     const VOICE_KEY = 'serveNowVoiceAlerts';
+    const VOICE_LANG_KEY = 'serveNowVoiceLang';
+    const URDU_PHRASES = [
+        // [English, Urdu script, Roman Urdu]. Longest first, so "Order Fully Completed" wins over "Order Completed".
+        ['Order Fully Completed', 'آرڈر مکمل ہو گیا', 'Order mukammal ho gaya'],
+        ['Store Order Delivered', 'اسٹور کا آرڈر پہنچا دیا گیا', 'Store ka order pohancha diya gaya'],
+        ['Spoken alerts are on', 'آواز کے الرٹ چالو ہیں', 'Awaaz ke alert chalu hain'],
+        ['New orders and payments will be read aloud', 'نئے آرڈر اور ادائیگیاں پڑھ کر سنائی جائیں گی', 'Naye order aur adaigian parh kar sunai jayen gi'],
+        ['New Order Received', 'نیا آرڈر آیا ہے', 'Naya order aaya hai'],
+        ['New Store Order', 'اسٹور کا نیا آرڈر', 'Store ka naya order'],
+        ['New Assignment', 'نیا کام ملا ہے', 'Naya kaam mila hai'],
+        ['Order Delivered', 'آرڈر پہنچا دیا گیا', 'Order pohancha diya gaya'],
+        ['Order Completed', 'آرڈر مکمل ہو گیا', 'Order mukammal ho gaya'],
+        ['Order Picked Up', 'آرڈر اٹھا لیا گیا', 'Order utha liya gaya'],
+        ['Order Ready', 'آرڈر تیار ہے', 'Order tayyar hai'],
+        ['Order Update', 'آرڈر کی تازہ خبر', 'Order ki taza khabar'],
+        ['Payment Received', 'ادائیگی مل گئی', 'Adaigi mil gayi'],
+        ['Payment Update', 'ادائیگی کی تازہ خبر', 'Adaigi ki taza khabar'],
+        ['payment confirmed', 'ادائیگی کی تصدیق ہو گئی', 'adaigi ki tasdeeq ho gayi'],
+        ['delivered and paid', 'پہنچا دیا گیا اور ادائیگی ہو گئی', 'pohancha diya gaya aur adaigi ho gayi'],
+        ['Notification', 'اطلاع', 'Ittila'],
+    ];
     function isStaffUser() {
         const u = getCurrentUser();
         return !!u && (u.user_type === 'admin' || u.user_type === 'standard_user');
@@ -155,18 +178,35 @@
     function voiceAlertsOn() {
         try { return localStorage.getItem(VOICE_KEY) !== 'off'; } catch (_) { return true; }
     }
-    function spokenText(title, body) {
-        return `${String(title || '').trim()}. ${String(body || '').trim()}`
+    function voiceLanguage() {
+        try { return localStorage.getItem(VOICE_LANG_KEY) === 'ur' ? 'ur' : 'en'; } catch (_) { return 'en'; }
+    }
+    // Messages written by the server stay as they are when there is no translation for them.
+    function urduText(text, roman) {
+        let out = text;
+        for (const [en, ur, rom] of URDU_PHRASES) out = out.split(en).join(roman ? rom : ur);
+        return out;
+    }
+    function spokenText(title, body, language = 'en', roman = false) {
+        const text = `${String(title || '').trim()}. ${String(body || '').trim()}`
             // "Order Ord2611010015" / "order ORD-1730000000" -> "order ending 0 0 1 5" (the whole number is noise)
             .replace(/\b(?:order\s+)?ORD[-\s#]?[A-Z0-9]*?(\d{4})\b/gi, (m, last4) => `order ending ${last4.split('').join(' ')}`)
             .replace(/\bPKR\s*([\d,.]+)/gi, '$1 rupees')
             .replace(/\bRs\.?\s*([\d,.]+)/gi, '$1 rupees')
             .replace(/\s*•\s*/g, ', ')
             .slice(0, 220);
+        if (language !== 'ur') return text;
+        return urduText(text, roman)
+            .replace(/\border ending\b/gi, roman ? 'order number' : 'آرڈر نمبر')
+            .replace(/\brupees\b/gi, roman ? 'rupay' : 'روپے');
     }
-    function pickVoice() {
+    function pickVoice(language = 'en') {
         if (!('speechSynthesis' in window)) return null;
         const voices = window.speechSynthesis.getVoices() || [];
+        if (language === 'ur') {
+            const urdu = voices.find((v) => /^ur-PK/i.test(v.lang)) || voices.find((v) => /^ur/i.test(v.lang));
+            if (urdu) return urdu;
+        }
         return voices.find((v) => /en-(IN|PK)/i.test(v.lang)) || voices.find((v) => /en-GB/i.test(v.lang))
             || voices.find((v) => /^en/i.test(v.lang)) || null;
     }
@@ -174,20 +214,25 @@
         if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
         if (!force && (!isStaffUser() || !voiceAlertsOn())) return;
         try {
-            const utterance = new SpeechSynthesisUtterance(spokenText(title, body));
-            const voice = pickVoice();
+            const language = voiceLanguage();
+            const voice = pickVoice(language);
+            const hasUrduVoice = !!voice && /^ur/i.test(voice.lang);
+            const utterance = new SpeechSynthesisUtterance(spokenText(title, body, language, !hasUrduVoice));
             if (voice) utterance.voice = voice;
             utterance.lang = voice ? voice.lang : 'en-GB';
-            utterance.rate = 1;
+            utterance.rate = language === 'ur' ? 0.95 : 1;
             window.speechSynthesis.speak(utterance);
         } catch (_) { /* no speech on this browser */ }
     }
+    function setVoiceLanguage(language) {
+        try { localStorage.setItem(VOICE_LANG_KEY, language); } catch (_) {}
+        setVoiceAlertsLabel();
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        speakAlert('Spoken alerts are on', 'New orders and payments will be read aloud', { force: true });
+    }
     function setVoiceAlerts(on) {
         try { localStorage.setItem(VOICE_KEY, on ? 'on' : 'off'); } catch (_) {}
-        document.querySelectorAll('[data-voice-alerts]').forEach((el) => {
-            el.innerHTML = on ? '<i class="fas fa-volume-up"></i> Spoken alerts: On' : '<i class="fas fa-volume-mute"></i> Spoken alerts: Off';
-            el.setAttribute('aria-pressed', on ? 'true' : 'false');
-        });
+        setVoiceAlertsLabel();
         if (on) speakAlert('Spoken alerts are on', 'New orders and payments will be read aloud', { force: true });
         else if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     }
@@ -203,16 +248,50 @@
             b.addEventListener('click', () => setVoiceAlerts(!voiceAlertsOn()));
             return b;
         };
+        const makeLanguageButton = (extraStyle) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn btn-secondary';
+            b.setAttribute('data-voice-language', '1');
+            b.title = 'Choose the language of spoken alerts';
+            if (extraStyle) b.style.cssText = extraStyle;
+            b.addEventListener('click', () => setVoiceLanguage(voiceLanguage() === 'ur' ? 'en' : 'ur'));
+            return b;
+        };
         // In the admin panel's Notifications tools, next to "Send Test Tray Notification".
         const testBtn = document.getElementById('testTrayNotificationBtn');
         if (testBtn && testBtn.parentElement && !testBtn.parentElement.querySelector('[data-voice-alerts]')) {
             testBtn.parentElement.appendChild(makeButton());
+            testBtn.parentElement.appendChild(makeLanguageButton());
         }
-        // A small quick-mute button on the admin screen (bottom left; the chat assistant is bottom right).
-        if (/admin\.html$/.test(window.location.pathname) && !document.getElementById('voiceAlertsQuick')) {
-            const quick = makeButton('position:fixed;left:16px;bottom:16px;z-index:9990;border-radius:999px;padding:6px 12px;font-size:12px;opacity:.9;box-shadow:0 4px 14px rgba(0,0,0,.15);');
-            quick.id = 'voiceAlertsQuick';
-            document.body.appendChild(quick);
+        // In the admin sidebar, above Theme and built the same way, so it covers nothing.
+        const themeItem = document.getElementById('themeSelect')?.closest('.sidebar-theme-item');
+        if (themeItem && !document.getElementById('voiceAlertsSelect')) {
+            const item = document.createElement('li');
+            item.className = 'sidebar-theme-item';
+            const box = document.createElement('div');
+            box.className = 'sidebar-theme-settings';
+            const label = document.createElement('label');
+            label.className = 'theme-label';
+            label.htmlFor = 'voiceAlertsSelect';
+            label.innerHTML = '<i class="fas fa-volume-up"></i> Spoken alerts';
+            const select = document.createElement('select');
+            select.id = 'voiceAlertsSelect';
+            select.className = 'theme-select';
+            select.title = 'Read new orders and payments aloud';
+            select.add(new Option('Off', 'off'));
+            select.add(new Option('English', 'en'));
+            select.add(new Option('اردو', 'ur'));
+            select.addEventListener('change', () => {
+                if (select.value === 'off') return setVoiceAlerts(false);
+                try {
+                    localStorage.setItem(VOICE_KEY, 'on');
+                } catch (_) {}
+                return setVoiceLanguage(select.value);
+            });
+            box.append(label, select);
+            item.appendChild(box);
+            themeItem.parentNode.insertBefore(item, themeItem);
         }
         setVoiceAlertsLabel();
         // Voices load asynchronously in Chrome.
@@ -224,6 +303,12 @@
             el.innerHTML = on ? '<i class="fas fa-volume-up"></i> Spoken alerts: On' : '<i class="fas fa-volume-mute"></i> Spoken alerts: Off';
             el.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
+        const language = voiceLanguage();
+        document.querySelectorAll('[data-voice-language]').forEach((el) => {
+            el.textContent = language === 'ur' ? 'Voice: اردو' : 'Voice: English';
+        });
+        const select = document.getElementById('voiceAlertsSelect');
+        if (select) select.value = on ? language : 'off';
     }
 
     function systemNotify(title, body) {

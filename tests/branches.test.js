@@ -377,3 +377,9 @@ test('auth: the branch comes from the database, not the token', async () => {
   });
   assert.equal(body.branch, MZG);
 });
+
+test('branch staff apps can read the update status, but only head office sends the notice', () => {
+  assert.equal(classify('GET', '/api/stores/app-update-status').allow, true);
+  assert.equal(classify('POST', '/api/stores/app-update-status').deny, true);
+  assert.equal(classify('POST', '/api/stores/app-update-notification').deny, true);
+});

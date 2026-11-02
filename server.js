@@ -84,6 +84,7 @@ const sizeRoutes = require("./routes/sizes");
 const paymentRoutes = require("./routes/payments");
 const walletRoutes = require("./routes/wallets");
 const financialRoutes = require("./routes/financial");
+const hrRoutes = require("./routes/hr");
 const permissionRoutes = require("./routes/permissions");
 const aiagentRoutes = require("./routes/aiagent");
 const branchRoutes = require("./routes/branches");
@@ -331,7 +332,10 @@ const orderLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use("/api/", limiter);
+// The kiosk asks about a face every second or so while someone stands there, from one office address.
+const kioskLimiter = rateLimit({ windowMs: 60 * 1000, max: 240, standardHeaders: true, legacyHeaders: false });
+app.use("/api/hr/kiosk/screen", kioskLimiter);
+app.use("/api/", (req, res, next) => (req.path.startsWith("/hr/kiosk/screen") ? next() : limiter(req, res, next)));
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/forgot-password", passwordResetLimiter);
@@ -424,7 +428,7 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader(
     "Permissions-Policy",
-    `geolocation=(self), microphone=(${aiagentOrigin ? "self" : ""}), camera=()`
+    `geolocation=(self), microphone=(${aiagentOrigin ? "self" : ""}), camera=(self)`
   );
   next();
 });
@@ -577,6 +581,14 @@ async function assertBranchSchema(dbPool) {
   if (sessionColumns.length < 2) {
     throw new Error("Column password_changed_at is missing. Run database/migrations/2026-11-01-branches-3-security.sql in phpMyAdmin first.");
   }
+  const [voucherColumns] = await dbPool.execute(
+    `SELECT 1 FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'gl_account_code'
+        AND TABLE_NAME IN ('cash_payment_vouchers','cash_receipt_vouchers','admin_expenses')`
+  );
+  if (voucherColumns.length < 3) {
+    throw new Error("Column gl_account_code is missing. Run database/migrations/2026-11-02-voucher-accounts.sql in phpMyAdmin.");
+  }
   const [[b]] = await dbPool.execute("SELECT COUNT(*) AS n FROM branches WHERE id = 1");
   if (!Number(b.n)) throw new Error("Branch 1 (Kot Addu) is missing from the branches table. Run the branches migration.");
 }
@@ -644,6 +656,7 @@ console.log("Payment routes mounted at /api/payments");
 app.use("/api/wallet", walletRoutes);
 console.log("Wallet routes mounted at /api/wallet");
 app.use("/api/financial", financialRoutes);
+app.use("/api/hr", hrRoutes);
 console.log("Financial routes mounted at /api/financial");
 app.use("/api/permissions", permissionRoutes);
 console.log("Permission routes mounted at /api/permissions");
@@ -701,7 +714,7 @@ const publicHtmlFiles = new Set([
   "index.html", "login.html", "register.html", "forgot-password.html", "reset-password.html", "profile.html",
   "stores.html", "store.html", "products.html", "cart.html", "checkout.html", "orders.html",
   "order-confirmation.html", "wallet.html", "admin.html", "rider.html", "data-deletion.html",
-  "assistant.html"
+  "assistant.html", "attendance.html", "kiosk.html"
 ]);
 app.get("/:page([A-Za-z0-9-]+\\.html)", (req, res, next) => {
   if (!publicHtmlFiles.has(req.params.page)) return next();

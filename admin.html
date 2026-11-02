@@ -6,11 +6,11 @@
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="css/style.css?v=5" />
     <link rel="stylesheet" href="css/admin.css?v=42" />
-    <link rel="stylesheet" href="css/aginv-theme.css?v=9" />
+    <link rel="stylesheet" href="css/aginv-theme.css?v=10" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="css/servenow-ui.css?v=12">
+    <link rel="stylesheet" href="css/servenow-ui.css?v=14">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
@@ -331,6 +331,37 @@
             </li>
             <li class="dropdown">
               <a
+                href="admin.html#hr-attendance"
+                class="dropdown-toggle"
+                role="button"
+                aria-haspopup="true"
+                aria-expanded="false"
+                ><i class="fas fa-id-badge"></i> HR
+                <i
+                  class="fas fa-chevron-down"
+                  style="margin-left: 0.25rem; font-size: 0.8rem"
+                ></i
+              ></a>
+              <ul class="dropdown-menu">
+                <li>
+                  <a href="admin.html#hr-employees" class="tab-link" data-tab="hr-employees"
+                    ><i class="fas fa-users"></i> Employees</a
+                  >
+                </li>
+                <li>
+                  <a href="admin.html#hr-attendance" class="tab-link" data-tab="hr-attendance"
+                    ><i class="fas fa-user-check"></i> Attendance</a
+                  >
+                </li>
+                <li>
+                  <a href="admin.html#hr-payroll" class="tab-link" data-tab="hr-payroll"
+                    ><i class="fas fa-money-check-alt"></i> Payroll</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li class="dropdown">
+              <a
                 href="admin.html#financial-dashboard"
                 class="dropdown-toggle"
                 role="button"
@@ -475,8 +506,9 @@
         <!-- Dashboard Tab -->
 
         <div id="dashboard" class="tab-content active">
-          <h2>Dashboard Overview</h2>
-          <div class="stats-grid dashboard-overview-grid" style="grid-template-columns: 1fr">
+          <div class="dx-head" id="dxHeader"><h2>Dashboard</h2></div>
+          <div id="dxBody"></div>
+          <div class="stats-grid dashboard-overview-grid" style="display: none">
             <div class="dashboard-overview-panel">
               <h3>Today's Orders</h3>
               <div
@@ -1594,7 +1626,7 @@
               </div>
               <div class="form-group">
                 <label for="appUpdateVersion">Version</label>
-                <input type="text" id="appUpdateVersion" class="form-control" placeholder="e.g. 1.0.2" maxlength="40" />
+                <input type="text" id="appUpdateVersion" class="form-control" placeholder="e.g. 1.2.16+56" maxlength="40" />
               </div>
               <div class="form-group">
                 <label for="appUpdateTitle">Push Title</label>
@@ -2093,6 +2125,85 @@
         </div>
 
         <!-- Financial Dashboard Tab -->
+        <div id="hr-employees" class="tab-content">
+          <div class="sp-head">
+            <div>
+              <h2>Employees</h2>
+              <p>Link each person to their login so they can mark attendance by camera.</p>
+            </div>
+            <div class="sp-actions">
+              <button type="button" class="btn btn-primary" id="hrAddEmployee">Add Employee</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Designation</th><th>Marks with</th><th>Branch</th><th class="hr-pay-only">Monthly salary</th><th>Status</th><th>Face</th><th></th></tr>
+              </thead>
+              <tbody id="hrEmployeesBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="hr-attendance" class="tab-content">
+          <div class="sp-head">
+            <div>
+              <h2>Attendance</h2>
+              <p id="hrAttendanceSummary"></p>
+            </div>
+            <div class="sp-actions">
+              <input type="date" id="hrAttendanceDate" class="form-control" aria-label="Date" />
+              <button type="button" class="btn btn-primary" id="hrSetUpKiosk">Set Up Kiosk on This PC</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Employee</th><th>Status</th><th>Check in</th><th>Check out</th><th>Trips and notes</th><th></th></tr>
+              </thead>
+              <tbody id="hrAttendanceBody"></tbody>
+            </table>
+          </div>
+          <h3 id="hrMonthTitle" style="margin-top: 1.5rem;">Month</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Employee</th><th>Present</th><th>Leave</th><th>Absent</th><th>Weekly off</th></tr>
+              </thead>
+              <tbody id="hrMonthBody"></tbody>
+            </table>
+          </div>
+          <h3 style="margin-top: 1.5rem;">Kiosk Screens</h3>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Screen</th><th>Branch</th><th>Last used</th><th></th></tr>
+              </thead>
+              <tbody id="hrKioskBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="hr-payroll" class="tab-content">
+          <div class="sp-head">
+            <div>
+              <h2>Payroll</h2>
+              <p id="hrPayrollTotals"></p>
+            </div>
+            <div class="sp-actions">
+              <input type="month" id="hrPayrollMonth" class="form-control" aria-label="Month" />
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Employee</th><th>Salary</th><th>Days lost</th><th>Absence</th><th>Bonus</th><th>Deduction</th><th>Net pay</th><th>Voucher</th></tr>
+              </thead>
+              <tbody id="hrPayrollBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="reports-centre" class="tab-content">
           <div class="sp-head">
             <div>
@@ -5438,19 +5549,23 @@
     </div>
 
     <script src="js/app.js?v=33" defer></script>
-    <script src="js/branch-scope.js?v=5" defer></script>
+    <script src="js/branch-scope.js?v=7" defer></script>
     <script src="/socket.io/socket.io.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <script src="js/notifications.js?v=5" defer></script>
-    <script src="js/financial_helpers.js" defer></script>
-    <script src="js/financial.js?v=28" defer></script>
+    <script src="js/notifications.js?v=8" defer></script>
+    <script src="js/financial_helpers.js?v=2" defer></script>
+    <script src="js/financial.js?v=29" defer></script>
     <script src="js/store-payments.js?v=2" defer></script>
     <script src="js/reports-centre.js?v=1" defer></script>
+    <script src="js/face.js?v=1" defer></script>
+    <script src="js/dashboard.js?v=3" defer></script>
+    <script src="js/hr.js?v=5" defer></script>
     <script src="js/user-rights.js?v=1" defer></script>
-    <script src="js/admin.js?v=58" defer></script>
+    <script src="js/admin.js?v=62" defer></script>
     <script src="js/branch-admin.js?v=8" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
+    <script src="js/report-tools.js?v=1" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
       const appSidebar = document.getElementById("appSidebar");
@@ -5535,6 +5650,11 @@
             <input type="text" id="paymentPurpose" name="purpose" />
           </div>
           <div class="form-group">
+            <label>Ledger Account</label>
+            <select id="paymentGlAccount" class="form-control"></select>
+            <small id="paymentGlHint" style="display: block; margin-top: 4px; color: #6b7280; font-size: 12px;"></small>
+          </div>
+          <div class="form-group">
             <label>Payment Method</label>
             <select id="paymentMethodPV" name="paymentMethod" required onchange="toggleChequeInput('paymentMethodPV', 'paymentChequeContainerPV')">
               <option value="cash">Cash</option>
@@ -5610,6 +5730,11 @@
           <div class="form-group">
             <label>Description</label>
             <input type="text" id="receiptDescription" name="description" />
+          </div>
+          <div class="form-group">
+            <label>Ledger Account</label>
+            <select id="receiptGlAccount" class="form-control"></select>
+            <small id="receiptGlHint" style="display: block; margin-top: 4px; color: #6b7280; font-size: 12px;"></small>
           </div>
           <div class="form-group">
             <label>Payment Method</label>
@@ -6433,6 +6558,66 @@
     </div>
 
     <!-- Expense Modal -->
+    <div id="hrEmployeeModal" class="modal persistent-modal">
+      <div class="modal-content" style="max-width: 575px;">
+        <div class="modal-header"><h2>Add Employee</h2></div>
+        <form id="hrEmployeeForm">
+          <input type="hidden" id="hrEmployeeId" />
+          <div class="form-group"><label>Name</label><input type="text" id="hrEmployeeName" class="form-control" maxlength="120" required /></div>
+          <div class="form-group"><label>Marks attendance with</label><select id="hrEmployeeLink" class="form-control"></select></div>
+          <div class="form-group"><label>Designation</label><input type="text" id="hrEmployeeDesignation" class="form-control" maxlength="80" /></div>
+          <div class="form-group"><label>Phone</label><input type="text" id="hrEmployeePhone" class="form-control" maxlength="30" /></div>
+          <div class="form-group hr-pay-only"><label>Monthly salary (Rs)</label><input type="number" id="hrEmployeeSalary" class="form-control" min="0" step="1" /></div>
+          <div class="form-group"><label>Weekly off day</label><select id="hrEmployeeOff" class="form-control"></select></div>
+          <div class="form-group"><label>Joining date</label><input type="date" id="hrEmployeeJoined" class="form-control" /></div>
+          <div class="form-group" id="hrEmployeeActiveGroup"><label>Status</label><select id="hrEmployeeActive" class="form-control"><option value="1">Active</option><option value="0">Left</option></select></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('hrEmployeeModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="hrCorrectModal" class="modal persistent-modal">
+      <div class="modal-content" style="max-width: 480px;">
+        <div class="modal-header"><h2>Correct Attendance</h2></div>
+        <form id="hrCorrectForm">
+          <p id="hrCorrectName"></p>
+          <input type="hidden" id="hrCorrectEmployee" />
+          <div class="form-group"><label>Status</label><select id="hrCorrectStatus" class="form-control"><option value="present">Present</option><option value="leave">Leave (paid)</option><option value="absent">Absent</option></select></div>
+          <div class="form-group"><label>Reason</label><input type="text" id="hrCorrectNote" class="form-control" maxlength="200" required /></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('hrCorrectModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="hrFaceModal" class="modal persistent-modal">
+      <div class="modal-content" style="max-width: 520px;">
+        <div class="modal-header"><h2 id="hrFaceTitle">Enroll Face</h2></div>
+        <div style="aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: #111827;">
+          <video id="hrFaceVideo" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+        </div>
+        <p id="hrFaceStatus" style="margin: 12px 0 0; font-weight: 600;"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="hrFaceCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="hrPhotoModal" class="modal persistent-modal">
+      <div class="modal-content" style="max-width: 480px;">
+        <div class="modal-header"><h2>Attendance Photo</h2></div>
+        <img id="hrPhotoImage" alt="Attendance photo" style="display: block; width: 100%; border-radius: 8px;" />
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('hrPhotoModal')">Close</button>
+        </div>
+      </div>
+    </div>
+
     <div id="expenseModal" class="modal persistent-modal">
       <div class="modal-content">
         <div class="modal-header">
@@ -6472,6 +6657,11 @@
           <div class="form-group">
             <label>Vendor Name</label>
             <input type="text" id="vendorName" name="vendorName" />
+          </div>
+          <div class="form-group">
+            <label>Ledger Account</label>
+            <select id="expenseGlAccount" class="form-control"></select>
+            <small id="expenseGlHint" style="display: block; margin-top: 4px; color: #6b7280; font-size: 12px;"></small>
           </div>
           <div class="form-group">
             <label>Payment Method</label>
@@ -6677,7 +6867,8 @@
         padding: 0.5rem 1rem;
       }
     </style>
-  </body>
+      <script src="js/sn-select.js?v=1" defer></script>
+</body>
 </html>
 
 

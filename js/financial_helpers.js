@@ -112,4 +112,115 @@ function handleVoucherTypeChange(typeSelectId, nameInputId, selectId, hiddenId, 
     }
 }
 
+// The Ledger Account box on the voucher forms. It shows the account the voucher will post to as it is
+// typed; a person can change it, unless the party has its own balance (then the server fixes it).
+let ledgerAccountsRequest = null;
+function loadLedgerAccounts() {
+    ledgerAccountsRequest = ledgerAccountsRequest || fetch(`${API_BASE}/api/financial/voucher-accounts`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+    }).then((response) => response.json()).then((data) => {
+        if (!data.success) throw new Error(data.message || 'No accounts');
+        return data.accounts;
+    }).catch((error) => {
+        console.error('Error loading ledger accounts:', error);
+        ledgerAccountsRequest = null;
+        return [];
+    });
+    return ledgerAccountsRequest;
+}
 
+const ledgerAccountLabel = (account) => `${account.code} ${account.name}`;
+
+function createLedgerAccountField({ selectId, hintId, kind, read, watch }) {
+    const select = document.getElementById(selectId);
+    const hint = document.getElementById(hintId);
+    if (!select) return null;
+    let byHand = false;
+    let locked = false;
+    let timer = null;
+    let turn = 0;
+
+    function setOptions(list, chosen) {
+        const options = list.filter((a) => a[kind] || (chosen && a.code === chosen));
+        select.innerHTML = '<option value="">Automatic</option>';
+        options.forEach((a) => select.add(new Option(ledgerAccountLabel(a), a.code)));
+    }
+
+    async function refresh() {
+        const doc = read();
+        const mine = ++turn;
+        if (doc === null) {
+            locked = false;
+            select.disabled = false;
+            setOptions(await loadLedgerAccounts());
+            if (mine === turn) { select.value = ''; if (hint) hint.textContent = ''; }
+            return;
+        }
+        const [list, answer] = await Promise.all([
+            loadLedgerAccounts(),
+            fetch(`${API_BASE}/api/financial/voucher-accounts?${new URLSearchParams({ kind, ...doc })}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('serveNowToken')}` }
+            }).then((response) => response.json()).catch(() => null)
+        ]);
+        if (mine !== turn || !answer?.success) return;
+        const current = byHand ? select.value : '';
+        const suggested = answer.suggested.code;
+        locked = answer.suggested.locked;
+        setOptions(list, locked || !byHand ? suggested : (current || suggested));
+        if (!select.querySelector(`option[value="${suggested}"]`)) {
+            const account = list.find((a) => a.code === suggested);
+            if (account) select.add(new Option(ledgerAccountLabel(account), account.code));
+        }
+        select.disabled = locked;
+        select.value = locked ? suggested : (byHand ? current : suggested);
+        if (hint) {
+            hint.textContent = locked
+                ? 'Fixed: this party has its own balance in the ledger.'
+                : (byHand ? 'Chosen by you.' : 'Suggested from the details above. You can change it.');
+        }
+    }
+
+    const later = () => {
+        clearTimeout(timer);
+        timer = setTimeout(refresh, 350);
+    };
+    watch.forEach((id) => {
+        const field = document.getElementById(id);
+        field?.addEventListener('change', later);
+        field?.addEventListener('input', later);
+    });
+    select.addEventListener('change', () => {
+        byHand = select.value !== '';
+        if (hint) hint.textContent = byHand ? 'Chosen by you.' : 'Picked automatically from the details above.';
+    });
+
+    return {
+        refresh,
+        reset() {
+            byHand = false;
+            return refresh();
+        },
+        async show(code) {
+            byHand = false;
+            await refresh();
+            if (!code || locked) return;
+            byHand = true;
+            if (!select.querySelector(`option[value="${code}"]`)) {
+                const account = (await loadLedgerAccounts()).find((a) => a.code === code);
+                if (account) select.add(new Option(ledgerAccountLabel(account), account.code));
+            }
+            select.value = code;
+            if (hint) hint.textContent = 'Chosen by you.';
+        },
+        value: () => (locked ? '' : select.value)
+    };
+}
+
+// A journal entry's account: the full chart. An old entry keeps its own wording until it is changed.
+async function fillJournalAccount(select, current) {
+    const accounts = await loadLedgerAccounts();
+    select.innerHTML = '<option value="">Select account...</option>';
+    accounts.forEach((account) => select.add(new Option(ledgerAccountLabel(account), ledgerAccountLabel(account))));
+    if (current && ![...select.options].some((option) => option.value === current)) select.add(new Option(current, current));
+    if (current) select.value = current;
+}

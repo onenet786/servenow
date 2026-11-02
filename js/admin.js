@@ -293,6 +293,11 @@ async function sendAppUpdatePushNotification() {
     const message = (document.getElementById('appUpdateMessage')?.value || '').trim();
     const playStoreUrl = (document.getElementById('appUpdatePlayStoreUrl')?.value || '').trim();
 
+    // Without a version the push goes out, but the Update popup inside the app never changes.
+    if (!version.length) {
+        showWarning('Missing Version', 'Enter the new Play Store version, for example 1.2.16+56.');
+        return;
+    }
     if (!message.length) {
         showWarning('Missing Message', 'Please enter update message.');
         return;
@@ -2100,10 +2105,7 @@ function initializeAdmin() {
     if (productStatusFilter) productStatusFilter.addEventListener('change', filterProducts);
     if (productClearFiltersBtn) productClearFiltersBtn.addEventListener('click', clearProductFilters);
 
-    // Upgrade filter selects to typeable filter inputs (Order-store-list style).
-    // Keeps original select + events intact by syncing values both ways.
     setTimeout(() => {
-        try { enhanceFilterSelectsToTypeable(); } catch (e) { console.warn('enhanceFilterSelectsToTypeable failed', e); }
         try { initializeAdminFilterMenus(); } catch (e) { console.warn('initializeAdminFilterMenus failed', e); }
     }, 0);
 
@@ -2854,6 +2856,15 @@ function switchTab(tabName) {
         case 'reports-centre':
             if (typeof loadReportsCentre === 'function') loadReportsCentre();
             break;
+        case 'hr-employees':
+            if (typeof loadHrEmployees === 'function') loadHrEmployees();
+            break;
+        case 'hr-attendance':
+            if (typeof loadHrAttendance === 'function') loadHrAttendance();
+            break;
+        case 'hr-payroll':
+            if (typeof loadHrPayroll === 'function') loadHrPayroll();
+            break;
         case 'transactions':
             if (typeof loadTransactions === 'function') loadTransactions();
             break;
@@ -3364,35 +3375,10 @@ async function clearDatabaseKeepOne() {
         showError('Clear Error', err.message || err);
     }
 }
+// Every path that opens or refreshes the dashboard comes through here.
 function loadDashboardStats() {
-    Promise.all([
-        fetch(`${API_BASE}/api/orders`, { headers: { 'Authorization': `Bearer ${authToken}` } })
-    ])
-    .then(responses => Promise.all(responses.map(r => r.json())))
-    .then(([orders]) => {
-        const list = orders.orders || [];
-        const todayOrders = list.filter(o => isServerDateToday(o.created_at));
-        const countStatus = (arr, status) => arr.filter(o => (o.status || '').toLowerCase() === status).length;
-        const countPendingLike = (arr) => arr.filter(o => {
-            const s = (o.status || '').toLowerCase();
-            return s !== 'delivered' && s !== 'cancelled';
-        }).length;
-
-        const el = (id) => document.getElementById(id);
-        if (el('todayTotalOrders')) el('todayTotalOrders').textContent = todayOrders.length;
-        if (el('todayDelivered')) el('todayDelivered').textContent = countStatus(todayOrders, 'delivered');
-        if (el('todayPending')) el('todayPending').textContent = countPendingLike(todayOrders);
-        if (el('todayCancelled')) el('todayCancelled').textContent = countStatus(todayOrders, 'cancelled');
-
-        if (el('allTotalOrders')) el('allTotalOrders').textContent = list.length;
-        if (el('allDelivered')) el('allDelivered').textContent = countStatus(list, 'delivered');
-        if (el('allPending')) el('allPending').textContent = countPendingLike(list);
-        if (el('allCancelled')) el('allCancelled').textContent = countStatus(list, 'cancelled');
-
-        // Load recent activity
-        loadRecentActivity();
-    })
-    .catch(error => console.error('Error loading dashboard stats:', error));
+    if (typeof loadDashboardOverview === 'function') loadDashboardOverview();
+    loadRecentActivity();
 }
 
 function loadRecentActivity() {
@@ -4538,117 +4524,6 @@ function scrollToStoreStatusSection(sectionId) {
     section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function enhanceFilterSelectsToTypeable() {
-    const selects = Array.from(document.querySelectorAll('select[id*="Filter"], select[id*="filter"]'))
-        .filter((sel) => sel && !sel.dataset.typeableEnhanced);
-
-    const makeLabel = (opt) => {
-        const text = String(opt?.textContent || '').trim();
-        return text;
-    };
-
-    const syncDatalist = (select, datalist) => {
-        const current = new Set();
-        datalist.innerHTML = '';
-        Array.from(select.options || []).forEach((opt) => {
-            const label = makeLabel(opt);
-            if (!label || current.has(label)) return;
-            current.add(label);
-            const o = document.createElement('option');
-            o.value = label;
-            datalist.appendChild(o);
-        });
-    };
-
-    selects.forEach((select) => {
-        // Skip if this select is inside a non-filter form group and explicitly opted out
-        if (select.dataset.noTypeable === '1') return;
-
-        const parent = select.parentElement;
-        if (!parent) return;
-
-        const input = document.createElement('input');
-        const datalist = document.createElement('datalist');
-
-        const inputId = `${select.id}Typeable`;
-        const datalistId = `${select.id}TypeableList`;
-
-        input.type = 'text';
-        input.id = inputId;
-        input.className = select.className || 'form-control';
-        input.dataset.sourceSelectId = select.id;
-        input.dataset.filterListId = datalistId;
-        input.placeholder = select.getAttribute('data-placeholder') || 'Type to filter...';
-        input.autocomplete = 'off';
-
-        datalist.id = datalistId;
-
-        // Initial value from selected option label.
-        const selectedOption = select.options[select.selectedIndex];
-        input.value = selectedOption ? makeLabel(selectedOption) : '';
-
-        syncDatalist(select, datalist);
-
-        const applyInputToSelect = () => {
-            const typed = String(input.value || '').trim().toLowerCase();
-            let matchedValue = '';
-
-            if (!typed) {
-                // Prefer first option when cleared (typically "All").
-                const first = select.options[0];
-                matchedValue = first ? first.value : '';
-            } else {
-                const exact = Array.from(select.options || []).find(
-                    (opt) => makeLabel(opt).toLowerCase() === typed
-                );
-                if (exact) matchedValue = exact.value;
-            }
-
-            if (select.value !== matchedValue) {
-                select.value = matchedValue;
-                select.dispatchEvent(new Event('change', { bubbles: true }));
-                select.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        };
-
-        input.addEventListener('change', applyInputToSelect);
-        input.addEventListener('input', () => {
-            // For responsive filtering, keep existing logic updated as user types when exact match exists.
-            const typed = String(input.value || '').trim().toLowerCase();
-            const exact = Array.from(select.options || []).find(
-                (opt) => makeLabel(opt).toLowerCase() === typed
-            );
-            if (exact && select.value !== exact.value) {
-                select.value = exact.value;
-                select.dispatchEvent(new Event('change', { bubbles: true }));
-                select.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        });
-
-        select.addEventListener('change', () => {
-            const opt = select.options[select.selectedIndex];
-            input.value = opt ? makeLabel(opt) : '';
-        });
-
-        // Keep datalist fresh when options are reloaded dynamically.
-        const observer = new MutationObserver(() => {
-            syncDatalist(select, datalist);
-            const opt = select.options[select.selectedIndex];
-            input.value = opt ? makeLabel(opt) : '';
-        });
-        observer.observe(select, { childList: true, subtree: true, attributes: true });
-
-        // Hide original select but keep it in DOM for existing listeners/business logic.
-        select.style.display = 'none';
-
-        // Insert enhanced controls.
-        parent.insertBefore(input, select.nextSibling);
-        parent.insertBefore(datalist, input.nextSibling);
-
-        select.dataset.typeableEnhanced = '1';
-    });
-}
-
 function parseOfferCampaignDateTime(value) {
     const v = String(value || '').trim();
     return v ? v : nowDateTimeLocalValue();
@@ -5212,12 +5087,12 @@ function shouldAnimateOrderIndicator(status) {
 
 async function resetOrderToNew(orderId, orderNumber = '') {
     if (!canResetTerminalOrderToNew()) {
-        showError('Access Denied', 'You do not have permission to reset delivered or cancelled orders.');
+        showError('Access Denied', 'Only the two owner logins can reset an order.');
         return;
     }
 
     const label = orderNumber ? `order ${orderNumber}` : `order #${orderId}`;
-    if (!confirm(`Reset ${label} to new pending state? Rider assignment will be cleared.`)) {
+    if (!confirm(`Reset ${label}?\n\nIt becomes new and UNPAID and the rider is removed. The cash the rider collected is taken back from the rider, and the order is collected again when delivered.`)) {
         return;
     }
 
@@ -5234,7 +5109,7 @@ async function resetOrderToNew(orderId, orderNumber = '') {
             showError('Reset Failed', data.message || 'Failed to reset order to new.');
             return;
         }
-        showSuccess('Order Reset', `${label} is back in the new order queue.`);
+        showSuccess('Order Reset', data.message || `${label} is back in the new order queue.`);
         loadOrders();
     } catch (error) {
         console.error('Error resetting order to new:', error);
@@ -5474,7 +5349,7 @@ function displayOrders(orders = AppState.orders) {
         const isDelivered = String(order.status || '').toLowerCase() === 'delivered';
         const isCancelled = String(order.status || '').toLowerCase() === 'cancelled';
         const isLockedOrder = isDelivered || isCancelled;
-        const canResetLockedOrder = isLockedOrder && canResetTerminalOrderToNew();
+        const canResetLockedOrder = (isLockedOrder || String(order.payment_status || '').toLowerCase() === 'paid') && canResetTerminalOrderToNew();
         const deliveredAt = order.delivered_at || order.completed_at || order.updated_at;
         const timeTaken = isDelivered
             ? formatOrderDuration(order.created_at, deliveredAt || order.created_at)
@@ -12886,6 +12761,9 @@ async function applyRoleRestrictions() {
                 { perms: ['menu_units', 'menu_settings'], tabs: ['units'] },
                 { perms: ['menu_sizes', 'menu_settings'], tabs: ['sizes'] },
 
+                { perms: ['menu_hr', 'menu_hr_payroll'], tabs: ['hr-employees'] },
+                { perms: ['menu_hr'], tabs: ['hr-attendance'] },
+                { perms: ['menu_hr_payroll'], tabs: ['hr-payroll'] },
                 { perms: ['menu_financial_cpv', 'menu_financial'], tabs: ['payment-vouchers'] },
                 { perms: ['menu_financial_settlements', 'menu_financial'], tabs: ['store-settlements'] },
                 { perms: ['menu_financial_expenses', 'menu_financial'], tabs: ['expenses'] },

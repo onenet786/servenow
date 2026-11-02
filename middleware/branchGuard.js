@@ -50,9 +50,12 @@ function classify(method, path) {
     // Notices, promotions, flash messages and customer pushes: the route holds a branch account
     // to its own branch (settings, recipients and the customer picker).
     if (/^\/api\/stores\/(global-delivery-status|live-promotions|customer-flash-message)$/.test(p)) return { allow: true };
+    // Every app asks this at start. Sending the update notice stays with head office.
+    if (p === '/api/stores/app-update-status') return read ? { allow: true } : { deny: true };
     if (p === '/api/stores/notification-customers') return read ? { allow: true } : { deny: true };
     if (p === '/api/stores/customer-push-notification') return m === 'POST' ? { allow: true } : { deny: true };
     if (p === '/api/admin/delivery-fee-settings') return { allow: true };
+    if (p === '/api/admin/dashboard-overview') return read ? { allow: true } : { deny: true };
     if ((hit = p.match(/^\/api\/stores\/(\d+)(\/|$)/))) return { check: 'stores', id: Number(hit[1]) };
 
     if (p === '/api/riders') return { allow: true };
@@ -83,6 +86,8 @@ function classify(method, path) {
     // and the ledger sync always covers every branch, so those stay with head office.
     if (p === '/api/financial/banks' || p === '/api/financial/gl/sync') return read ? { allow: true } : { deny: true };
     if (/^\/api\/financial(\/|$)/.test(p)) return { allow: true };
+    // Attendance marks are the person's own; the HR screens are cut to the branch by the routes.
+    if (/^\/api\/hr(\/|$)/.test(p)) return { allow: true };
 
     // Reports, payments and wallets on the admin side: reads only, through the same filter.
     // Wallet adjustments, report edits, backups, restore, SQL and data clearing stay head office.

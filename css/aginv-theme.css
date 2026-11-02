@@ -1671,6 +1671,57 @@ textarea:focus,
   letter-spacing: 0.03em;
 }
 
+/* Sidebar boxes (Branch, Spoken alerts, Theme): one line each, grouped, so the menu fits without scrolling */
+.sidebar-theme-item + .sidebar-theme-item {
+  margin-top: 0;
+  padding-top: 0 !important;
+  border-top: 0;
+}
+
+.sidebar-nav .sidebar-theme-item {
+  padding: 0.4rem 0.75rem !important;
+  margin-top: 0.4rem;
+}
+
+.sidebar-nav .sidebar-theme-item + .sidebar-theme-item {
+  margin-top: 0;
+  padding-top: 0 !important;
+}
+
+.sidebar-nav .sidebar-theme-settings {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+}
+
+.sidebar-nav .sidebar-theme-settings .theme-label {
+  flex: 0 0 74px;
+  margin: 0;
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  line-height: 1.15;
+  gap: 4px;
+}
+
+.sidebar-nav .sidebar-theme-settings .theme-control-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-nav .sidebar-theme-settings .theme-select {
+  min-width: 0;
+  width: 100%;
+  height: 30px;
+  padding: 2px 6px;
+}
+
+.sidebar-nav .sidebar-theme-settings .theme-save-btn {
+  height: 30px;
+  padding: 2px 8px;
+}
+
 /* Sidebar Theme Selector Refinement */
 .sidebar-theme-item {
   list-style: none;

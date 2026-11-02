@@ -23,7 +23,7 @@ const DOCUMENTS = {
       cancelled: [],
     },
     lockedStatuses: ['approved', 'paid'],
-    lockedFields: { amount: 'amount', payee_name: 'payee_name', payee_type: 'payee_type', payee_id: 'payee_id', payment_method: 'payment_method' },
+    lockedFields: { gl_account_code: 'gl_account_code', amount: 'amount', payee_name: 'payee_name', payee_type: 'payee_type', payee_id: 'payee_id', payment_method: 'payment_method' },
     checkerStatuses: ['approved', 'paid'],
   },
   receipt_voucher: {
@@ -39,7 +39,7 @@ const DOCUMENTS = {
       cancelled: [],
     },
     lockedStatuses: ['received'],
-    lockedFields: { amount: 'amount', payer_name: 'payer_name', payer_type: 'payer_type', payer_id: 'payer_id', payment_method: 'payment_method' },
+    lockedFields: { gl_account_code: 'gl_account_code', amount: 'amount', payer_name: 'payer_name', payer_type: 'payer_type', payer_id: 'payer_id', payment_method: 'payment_method' },
     checkerStatuses: ['received'],
   },
   expense: {
@@ -53,7 +53,7 @@ const DOCUMENTS = {
       rejected: [],
     },
     lockedStatuses: ['approved', 'paid'],
-    lockedFields: { amount: 'amount' },
+    lockedFields: { gl_account_code: 'gl_account_code', amount: 'amount' },
     checkerStatuses: ['approved', 'paid'],
   },
   settlement: {
@@ -137,7 +137,7 @@ async function checkDocumentUpdate(db, user, docType, id, body) {
       if (body[field] !== undefined && !sameValue(body[field], doc[column])) {
         return {
           status: 409,
-          message: `${field} cannot be changed once the ${cfg.label.toLowerCase()} is ${current}; correct it with a journal voucher`,
+          message: `${field === 'gl_account_code' ? 'The ledger account' : field} cannot be changed once the ${cfg.label.toLowerCase()} is ${current}; correct it with a journal voucher`,
         };
       }
     }

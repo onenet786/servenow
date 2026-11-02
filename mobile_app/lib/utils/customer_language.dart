@@ -40,6 +40,11 @@ class CustomerLanguage {
     const translations = <String, String>{
       'Home': 'ہوم',
       'Your city': 'آپ کا شہر',
+      'Location use': 'لوکیشن کا استعمال',
+      'ServeNow collects your location to show your live position to the customer during a delivery, even when the phone is locked or the app is in the background. It stops when your deliveries are finished.':
+          'سرو ناؤ ڈیلیوری کے دوران گاہک کو آپ کی لائیو جگہ دکھانے کے لیے آپ کا لوکیشن ڈیٹا لیتا ہے، چاہے فون لاک ہو یا ایپ پس منظر میں ہو۔ ڈیلیوری مکمل ہونے پر یہ بند ہو جاتا ہے۔',
+      'Not now': 'ابھی نہیں',
+      'Continue': 'جاری رکھیں',
       'New here? Your city': 'نئے ہیں؟ اپنا شہر',
       'Choose your city': 'اپنا شہر منتخب کریں',
       'Choose your city to create your account': 'اکاؤنٹ بنانے کے لیے اپنا شہر منتخب کریں',

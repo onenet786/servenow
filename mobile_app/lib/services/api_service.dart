@@ -936,6 +936,57 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  static Future<Map<String, dynamic>> getMyAttendance(String token) async {
+    final uri = Uri.parse('$baseUrl/api/hr/me');
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> markAttendance(
+    String token, {
+    required String photo,
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/hr/attendance/mark');
+    _logger.d('ApiService: POST $uri');
+    final response = await _post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'photo': photo,
+        'source': 'phone',
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
+      }),
+    );
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> getDailySaleReport(
+    String token,
+    String date,
+  ) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/admin/daily-sale-report',
+    ).replace(queryParameters: {'date': date});
+    _logger.d('ApiService: GET $uri');
+    final response = await _get(
+      uri,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return _handleResponse(response);
+  }
+
   // Rider APIs
   static Future<Map<String, dynamic>> getRiderProfile(String token) async {
     final uri = Uri.parse('$baseUrl/api/orders/rider/profile');

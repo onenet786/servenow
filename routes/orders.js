@@ -742,6 +742,7 @@ function unreversedOrderEntries(entries) {
 }
 
 async function reverseRiderMoneyForCancelledOrder(db, { orderId, orderNumber }) {
+  let riderCashReversed = 0;
   const [entries] = await db.execute(
     `SELECT wt.id, wt.wallet_id, wt.type, wt.amount, wt.reference_type, wt.description, w.rider_id
      FROM wallet_transactions wt
@@ -779,6 +780,7 @@ async function reverseRiderMoneyForCancelledOrder(db, { orderId, orderNumber }) 
         ],
       );
       await conn.commit();
+      riderCashReversed = roundAmount(riderCashReversed + (undoesCredit ? amount : -amount));
     } catch (reversalError) {
       await conn.rollback();
       throw reversalError;
@@ -794,6 +796,7 @@ async function reverseRiderMoneyForCancelledOrder(db, { orderId, orderNumber }) 
     [orderId],
   );
   await db.execute("DELETE FROM rider_store_payments WHERE order_id = ?", [orderId]);
+  return riderCashReversed;
 }
 
 // recorded_by / created_by columns point at the users table. Riders live in
@@ -1535,16 +1538,18 @@ async function getOrCreateRiderWallet(db, riderId) {
 }
 
 async function assertNoWalletOrderCreditConflict(db, orderId, riderId, walletId) {
-  const [existingCredits] = await db.execute(
-    `SELECT wt.id, wt.wallet_id, w.rider_id AS wallet_rider_id
+  const [entries] = await db.execute(
+    `SELECT wt.id, wt.wallet_id, wt.type, wt.amount, wt.reference_type, wt.description,
+            w.rider_id AS wallet_rider_id
      FROM wallet_transactions wt
      JOIN wallets w ON w.id = wt.wallet_id
-     WHERE wt.type = 'credit'
-       AND wt.reference_type = 'order'
-       AND CAST(wt.reference_id AS UNSIGNED) = ?
-     LIMIT 5`,
-    [orderId]
+     WHERE wt.reference_type IN ('order', 'order_cancel_reversal')
+       AND wt.reference_id = ?
+     ORDER BY wt.id`,
+    [String(orderId)]
   );
+  // A credit undone by a reset or cancellation no longer counts: the order is collected again.
+  const existingCredits = unreversedOrderEntries(entries).filter((row) => row.type === "credit");
 
   const conflictingCredit = existingCredits.find(
     (row) =>
@@ -4874,14 +4879,98 @@ router.get("/", authenticateToken, async (req, res) => {
   }
 });
 
-const TERMINAL_ORDER_RESET_EMAILS = RESTRICTED_FINANCIAL_REPORT_EMAILS;
+// The two owners. Not read from the environment: an empty setting must never open this to every admin.
+const ORDER_RESET_OWNER_EMAILS = new Set(["admin@servenow.com", "nazir@servenow.pk"]);
 
-// Admins only; when an allowlist is configured, only the listed admins.
 function canResetTerminalOrder(user) {
   if (!user || user.user_type !== "admin") return false;
-  if (TERMINAL_ORDER_RESET_EMAILS.size === 0) return true;
-  const email = String(user.email || "").trim().toLowerCase();
-  return TERMINAL_ORDER_RESET_EMAILS.has(email);
+  return ORDER_RESET_OWNER_EMAILS.has(String(user.email || "").trim().toLowerCase());
+}
+
+function paidOrderItemsRefusal(user) {
+  return canResetTerminalOrder(user)
+    ? "This order is paid. Press Reset New first: it becomes unpaid and can then be changed like a normal order."
+    : "This order is already paid, so its items cannot be changed. Cancel it (the customer is refunded) and place a new one.";
+}
+
+// Takes an order back to new and unpaid, with the rider's money undone, so it runs as a normal
+// order again and is collected once. Money goes first: the reversal is safe to run twice, so a
+// failure leaves the order as it was and Reset New can simply be pressed again.
+async function resetOrderToUnpaid(req, order) {
+  const refuse = (message) => {
+    const error = new Error(message);
+    error.statusCode = 409;
+    throw error;
+  };
+  const orderId = Number(order.id);
+  const lockName = `servenow_order_reset_${orderId}`;
+  const lockConn = await req.db.getConnection();
+  try {
+    const [[lock]] = await lockConn.query("SELECT GET_LOCK(?, 10) AS held", [lockName]);
+    if (Number(lock.held) !== 1) refuse("This order is being reset already. Try again in a moment.");
+    try {
+      const [rows] = await req.db.execute(
+        "SELECT status, payment_status, payment_method, total_amount FROM orders WHERE id = ?",
+        [orderId],
+      );
+      const current = rows[0];
+      const status = String(current?.status || "").toLowerCase();
+      const paymentStatus = String(current?.payment_status || "").toLowerCase();
+      const paymentMethod = String(current?.payment_method || "").toLowerCase();
+      if (!["delivered", "cancelled"].includes(status) && paymentStatus !== "paid") {
+        refuse("Only delivered, cancelled or paid orders can be reset to new.");
+      }
+      // Money paid online is still with us: marking it unpaid would charge the customer twice.
+      if (paymentStatus === "paid" && paymentMethod !== "cash") {
+        refuse(`This order was paid by ${paymentMethod || "another method"}, not cash. Refund the customer first, then reset it.`);
+      }
+      const [handIns] = await req.db.execute(
+        `SELECT rcm.movement_number, rcm.status
+         FROM rider_cash_submission_orders rcso
+         JOIN rider_cash_movements rcm ON rcm.id = rcso.movement_id
+         WHERE rcso.order_id = ? AND rcm.movement_type = 'cash_submission'
+           AND rcm.status IN ('pending', 'approved', 'completed')`,
+        [orderId],
+      );
+      const waiting = handIns.find((h) => h.status === "pending");
+      if (waiting) {
+        refuse(`This order's cash is on hand-in ${waiting.movement_number}, waiting for approval. Approve or reject it first.`);
+      }
+
+      const riderCashReversed = await reverseRiderMoneyForCancelledOrder(req.db, {
+        orderId,
+        orderNumber: order.order_number,
+      });
+      await req.db.execute(
+        "UPDATE payments SET status = 'refunded' WHERE order_id = ? AND payment_method = 'cash' AND status = 'success'",
+        [orderId],
+      );
+      // Rows of the old collection; the next one writes its own.
+      await req.db.execute(
+        "UPDATE financial_transactions SET status = 'cancelled' WHERE reference_type = 'order' AND reference_id = ? AND status = 'completed'",
+        [orderId],
+      );
+      await req.db.execute("UPDATE order_items SET item_status = 'pending' WHERE order_id = ?", [orderId]);
+      await req.db.execute(
+        `UPDATE orders SET status = 'pending', payment_status = 'pending', rider_id = NULL,
+                estimated_delivery_time = NULL, updated_at = NOW()
+         WHERE id = ?`,
+        [orderId],
+      );
+
+      const handedIn = handIns[0]?.movement_number || null;
+      let message = "Order reset. It is new and unpaid, and runs as a normal order.";
+      if (riderCashReversed > 0) message += ` Rs ${riderCashReversed} was taken back from the rider.`;
+      if (handedIn) {
+        message += ` Its cash was already handed in on ${handedIn}, so the rider's balance stays Rs ${riderCashReversed} lower until it is delivered again.`;
+      }
+      return { message, rider_cash_reversed: riderCashReversed, handed_in_on: handedIn };
+    } finally {
+      await lockConn.query("SELECT RELEASE_LOCK(?)", [lockName]);
+    }
+  } finally {
+    lockConn.release();
+  }
 }
 
 // Statuses a store owner may set on their own items. Rider steps
@@ -4949,7 +5038,7 @@ router.put(
       if (!canResetTerminalOrder(req.user)) {
         return res.status(403).json({
           success: false,
-          message: "Only authorized users can reset delivered or cancelled orders.",
+          message: "Only the two owner logins can reset an order.",
         });
       }
 
@@ -4967,23 +5056,7 @@ router.put(
       }
 
       const order = orders[0];
-      const currentStatus = String(order.status || "").trim().toLowerCase();
-      if (!["delivered", "cancelled"].includes(currentStatus)) {
-        return res.status(400).json({
-          success: false,
-          message: "Only delivered or cancelled orders can be reset to new.",
-        });
-      }
-
-      await req.db.execute(
-        "UPDATE order_items SET item_status = 'pending' WHERE order_id = ?",
-        [id],
-      );
-      // A refunded order must be paid again before it can be delivered
-      await req.db.execute(
-        "UPDATE orders SET status = 'pending', rider_id = NULL, estimated_delivery_time = NULL, payment_status = IF(payment_status = 'refunded', 'pending', payment_status), updated_at = NOW() WHERE id = ?",
-        [id],
-      );
+      const result = await resetOrderToUnpaid(req, order);
 
       try {
         await emitOrderResetToNew(req, order);
@@ -4993,10 +5066,14 @@ router.put(
 
       res.json({
         success: true,
-        message: "Order reset to new order state successfully",
+        ...result,
         global_status: "pending",
+        payment_status: "pending",
       });
     } catch (error) {
+      if (error.statusCode === 409) {
+        return res.status(409).json({ success: false, message: error.message });
+      }
       console.error("Error resetting order to new:", error);
       res.status(500).json({
         success: false,
@@ -5135,6 +5212,16 @@ router.put(
           success: false,
           message: "Only authorized users can reopen delivered or cancelled orders.",
         });
+      }
+
+      if (isTerminalResetToNew) {
+        const result = await resetOrderToUnpaid(req, order);
+        try {
+          await emitOrderResetToNew(req, order);
+        } catch (emitError) {
+          console.error("Socket emit error in status reset:", emitError);
+        }
+        return res.json({ success: true, ...result, global_status: "pending", payment_status: "pending" });
       }
 
       // Cancelling a delivered order reverses the rider's cash and deletes the store payment, while the
@@ -5288,17 +5375,10 @@ router.put(
         );
       }
 
-      if (isTerminalResetToNew) {
-        await req.db.execute(
-          "UPDATE orders SET status = ?, rider_id = NULL, estimated_delivery_time = NULL, updated_at = NOW() WHERE id = ?",
-          [newGlobalStatus, id],
-        );
-      } else {
-        await req.db.execute(
-          "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
-          [newGlobalStatus, id],
-        );
-      }
+      await req.db.execute(
+        "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
+        [newGlobalStatus, id],
+      );
 
       // Order Cancellation Hooks: refund wallet payment and restore inventory stock.
       // The two steps are independent so a stock problem can never block a refund.
@@ -6316,6 +6396,7 @@ router.put(
                  WHERE reference_type = 'order'
                    AND reference_id = ?
                    AND movement_type = 'cash_collection'
+                   AND status <> 'cancelled'
                )`,
               [
                 movementNumber,
@@ -6460,7 +6541,7 @@ router.put(
       if (paidCheck[0]?.payment_status === "paid") {
         return res.status(409).json({
           success: false,
-          message: "This order is already paid, so its items cannot be changed. Cancel it (the customer is refunded) and place a new order.",
+          message: paidOrderItemsRefusal(req.user),
         });
       }
       const { items, store_id } = req.body;
@@ -6768,7 +6849,7 @@ router.post(
       if (paidCheck[0]?.payment_status === "paid") {
         return res.status(409).json({
           success: false,
-          message: "This order is already paid, so its items cannot be changed. Cancel it (the customer is refunded) and place a new order.",
+          message: paidOrderItemsRefusal(req.user),
         });
       }
       const { product_id, quantity, store_id } = req.body;
@@ -6977,7 +7058,7 @@ router.delete(
       if (paidCheck[0]?.payment_status === "paid") {
         return res.status(409).json({
           success: false,
-          message: "This order is already paid, so its items cannot be changed. Cancel it (the customer is refunded) and place a new order.",
+          message: paidOrderItemsRefusal(req.user),
         });
       }
 

@@ -58,6 +58,7 @@ database/backups/
 
 # Uploads (can be large)
 uploads/
+private_uploads/
 
 # Secrets / credentials
 secrets/

@@ -54,6 +54,8 @@ const RIGHTS = [
   R('menu_financial_settlements', 'Store settlements: view and create', 'Rider cash and stores', 'medium'),
   R('approve_settlements', 'Store settlements: approve and pay', 'Rider cash and stores', 'high', 'Money leaves to a store'),
   R('menu_financial_expenses', 'Expenses: view and record', 'Rider cash and stores', 'medium'),
+  R('menu_hr', 'HR: employees and attendance', 'HR', 'medium', 'Shows staff photos and locations'),
+  R('menu_hr_payroll', 'Payroll: salaries and salary vouchers', 'HR', 'high', 'Shows salaries and creates draft payment vouchers'),
   R('approve_expenses', 'Expenses: approve and pay', 'Rider cash and stores', 'high'),
 
   R('menu_financial_dashboard', 'Financial dashboard and general ledger', 'Accounts reports', 'high', 'Profit, cash and full books'),

@@ -13,6 +13,8 @@ const { checkAssignment, assignRider } = require('./riderAssignment');
 const { placeOrderAction } = require('./assistantOrders');
 const { orderChangeRequestAction, changeRequestsFor } = require('./orderChangeRequests');
 const { editOrderAction } = require('./orderEdits');
+const { REPORT_KEYS, adminReport } = require('./assistantReports');
+const { myAttendance } = require('./assistantHr');
 
 const TOKEN_TTL_SECONDS = 2 * 3600;
 const OPEN_STATUSES = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'out_for_delivery'];
@@ -161,6 +163,18 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'my_attendance',
+    who: ['rider', 'admin', 'standard_user'],
+    description: "The asking person's OWN attendance (riders and staff on the HR staff list): whether they are checked in today, "
+      + 'their check-in and check-out times and breaks, and a month\'s present, absent, leave and weekly-off days with the dates '
+      + 'they were absent, and their salary for the month (net after absent days, bonus and deduction). Use it for "meri attendance", '
+      + '"kya maine check in kiya", "is mahine meri kitni chuttiyan / absents", "meri salary kitni banegi". For anyone else use admin_report.',
+    inputSchema: {
+      type: 'object',
+      properties: { month: { type: 'string', description: 'YYYY-MM when they ask about another month. Default this month.' } },
+    },
+  },
+  {
     name: 'store_orders_today',
     who: ['store_owner'],
     description: "Today's orders for the signed-in store owner's stores: count by status, sales delivered, and the open orders.",
@@ -171,9 +185,57 @@ const TOOLS = [
     who: ['admin', 'standard_user'],
     // Staff logins also need one of these rights (User rights screen); admins always pass.
     staffRights: ['menu_dashboard'],
-    description: "Today's figures for the whole platform: orders by status, value delivered, orders waiting for a rider, "
-      + 'riders available, and the busiest stores. For ServeNow staff only.',
+    description: "Today's live picture of the platform: orders by status, value delivered, the orders waiting for a rider, "
+      + 'riders available, the busiest stores, and how many customers, stores, riders and products there are. For ServeNow staff only. '
+      + 'For sales, profit, money or any other day, use admin_report.',
     inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    // Every report of the admin panel. The panel's own route answers, with its own rights and branch rules,
+    // so no staffRights here: see services/assistantReports.js.
+    name: 'admin_report',
+    who: ['admin', 'standard_user'],
+    description: 'Any report from the ServeNow admin panel, for any day or period, with the same figures as the panel: sales, '
+      + 'profit, delivery charges, stores, products, customers, riders and their cash, store balances, expenses, accounts and '
+      + 'stock. Use it whenever a staff member asks about the business, in English, Urdu or Roman Urdu. Never say you have no '
+      + 'access to this data: call this tool. Give the amounts from the answer exactly; do not work out your own totals. '
+      + 'A branch account only ever gets its own branch; head office gets all branches unless a branch is named. '
+      + 'Attendance times come back as Pakistan time; say them as given. When the answer has period_note, tell them which day or month it covers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        report: {
+          type: 'string',
+          enum: REPORT_KEYS,
+          description: 'Sales: daily_sale (one day: cash sale, credit sale, delivery, profit), daily_summary (one day, with rider cash), '
+            + 'sales_by_day, sales_by_hour, sales_by_store, sales_by_payment, sales_by_term, store_sales, product_sales, '
+            + 'store_product_sales (needs store), category_sales, top_products, customer_sales, order_list, manual_orders, '
+            + 'sales_with_delivery. Riders: rider_cash_position, hand_in_tracker, rider_daily_tally, fuel_vs_distance, '
+            + 'rider_performance, riders_detail. Stores: store_balances, stores_due, payables_ageing, store_payment_register, '
+            + 'pickup_payments, cash_store_check, store_performance, stores_detail. Accounts: financial_dashboard, platform_summary, '
+            + 'profit_loss, monthly_profit_loss, balance_sheet, trial_balance, cash_flow, daily_cash_book, expenses_by_category, '
+            + 'suspense_review, wallets, payments. Staff (HR): attendance_day (one day: who is present, absent, on leave, not marked yet, '
+            + 'check-in and check-out times, and for today who is in, out on work and gone home), attendance_month (days present, absent, '
+            + 'leave, off per person), payroll (salary, absent-day deduction, bonus, net, paid or not). '
+            + 'Stock and control: inventory, recent_activity, exceptions, change_log.',
+        },
+        period: {
+          type: 'string',
+          enum: ['today', 'yesterday', 'last_7_days', 'last_30_days', 'this_month', 'last_month', 'this_year'],
+          description: 'The period when they name one. Default today.',
+        },
+        from: { type: 'string', description: 'Start date, YYYY-MM-DD, instead of period.' },
+        to: { type: 'string', description: 'End date, YYYY-MM-DD, instead of period. For one day send only this.' },
+        branch: { type: 'string', description: 'Branch or city name, when they ask about one branch.' },
+        store: { type: 'string', description: 'Store name, or its id.' },
+        rider: { type: 'string', description: 'Rider name, or their id.' },
+        customer: { type: 'string', description: 'Customer name, or their id. For customer_sales.' },
+        employee: { type: 'string', description: 'Staff member or rider name (or employee id), for attendance_day, attendance_month or payroll about one person: "Ali aaj aaya?", "Sana ki is mahine attendance".' },
+        status: { type: 'string', description: 'For order_list: pending, confirmed, preparing, ready, picked_up, out_for_delivery, delivered or cancelled.' },
+        search: { type: 'string', description: 'For order_list: an order number or customer name.' },
+      },
+      required: ['report'],
+    },
   },
   {
     // An action: the customer confirms the summary (items, delivery, total, address, payment) first.
@@ -660,6 +722,18 @@ async function businessToday(db, _args, user) {
     `SELECT s.name, COUNT(*) AS n FROM orders o JOIN stores s ON s.id = o.store_id
       WHERE ${TODAY}${inBranch} GROUP BY s.id, s.name ORDER BY n DESC LIMIT 5`, p
   );
+  const [waitingOrders] = await db.execute(
+    `SELECT o.order_number, o.status, o.total_amount, s.name AS store_name FROM orders o LEFT JOIN stores s ON s.id = o.store_id
+      WHERE o.rider_id IS NULL AND o.status IN ('confirmed', 'preparing', 'ready')${inBranch} ORDER BY o.created_at LIMIT 10`, p
+  );
+  const inScope = scope === null ? '' : ' AND branch_id = ?';
+  const [[totals]] = await db.execute(
+    `SELECT (SELECT COUNT(*) FROM users WHERE user_type = 'customer' AND is_active = 1${inScope}) AS customers,
+            (SELECT COUNT(*) FROM stores WHERE 1 = 1${inScope}) AS stores,
+            (SELECT COUNT(*) FROM riders WHERE is_active = 1${inScope}) AS riders,
+            (SELECT COUNT(*) FROM products p JOIN stores s ON s.id = p.store_id WHERE 1 = 1${scope === null ? '' : ' AND s.branch_id = ?'}) AS products`,
+    scope === null ? [] : [scope, scope, scope, scope]
+  );
   const delivered = byStatus.find((r) => r.status === 'delivered');
   return {
     currency: 'PKR',
@@ -667,8 +741,13 @@ async function businessToday(db, _args, user) {
     by_status: byStatus.map((r) => ({ ...statusOf(r.status), orders: Number(r.n) })),
     delivered_value_today: money(delivered ? delivered.value : 0),
     waiting_for_rider: Number(waiting.n),
+    orders_waiting_for_rider: waitingOrders.map((o) => ({ order_number: o.order_number, store: o.store_name, ...statusOf(o.status), total: money(o.total_amount) })),
     riders_available: Number(riders.n),
     busiest_stores: busiest.map((s) => ({ store: s.name, orders: Number(s.n) })),
+    active_customers: Number(totals.customers),
+    stores: Number(totals.stores),
+    active_riders: Number(totals.riders),
+    products: Number(totals.products),
   };
 }
 
@@ -762,6 +841,7 @@ const ACTIONS = {
 const HANDLERS = {
   find_stores: findStores, find_products: findProducts, store_products: storeProducts, my_orders: myOrders, order_status: orderStatus,
   my_wallet: myWallet, rider_deliveries: riderDeliveries, store_orders_today: storeOrdersToday, business_today: businessToday,
+  admin_report: adminReport, my_attendance: myAttendance,
 };
 
 /** null when `user` may use the tool, otherwise the reply explaining why not. */

@@ -16,11 +16,53 @@ It never moves money.
 | `order_status` | signed-in | One order in full. Customers see their own orders, riders the orders given to them, store owners their stores' orders, admins and staff with *View orders* all orders |
 | `my_wallet` | customers, riders | Wallet balance and latest transactions |
 | `rider_deliveries` | riders | Deliveries not finished yet |
+| `my_attendance` | riders and staff on the HR staff list | Their **own** attendance: checked in today or not, times and breaks, and a month's present, absent (with dates), leave and weekly-off days with their salary worked out like the payroll screen. No HR right needed: it only ever shows the asker |
 | `store_orders_today` | store owners | Today's orders for their stores |
-| `business_today` | admins, staff with *View dashboard* | Today's platform figures |
+| `business_today` | admins, staff with *View dashboard* | Today's live picture: orders by status, orders waiting for a rider, riders available, busiest stores, and how many customers, stores, riders and products there are |
+| `admin_report` | admins, staff | Any of 46 admin panel reports for any day or period (below) |
 
 Visitors who are not signed in can only use the first two. An unknown order number and somebody
 else's order get the same "not found" answer. Branch accounts only hear about their own branch.
+
+## Admin panel reports (`admin_report`)
+
+Staff can ask about the business in chat or by voice on the website and in the app: "aaj ki cash aur credit sale",
+"October ka profit", "Faizan ke paas kitna cash hai", "Imran Broast ka balance", "top products".
+
+Each report is the panel's own route, called in-process as the person asking (`services/assistantReports.js`), so:
+
+- The figures are the panel's. No report is calculated a second time.
+- The route checks that person's rights. Staff without a right hear that it needs an administrator.
+- A branch account passes the same guard as on the website and only gets its own branch. Head office gets all
+  branches, or one branch when it is named.
+- Only the routes listed in `PANEL_REPORTS`, plus every Reports Centre report, can be reached, and only with GET.
+  Backups, diagnostics and changes are not listed. Nothing in the tool's arguments becomes part of a path.
+
+Before an answer goes to the AI model, phone numbers, emails, addresses, CNIC, bank details and images are removed, so
+the assistant cannot read those out. Customer names, sales and amounts are sent, because the answer needs them; they
+pass through AIAgent and its AI provider. Long lists are cut to fit AIAgent's limits (a tool answers in 10 seconds and
+up to 16,000 characters). Totals are never cut, and the assistant is told to say the list was shortened.
+
+To add a report, add a line to `PANEL_REPORTS`, its name to the `report` list in `services/aiagent.js`, then press
+**Refresh**. A new Reports Centre report is picked up by itself; add its name to that description.
+
+### Attendance and payroll
+
+Staff with the HR right ask "aaj kaun aaya hai?", "kaun bahar gaya hai?", "Ali kal aaya tha?", "Sana ki is mahine attendance",
+"October ki payroll". `attendance_day`, `attendance_month` and `payroll` are the HR screens' own answers, tidied in
+`services/assistantHr.js`:
+
+- Times are **Pakistan time** ("9:05 AM"). The database driver gives instants that print as UTC; the HR page converts
+  them in the browser, so the assistant gets them converted too.
+- For today, each person's **now**: in, out for a reason (Bank Work, Lunch or Namaz, …) since when, or gone home, plus
+  counts of who is in, out and gone home. Breaks (went out and came back) are listed.
+- `employee` keeps **one person** by name (or asks which one when several match), within the asker's branch.
+- A one-day report asked for a range ("pichle hafte") says which day it shows (`period_note`), and a month report
+  says which month, instead of quietly answering for another period.
+
+Riders and staff ask about themselves with `my_attendance`: "kya maine check in kiya?", "is mahine meri kitni
+chuttiyan?", "kaun se din absent tha?", "meri salary kitni banegi?". The month uses the payroll screen's own
+calculation (`monthFigures` in `routes/hr.js`); a month already paid shows the voucher's final figures.
 
 ## What it can do (actions)
 
@@ -57,7 +99,7 @@ In the AIAgent dashboard:
 2. On that channel, open **Signed-in users** and click **Turn on and create secret**. Copy the secret
    (it is shown once). Leave *Only signed-in users may chat* off so visitors can ask about stores.
 3. **Tools → Connected systems**, type `servenow.pk` and press **Connect**. AIAgent reads
-   `https://servenow.pk/.well-known/aiagent.json`, creates the 8 tools and shows one signing secret,
+   `https://servenow.pk/.well-known/aiagent.json`, creates the tools and shows one signing secret,
    once. Copy it.
 
 On the ServeNow server, add to `.env` and restart:

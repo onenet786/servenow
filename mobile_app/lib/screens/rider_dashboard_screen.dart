@@ -7,6 +7,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
+import 'attendance_screen.dart';
 import '../providers/auth_provider.dart';
 import '../providers/notification_provider.dart';
 import '../services/api_service.dart';
@@ -170,6 +171,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
       'Current location': 'موجودہ مقام',
       'ID card': 'شناختی کارڈ',
       'Day Transactions': 'روزانہ لین دین',
+      'Attendance': 'حاضری',
       'Not submitted cash': 'جمع نہ کرائی گئی رقم',
       'Cash orders not yet handed to the office':
           'نقد آرڈرز جن کی رقم ابھی دفتر میں جمع نہیں ہوئی',
@@ -1245,6 +1247,29 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     }
   }
 
+  Future<bool> _confirmLocationDisclosure() async {
+    if (!mounted) return false;
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(_tr('Location use')),
+        content: Text(_tr('ServeNow collects your location to show your live position to the customer during a delivery, even when the phone is locked or the app is in the background. It stops when your deliveries are finished.')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(_tr('Not now')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(_tr('Continue')),
+          ),
+        ],
+      ),
+    );
+    return accepted == true;
+  }
+
   Future<void> _getCurrentLocation() async {
     try {
       bool serviceEnabled;
@@ -1260,6 +1285,13 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
 
       permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
+        // Google Play requires this notice before the system permission prompt.
+        if (!await _confirmLocationDisclosure()) {
+          if (mounted) {
+            setState(() => _currentLocation = 'Location permission denied');
+          }
+          return;
+        }
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           if (mounted) {
@@ -3385,6 +3417,14 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
             children: [
+              ListTile(
+                leading: const Icon(Icons.how_to_reg_rounded),
+                title: Text(_tr('Attendance'), style: AppText.bodyStrong),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AttendanceScreen()),
+                ),
+              ),
               ListTile(
                 leading: const Icon(Icons.query_stats_rounded),
                 title: Text(_tr('Day Transactions'), style: AppText.bodyStrong),
