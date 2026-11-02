@@ -19,12 +19,58 @@
   let position = null;
   let action = null;
   let stream = null;
+  let reason = 'home';
+
+  function tick() {
+    $('clock').textContent = new Date().toLocaleTimeString('en-PK', { hour: 'numeric', minute: '2-digit' });
+  }
+  tick();
+  setInterval(tick, 15000);
+
+  function showReasons(list) {
+    const box = $('reasons');
+    box.replaceChildren(...list.map((item) => {
+      const choice = document.createElement('button');
+      choice.type = 'button';
+      choice.textContent = item.label;
+      choice.dataset.reason = item.key;
+      choice.classList.toggle('is-on', item.key === reason);
+      return choice;
+    }));
+    box.hidden = false;
+    $('reasonTitle').hidden = false;
+  }
+
+  function hideReasons() {
+    $('reasons').hidden = true;
+    $('reasonTitle').hidden = true;
+  }
+
+  function finish(text, good) {
+    stopCamera();
+    say('cameraLine', '');
+    say('locationLine', '');
+    say('resultLine', '');
+    hideReasons();
+    button.hidden = true;
+    $('doneBox').hidden = false;
+    $('doneBox').className = `done ${good ? '' : 'bad'}`;
+    $('doneTick').textContent = good ? '\u2713' : '!';
+    $('doneText').textContent = text;
+  }
+
+  $('reasons').addEventListener('click', (event) => {
+    const choice = event.target.closest('[data-reason]');
+    if (!choice) return;
+    reason = choice.dataset.reason;
+    $('reasons').querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b === choice));
+  });
 
   function say(id, text, kind) {
     const line = $(id);
     line.hidden = !text;
     line.textContent = text || '';
-    line.className = `line ${kind || ''}`;
+    line.className = `status ${kind || ''}`;
   }
 
   async function api(path, options = {}) {
@@ -46,6 +92,7 @@
     const missing = !cameraReady ? 'Waiting for camera...' : phone && !position ? 'Waiting for location...' : '';
     button.textContent = missing || label;
     button.disabled = Boolean(missing);
+    button.classList.toggle('out', action === 'out');
   }
 
   function stopCamera() {
@@ -118,13 +165,10 @@
           latitude: position?.latitude,
           longitude: position?.longitude,
           accuracy: position?.accuracy,
-          reason: action === 'out' ? $('reason').value : undefined,
+          reason: action === 'out' ? reason : undefined,
         }),
       });
-      say('resultLine', data.message, 'good');
-      stopCamera();
-      button.hidden = true;
-      $('reason').hidden = true;
+      finish(data.message, true);
     } catch (error) {
       say('resultLine', error.message, 'bad');
       refreshButton();
@@ -136,24 +180,20 @@
       const me = await api('/me');
       if (!me.employee) {
         $('who').textContent = 'Attendance';
-        say('resultLine', 'You are not on the staff list yet. Ask HR to add you.', 'bad');
-        button.hidden = true;
+        finish('You are not on the staff list yet. Ask HR to add you.', false);
         return;
       }
       $('who').textContent = me.employee.name;
-      $('today').textContent = `${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}${me.employee.designation ? ` · ${me.employee.designation}` : ''}`;
+      $('today').textContent = `${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}${me.employee.designation ? ` · ${me.employee.designation}` : ''}`;
       action = me.next_action;
       if (action === 'out') {
-        $('reason').innerHTML = me.reasons.map((r) => `<option value="${r.key}">${r.label}</option>`).join('');
-        $('reason').value = 'home';
-        $('reason').hidden = false;
+        showReasons(me.reasons);
       }
       refreshButton();
       startLocation();
       await startCamera();
     } catch (error) {
-      say('resultLine', error.message, 'bad');
-      button.hidden = true;
+      finish(error.message, false);
     }
   })();
 })();

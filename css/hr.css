@@ -1,0 +1,133 @@
+/* HR pages in the admin panel: Employees, Attendance and Payroll. */
+.hr-page { display: flex; flex-direction: column; gap: 18px; }
+
+.hr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 22px 24px;
+  border-radius: 16px; color: #fff; background: linear-gradient(120deg, #14532d 0%, #166534 45%, #15803d 100%);
+  box-shadow: 0 10px 26px rgba(20, 83, 45, .18); }
+.hr-eyebrow { display: block; font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #bbf7d0; margin-bottom: 4px; }
+.hr-page .hr-head h2 { margin: 0; padding: 0; border: 0; font-size: 26px; line-height: 1.2; font-weight: 700; color: #fff; }
+.hr-head p { margin: 5px 0 0; font-size: 14px; color: #dcfce7; max-width: 640px; }
+.hr-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hr-head .btn { min-height: 40px; border-radius: 10px; }
+.hr-page .hr-head .btn.btn-primary { background: #fff !important; border-color: #fff !important; color: #14532d !important; font-weight: 700; box-shadow: none; }
+.hr-page .hr-head .btn.btn-primary:hover { background: #dcfce7 !important; border-color: #dcfce7 !important; }
+
+/* Stepping a date or month */
+.hr-stepper { display: inline-flex; align-items: stretch; height: 40px; border-radius: 10px; overflow: hidden; background: #fff; }
+.hr-stepper button { width: 38px; border: 0; background: transparent; color: #166534; cursor: pointer; font-size: 13px; }
+.hr-stepper button:hover { background: #f0fdf4; }
+.hr-stepper .hr-today { width: auto; padding: 0 12px; font-size: 13px; font-weight: 700; border-left: 1px solid #e5e7eb; }
+.hr-page .hr-stepper input { width: 150px; height: 40px; margin: 0; padding: 0 6px; border: 0 !important; border-radius: 0; box-shadow: none; background: transparent;
+  color: #111827; font-size: 14px; font-weight: 600; text-align: center; }
+.hr-page .hr-stepper input:focus { outline: none; box-shadow: none !important; }
+
+/* Summary cards */
+.hr-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); grid-auto-rows: 1fr; gap: 12px; }
+.hr-kpi { position: relative; height: auto; min-height: 0; padding: 15px 16px; border-radius: 14px; background: var(--sn-surface, #fff); border: 1px solid var(--sn-border, #e5e7eb);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04); min-width: 0; }
+.hr-kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hr-kpi-label { font-size: 12px; font-weight: 600; color: var(--sn-muted, #6b7280); }
+.hr-kpi-icon { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 9px; font-size: 13px;
+  background: var(--sn-surface-3, #f3f4f6); color: var(--sn-text-2, #4b5563); }
+.hr-kpi-value { margin-top: 6px; font-size: 24px; line-height: 1.2; font-weight: 700; color: var(--sn-text, #111827); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.hr-kpi-note { margin-top: 3px; font-size: 12px; color: var(--sn-muted, #6b7280); }
+.hr-kpi.good .hr-kpi-icon { background: #dcfce7; color: #166534; }
+.hr-kpi.warn .hr-kpi-icon { background: #fef3c7; color: #b45309; }
+.hr-kpi.bad .hr-kpi-icon { background: #fee2e2; color: #b91c1c; }
+.hr-kpi.info .hr-kpi-icon { background: #dbeafe; color: #1d4ed8; }
+.hr-kpi.lead { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-color: #bbf7d0; }
+.hr-kpi.lead .hr-kpi-value { color: #14532d; }
+.hr-kpi.lead .hr-kpi-icon { background: #15803d; color: #fff; }
+.hr-meter { height: 6px; margin-top: 9px; border-radius: 99px; overflow: hidden; background: var(--sn-surface-3, #eef0f3); }
+.hr-meter span { display: block; height: 100%; border-radius: 99px; background: #16a34a; transition: width .35s ease; }
+
+/* Panels */
+.hr-card { border-radius: 16px; background: var(--sn-surface, #fff); border: 1px solid var(--sn-border, #e5e7eb); box-shadow: 0 1px 2px rgba(15, 23, 42, .04); overflow: hidden; }
+.hr-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--sn-border, #e5e7eb); }
+.hr-page .hr-card-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--sn-text, #111827); }
+.hr-card-head small { display: block; margin-top: 1px; font-size: 12px; font-weight: 500; color: var(--sn-muted, #6b7280); }
+.hr-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hr-search { position: relative; }
+.hr-search i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--sn-muted, #9ca3af); }
+.hr-page .hr-search input { width: 220px; height: 36px; margin: 0; padding: 0 12px 0 31px; border-radius: 9px; font-size: 13.5px; }
+
+/* Segments and sub-pages */
+.hr-segments { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--sn-surface-3, #f3f4f6); }
+.hr-segments button { padding: 6px 13px; border: 0; border-radius: 8px; background: transparent; color: var(--sn-text-2, #4b5563); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.hr-segments button:hover { color: var(--sn-text, #111827); }
+.hr-segments button.is-on { background: var(--sn-surface, #fff); color: #166534; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+.hr-view[hidden] { display: none; }
+
+/* Tables */
+.hr-page .hr-table { margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; }
+.hr-page .hr-table::before, .hr-page .hr-table::after { display: none !important; }
+.hr-page .hr-table > table { width: 100%; margin: 0; border: 0 !important; border-radius: 0; box-shadow: none; }
+.hr-page .hr-table th, .hr-page .hr-table td { border-left: 0 !important; border-right: 0 !important; }
+.hr-page .hr-table thead th { padding: 10px 16px; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; font-weight: 700; white-space: nowrap;
+  color: var(--sn-muted, #6b7280); background: var(--sn-surface-2, #f9fafb); border-bottom: 1px solid var(--sn-border, #e5e7eb); }
+.hr-page .hr-table tbody td { padding: 12px 16px; vertical-align: middle; font-size: 13.5px; color: var(--sn-text, #111827); border-bottom: 1px solid var(--sn-border, #eef0f3); }
+.hr-page .hr-table tbody tr:last-child td { border-bottom: 0; }
+.hr-page .hr-table tbody tr:hover td { background: var(--sn-surface-2, #f9fafb); }
+.hr-page .hr-table tfoot td { padding: 12px 16px; font-size: 13.5px; font-weight: 700; color: var(--sn-text, #111827); background: var(--sn-surface-2, #f9fafb); border-top: 2px solid var(--sn-border, #e5e7eb); }
+.hr-page th.hr-num, .hr-page td.hr-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hr-page td.hr-net { font-weight: 700; color: #166534; }
+.hr-empty { padding: 42px 16px !important; text-align: center; color: var(--sn-muted, #6b7280); }
+.hr-empty i { display: block; margin-bottom: 8px; font-size: 26px; opacity: .45; }
+
+/* A person */
+.hr-person { display: flex; align-items: center; gap: 11px; min-width: 180px; }
+.hr-ava { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 50%; font-size: 12.5px; font-weight: 700; letter-spacing: .02em; }
+.hr-ava-0 { background: #dcfce7; color: #166534; }
+.hr-ava-1 { background: #dbeafe; color: #1e40af; }
+.hr-ava-2 { background: #fef3c7; color: #92400e; }
+.hr-ava-3 { background: #ede9fe; color: #5b21b6; }
+.hr-ava-4 { background: #fce7f3; color: #9d174d; }
+.hr-person b { display: block; font-weight: 600; line-height: 1.3; }
+.hr-person small { display: block; font-size: 12px; color: var(--sn-muted, #6b7280); }
+
+/* Labels */
+.hr-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: #f3f4f6; color: #4b5563; }
+.hr-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.hr-pill.good { background: #dcfce7; color: #166534; }
+.hr-pill.warn { background: #fef3c7; color: #92400e; }
+.hr-pill.bad { background: #fee2e2; color: #b91c1c; }
+.hr-pill.info { background: #dbeafe; color: #1e40af; }
+.hr-sub { display: block; margin-top: 4px; font-size: 12px; color: var(--sn-muted, #6b7280); }
+
+/* Times */
+.hr-time b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.hr-src { margin-left: 6px; font-size: 11.5px; color: var(--sn-muted, #6b7280); }
+.hr-links { margin-top: 2px; font-size: 12px; }
+.hr-links a { color: #15803d; font-weight: 600; text-decoration: none; }
+.hr-links a:hover { text-decoration: underline; }
+.hr-none { color: var(--sn-border-strong, #d1d5db); }
+.hr-trip { display: block; margin-bottom: 3px; font-size: 12px; color: var(--sn-text-2, #4b5563); }
+.hr-trip a { margin-left: 4px; color: #15803d; font-weight: 600; text-decoration: none; }
+
+/* Month bar */
+.hr-rate { display: flex; align-items: center; gap: 9px; min-width: 150px; }
+.hr-rate .hr-meter { flex: 1; margin: 0; }
+.hr-rate b { width: 40px; text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+/* Row actions */
+.hr-row-actions { display: flex; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+.hr-page .hr-table .hr-row-actions .btn-small { margin: 0; min-height: 30px; padding: 5px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; box-shadow: none; transform: none;
+  background: var(--sn-surface, #fff); color: var(--sn-text-2, #374151); border: 1px solid var(--sn-border-strong, #d1d5db); }
+.hr-page .hr-table .hr-row-actions .btn-small:hover { background: var(--sn-surface-3, #f3f4f6); color: var(--sn-text, #111827); }
+.hr-page .hr-table .hr-row-actions .btn-success { background: #15803d; border-color: #15803d; color: #fff; }
+.hr-page .hr-table .hr-row-actions .btn-success:hover { background: #166534; color: #fff; }
+.hr-page .hr-table .hr-row-actions .btn-danger { color: #b91c1c; border-color: #fecaca; }
+.hr-page .hr-table .hr-row-actions .btn-danger:hover { background: #fee2e2; color: #991b1b; }
+
+/* Payroll */
+.hr-page .hr-money-input { display: inline-block; width: 92px; height: 34px; margin: 0; padding: 0 8px; border-radius: 8px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+.hr-voucher b { display: block; font-size: 12.5px; font-weight: 600; }
+
+@media (max-width: 720px) {
+  .hr-head { padding: 18px; align-items: flex-start; }
+  .hr-actions, .hr-stepper { width: 100%; }
+  .hr-page .hr-stepper input { flex: 1; width: auto; }
+  .hr-page .hr-search input { width: 100%; }
+  .hr-search { width: 100%; }
+}

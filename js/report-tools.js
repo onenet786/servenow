@@ -37,30 +37,65 @@
 
     const style = document.createElement('style');
     style.textContent = `
-.rt-bar { display:flex; justify-content:flex-end; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
-.rt-bar button { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:8px; border:1px solid #cbd5e1;
-  background:#fff; color:#0f172a; font-size:13px; font-weight:600; cursor:pointer; }
-.rt-bar button:hover { background:#f1f5f9; }
-.rt-bar button.rt-primary { background:#168048; border-color:#168048; color:#fff; }
-.rt-bar button.rt-primary:hover { background:#116539; }
-.rt-overlay { position:fixed; inset:0; z-index:100000; background:rgba(15,23,42,.55); display:flex; padding:24px; }
-.rt-sheet { background:#fff; color:#0f172a; border-radius:12px; width:100%; max-width:1280px; margin:0 auto; display:flex; flex-direction:column; min-height:0; }
-.rt-sheet-head { display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid #e2e8f0; }
-.rt-sheet-head strong { flex:1; font-size:16px; min-width:0; }
-.rt-sheet-body { overflow:auto; padding:16px; flex:1; min-height:0; }
-.rt-meta { color:#475569; font-size:13px; margin:0 0 4px; overflow-wrap:anywhere; }
-.rt-section { margin:16px 0 6px; font-size:14px; font-weight:700; }
-.rt-table { border-collapse:collapse; width:100%; font-size:12.5px; margin-bottom:6px; }
-.rt-table th, .rt-table td { border:1px solid #e2e8f0; padding:5px 8px; text-align:left; vertical-align:top; }
-.rt-table thead th { background:#168048; color:#fff; font-weight:600; }
-.rt-table tfoot td, .rt-table tfoot th { background:#f1f5f9; font-weight:700; }
-.rt-table td.rt-num, .rt-table th.rt-num { text-align:right; font-variant-numeric:tabular-nums; }
+.rt-group { display:inline-flex; align-items:stretch; flex:none; align-self:stretch; border-radius:10px; overflow:hidden; background:#fff; border:1px solid #d1d5db;
+  box-shadow:0 1px 2px rgba(15,23,42,.06); }
+.rt-group button { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:0 14px; border:0; background:transparent; color:#1f2937;
+  font:inherit; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer; transition:background .15s ease, color .15s ease; }
+.rt-group button + button { border-left:1px solid #d1d5db; }
+.rt-group button:hover { background:#f3f4f6; }
+.rt-group button:focus-visible { outline:2px solid #15803d; outline-offset:-2px; }
+.rt-group button:disabled { opacity:.65; cursor:wait; }
+.rt-group button i { font-size:13px; color:#6b7280; }
+.rt-group button.rt-primary { background:#15803d; color:#fff; }
+.rt-group button.rt-primary:hover { background:#166534; }
+.rt-group button.rt-primary i { color:#dcfce7; }
+.rt-row { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+.rt-row > :first-child { flex:1 1 auto; min-width:0; margin-top:0; margin-bottom:0; }
+.rt-host-row { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.rt-host-row .rt-group { margin-left:auto; }
+.rt-overlay { position:fixed; inset:0; z-index:100000; display:flex; padding:22px; background:rgba(15,23,42,.6); backdrop-filter:blur(3px); animation:rt-in .15s ease; }
+@keyframes rt-in { from { opacity:0; } to { opacity:1; } }
+.rt-sheet { display:flex; flex-direction:column; min-height:0; width:100%; max-width:1240px; margin:0 auto; overflow:hidden; border-radius:16px; background:#fff; color:#111827;
+  box-shadow:0 24px 60px rgba(15,23,42,.35); }
+.rt-sheet-head { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 18px; color:#fff; background:linear-gradient(120deg,#14532d,#15803d); }
+.rt-logo { width:40px; height:40px; flex:none; object-fit:cover; object-position:left center; border-radius:10px; background:#fff; }
+.rt-sheet-title { flex:1; min-width:180px; }
+.rt-sheet-title span { display:block; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#bbf7d0; }
+.rt-sheet-title strong { display:block; font-size:18px; line-height:1.25; }
+.rt-sheet-head .rt-group { border-color:transparent; box-shadow:none; }
+.rt-sheet-body { flex:1; min-height:0; overflow:auto; padding:18px 20px 22px; }
+.rt-meta { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px; }
+.rt-meta span { padding:4px 10px; border-radius:99px; background:#f3f4f6; color:#374151; font-size:12px; font-weight:500; overflow-wrap:anywhere; }
+.rt-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:0 0 16px; }
+.rt-tile { padding:11px 13px; border-radius:12px; border:1px solid #e5e7eb; background:#f9fafb; min-width:0; }
+.rt-tile span { display:block; font-size:11.5px; font-weight:600; color:#6b7280; }
+.rt-tile b { display:block; margin-top:2px; font-size:17px; color:#111827; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.rt-section { margin:18px 0 8px; font-size:14px; font-weight:700; color:#14532d; }
+.rt-scroll { overflow-x:auto; border:1px solid #e5e7eb; border-radius:12px; }
+.rt-table { border-collapse:separate; border-spacing:0; width:100%; font-size:12.5px; }
+.rt-table th, .rt-table td { padding:8px 11px; text-align:left; vertical-align:top; border-bottom:1px solid #eef0f3; }
+.rt-table thead th { position:sticky; top:0; background:#14532d; color:#fff; font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+.rt-table tbody tr:nth-child(even) td { background:#f9fafb; }
+.rt-table tbody tr:hover td { background:#f0fdf4; }
+.rt-table tfoot td, .rt-table tfoot th { background:#ecfdf5; color:#14532d; font-weight:700; border-top:2px solid #15803d; border-bottom:0; }
+.rt-table td.rt-num, .rt-table th.rt-num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.rt-count { margin:7px 2px 0; color:#6b7280; font-size:12px; }
+@media (max-width:640px) {
+  .rt-overlay { padding:0; }
+  .rt-sheet { border-radius:0; }
+  .rt-group { width:100%; }
+  .rt-group button { flex:1; justify-content:center; }
+}
 @media print {
   body.rt-printing > *:not(.rt-overlay) { display:none !important; }
-  body.rt-printing .rt-overlay { position:static; background:none; padding:0; display:block; }
-  body.rt-printing .rt-sheet { max-width:none; border-radius:0; display:block; }
-  body.rt-printing .rt-sheet-head { display:none; }
-  body.rt-printing .rt-sheet-body { overflow:visible; padding:0; }
+  body.rt-printing .rt-overlay { position:static; padding:0; background:none; backdrop-filter:none; display:block; }
+  body.rt-printing .rt-sheet { display:block; max-width:none; border-radius:0; box-shadow:none; }
+  body.rt-printing .rt-sheet-head { color:#111827; background:none; border-bottom:2px solid #15803d; }
+  body.rt-printing .rt-sheet-head .rt-group { display:none; }
+  body.rt-printing .rt-sheet-title span { color:#15803d; }
+  body.rt-printing .rt-sheet-body { overflow:visible; padding:10px 0 0; }
+  body.rt-printing .rt-scroll { overflow:visible; }
+  body.rt-printing .rt-table thead th { position:static; }
 }`;
     document.head.appendChild(style);
 
@@ -85,7 +120,9 @@
             else stand.textContent = field.value;
             copied[i].replaceWith(stand);
         });
-        copy.querySelectorAll('button, .action-buttons, script, style, .sn-combo-panel').forEach((n) => n.remove());
+        copy.querySelectorAll('button, .action-buttons, script, style, .sn-combo-panel, [data-rt-skip]').forEach((n) => n.remove());
+        // Lines that sit under each other on screen must not run together in the text.
+        copy.querySelectorAll('br, div, p, li, b, small, .hr-pill, .hr-sub, .hr-trip').forEach((n) => n.after(' '));
         return clean(copy.textContent);
     }
 
@@ -135,7 +172,11 @@
             while (prev) {
                 if (visible(prev)) {
                     const heading = prev.matches('h1,h2,h3,h4,h5') ? prev : prev.querySelector('h3,h4,h5');
-                    if (heading) return clean(heading.textContent);
+                    if (heading) {
+                        const copy = heading.cloneNode(true);
+                        copy.querySelectorAll('small').forEach((n) => n.remove());
+                        return clean(copy.textContent);
+                    }
                 }
                 prev = prev.previousElementSibling;
             }
@@ -148,27 +189,40 @@
         const parts = [];
         page.querySelectorAll('select, input[type="date"], input[type="month"], input[type="search"], input[type="text"]').forEach((field) => {
             if (!visible(field) && field.tagName !== 'SELECT') return;
-            if (field.closest('table, .modal, .rt-bar') || field.matches('.sn-combo-input, .sn-list-search')) return;
+            if (field.closest('table, .modal, .rt-group') || field.matches('.sn-combo-input, .sn-list-search, #hrEmployeeSearch')) return;
             if (field.tagName === 'SELECT' && !field.classList.contains('sn-combo-native') && !visible(field)) return;
             if (field.tagName === 'SELECT' && !visible(field.nextElementSibling)) return;
             const value = field.tagName === 'SELECT' ? clean(field.options[field.selectedIndex]?.text) : clean(field.value);
             if (!value) return;
             const label = (field.id && document.querySelector(`label[for="${CSS.escape(field.id)}"]`))
                 || field.closest('.form-group, .filter-group')?.querySelector('label');
-            parts.push(label ? `${clean(label.textContent).replace(/:$/, '')}: ${value}` : value);
+            const name = label ? clean(label.textContent).replace(/:$/, '') : clean(field.getAttribute('aria-label'));
+            parts.push(name ? `${name}: ${value}` : value);
         });
         return parts.join(' | ');
+    }
+
+    function tileOf(tile) {
+        const lines = String(tile.innerText || '').split('\n').map(clean).filter(Boolean);
+        const named = (selector) => clean(tile.querySelector(selector)?.textContent);
+        const label = named('[class*="label"], [class*="title"]');
+        const value = named('[class*="value"], [class*="amount"], [class*="number"]');
+        if (label && value) return { label, value };
+        const at = lines.findIndex((line) => /\d/.test(line));
+        if (lines.length < 2 || at < 0) return { label: lines.join(' '), value: '' };
+        return { label: lines.filter((_, i) => i !== at).join(' '), value: lines[at] };
     }
 
     function tilesOf(page) {
         const seen = new Set();
         const tiles = [];
-        page.querySelectorAll('.stat-card, .summary-card, .dx-tile, .kpi-card, .metric-card').forEach((tile) => {
-            if (!visible(tile) || tile.closest('table')) return;
-            const text = clean(tile.innerText);
-            if (text && !seen.has(text)) {
-                seen.add(text);
-                tiles.push(text);
+        page.querySelectorAll('.stat-card, .summary-card, .dx-tile, .kpi-card, .metric-card, .hr-kpi').forEach((el) => {
+            if (!visible(el) || el.closest('table')) return;
+            const tile = tileOf(el);
+            const key = `${tile.label}|${tile.value}`;
+            if (tile.label && !seen.has(key)) {
+                seen.add(key);
+                tiles.push(tile);
             }
         });
         return tiles;
@@ -190,18 +244,19 @@
 
     function reportHtml(data) {
         const parts = [];
-        if (data.filters) parts.push(`<p class="rt-meta">${esc(data.filters)}</p>`);
-        parts.push(`<p class="rt-meta">Printed ${esc(data.printed)}</p>`);
+        const chips = [...(data.filters ? data.filters.split(' | ') : []), `Printed ${data.printed}`];
+        parts.push(`<div class="rt-meta">${chips.map((c) => `<span>${esc(c)}</span>`).join('')}</div>`);
         if (data.tiles.length) {
-            parts.push(`<table class="rt-table"><tbody>${data.tiles.map((t) => `<tr><td>${esc(t)}</td></tr>`).join('')}</tbody></table>`);
+            parts.push(`<div class="rt-tiles">${data.tiles.map((t) => `<div class="rt-tile"><span>${esc(t.label)}</span><b>${esc(t.value)}</b></div>`).join('')}</div>`);
         }
         data.tables.forEach(({ section, model }) => {
             if (section && section !== data.title) parts.push(`<p class="rt-section">${esc(section)}</p>`);
-            parts.push(`<table class="rt-table">
+            parts.push(`<div class="rt-scroll"><table class="rt-table">
                 <thead>${model.head.map((r) => `<tr>${cellsHtml(r, 'th')}</tr>`).join('')}</thead>
                 <tbody>${model.body.map((r) => `<tr>${cellsHtml(r, 'td')}</tr>`).join('')}</tbody>
                 ${model.foot.length ? `<tfoot>${model.foot.map((r) => `<tr>${cellsHtml(r, 'td')}</tr>`).join('')}</tfoot>` : ''}
-            </table>`);
+            </table></div>
+            <p class="rt-count">${model.body.length} ${model.body.length === 1 ? 'row' : 'rows'}</p>`);
         });
         return parts.join('');
     }
@@ -213,7 +268,40 @@
         return { content, colSpan: c.span, styles: numeric(c.text) ? { halign: 'right' } : {} };
     });
 
-    function downloadPdf(data) {
+    const LOGO = 'images/servenow_brand_logo.png';
+    let logoData = null;
+
+    // The logo file is large, so the PDF gets a small copy.
+    function loadLogo() {
+        if (logoData !== null) return Promise.resolve(logoData);
+        return new Promise((resolve) => {
+            const image = new Image();
+            image.onload = () => {
+                const size = 96;
+                const side = Math.min(image.width, image.height);
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const pen = canvas.getContext('2d');
+                pen.fillStyle = '#fff';
+                pen.fillRect(0, 0, size, size);
+                // The emblem is at the left of the logo file.
+                pen.drawImage(image, 0, 0, side, side, 0, 0, size, size);
+                logoData = canvas.toDataURL('image/jpeg', 0.9);
+                resolve(logoData);
+            };
+            image.onerror = () => {
+                logoData = '';
+                resolve('');
+            };
+            image.src = LOGO;
+        });
+    }
+
+    const GREEN = [21, 128, 61];
+    const DEEP = [20, 83, 45];
+
+    async function downloadPdf(data) {
         if (!window.jspdf || !window.jspdf.jsPDF) {
             say('PDF', 'The PDF tool did not load. Check the internet connection and refresh the page.');
             return;
@@ -222,26 +310,66 @@
         const doc = new window.jspdf.jsPDF({ orientation: widest > 6 ? 'landscape' : 'portrait' });
         const fontSize = widest > 14 ? 6 : widest > 9 ? 7 : 8;
         const left = 10;
-        const usable = doc.internal.pageSize.getWidth() - left * 2;
-        doc.setFontSize(14);
-        doc.text(pdfText(`ServeNow: ${data.title}`), left, 13);
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const usable = pageWidth - left * 2;
+
+        doc.setFillColor(...DEEP);
+        doc.rect(0, 0, pageWidth, 24, 'F');
+        doc.setFillColor(...GREEN);
+        doc.rect(0, 24, pageWidth, 1.2, 'F');
+        const logo = await loadLogo();
+        if (logo) doc.addImage(logo, 'JPEG', left, 5, 14, 14);
+        const textLeft = logo ? left + 18 : left;
+        doc.setTextColor(187, 247, 208);
         doc.setFontSize(8);
-        const metaLines = doc.splitTextToSize(pdfText([data.filters, `Printed ${data.printed}`].filter(Boolean).join('   ')), usable);
-        doc.text(metaLines, left, 18);
-        let y = 18 + metaLines.length * 3.6 + 1;
-        if (data.tiles.length) {
-            const tiles = doc.splitTextToSize(pdfText(data.tiles.join('   |   ')), usable);
-            doc.text(tiles, left, y + 1);
-            y += tiles.length * 3.6 + 2;
+        doc.setFont('helvetica', 'bold');
+        doc.text('SERVENOW', textLeft, 10);
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(15);
+        doc.text(pdfText(data.title), textLeft, 17);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(220, 252, 231);
+        doc.text(`Printed ${pdfText(data.printed)}`, pageWidth - left, 17, { align: 'right' });
+
+        doc.setTextColor(75, 85, 99);
+        let y = 30;
+        if (data.filters) {
+            const lines = doc.splitTextToSize(pdfText(data.filters), usable);
+            doc.text(lines, left, y);
+            y += lines.length * 3.6 + 2;
         }
+        for (let at = 0; at < data.tiles.length; at += 5) {
+            const row = data.tiles.slice(at, at + 5);
+            doc.autoTable({
+                startY: y,
+                theme: 'plain',
+                body: [row.map((t) => pdfText(t.label)), row.map((t) => pdfText(t.value))],
+                margin: { left, right: left },
+                styles: { fontSize: 7, cellPadding: { top: 1, right: 2, bottom: 0.6, left: 2 }, fillColor: [240, 253, 244], textColor: [75, 85, 99], overflow: 'linebreak' },
+                didParseCell: (cell) => {
+                    if (cell.row.index === 1) {
+                        cell.cell.styles.fontSize = 10;
+                        cell.cell.styles.fontStyle = 'bold';
+                        cell.cell.styles.textColor = DEEP;
+                    }
+                },
+            });
+            y = doc.lastAutoTable.finalY + 2;
+        }
+        y += 2;
         data.tables.forEach(({ section, model }) => {
             if (section && section !== data.title) {
-                if (y > doc.internal.pageSize.getHeight() - 30) {
+                if (y > pageHeight - 30) {
                     doc.addPage();
                     y = 14;
                 }
                 doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...DEEP);
                 doc.text(pdfText(section), left, y + 3);
+                doc.setFont('helvetica', 'normal');
                 y += 5;
             }
             doc.autoTable({
@@ -250,18 +378,24 @@
                 body: model.body.map(pdfRow),
                 foot: model.foot.length ? model.foot.map(pdfRow) : undefined,
                 showFoot: 'lastPage',
-                margin: { left, right: left, bottom: 12 },
-                styles: { fontSize, cellPadding: 1.3, overflow: 'linebreak' },
-                headStyles: { fillColor: [22, 128, 72] },
-                footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
+                margin: { left, right: left, bottom: 13 },
+                styles: { fontSize, cellPadding: 1.5, overflow: 'linebreak', lineColor: [229, 231, 235], lineWidth: 0.1, textColor: [31, 41, 55] },
+                headStyles: { fillColor: DEEP, textColor: [255, 255, 255], fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [249, 250, 251] },
+                footStyles: { fillColor: [236, 253, 245], textColor: DEEP, fontStyle: 'bold' },
             });
             y = doc.lastAutoTable.finalY + 6;
         });
+
         const pages = doc.getNumberOfPages();
         for (let page = 1; page <= pages; page += 1) {
             doc.setPage(page);
+            doc.setDrawColor(229, 231, 235);
+            doc.line(left, pageHeight - 9, pageWidth - left, pageHeight - 9);
             doc.setFontSize(7);
-            doc.text(`Page ${page} of ${pages}`, doc.internal.pageSize.getWidth() - left, doc.internal.pageSize.getHeight() - 5, { align: 'right' });
+            doc.setTextColor(107, 114, 128);
+            doc.text('ServeNow  |  servenow.pk', left, pageHeight - 5);
+            doc.text(`Page ${page} of ${pages}`, pageWidth - left, pageHeight - 5, { align: 'right' });
         }
         const name = data.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'report';
         const now = new Date();
@@ -283,11 +417,14 @@
         const overlay = document.createElement('div');
         overlay.className = 'rt-overlay';
         overlay.innerHTML = `<div class="rt-sheet" role="dialog" aria-modal="true" aria-label="${esc(data.title)}">
-            <div class="rt-sheet-head rt-bar" style="margin:0">
-                <strong>${esc(data.title)}</strong>
-                <button type="button" class="rt-primary" data-do="pdf"><i class="fas fa-file-pdf"></i> Download PDF</button>
-                <button type="button" data-do="print"><i class="fas fa-print"></i> Print</button>
-                <button type="button" data-do="close"><i class="fas fa-times"></i> Close</button>
+            <div class="rt-sheet-head">
+                <img class="rt-logo" src="${LOGO}" alt="" />
+                <div class="rt-sheet-title"><span>ServeNow</span><strong>${esc(data.title)}</strong></div>
+                <div class="rt-group">
+                    <button type="button" class="rt-primary" data-do="pdf"><i class="fas fa-download"></i> Download PDF</button>
+                    <button type="button" data-do="print"><i class="fas fa-print"></i> Print</button>
+                    <button type="button" data-do="close" aria-label="Close"><i class="fas fa-times"></i> Close</button>
+                </div>
             </div>
             <div class="rt-sheet-body">${reportHtml(data)}</div>
         </div>`;
@@ -339,7 +476,7 @@
                 say('Nothing to show', 'There are no rows on this page yet. Choose your filters and load the report first.');
                 return;
             }
-            action(data);
+            await action(data);
         } catch (error) {
             console.error('Report tools failed:', error);
             say('Report', 'The report could not be prepared. Please try again.');
@@ -349,19 +486,43 @@
         }
     }
 
+    // The buttons sit in the page's own header, beside its title and any other actions.
+    function placeBar(page, bar) {
+        const actions = page.querySelector('.hr-actions, .sp-actions, .page-actions, .header-actions');
+        if (actions && !actions.closest('.modal')) {
+            actions.append(bar);
+            return;
+        }
+        const hero = page.querySelector(':scope > .orders-hero, :scope > .page-header, :scope > .section-header, :scope > .tab-header');
+        if (hero) {
+            hero.classList.add('rt-host-row');
+            hero.append(bar);
+            return;
+        }
+        const heading = page.querySelector(':scope > h2, :scope > h1');
+        if (!heading) {
+            page.prepend(bar);
+            return;
+        }
+        const row = document.createElement('div');
+        row.className = 'rt-row';
+        heading.before(row);
+        row.append(heading, bar);
+    }
+
     function addBar(page, options) {
-        if (page.querySelector(':scope > .rt-bar, :scope .rt-page-bar')) return;
+        if (page.querySelector('.rt-page-bar')) return;
         const bar = document.createElement('div');
-        bar.className = 'rt-bar rt-page-bar';
+        bar.className = 'rt-group rt-page-bar';
+        bar.setAttribute('role', 'group');
+        bar.setAttribute('aria-label', 'Report');
         bar.innerHTML = `<button type="button" data-do="view"><i class="fas fa-eye"></i> View</button>${options.ownPdf ? '' :
-            '<button type="button" class="rt-primary" data-do="pdf"><i class="fas fa-file-pdf"></i> Download PDF</button>'}`;
+            '<button type="button" class="rt-primary" data-do="pdf"><i class="fas fa-download"></i> Download PDF</button>'}`;
         bar.addEventListener('click', (event) => {
             const button = event.target.closest('[data-do]');
             if (button) run(page, options, button.dataset.do === 'pdf' ? downloadPdf : view, button);
         });
-        const heading = page.querySelector(':scope > h2, :scope > .page-header, :scope > .section-header, :scope > .tab-header');
-        if (heading) heading.after(bar);
-        else page.prepend(bar);
+        placeBar(page, bar);
     }
 
     function refresh() {

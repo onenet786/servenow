@@ -5,27 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Attendance - ServeNow</title>
     <link rel="icon" type="image/png" href="images/servenow_brand_logo.png" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
     <style>
       * { box-sizing: border-box; }
       html, body { height: 100%; }
-      body { margin: 0; background: #f3f4f6; color: #111827; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-      .page { display: flex; flex-direction: column; height: 100%; padding: 20px 24px; gap: 16px; }
-      header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-      h1 { margin: 0; font-size: 24px; }
+      body { margin: 0; background: #f3f6f4; color: #111827; font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      .page { display: flex; flex-direction: column; height: 100%; padding: 16px 20px 20px; gap: 16px; }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 20px; border-radius: 16px; color: #fff;
+        background: linear-gradient(120deg, #14532d, #15803d); box-shadow: 0 10px 24px rgba(20, 83, 45, .18); }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .brand img { width: 44px; height: 44px; object-fit: cover; object-position: left center; border-radius: 11px; background: #fff; }
+      .brand span { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #bbf7d0; }
+      h1 { margin: 0; font-size: 22px; }
       .clock { text-align: right; }
-      .clock b { display: block; font-size: 30px; font-variant-numeric: tabular-nums; }
-      .clock span { color: #4b5563; font-size: 14px; }
+      .clock b { display: block; font-size: 28px; font-variant-numeric: tabular-nums; }
+      .clock span { color: #dcfce7; font-size: 13.5px; }
       .main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(320px, 44%) 1fr; gap: 20px; }
       .scanner { display: flex; flex-direction: column; gap: 12px; }
-      .camera { aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; background: #111827; }
+      .camera { aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: #0f172a; box-shadow: 0 8px 22px rgba(15, 23, 42, .16); }
       video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
       #status { padding: 14px 16px; border-radius: 12px; background: #fff; border: 1px solid #e5e7eb; font-size: 20px; font-weight: 600; text-align: center; }
       #status.waiting { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
       .list { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
-      #search { width: 100%; padding: 14px 16px; font-size: 18px; border: 1px solid #d1d5db; border-radius: 12px; }
+      #search { width: 100%; padding: 14px 16px; font: inherit; font-size: 17px; border: 1px solid #d1d5db; border-radius: 13px; background: #fff; }
+      #search:focus { outline: none; border-color: #15803d; box-shadow: 0 0 0 3px rgba(21, 128, 61, .15); }
       #people { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; align-content: start; }
       .person { text-align: left; padding: 14px; min-height: 84px; border: 1px solid #e5e7eb; border-left: 6px solid #d1d5db; border-radius: 12px; background: #fff; cursor: pointer; font: inherit; color: inherit; }
-      .person:hover { border-color: #15803d; }
+      .person { font-family: inherit; box-shadow: 0 1px 3px rgba(15, 23, 42, .06); transition: transform .12s ease, box-shadow .12s ease; }
+      .person:hover { border-color: #15803d; transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, .1); }
       .person.in { border-left-color: #15803d; }
       .person.done { border-left-color: #6b7280; background: #f9fafb; }
       .person b { display: block; font-size: 17px; }
@@ -59,7 +66,7 @@
   <body>
     <div class="page">
       <header>
-        <h1 id="title">ServeNow Attendance</h1>
+        <div class="brand"><img src="images/servenow_brand_logo.png" alt="" /><div><span>ServeNow</span><h1 id="title">ServeNow Attendance</h1></div></div>
         <div class="clock"><b id="clock"></b><span id="date"></span></div>
       </header>
       <div class="notice" id="notice" hidden></div>

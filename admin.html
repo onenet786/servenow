@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="css/servenow-ui.css?v=14">
+    <link rel="stylesheet" href="css/hr.css?v=2">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
@@ -2126,81 +2127,139 @@
 
         <!-- Financial Dashboard Tab -->
         <div id="hr-employees" class="tab-content">
-          <div class="sp-head">
-            <div>
-              <h2>Employees</h2>
-              <p>Link each person to their login so they can mark attendance by camera.</p>
+          <div class="hr-page">
+            <div class="hr-head">
+              <div>
+                <span class="hr-eyebrow">People</span>
+                <h2>Employees</h2>
+                <p>Link each person to their login so they can mark attendance by camera.</p>
+              </div>
+              <div class="hr-actions">
+                <button type="button" class="btn btn-primary" id="hrAddEmployee"><i class="fas fa-user-plus"></i> Add Employee</button>
+              </div>
             </div>
-            <div class="sp-actions">
-              <button type="button" class="btn btn-primary" id="hrAddEmployee">Add Employee</button>
+            <div class="hr-kpis" id="hrEmployeeKpis"></div>
+            <div class="hr-card">
+              <div class="hr-card-head">
+                <h3>Staff list<small id="hrEmployeeCount"></small></h3>
+                <div class="hr-tools">
+                  <div class="hr-segments" id="hrEmployeeFilter" role="group" aria-label="Show">
+                    <button type="button" class="is-on" data-hr-filter="all">All</button>
+                    <button type="button" data-hr-filter="active">Active</button>
+                    <button type="button" data-hr-filter="noface">Face missing</button>
+                    <button type="button" data-hr-filter="left">Left</button>
+                  </div>
+                  <div class="hr-search">
+                    <i class="fas fa-search"></i>
+                    <input type="search" id="hrEmployeeSearch" class="form-control" placeholder="Search name or designation" autocomplete="off" aria-label="Search staff" />
+                  </div>
+                </div>
+              </div>
+              <div class="table-container hr-table">
+                <table>
+                  <thead>
+                    <tr><th>Employee</th><th>Marks with</th><th>Branch</th><th class="hr-pay-only hr-num">Monthly salary</th><th>Status</th><th>Face</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody id="hrEmployeesBody"></tbody>
+                </table>
+              </div>
             </div>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr><th>Name</th><th>Designation</th><th>Marks with</th><th>Branch</th><th class="hr-pay-only">Monthly salary</th><th>Status</th><th>Face</th><th></th></tr>
-              </thead>
-              <tbody id="hrEmployeesBody"></tbody>
-            </table>
           </div>
         </div>
 
         <div id="hr-attendance" class="tab-content">
-          <div class="sp-head">
-            <div>
-              <h2>Attendance</h2>
-              <p id="hrAttendanceSummary"></p>
+          <div class="hr-page">
+            <div class="hr-head">
+              <div>
+                <span class="hr-eyebrow">Daily register</span>
+                <h2>Attendance</h2>
+                <p id="hrAttendanceSummary"></p>
+              </div>
+              <div class="hr-actions">
+                <div class="hr-stepper">
+                  <button type="button" data-hr-day="-1" aria-label="Previous day"><i class="fas fa-chevron-left"></i></button>
+                  <input type="date" id="hrAttendanceDate" aria-label="Date" />
+                  <button type="button" data-hr-day="1" aria-label="Next day"><i class="fas fa-chevron-right"></i></button>
+                  <button type="button" class="hr-today" data-hr-day="0">Today</button>
+                </div>
+                <button type="button" class="btn btn-primary" id="hrSetUpKiosk"><i class="fas fa-desktop"></i> Set Up Kiosk</button>
+              </div>
             </div>
-            <div class="sp-actions">
-              <input type="date" id="hrAttendanceDate" class="form-control" aria-label="Date" />
-              <button type="button" class="btn btn-primary" id="hrSetUpKiosk">Set Up Kiosk on This PC</button>
+            <div class="hr-kpis" id="hrAttendanceKpis"></div>
+            <div class="hr-card">
+              <div class="hr-card-head">
+                <h3 id="hrViewTitle">Daily attendance</h3>
+                <div class="hr-segments" role="group" aria-label="View">
+                  <button type="button" class="is-on" data-hr-view="Day">Daily</button>
+                  <button type="button" data-hr-view="Month">Month</button>
+                  <button type="button" data-hr-view="Kiosk">Kiosk screens</button>
+                </div>
+              </div>
+              <div class="hr-view" id="hrViewDay">
+                <div class="table-container hr-table">
+                  <table>
+                    <thead>
+                      <tr><th>Employee</th><th>Status</th><th>Check in</th><th>Check out</th><th>Trips and notes</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="hrAttendanceBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="hr-view" id="hrViewMonth" hidden>
+                <div class="table-container hr-table">
+                  <table>
+                    <thead>
+                      <tr><th>Employee</th><th class="hr-num">Present</th><th class="hr-num">Leave</th><th class="hr-num">Absent</th><th class="hr-num">Weekly off</th><th>Attendance</th></tr>
+                    </thead>
+                    <tbody id="hrMonthBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="hr-view" id="hrViewKiosk" hidden>
+                <div class="table-container hr-table">
+                  <table>
+                    <thead>
+                      <tr><th>Screen</th><th>Branch</th><th>Last used</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="hrKioskBody"></tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr><th>Employee</th><th>Status</th><th>Check in</th><th>Check out</th><th>Trips and notes</th><th></th></tr>
-              </thead>
-              <tbody id="hrAttendanceBody"></tbody>
-            </table>
-          </div>
-          <h3 id="hrMonthTitle" style="margin-top: 1.5rem;">Month</h3>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr><th>Employee</th><th>Present</th><th>Leave</th><th>Absent</th><th>Weekly off</th></tr>
-              </thead>
-              <tbody id="hrMonthBody"></tbody>
-            </table>
-          </div>
-          <h3 style="margin-top: 1.5rem;">Kiosk Screens</h3>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr><th>Screen</th><th>Branch</th><th>Last used</th><th></th></tr>
-              </thead>
-              <tbody id="hrKioskBody"></tbody>
-            </table>
           </div>
         </div>
 
         <div id="hr-payroll" class="tab-content">
-          <div class="sp-head">
-            <div>
-              <h2>Payroll</h2>
-              <p id="hrPayrollTotals"></p>
+          <div class="hr-page">
+            <div class="hr-head">
+              <div>
+                <span class="hr-eyebrow">Monthly salaries</span>
+                <h2>Payroll</h2>
+                <p id="hrPayrollTotals"></p>
+              </div>
+              <div class="hr-actions">
+                <div class="hr-stepper">
+                  <button type="button" data-hr-month="-1" aria-label="Previous month"><i class="fas fa-chevron-left"></i></button>
+                  <input type="month" id="hrPayrollMonth" aria-label="Month" />
+                  <button type="button" data-hr-month="1" aria-label="Next month"><i class="fas fa-chevron-right"></i></button>
+                </div>
+              </div>
             </div>
-            <div class="sp-actions">
-              <input type="month" id="hrPayrollMonth" class="form-control" aria-label="Month" />
+            <div class="hr-kpis" id="hrPayrollKpis"></div>
+            <div class="hr-card">
+              <div class="hr-card-head">
+                <h3>Salary sheet<small>Bonus and deduction save by themselves. A voucher locks the line.</small></h3>
+              </div>
+              <div class="table-container hr-table">
+                <table>
+                  <thead>
+                    <tr><th>Employee</th><th class="hr-num">Salary</th><th class="hr-num">Days lost</th><th class="hr-num">Absence</th><th class="hr-num">Bonus</th><th class="hr-num">Deduction</th><th class="hr-num">Net pay</th><th>Voucher</th></tr>
+                  </thead>
+                  <tbody id="hrPayrollBody"></tbody>
+                  <tfoot id="hrPayrollFoot"></tfoot>
+                </table>
+              </div>
             </div>
-          </div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr><th>Employee</th><th>Salary</th><th>Days lost</th><th>Absence</th><th>Bonus</th><th>Deduction</th><th>Net pay</th><th>Voucher</th></tr>
-              </thead>
-              <tbody id="hrPayrollBody"></tbody>
-            </table>
           </div>
         </div>
 
@@ -5560,12 +5619,12 @@
     <script src="js/reports-centre.js?v=1" defer></script>
     <script src="js/face.js?v=1" defer></script>
     <script src="js/dashboard.js?v=3" defer></script>
-    <script src="js/hr.js?v=5" defer></script>
+    <script src="js/hr.js?v=7" defer></script>
     <script src="js/user-rights.js?v=1" defer></script>
     <script src="js/admin.js?v=62" defer></script>
     <script src="js/branch-admin.js?v=8" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
-    <script src="js/report-tools.js?v=1" defer></script>
+    <script src="js/report-tools.js?v=5" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
       const appSidebar = document.getElementById("appSidebar");
