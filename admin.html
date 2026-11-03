@@ -5632,7 +5632,7 @@
     <script src="js/reports-centre.js?v=1" defer></script>
     <script src="js/face.js?v=1" defer></script>
     <script src="js/dashboard.js?v=3" defer></script>
-    <script src="js/hr.js?v=9" defer></script>
+    <script src="js/hr.js?v=10" defer></script>
     <script src="js/user-rights.js?v=1" defer></script>
     <script src="js/admin.js?v=62" defer></script>
     <script src="js/branch-admin.js?v=8" defer></script>
@@ -6674,6 +6674,20 @@
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal('hrShiftModal')">Cancel</button>
             <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="hrKioskModal" class="modal persistent-modal">
+      <div class="modal-content" style="max-width: 440px;">
+        <div class="modal-header"><h2>Set Up Kiosk</h2></div>
+        <form id="hrKioskForm">
+          <p class="hr-sub">This PC becomes an attendance screen. It opens in its own tab, so you can keep working here and switch between the two.</p>
+          <div class="form-group"><label>Screen name</label><input type="text" id="hrKioskName" class="form-control" maxlength="60" placeholder="Office Reception" required /></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('hrKioskModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Open Kiosk</button>
           </div>
         </form>
       </div>

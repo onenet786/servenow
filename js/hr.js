@@ -342,6 +342,7 @@
   async function loadHrAttendance() {
     const dateBox = $('hrAttendanceDate');
     if (!dateBox.value) dateBox.value = today();
+    refreshKioskButton();
     const body = $('hrAttendanceBody');
     body.innerHTML = loadingRow(6);
     try {
@@ -459,20 +460,54 @@
           <td>${esc(d.branch_name || '-')}</td>
           <td>${d.last_used_at ? esc(new Date(d.last_used_at).toLocaleString('en-PK')) : pill('warn', 'Not yet')}</td>
           <td><div class="hr-row-actions"><button type="button" class="btn-small btn-danger" data-hr-kiosk-remove="${d.id}">Remove</button></div></td>
-        </tr>`).join('') || empty(4, ICONS.kiosk, 'No kiosk yet. Press Set Up Kiosk on the office PC.');
+        </tr>`).join('') || empty(4, ICONS.kiosk, 'No kiosk yet. Press Set Up Kiosk on the office PC. It opens in its own tab.');
     } catch (error) {
       body.innerHTML = empty(4, 'fa-exclamation-circle', 'Could not load kiosk screens.');
     }
   }
 
-  async function setUpKiosk() {
-    const name = window.prompt('Name this screen, for example Office Reception', 'Office PC');
-    if (name === null) return;
+  const KIOSK_KEY = 'serveNowKioskKey';
+  const KIOSK_TAB = 'servenow-kiosk';
+
+  function refreshKioskButton() {
+    $('hrSetUpKiosk').innerHTML = `<i class="fas fa-desktop"></i> ${localStorage.getItem(KIOSK_KEY) ? 'Open Kiosk' : 'Set Up Kiosk'}`;
+  }
+
+  // One tab for the kiosk. Pressing again goes back to it, without restarting its camera.
+  function goToKiosk() {
+    const tab = window.open('', KIOSK_TAB);
+    if (!tab) {
+      showWarning('New tab blocked', 'Allow pop-ups for this site, then press Open Kiosk.');
+      return;
+    }
+    if (tab.location.href === 'about:blank') tab.location.href = 'kiosk.html';
+    tab.focus();
+  }
+
+  function setUpKiosk() {
+    refreshKioskButton();
+    if (localStorage.getItem(KIOSK_KEY)) {
+      goToKiosk();
+      return;
+    }
+    $('hrKioskName').value = 'Office PC';
+    openModal('hrKioskModal');
+  }
+
+  async function saveKiosk(event) {
+    event.preventDefault();
+    // Opened during the press: browsers block a tab opened after waiting for the server.
+    const tab = window.open('', KIOSK_TAB);
     try {
-      const data = await api('/kiosk/devices', { method: 'POST', body: JSON.stringify({ name }) });
-      localStorage.setItem('serveNowKioskKey', data.key);
-      window.location.href = 'kiosk.html';
+      const data = await api('/kiosk/devices', { method: 'POST', body: JSON.stringify({ name: $('hrKioskName').value }) });
+      localStorage.setItem(KIOSK_KEY, data.key);
+      closeModal('hrKioskModal');
+      refreshKioskButton();
+      loadHrKiosks();
+      if (tab) tab.location.href = 'kiosk.html';
+      else showWarning('New tab blocked', 'The kiosk is ready. Allow pop-ups for this site, then press Open Kiosk.');
     } catch (error) {
+      if (tab) tab.close();
       failed(error);
     }
   }
@@ -693,6 +728,7 @@
     $('hrEmployeeOff').innerHTML = `<option value="">No weekly off</option>${WEEKDAYS.map((d, i) => `<option value="${i}">${d}</option>`).join('')}`;
     $('hrEmployeeForm').addEventListener('submit', saveEmployee);
     $('hrShiftForm').addEventListener('submit', saveShift);
+    $('hrKioskForm').addEventListener('submit', saveKiosk);
     $('hrCorrectForm').addEventListener('submit', saveCorrection);
   });
 
