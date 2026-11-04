@@ -236,6 +236,8 @@
         input.type = 'text';
         input.autocomplete = 'off';
         input.spellcheck = false;
+        // A script may copy an already upgraded select (cloneNode), and the copy keeps our hidden marker.
+        select.classList.remove('sn-combo-native');
         input.className = `${select.className} sn-combo-input`.trim();
         const inlineStyle = select.getAttribute('style');
         if (inlineStyle) input.setAttribute('style', inlineStyle.replace(/display\s*:\s*none\s*;?/i, ''));
@@ -259,8 +261,16 @@
         select.setAttribute('aria-hidden', 'true');
         select.after(input);
 
-        input.addEventListener('focus', () => open(combo));
-        input.addEventListener('mousedown', () => open(combo));
+        // Some screens load a list only when its select is touched (focus or mousedown): pass that on.
+        const touch = () => {
+            if (combo === openCombo) return;
+            select.dispatchEvent(new FocusEvent('focus'));
+            select.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        };
+        // Like a normal dropdown: the list opens on a click, typing or an arrow key, never just because a
+        // script put the cursor here (a form focusing its first field must not cover the fields below).
+        input.addEventListener('focus', touch);
+        input.addEventListener('mousedown', () => { touch(); open(combo); });
         input.addEventListener('input', () => {
             open(combo);
             combo.typing = true;
@@ -299,7 +309,7 @@
         });
 
         // A label click, or a script calling select.focus(), lands on the box.
-        select.addEventListener('focus', () => input.focus());
+        select.addEventListener('focus', (event) => { if (event.isTrusted) input.focus(); });
         select.addEventListener('change', () => scheduleSync(select));
         select.addEventListener('invalid', () => input.focus());
 
@@ -355,8 +365,13 @@
                             // A select that was only moved is back in the page by the next tick.
                             setTimeout(() => {
                                 if (!select.isConnected) {
-                                    if (combo === openCombo) close(false);
+                                    const wasOpen = combo === openCombo;
+                                    if (wasOpen) close(false);
                                     combo.input.remove();
+                                    // A screen that swaps in a fuller copy of the list while it is open: carry on there.
+                                    const fresh = wasOpen && select.id ? document.getElementById(select.id) : null;
+                                    const next = fresh && combos.get(fresh);
+                                    if (next?.input) setTimeout(() => { next.input.focus(); open(next); }, 0);
                                 } else sync(combo);
                             }, 0);
                         }

@@ -9,6 +9,10 @@ const crypto = require('crypto');
 const { createImageUpload, detectImageExtension, maxFileSize } = require('../middleware/upload');
 const sharp = (() => { try { return require('sharp'); } catch(e){ return null; } })();
 const upload = createImageUpload();
+
+// Petrol price per litre. Outside this a rate is a typing mistake.
+const FUEL_RATE_MIN = 150;
+const FUEL_RATE_MAX = 1000;
 const { isHeadOffice, toBranchId, resolveStaffBranch, resolveWriteBranch } = require('../utils/branches');
 const { applyBranchScope } = require('../utils/branchFinance');
 
@@ -633,7 +637,7 @@ router.get('/:id/fuel-history', authenticateToken, requirePermission('action_man
 
 // Create a fuel history entry for a rider
 router.post('/:id/fuel-history', authenticateToken, requirePermission('action_manage_fuel'), [
-    body('entryDate').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage('entryDate must be a valid date'),
+    body('entryDate').exists({ checkFalsy: true }).withMessage('Choose the date of this fuel entry').bail().isISO8601().withMessage('entryDate must be a valid date'),
     body('startMeter').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 64 }).withMessage('startMeter must be a short string'),
     body('endMeter').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 64 }).withMessage('endMeter must be a short string'),
     body('distance').optional({ nullable: true, checkFalsy: true }).isNumeric().withMessage('distance must be numeric'),
@@ -661,6 +665,30 @@ router.post('/:id/fuel-history', authenticateToken, requirePermission('action_ma
         const sm = (startMeter !== undefined && startMeter !== null && startMeter !== '') ? startMeter : null;
         const em = (endMeter !== undefined && endMeter !== null && endMeter !== '') ? endMeter : null;
 
+        const day = String(entryDate).slice(0, 10);
+        const tomorrow = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        if (day > tomorrow) {
+            return res.status(400).json({ success: false, message: `The fuel date ${day} is in the future.` });
+        }
+        // A rate like 34288 is a missed decimal point and makes the cost 100 times too high.
+        if (pr !== null && (pr < FUEL_RATE_MIN || pr > FUEL_RATE_MAX)) {
+            return res.status(400).json({ success: false, message: `Petrol rate ${pr} looks wrong. Enter the rate per litre, between ${FUEL_RATE_MIN} and ${FUEL_RATE_MAX}.` });
+        }
+        const smNum = sm === null ? NaN : Number(sm);
+        const emNum = em === null ? NaN : Number(em);
+        if (Number.isFinite(smNum) && Number.isFinite(emNum) && emNum < smNum) {
+            return res.status(400).json({ success: false, message: 'End meter is lower than start meter.' });
+        }
+        if (sm !== null && em !== null) {
+            const [same] = await req.db.execute(
+                'SELECT id, entry_date FROM riders_fuel_history WHERE rider_id = ? AND start_meter = ? AND end_meter = ? LIMIT 1',
+                [id, String(sm), String(em)]
+            );
+            if (same && same.length > 0) {
+                return res.status(409).json({ success: false, message: `This rider already has an entry with meter ${sm} to ${em} (entry #${same[0].id}). It was not saved again.` });
+            }
+        }
+
         // Determine fuel_cost: prefer provided fuelCost; otherwise calculate if possible
         let fuel_cost = null;
         const fcp = (fuelCostProvided !== undefined && fuelCostProvided !== null && fuelCostProvided !== '') ? parseFloat(fuelCostProvided) : null;
@@ -680,7 +708,7 @@ router.post('/:id/fuel-history', authenticateToken, requirePermission('action_ma
         // Map of desired column -> value (match new schema)
         const desired = {
             rider_id: id,
-            entry_date: entryDate || null,
+            entry_date: day,
             start_meter: sm,
             end_meter: em,
             distance: dist,

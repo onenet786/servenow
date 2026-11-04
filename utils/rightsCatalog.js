@@ -59,6 +59,8 @@ const RIGHTS = [
   R('approve_expenses', 'Expenses: approve and pay', 'Rider cash and stores', 'high'),
 
   R('menu_financial_dashboard', 'Financial dashboard and general ledger', 'Accounts reports', 'high', 'Profit, cash and full books'),
+  R('menu_gl_accounts', 'Chart of accounts: view', 'Accounts reports', 'medium'),
+  R('action_manage_gl_accounts', 'Chart of accounts: add and edit accounts', 'Accounts reports', 'high', 'Decides where money can be booked'),
   R('report_store_payments', 'Store Payments and Balances', 'Accounts reports', 'medium'),
   R('report_centre_accounts', 'Reports Centre: accounts', 'Accounts reports', 'high', 'Cash book, suspense, profit and expenses'),
   R('report_centre_control', 'Reports Centre: control', 'Accounts reports', 'high', 'Exceptions and change log'),
@@ -128,9 +130,9 @@ const TEMPLATES = [
   { key: 'cashier', label: 'Cashier', description: 'Records rider cash and vouchers. Cannot approve them.',
     rights: [...VIEW_ORDERS, 'menu_riders', 'action_manage_fuel', 'menu_financial_rider_cash', 'menu_financial_cpv', 'menu_financial_crv', 'menu_financial_expenses', 'report_centre_riders'] },
   { key: 'accountant', label: 'Accountant', description: 'Approves documents and reads the books.',
-    rights: ['menu_dashboard', 'menu_financial_cpv', 'menu_financial_bpv', 'menu_financial_crv', 'menu_financial_brv', 'menu_financial_jnv', 'menu_financial_rider_cash', 'menu_financial_settlements', 'menu_financial_expenses', 'approve_cpv', 'approve_bpv', 'approve_crv', 'approve_brv', 'approve_jnv', 'approve_rider_cash', 'approve_settlements', 'approve_expenses', 'menu_financial_dashboard', 'report_store_payments', 'report_centre_accounts', 'report_centre_control', 'report_centre_riders', 'report_centre_stores', 'report_centre_sales'] },
+    rights: ['menu_dashboard', 'menu_financial_cpv', 'menu_financial_bpv', 'menu_financial_crv', 'menu_financial_brv', 'menu_financial_jnv', 'menu_financial_rider_cash', 'menu_financial_settlements', 'menu_financial_expenses', 'approve_cpv', 'approve_bpv', 'approve_crv', 'approve_brv', 'approve_jnv', 'approve_rider_cash', 'approve_settlements', 'approve_expenses', 'menu_financial_dashboard', 'menu_gl_accounts', 'report_store_payments', 'report_centre_accounts', 'report_centre_control', 'report_centre_riders', 'report_centre_stores', 'report_centre_sales'] },
   { key: 'auditor', label: 'Auditor (read-only)', description: 'Sees reports and the books. Cannot change anything.',
-    rights: ['menu_dashboard', 'menu_financial_dashboard', 'report_store_payments', 'report_centre_accounts', 'report_centre_control', 'report_centre_riders', 'report_centre_stores', 'report_centre_sales'] },
+    rights: ['menu_dashboard', 'menu_financial_dashboard', 'menu_gl_accounts', 'report_store_payments', 'report_centre_accounts', 'report_centre_control', 'report_centre_riders', 'report_centre_stores', 'report_centre_sales'] },
   { key: 'support', label: 'Customer support', description: 'Looks up orders and contacts customers.',
     rights: [...VIEW_ORDERS, 'menu_stores', 'menu_store_status'] },
 ];

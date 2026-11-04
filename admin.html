@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - ServeNow</title>
-    <link rel="stylesheet" href="css/style.css?v=5" />
-    <link rel="stylesheet" href="css/admin.css?v=42" />
+    <link rel="stylesheet" href="css/style.css?v=6" />
+    <link rel="stylesheet" href="css/admin.css?v=43" />
     <link rel="stylesheet" href="css/aginv-theme.css?v=10" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="css/servenow-ui.css?v=14">
+    <link rel="stylesheet" href="css/servenow-ui.css?v=15">
     <link rel="stylesheet" href="css/hr.css?v=4">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -21,7 +21,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0" defer></script>
-    <link rel="icon" type="image/png" href="images/servenow_brand_logo.png" />
+    <link rel="icon" type="image/png" href="images/servenow_brand_logo.png?v=2" />
       <style>body:not(.is-owner) .owner-tool { display: none !important; }</style>
 </head>
   <body class="sn-ui sn-admin">
@@ -32,7 +32,7 @@
       <aside class="app-sidebar" id="appSidebar">
         <div class="sidebar-header">
           <div class="logo">
-            <img src="images/servenow_brand_logo.png" alt="ServeNow Admin" />
+            <img src="images/servenow_brand_logo.png?v=2" alt="ServeNow Admin" />
             <span>ServeNow</span>
           </div>
         </div>
@@ -292,6 +292,14 @@
                     class="tab-link"
                     data-tab="general-ledger"
                     ><i class="fas fa-book"></i> General Ledger</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="admin.html#gl-accounts"
+                    class="tab-link"
+                    data-tab="gl-accounts"
+                    ><i class="fas fa-sitemap"></i> Chart of Accounts</a
                   >
                 </li>
               </ul>
@@ -2368,6 +2376,27 @@
             <div id="spFlags"></div>
           </div>
           <div id="spStatementView" style="display: none"></div>
+        </div>
+
+        <div id="gl-accounts" class="tab-content">
+          <div class="coa-head">
+            <div>
+              <h2>Chart of Accounts</h2>
+              <p class="text-muted">Every account the books can post to. System accounts are used by the automatic postings; added accounts are yours. Changes are listed in Reports Centre, Change Log.</p>
+            </div>
+            <button type="button" class="btn btn-primary" id="coaNewBtn" style="display:none"><i class="fas fa-plus"></i> New Account</button>
+          </div>
+          <div class="filter-controls">
+            <div class="filter-group"><label for="coaTypeFilter">Type</label>
+              <select id="coaTypeFilter" class="form-control"><option value="">All types</option><option value="asset">Asset</option><option value="liability">Liability</option><option value="equity">Equity</option><option value="income">Income</option><option value="expense">Expense</option></select></div>
+            <div class="filter-group"><label for="coaSearch">Search</label><input type="text" id="coaSearch" class="form-control" placeholder="Code or name" /></div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table coa-table">
+              <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Kind</th><th>On vouchers</th><th class="coa-num">Entries</th><th>Status</th><th></th></tr></thead>
+              <tbody id="coaBody"></tbody>
+            </table>
+          </div>
         </div>
 
         <div id="general-ledger" class="tab-content">
@@ -5620,24 +5649,25 @@
       </div>
     </div>
 
-    <script src="js/app.js?v=33" defer></script>
+    <script src="js/app.js?v=35" defer></script>
     <script src="js/branch-scope.js?v=7" defer></script>
     <script src="/socket.io/socket.io.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <script src="js/notifications.js?v=8" defer></script>
-    <script src="js/financial_helpers.js?v=2" defer></script>
+    <script src="js/financial_helpers.js?v=4" defer></script>
     <script src="js/financial.js?v=29" defer></script>
     <script src="js/store-payments.js?v=2" defer></script>
     <script src="js/reports-centre.js?v=1" defer></script>
     <script src="js/face.js?v=1" defer></script>
     <script src="js/dashboard.js?v=3" defer></script>
-    <script src="js/hr.js?v=10" defer></script>
-    <script src="js/user-rights.js?v=1" defer></script>
-    <script src="js/admin.js?v=62" defer></script>
+    <script src="js/hr.js?v=11" defer></script>
+    <script src="js/gl-accounts.js?v=2" defer></script>
+    <script src="js/user-rights.js?v=2" defer></script>
+    <script src="js/admin.js?v=64" defer></script>
     <script src="js/branch-admin.js?v=8" defer></script>
     <script src="js/inventory-report.js?v=13" defer></script>
-    <script src="js/report-tools.js?v=5" defer></script>
+    <script src="js/report-tools.js?v=6" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
       const appSidebar = document.getElementById("appSidebar");
@@ -6630,6 +6660,25 @@
     </div>
 
     <!-- Expense Modal -->
+    <div id="coaModal" class="modal persistent-modal" style="z-index: 10050;">
+      <div class="modal-content" style="max-width: 520px;">
+        <div class="modal-header"><h2 id="coaFormTitle">New Account</h2></div>
+        <form id="coaForm">
+          <div class="form-group"><label for="coaType">Type</label>
+            <select id="coaType" class="form-control"><option value="asset">Asset</option><option value="liability">Liability</option><option value="equity">Equity</option><option value="income">Income</option><option value="expense">Expense</option></select></div>
+          <div class="form-group"><label for="coaCode">Code</label><input type="text" id="coaCode" class="form-control" inputmode="numeric" maxlength="4" pattern="[1-5][0-9]{3}" required /></div>
+          <div class="form-group"><label for="coaName">Name</label><input type="text" id="coaName" class="form-control" maxlength="100" required /></div>
+          <div class="form-group"><label for="coaDescription">Note (optional)</label><input type="text" id="coaDescription" class="form-control" maxlength="255" /></div>
+          <div class="form-group" id="coaActiveGroup"><label for="coaActive">Status</label><select id="coaActive" class="form-control"><option value="1">On</option><option value="0">Off: hidden from new vouchers and journals</option></select></div>
+          <p class="text-muted" id="coaHint"></p>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="coaCancel">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div id="hrEmployeeModal" class="modal persistent-modal">
       <div class="modal-content" style="max-width: 575px;">
         <div class="modal-header"><h2>Add Employee</h2></div>
@@ -6642,15 +6691,11 @@
           <div class="form-group hr-pay-only"><label>Monthly salary (Rs)</label><input type="number" id="hrEmployeeSalary" class="form-control" min="0" step="1" /></div>
           <div class="form-group"><label>Weekly off day</label><select id="hrEmployeeOff" class="form-control"></select></div>
           <div class="form-group"><label>Shift</label><select id="hrEmployeeShift" class="form-control"></select></div>
-          <div class="form-group hr-pay-only"><label>Incentive this person can earn</label><select id="hrEmployeeIncentive" class="form-control">
-            <option value="none">No incentive</option>
-            <option value="monthly">Fixed amount every month</option>
-            <option value="per_day">Amount for each day worked</option>
-            <option value="per_delivery">Amount for each delivery (riders)</option>
-            <option value="full_attendance">Amount for a month with no absence</option>
-          </select></div>
-          <div class="form-group hr-pay-only" id="hrIncentiveAmountGroup"><label>Incentive amount (Rs)</label><input type="number" id="hrEmployeeIncentiveAmount" class="form-control" min="0" step="1" /></div>
-          <div class="form-group hr-pay-only" id="hrIncentiveNoteGroup"><label>Incentive terms (optional)</label><input type="text" id="hrEmployeeIncentiveNote" class="form-control" maxlength="200" /></div>
+          <div class="form-group hr-pay-only" id="hrIncentiveGroup"><label>Incentives this person can earn</label>
+            <small class="hr-hint">Add as many as apply. Each is checked on its own every month, and all that are earned are paid together.</small>
+            <div id="hrIncentiveList" class="hr-incentive-list"></div>
+            <button type="button" class="btn btn-secondary" id="hrAddIncentive"><i class="fas fa-plus"></i> Add incentive</button>
+          </div>
           <div class="form-group"><label>Joining date</label><input type="date" id="hrEmployeeJoined" class="form-control" /></div>
           <div class="form-group" id="hrEmployeeActiveGroup"><label>Status</label><select id="hrEmployeeActive" class="form-control"><option value="1">Active</option><option value="0">Left</option></select></div>
           <div class="form-actions">
@@ -6981,7 +7026,7 @@
         padding: 0.5rem 1rem;
       }
     </style>
-      <script src="js/sn-select.js?v=1" defer></script>
+      <script src="js/sn-select.js?v=4" defer></script>
 </body>
 </html>
 

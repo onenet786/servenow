@@ -36,7 +36,31 @@ const verifyUploadedImage = (req, res, next) => {
     return res.status(400).json({ success: false, message: "Only JPEG, PNG, GIF or WebP images are allowed" });
   }
   req.file.originalname = `image${ext}`;
-  return next();
+  return shrinkUploadedImage(req.file.path, ext).then(() => next(), () => next());
+};
+
+const sharp = (() => {
+  try { return require("sharp"); } catch (_e) { return null; }
+})();
+
+// Pictures are shown at most a few hundred pixels wide, but phones upload
+// 3000 px photos of 1 MB or more. Keep the same format and file, smaller.
+const SHRINK_MAX_WIDTH = 1280;
+const SHRINK_MIN_BYTES = 200 * 1024;
+
+const shrinkUploadedImage = async (filePath, ext) => {
+  if (!sharp || ext === ".gif") return;
+  const before = fs.statSync(filePath).size;
+  const meta = await sharp(filePath).metadata();
+  if (before < SHRINK_MIN_BYTES && (meta.width || 0) <= SHRINK_MAX_WIDTH) return;
+  let image = sharp(filePath).rotate().resize({ width: SHRINK_MAX_WIDTH, withoutEnlargement: true });
+  if (ext === ".png") image = image.png({ palette: true, quality: 90, compressionLevel: 9 });
+  else if (ext === ".webp") image = image.webp({ quality: 80 });
+  else image = image.jpeg({ quality: 80, mozjpeg: true });
+  const smaller = `${filePath}.small`;
+  await image.toFile(smaller);
+  if (fs.statSync(smaller).size < before) fs.renameSync(smaller, filePath);
+  else fs.unlinkSync(smaller);
 };
 
 const createImageUpload = () => {
@@ -55,4 +79,4 @@ const createImageUpload = () => {
   };
 };
 
-module.exports = { createImageUpload, detectImageExtension, maxFileSize };
+module.exports = { createImageUpload, detectImageExtension, maxFileSize, shrinkUploadedImage };

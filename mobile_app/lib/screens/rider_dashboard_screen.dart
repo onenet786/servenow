@@ -1370,7 +1370,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     if (useForegroundService) {
       locationSettings = AndroidSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 2,
+        distanceFilter: 10,
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationTitle: 'ServeNow delivery in progress',
           notificationText: 'Sharing your location with the customer.',
@@ -1382,7 +1382,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     } else if (highAccuracy) {
       locationSettings = const LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 2,
+        distanceFilter: 10,
       );
     } else {
       locationSettings = const LocationSettings(

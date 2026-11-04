@@ -45,7 +45,8 @@ const reasonLabel = (key) => (key === REOPENED ? 'Reopened by HR' : (LEAVE_REASO
 const dutyComplete = (reason) => !reason || reason === HOME;
 // Time out on these is still work. Lunch, personal work and anything else is not counted as hours.
 const DUTY_TRIPS = ['bank', 'market', 'delivery', 'office'];
-const INCENTIVE_TYPES = ['none', 'monthly', 'per_day', 'per_delivery', 'full_attendance'];
+const INCENTIVE_TYPES = ['none', 'monthly', 'per_day', 'per_delivery', 'full_attendance', 'no_day_off', 'top_deliveries'];
+const MAX_INCENTIVES = 8;
 const DEFAULT_GRACE_MINUTES = 10;
 const FACE_SIZE = 128;
 const FACE_MATCH = 0.5; // below this distance, two faces are the same person
@@ -130,6 +131,9 @@ const ensureTables = runOncePerProcess(async (db) => {
   await db.execute(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentive_type VARCHAR(20) NOT NULL DEFAULT 'none'`);
   await db.execute('ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentive_amount DECIMAL(12,2) NOT NULL DEFAULT 0');
   await db.execute('ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentive_note VARCHAR(200) NULL');
+  // Several incentives a person can earn at once, as JSON [{ type, amount, note }].
+  // The single incentive_* columns keep the first one for older readers.
+  await db.execute('ALTER TABLE employees ADD COLUMN IF NOT EXISTS incentives TEXT NULL');
   // The shift as it was that day, so changing a shift later never rewrites past attendance.
   await db.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS shift_name VARCHAR(60) NULL');
   await db.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS shift_start TIME NULL');
@@ -702,7 +706,7 @@ router.get('/employees', requireRight('menu_hr', 'menu_hr_payroll'), async (req,
       branchId === null ? [] : [branchId]
     );
     const pay = await canSeePay(req);
-    return res.json({ success: true, can_see_pay: Boolean(pay), employees: rows.map((e) => (pay ? e : { ...e, monthly_salary: undefined, incentive_type: undefined, incentive_amount: undefined, incentive_note: undefined })) });
+    return res.json({ success: true, can_see_pay: Boolean(pay), employees: rows.map((e) => (pay ? { ...e, incentives: incentiveList(e) } : { ...e, monthly_salary: undefined, incentive_type: undefined, incentive_amount: undefined, incentive_note: undefined, incentives: undefined })) });
   } catch (err) {
     console.error('[hr] employees failed:', err.message);
     return res.status(500).json({ success: false, message: 'Could not load employees' });
@@ -742,18 +746,30 @@ function readEmployee(body) {
   if (off !== null && !(Number.isInteger(off) && off >= 0 && off <= 6)) return { error: 'Choose a valid weekly off day.' };
   const joined = body.joined_on ? validDate(body.joined_on) : null;
   if (body.joined_on && !joined) return { error: 'Enter a valid joining date.' };
-  const incentiveType = body.incentive_type === undefined ? undefined : String(body.incentive_type);
-  if (incentiveType !== undefined && !INCENTIVE_TYPES.includes(incentiveType)) return { error: 'Choose a valid incentive.' };
-  const incentiveAmount = Number(body.incentive_amount || 0);
-  if (!Number.isFinite(incentiveAmount) || incentiveAmount < 0) return { error: 'Enter a valid incentive amount.' };
-  if (incentiveType && incentiveType !== 'none' && !incentiveAmount) return { error: 'Enter the incentive amount.' };
+  let incentives;
+  if (Array.isArray(body.incentives)) incentives = body.incentives;
+  else if (body.incentive_type !== undefined) {
+    incentives = String(body.incentive_type) === 'none' ? [] : [{ type: body.incentive_type, amount: body.incentive_amount, note: body.incentive_note }];
+  }
+  if (incentives !== undefined) {
+    if (incentives.length > MAX_INCENTIVES) return { error: `At most ${MAX_INCENTIVES} incentives.` };
+    const seen = new Set();
+    const clean = [];
+    for (const item of incentives) {
+      const type = String((item && item.type) || '');
+      if (type === 'none' || type === '') continue;
+      if (!INCENTIVE_TYPES.includes(type)) return { error: 'Choose a valid incentive.' };
+      if (seen.has(type)) return { error: 'Each incentive can be added once.' };
+      seen.add(type);
+      const amount = Number(item.amount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) return { error: 'Enter the amount for each incentive.' };
+      clean.push({ type, amount: money(amount), note: String(item.note || '').trim().slice(0, 200) || null });
+    }
+    incentives = clean;
+  }
   return {
     shiftId: Number(body.shift_id) || null,
-    incentive: incentiveType === undefined ? undefined : {
-      type: incentiveType,
-      amount: incentiveType === 'none' ? 0 : incentiveAmount,
-      note: incentiveType === 'none' ? null : String(body.incentive_note || '').trim().slice(0, 200) || null,
-    },
+    incentives,
     name,
     designation: String(body.designation || '').trim().slice(0, 80) || null,
     phone: String(body.phone || '').trim().slice(0, 30) || null,
@@ -787,14 +803,15 @@ router.post('/employees', requireRight('menu_hr', 'menu_hr_payroll'), async (req
     if (e.salary && !(await canSeePay(req))) return res.status(403).json({ success: false, message: 'Setting a salary needs the Payroll right.' });
     const branch = await resolveWriteBranch(req.db, req.user, req.body.branch_id);
     if (branch.error) return res.status(400).json({ success: false, message: branch.error });
-    if (e.incentive?.amount && !(await canSeePay(req))) return res.status(403).json({ success: false, message: 'Setting an incentive needs the Payroll right.' });
+    if (e.incentives?.length && !(await canSeePay(req))) return res.status(403).json({ success: false, message: 'Setting an incentive needs the Payroll right.' });
+    const first = (e.incentives || [])[0] || {};
     if (!(await shiftAllowed(req.db, e.shiftId, branch.branchId))) return res.status(400).json({ success: false, message: 'Choose a shift of this branch.' });
     const link = fromLink(req.body.link);
     const [result] = await req.db.execute(
-      `INSERT INTO employees (branch_id, user_id, rider_id, name, designation, phone, monthly_salary, weekly_off, joined_on, shift_id, incentive_type, incentive_amount, incentive_note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO employees (branch_id, user_id, rider_id, name, designation, phone, monthly_salary, weekly_off, joined_on, shift_id, incentive_type, incentive_amount, incentive_note, incentives)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [branch.branchId, link.user_id, link.rider_id, e.name, e.designation, e.phone, e.salary || 0, e.off, e.joined, e.shiftId,
-        e.incentive?.type || 'none', e.incentive?.amount || 0, e.incentive?.note || null]
+        first.type || 'none', first.amount || 0, first.note || null, JSON.stringify(e.incentives || [])]
     );
     return res.status(201).json({ success: true, id: result.insertId, message: 'Employee added' });
   } catch (err) {
@@ -818,13 +835,14 @@ router.put('/employees/:id', requireRight('menu_hr', 'menu_hr_payroll'), async (
     if (shiftId !== current.shift_id && !(await shiftAllowed(req.db, shiftId, current.branch_id))) {
       return res.status(400).json({ success: false, message: 'Choose a shift of this branch.' });
     }
-    const incentive = pay && e.incentive ? e.incentive : { type: current.incentive_type, amount: current.incentive_amount, note: current.incentive_note };
+    const list = pay && e.incentives !== undefined ? e.incentives : incentiveList(current);
+    const incentive = list[0] || { type: 'none', amount: 0, note: null };
     await req.db.execute(
       `UPDATE employees SET name = ?, designation = ?, phone = ?, monthly_salary = ?, weekly_off = ?, joined_on = ?, user_id = ?, rider_id = ?, is_active = ?,
-              shift_id = ?, incentive_type = ?, incentive_amount = ?, incentive_note = ?
+              shift_id = ?, incentive_type = ?, incentive_amount = ?, incentive_note = ?, incentives = ?
         WHERE id = ?`,
       [e.name, e.designation, e.phone, salary, e.off, e.joined, link.user_id, link.rider_id, active, shiftId ?? null,
-        incentive.type ?? 'none', incentive.amount ?? 0, incentive.note ?? null, current.id]
+        incentive.type ?? 'none', incentive.amount ?? 0, incentive.note ?? null, JSON.stringify(list), current.id]
     );
     // Face data is kept only while the person works here.
     if (!active) await req.db.execute('DELETE FROM employee_faces WHERE employee_id = ?', [current.id]);
@@ -1009,15 +1027,39 @@ function daysOf(month) {
 
 const lastDayOf = (month) => daysOf(month).pop().date;
 
-function incentiveFor(employee, { present, absent, deliveries }) {
-  const amount = money(employee.incentive_amount);
-  switch (employee.incentive_type) {
-    case 'monthly': return amount;
-    case 'per_day': return money(amount * present);
-    case 'per_delivery': return money(amount * deliveries);
-    case 'full_attendance': return absent === 0 ? amount : 0;
-    default: return 0;
+// The incentives a person can earn: the list, or the one older single incentive.
+function incentiveList(employee) {
+  if (employee.incentives) {
+    try {
+      const list = typeof employee.incentives === 'string' ? JSON.parse(employee.incentives) : employee.incentives;
+      if (Array.isArray(list)) return list.filter((i) => i && INCENTIVE_TYPES.includes(i.type) && i.type !== 'none');
+    } catch (_e) { /* fall back to the single columns */ }
   }
+  if (employee.incentive_type && employee.incentive_type !== 'none') {
+    return [{ type: employee.incentive_type, amount: money(employee.incentive_amount), note: employee.incentive_note || null }];
+  }
+  return [];
+}
+
+// Every incentive is checked on its own and all that are earned are paid together.
+function incentiveFor(employee, { present, absent, leave = 0, offSoFar = 0, notJoined = 0, deliveries = 0, topPerformer = false }) {
+  const lines = incentiveList(employee).map((item) => {
+    const amount = money(item.amount);
+    let earned = 0;
+    switch (item.type) {
+      case 'monthly': earned = amount; break;
+      case 'per_day': earned = money(amount * present); break;
+      case 'per_delivery': earned = money(amount * deliveries); break;
+      case 'full_attendance': earned = absent === 0 ? amount : 0; break;
+      // Worked every day so far, weekly off and holidays included, with no leave.
+      case 'no_day_off': earned = present > 0 && absent === 0 && leave === 0 && offSoFar === 0 && notJoined === 0 ? amount : 0; break;
+      // Most delivered orders in the branch this month; riders who tie all earn it.
+      case 'top_deliveries': earned = topPerformer && deliveries > 0 ? amount : 0; break;
+      default: earned = 0;
+    }
+    return { type: item.type, amount, note: item.note || null, earned };
+  });
+  return { total: money(lines.reduce((sum, l) => sum + l.earned, 0)), lines };
 }
 
 /**
@@ -1026,7 +1068,7 @@ function incentiveFor(employee, { present, absent, deliveries }) {
  * are paid, and days still to come are not counted against anyone. Late days and hours are shown
  * for HR to judge; they take nothing off by themselves (use Deduction).
  */
-function monthFigures(employee, records, month, { bonus = 0, deduction = 0, today = ymdIn(), deliveries = 0 } = {}) {
+function monthFigures(employee, records, month, { bonus = 0, deduction = 0, today = ymdIn(), deliveries = 0, topPerformer = false } = {}) {
   const days = daysOf(month);
   const salary = money(employee.monthly_salary);
   const joined = employee.joined_on ? ymdIn(new Date(employee.joined_on)) : null;
@@ -1044,6 +1086,7 @@ function monthFigures(employee, records, month, { bonus = 0, deduction = 0, toda
   let lateMinutes = 0;
   let earlyMinutes = 0;
   let missedOut = 0;
+  let offSoFar = 0;
   for (const { date, weekday } of days) {
     if (joined && date < joined) { notJoined += 1; continue; }
     if (employee.weekly_off !== weekday) workingDays += 1;
@@ -1067,12 +1110,13 @@ function monthFigures(employee, records, month, { bonus = 0, deduction = 0, toda
       if (shiftMinutes && date < today) shortMinutes += Math.max(0, shiftMinutes - worked);
     } else if (status === 'leave') leave += 1;
     else if (status === 'absent' && date <= today) absent += 1;
-    else if (employee.weekly_off === weekday) off += 1;
+    else if (employee.weekly_off === weekday) { off += 1; if (date <= today) offSoFar += 1; }
     else if (date <= today) absent += 1;
   }
   const perDay = salary / days.length;
   const lost = money(perDay * (absent + notJoined));
-  const incentive = incentiveFor(employee, { present, absent, deliveries });
+  const earned = incentiveFor(employee, { present, absent, leave, offSoFar, notJoined, deliveries, topPerformer });
+  const incentive = earned.total;
   const net = Math.max(0, money(salary - lost + incentive + Number(bonus) - Number(deduction)));
   return {
     days_in_month: days.length, working_days: workingDays, present, leave, absent, off, not_joined: notJoined,
@@ -1080,6 +1124,7 @@ function monthFigures(employee, records, month, { bonus = 0, deduction = 0, toda
     worked_minutes: workedMinutes, required_minutes: workingDays * shiftMinutes, short_minutes: shortMinutes,
     late_days: lateDays, late_minutes: lateMinutes, early_minutes: earlyMinutes, missed_checkouts: missedOut,
     incentive_type: employee.incentive_type || 'none', incentive_amount: money(employee.incentive_amount), incentive_note: employee.incentive_note || null,
+    incentive_lines: earned.lines, top_performer: Boolean(topPerformer),
     deliveries, incentive,
     salary, absence_deduction: lost, bonus: money(bonus), deduction: money(deduction), net,
   };
@@ -1095,6 +1140,27 @@ async function deliveriesByRider(db, month, riderIds) {
     [`${month}-01`, lastDayOf(month), ...riderIds]
   );
   return new Map(rows.map((r) => [Number(r.rider_id), Number(r.n)]));
+}
+
+// The rider staff with the most delivered orders in each branch (all who tie).
+function topRidersByBranch(riderStaff, delivered) {
+  const most = new Map();
+  for (const e of riderStaff) {
+    const n = delivered.get(Number(e.rider_id)) || 0;
+    if (n > (most.get(e.branch_id) || 0)) most.set(e.branch_id, n);
+  }
+  return new Set(riderStaff.filter((e) => {
+    const n = delivered.get(Number(e.rider_id)) || 0;
+    return n > 0 && n === most.get(e.branch_id);
+  }).map((e) => Number(e.rider_id)));
+}
+
+// Best performer for one person, for screens that show a single employee.
+async function isTopPerformer(db, month, employee) {
+  if (!employee.rider_id) return false;
+  const [staff] = await db.execute('SELECT rider_id, branch_id FROM employees WHERE is_active = 1 AND rider_id IS NOT NULL AND branch_id = ?', [employee.branch_id]);
+  const delivered = await deliveriesByRider(db, month, staff.map((e) => e.rider_id));
+  return topRidersByBranch(staff, delivered).has(Number(employee.rider_id));
 }
 
 async function monthRows(db, month, branchId) {
@@ -1118,11 +1184,13 @@ async function monthRows(db, month, branchId) {
       WHERE a.work_date BETWEEN ? AND LAST_DAY(?) AND a.employee_id IN (${employees.map(() => '?').join(', ')})`,
     [...DUTY_TRIPS, `${month}-01`, `${month}-01`, ...employees.map((e) => e.id)]
   );
-  const delivered = await deliveriesByRider(db, month, employees.filter((e) => e.incentive_type === 'per_delivery' && e.rider_id).map((e) => e.rider_id));
+  const riderStaff = employees.filter((e) => e.rider_id && e.is_active);
+  const delivered = await deliveriesByRider(db, month, employees.filter((e) => e.rider_id).map((e) => e.rider_id));
+  const best = topRidersByBranch(riderStaff, delivered);
   return employees.map((e) => {
     // Once a voucher exists the line is frozen at what was sent, unless that voucher was cancelled.
     const frozen = e.voucher_id && e.voucher_status !== 'cancelled' && e.snapshot ? JSON.parse(e.snapshot) : null;
-    const figures = frozen || monthFigures(e, records.filter((r) => r.employee_id === e.id), month, { bonus: e.bonus || 0, deduction: e.deduction || 0, deliveries: delivered.get(Number(e.rider_id)) || 0 });
+    const figures = frozen || monthFigures(e, records.filter((r) => r.employee_id === e.id), month, { bonus: e.bonus || 0, deduction: e.deduction || 0, deliveries: delivered.get(Number(e.rider_id)) || 0, topPerformer: best.has(Number(e.rider_id)) });
     return {
       employee_id: e.id, name: e.name, designation: e.designation, branch_id: e.branch_id, user_id: e.user_id, rider_id: e.rider_id,
       ...figures, note: e.note, voucher_number: frozen ? e.voucher_number : null, voucher_status: frozen ? e.voucher_status : null, locked: Boolean(frozen),
@@ -1259,7 +1327,7 @@ router.post('/payroll/:employeeId(\\d+)/voucher', requireRight('menu_hr_payroll'
 router.monthFigures = monthFigures;
 router.matchFace = matchFace;
 // For the assistant (services/assistantHr.js): the same tables, day, reasons and shift rule as this screen.
-router.hr = { ensureTables, ymdIn, reasonLabel, daysOf, deliveriesByRider, TIME_ZONE, OPEN_SHIFT_HOURS, HOME };
+router.hr = { ensureTables, ymdIn, reasonLabel, daysOf, deliveriesByRider, incentiveList, isTopPerformer, TIME_ZONE, OPEN_SHIFT_HOURS, HOME };
 router.lateBy = lateBy;
 router.earlyBy = earlyBy;
 router.shiftLength = shiftLength;

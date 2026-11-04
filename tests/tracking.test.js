@@ -138,3 +138,19 @@ test('PUT /rider/location: older apps without motion fields still work', async (
   assert.equal(admin.speed, null);
   assert.ok(!io.emitted.some((e) => e.room.startsWith('user_')));
 });
+
+test('GPS km counts each ping once when the rider carries several orders', () => {
+  // A straight ride of about 1.1 km north, logged every 10 s, saved once per order.
+  const start = Date.parse('2026-11-02T10:00:00Z');
+  const rows = [];
+  for (let i = 0; i <= 10; i += 1) {
+    for (const orderId of [7, 8, 9]) {
+      rows.push({ order_id: orderId, latitude: String(30.46 + i * 0.001), longitude: '70.96', created_at: new Date(start + i * 10000) });
+    }
+  }
+  // Grouped by order, as the old report sorted them: the ride would count three times plus two jumps back.
+  rows.sort((a, b) => a.order_id - b.order_id);
+  const summary = orders.summarizeLocationRows(rows);
+  assert.equal(summary.points, 11);
+  assert.ok(summary.distance_km > 1.05 && summary.distance_km < 1.15, String(summary.distance_km));
+});

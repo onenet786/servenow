@@ -248,7 +248,16 @@
         el('urDeleteGroup').addEventListener('click', async () => {
             const group = state.groups.find((g) => Number(g.id) === Number(state.groupId));
             if (!group || !window.confirm(`Delete group "${group.name}"?`)) return;
-            const { ok, data } = await api(`groups/${group.id}`, { method: 'DELETE' });
+            let { ok, data } = await api(`groups/${group.id}`, { method: 'DELETE' });
+            if (!ok && data.needs_confirmation) {
+                const people = (data.members || []).join(', ');
+                const sure = window.confirm(`"${group.name}" still has ${data.members.length} ${data.members.length === 1 ? 'person' : 'people'} in it: ${people}.
+
+`
+                    + 'Delete the group anyway? They are taken out of it and lose all its rights, the same as choosing "No group" on the Staff tab.');
+                if (!sure) return;
+                ({ ok, data } = await api(`groups/${group.id}?remove_members=1`, { method: 'DELETE' }));
+            }
             if (!ok) { showError('Could Not Delete', data.message || 'Failed to delete the group'); return; }
             showSuccess('Deleted', 'Group deleted');
             state.groupId = null;

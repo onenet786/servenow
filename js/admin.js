@@ -2850,6 +2850,9 @@ function switchTab(tabName) {
         case 'general-ledger':
             if (typeof loadGeneralLedger === 'function') loadGeneralLedger();
             break;
+        case 'gl-accounts':
+            if (typeof window.loadGlAccounts === 'function') window.loadGlAccounts();
+            break;
         case 'store-payments':
             if (typeof loadStorePaymentsReport === 'function') loadStorePaymentsReport();
             break;
@@ -10919,6 +10922,10 @@ async function saveFuelEntry() {
     const riderId = sel.value;
     // Coerce numeric fields to numbers (or null) to match server validation
     const entryDateVal = document.getElementById('entryDate').value || null;
+    if (!entryDateVal) {
+        showWarning('Entry Date', 'Choose the date of this fuel entry.');
+        return;
+    }
     const startMeterRaw = document.getElementById('startMeter').value || null;
     const endMeterRaw = document.getElementById('endMeter').value || null;
     const distanceRaw = document.getElementById('distance').value || null;
@@ -10967,12 +10974,10 @@ async function saveFuelEntry() {
         const data = await resp.json();
         if (data && data.success) {
             showSuccess('Saved', 'Fuel history entry saved');
-            // clear form
-            document.getElementById('entryDate').value = '';
+            // Clear the readings but keep the date and petrol rate: the next rider is usually the same day.
             document.getElementById('startMeter').value = '';
             document.getElementById('endMeter').value = '';
             document.getElementById('distance').value = '';
-            document.getElementById('petrolRate').value = '';
             if (document.getElementById('fuelCost')) document.getElementById('fuelCost').value = '';
             document.getElementById('fuelNotes').value = '';
             loadFuelHistory(riderId);
@@ -12754,6 +12759,7 @@ async function applyRoleRestrictions() {
                 { perms: ['menu_report_financial', 'menu_reports'], tabs: ['financial-reports'] },
                 { perms: ['menu_financial_dashboard', 'menu_reports'], tabs: ['financial-dashboard'] },
                 { perms: ['menu_financial_dashboard'], tabs: ['general-ledger'] },
+                { perms: ['menu_gl_accounts', 'menu_financial_dashboard'], tabs: ['gl-accounts'] },
                 { perms: ['report_store_payments'], tabs: ['store-payments'] },
                 { perms: ['report_centre_riders', 'report_centre_stores', 'report_centre_accounts', 'report_centre_control', 'report_centre_sales'], tabs: ['reports-centre'] },
 

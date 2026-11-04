@@ -612,7 +612,10 @@ async function ensureRiderLocationColumns(db) {
   }
 }
 
+// Every location ping calls this, so the checks run once per server start.
+let riderLocationLogsReady = false;
 async function ensureRiderLocationLogsTable(db) {
+  if (riderLocationLogsReady) return;
   try {
     await db.execute(`
       CREATE TABLE IF NOT EXISTS rider_location_logs (
@@ -652,6 +655,16 @@ async function ensureRiderLocationLogsTable(db) {
         "ALTER TABLE rider_location_logs ADD COLUMN location_label VARCHAR(255) NULL AFTER longitude",
       );
     }
+    // The daily km report reads one day for every rider.
+    const [timeIndex] = await db.execute(
+      "SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'rider_location_logs' AND index_name = 'idx_rider_location_logs_created' LIMIT 1",
+    );
+    if (!timeIndex.length) {
+      await db.execute(
+        "CREATE INDEX idx_rider_location_logs_created ON rider_location_logs(created_at)",
+      );
+    }
+    riderLocationLogsReady = true;
   } catch (e) {
     console.error("Failed to ensure rider_location_logs table:", e);
   }
@@ -1225,8 +1238,30 @@ function calculateLocationDistanceKm(rows) {
   return Number((meters / 1000).toFixed(3));
 }
 
+// A ping is saved once for every order the rider carries. Keep one copy of
+// each, in time order, so a road is not counted once per order.
+function uniqueLocationPings(rows) {
+  if (!Array.isArray(rows)) return [];
+  const time = (row) => {
+    const value = new Date(row.created_at).getTime();
+    return Number.isFinite(value) ? value : 0;
+  };
+  const sorted = rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => time(a.row) - time(b.row) || a.index - b.index);
+  const seen = new Set();
+  const unique = [];
+  for (const { row } of sorted) {
+    const key = `${time(row)}|${Number.parseFloat(row.latitude)}|${Number.parseFloat(row.longitude)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
+  }
+  return unique;
+}
+
 function summarizeLocationRows(rows) {
-  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeRows = uniqueLocationPings(rows);
   return {
     points: safeRows.length,
     distance_km: calculateLocationDistanceKm(safeRows),
@@ -3382,7 +3417,7 @@ router.get("/rider/location-history", authenticateToken, async (req, res) => {
     const summaries = {};
     for (const key of Object.keys(histories)) {
       summaries[key] = summarizeLocationRows(histories[key]);
-      histories[key] = compressLocationHistory(histories[key], limit);
+      histories[key] = compressLocationHistory(uniqueLocationPings(histories[key]), limit);
     }
 
     res.json({
@@ -3437,9 +3472,9 @@ router.get("/rider/travel-summary", authenticateToken, async (req, res) => {
        LEFT JOIN orders o ON o.id = rll.order_id
        LEFT JOIN stores s ON s.id = o.store_id
        LEFT JOIN riders r ON r.id = rll.rider_id
-       WHERE DATE(rll.created_at) = ?
-       ORDER BY rll.rider_id ASC, rll.order_id ASC, rll.created_at ASC`,
-      [date],
+       WHERE rll.created_at >= ? AND rll.created_at < ? + INTERVAL 1 DAY
+       ORDER BY rll.rider_id ASC, rll.created_at ASC, rll.id ASC`,
+      [date, date],
     );
 
     const [manualRows] = await req.db.execute(
@@ -7257,6 +7292,7 @@ module.exports.emitRiderLocationUpdate = emitRiderLocationUpdate;
 module.exports.buildRiderLocationUpdatePayload = buildRiderLocationUpdatePayload;
 module.exports.parseRiderMotion = parseRiderMotion;
 module.exports.unreversedOrderEntries = unreversedOrderEntries;
+module.exports.summarizeLocationRows = summarizeLocationRows;
 
 // Schema helpers run their DDL once per process (see utils/runOnce.js)
 const { runOncePerProcess } = require("../utils/runOnce");

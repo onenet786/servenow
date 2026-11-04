@@ -466,6 +466,13 @@ router.get('/', softAuth, filterPrivateData, async (req, res) => {
 
         query += ' ORDER BY p.name ASC';
 
+        // Optional paging. Without ?limit= the whole list comes back, as before.
+        const limit = Number.parseInt(String(req.query.limit ?? ''), 10);
+        if (Number.isInteger(limit) && limit > 0) {
+            const offset = Math.max(Number.parseInt(String(req.query.offset ?? '0'), 10) || 0, 0);
+            query += ` LIMIT ${Math.min(limit, 500)} OFFSET ${offset}`;
+        }
+
         const [products] = await req.db.execute(query, queryParams);
         const variantsByProductId = includeVariants
             ? await loadProductSizeVariants(req.db, (products || []).map(p => p.id))

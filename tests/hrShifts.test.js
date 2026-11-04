@@ -189,3 +189,34 @@ test('staff without the payroll right cannot set an incentive or see one', async
   assert.equal(body.employees[0].incentive_amount, undefined);
   assert.equal(body.employees[0].incentive_type, undefined);
 });
+
+test('several incentives are each checked and all that are earned are paid together', () => {
+  const every = october.map((d) => day(d)); // worked all 31 days, Sundays too
+  const list = [
+    { type: 'monthly', amount: 1000 },
+    { type: 'full_attendance', amount: 500 },
+    { type: 'no_day_off', amount: 700 },
+    { type: 'top_deliveries', amount: 2000 },
+    { type: 'per_delivery', amount: 10 },
+  ];
+  const f = hr.monthFigures({ ...employee, incentives: JSON.stringify(list) }, every, '2026-10', { ...OPTS, deliveries: 300, topPerformer: true });
+  assert.equal(f.incentive, 1000 + 500 + 700 + 2000 + 3000);
+  assert.deepEqual(f.incentive_lines.map((l) => l.earned), [1000, 500, 700, 2000, 3000]);
+});
+
+test('no day off is lost by one weekly off or one leave; best performer needs the top spot', () => {
+  const sundays = new Set(['2026-10-04', '2026-10-11', '2026-10-18', '2026-10-25']);
+  const list = JSON.stringify([{ type: 'no_day_off', amount: 700 }, { type: 'top_deliveries', amount: 2000 }]);
+  const restOnSundays = october.filter((d) => !sundays.has(d)).map((d) => day(d));
+  let f = hr.monthFigures({ ...employee, incentives: list }, restOnSundays, '2026-10', { ...OPTS, deliveries: 120, topPerformer: false });
+  assert.equal(f.incentive, 0, 'rested on Sundays and was not the top rider');
+  const oneLeave = october.map((d) => (d === '2026-10-15' ? { date: d, status: 'leave' } : day(d)));
+  f = hr.monthFigures({ ...employee, incentives: list }, oneLeave, '2026-10', { ...OPTS, deliveries: 120, topPerformer: true });
+  assert.equal(f.incentive, 2000, 'top rider, but took a leave day');
+});
+
+test('the old single incentive still counts when no list is saved', () => {
+  const f = hr.monthFigures({ ...employee, incentive_type: 'monthly', incentive_amount: 800 }, [day('2026-10-01')], '2026-10', OPTS);
+  assert.equal(f.incentive, 800);
+  assert.equal(f.incentive_lines.length, 1);
+});

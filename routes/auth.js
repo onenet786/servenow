@@ -94,6 +94,10 @@ async function issueRefreshToken(db, { userId, userType, deviceId = null }) {
        VALUES (?, ?, ?, ?, ?)`,
       [userId, userType, tokenHash, expiresAt, deviceId]
     );
+    // Now and then, clear sign-ins that expired over a week ago. They can never be used again.
+    if (Math.random() < 0.02) {
+      db.execute("DELETE FROM refresh_tokens WHERE expires_at < NOW() - INTERVAL 7 DAY").catch(() => {});
+    }
 
     return refreshToken;
   } catch (err) {
@@ -672,7 +676,7 @@ router.post(
       );
 
       // Send verification email
-      await sendVerificationEmail(email, verificationCode);
+      const emailSent = await sendVerificationEmail(email, verificationCode);
 
       // Emit new_user event to admin
       try {
@@ -718,9 +722,11 @@ router.post(
 
       return res.status(201).json({
         success: true,
-        message:
-          "User registered successfully. Please check your email for verification code.",
+        message: emailSent
+          ? "User registered successfully. Please check your email for verification code."
+          : "Account created, but the verification email could not be sent right now. Use Resend code in a few minutes.",
         requires_verification: true,
+        email_sent: emailSent !== false,
         token, // Will be null
         refresh_token: refreshToken,
         user: {
@@ -1675,7 +1681,10 @@ router.post(
         [verificationCode, verificationExpiresAt, user.id]
       );
 
-      await sendVerificationEmail(email, verificationCode);
+      const sent = await sendVerificationEmail(email, verificationCode);
+      if (sent === false) {
+        return res.status(503).json({ success: false, message: "We could not send the email right now. Please try again in a few minutes." });
+      }
 
       return res.json({ success: true, message: "Verification code sent" });
     } catch (error) {

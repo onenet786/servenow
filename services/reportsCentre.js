@@ -419,6 +419,7 @@ async function changeLog(db, f) {
     ['Payment voucher', `SELECT voucher_number, amount, status, updated_at, COALESCE(paid_by, approved_by, prepared_by) FROM cash_payment_vouchers WHERE 1=1`],
     ['Store settlement', `SELECT settlement_number, net_amount, status, updated_at, NULL FROM store_settlements WHERE 1=1`],
     ['Expense', `SELECT expense_number, amount, status, updated_at, COALESCE(approved_by, submitted_by) FROM admin_expenses WHERE 1=1`],
+    ['Ledger account', `SELECT CONCAT(code, ' ', COALESCE(detail, '')), NULL, action, changed_at, changed_by FROM gl_account_changes WHERE 1=1`],
     ['Journal voucher', `SELECT voucher_number, total_amount, status, COALESCE(posted_at, created_at), COALESCE(approved_by, prepared_by) FROM journal_vouchers WHERE 1=1`],
   ];
   const rows = [];

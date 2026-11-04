@@ -34,8 +34,25 @@
     per_day: (a) => `${rupees(a)} a day worked`,
     per_delivery: (a) => `${rupees(a)} a delivery`,
     full_attendance: (a) => `${rupees(a)} for no absence`,
+    no_day_off: (a) => `${rupees(a)} for no day off all month`,
+    top_deliveries: (a) => `${rupees(a)} for most deliveries`,
   };
-  const incentiveText = (e) => (INCENTIVES[e.incentive_type] ? INCENTIVES[e.incentive_type](e.incentive_amount) : '');
+  const INCENTIVE_CHOICES = [
+    ['monthly', 'Fixed amount every month'],
+    ['per_day', 'Amount for each day worked'],
+    ['per_delivery', 'Amount for each delivery (riders)'],
+    ['full_attendance', 'Amount for a month with no absence'],
+    ['no_day_off', 'Amount for no day off all month (weekly off and holidays worked, no leave)'],
+    ['top_deliveries', 'Best performer: most deliveries in the branch (riders)'],
+  ];
+  // The list an employee can earn, or the older single incentive.
+  const incentivesOf = (e) => (Array.isArray(e.incentives) && e.incentives.length ? e.incentives
+    : (e.incentive_type && e.incentive_type !== 'none' ? [{ type: e.incentive_type, amount: e.incentive_amount, note: e.incentive_note }] : []));
+  const incentiveText = (e) => incentivesOf(e).map((i) => (INCENTIVES[i.type] ? INCENTIVES[i.type](i.amount) : '')).filter(Boolean).join('; ');
+  // On the pay sheet: what was earned this month, one line per incentive.
+  const earnedText = (r) => (Array.isArray(r.incentive_lines) && r.incentive_lines.length
+    ? r.incentive_lines.map((l) => `${INCENTIVES[l.type] ? INCENTIVES[l.type](l.amount) : l.type}: ${l.earned ? rupees(l.earned) : 'not earned'}`)
+    : (incentiveText(r) ? [incentiveText(r)] : []));
 
   const ICONS = { day: 'fa-calendar-day', month: 'fa-calendar-alt', kiosk: 'fa-desktop', staff: 'fa-users', pay: 'fa-wallet' };
 
@@ -127,10 +144,36 @@
     }
   }
 
-  function showIncentive() {
-    const on = $('hrEmployeeIncentive').value !== 'none' && canSeePay;
-    $('hrIncentiveAmountGroup').style.display = on ? '' : 'none';
-    $('hrIncentiveNoteGroup').style.display = on ? '' : 'none';
+  function incentiveRow(item = {}) {
+    const row = document.createElement('div');
+    row.className = 'hr-incentive-row';
+    row.innerHTML = `<select class="form-control hr-inc-type">${INCENTIVE_CHOICES.map(([v, label]) => `<option value="${v}">${esc(label)}</option>`).join('')}</select>
+      <input type="number" class="form-control hr-inc-amount" min="1" step="1" placeholder="Amount (Rs)" />
+      <input type="text" class="form-control hr-inc-note" maxlength="200" placeholder="Terms (optional)" />
+      <button type="button" class="btn btn-secondary hr-inc-remove" title="Remove"><i class="fas fa-times"></i></button>`;
+    row.querySelector('.hr-inc-type').value = item.type || 'monthly';
+    row.querySelector('.hr-inc-amount').value = Number(item.amount) || '';
+    row.querySelector('.hr-inc-note').value = item.note || '';
+    row.querySelector('.hr-inc-remove').addEventListener('click', () => row.remove());
+    return row;
+  }
+
+  function showIncentive(list) {
+    const box = $('hrIncentiveList');
+    if (!box) return;
+    if (list) {
+      box.innerHTML = '';
+      list.forEach((item) => box.appendChild(incentiveRow(item)));
+    }
+    $('hrIncentiveGroup').style.display = canSeePay ? '' : 'none';
+  }
+
+  function readIncentives() {
+    return [...document.querySelectorAll('#hrIncentiveList .hr-incentive-row')].map((row) => ({
+      type: row.querySelector('.hr-inc-type').value,
+      amount: row.querySelector('.hr-inc-amount').value,
+      note: row.querySelector('.hr-inc-note').value,
+    })).filter((i) => String(i.amount).trim() !== ''); // a row left empty is ignored
   }
 
   async function fillShifts(current) {
@@ -165,10 +208,7 @@
     $('hrEmployeePhone').value = e.phone || '';
     $('hrEmployeeSalary').value = e.monthly_salary ?? '';
     $('hrEmployeeOff').value = e.weekly_off ?? '';
-    $('hrEmployeeIncentive').value = e.incentive_type || 'none';
-    $('hrEmployeeIncentiveAmount').value = Number(e.incentive_amount) || '';
-    $('hrEmployeeIncentiveNote').value = e.incentive_note || '';
-    showIncentive();
+    showIncentive(incentivesOf(e));
     $('hrEmployeeJoined').value = e.joined_on ? new Date(e.joined_on).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) : '';
     $('hrEmployeeActive').value = e.id && !e.is_active ? '0' : '1';
     $('hrEmployeeActiveGroup').style.display = e.id ? '' : 'none';
@@ -196,9 +236,7 @@
     };
     if (canSeePay) {
       payload.monthly_salary = $('hrEmployeeSalary').value || 0;
-      payload.incentive_type = $('hrEmployeeIncentive').value;
-      payload.incentive_amount = $('hrEmployeeIncentiveAmount').value || 0;
-      payload.incentive_note = $('hrEmployeeIncentiveNote').value;
+      payload.incentives = readIncentives();
     }
     try {
       const data = await api(id ? `/employees/${id}` : '/employees', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
@@ -602,7 +640,7 @@
       <td><div class="hr-stack"><b>${hours}</b>${flags.map((f) => `<small class="warn">${esc(f)}</small>`).join('')}</div></td>
       <td class="hr-num">${rupees(r.salary)}</td>
       <td class="hr-num">${rupees(r.absence_deduction)}</td>
-      <td class="hr-num"><div class="hr-stack"><b>${rupees(r.incentive)}</b>${incentiveText(r) ? `<small>${esc(incentiveText(r))}</small>` : ''}</div></td>
+      <td class="hr-num"><div class="hr-stack"><b>${rupees(r.incentive)}</b>${earnedText(r).map((t) => `<small>${esc(t)}</small>`).join('')}</div></td>
       <td class="hr-num">${r.locked ? lockedValue(r.bonus) : money('hr-bonus', r.bonus)}</td>
       <td class="hr-num">${r.locked ? lockedValue(r.deduction) : money('hr-deduction', r.deduction)}</td>
       <td class="hr-num hr-net">${rupees(r.net)}</td>
@@ -711,10 +749,13 @@
     if (voucher) createVoucher(voucher.closest('tr'));
   });
 
+  document.addEventListener('click', (event) => {
+    if (event.target.closest && event.target.closest('#hrAddIncentive')) $('hrIncentiveList').appendChild(incentiveRow());
+  });
+
   document.addEventListener('change', (event) => {
     if (event.target.id === 'hrAttendanceDate') loadHrAttendance();
     if (event.target.id === 'hrPayrollMonth') loadHrPayroll();
-    if (event.target.id === 'hrEmployeeIncentive') showIncentive();
     if (event.target.classList?.contains('hr-bonus') || event.target.classList?.contains('hr-deduction')) {
       savePayLine(event.target.closest('tr')).then(loadHrPayroll).catch(failed);
     }

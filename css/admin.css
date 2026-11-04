@@ -30,7 +30,7 @@
   --text-main: #1a202c;
   --text-muted: #718096;
   --text-light: #f8fafc;
-  --watermark-image: url('../images/servenow_brand_logo.png');
+  --watermark-image: url('../images/servenow_brand_logo.png?v=2');
   --watermark-size-surface: 260px;
   --watermark-opacity-surface: 0.06;
 
@@ -5836,3 +5836,18 @@ textarea:focus {
     border-bottom: 1px solid #f1f5f9 !important;
 }
 
+
+/* HR: several incentives per employee */
+.hr-incentive-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.4rem 0 0.6rem; }
+.hr-incentive-row { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(90px, 0.8fr) minmax(0, 1.4fr) auto; gap: 0.5rem; align-items: center; }
+.hr-incentive-row .btn { padding: 0.45rem 0.7rem; }
+.hr-hint { display: block; color: #64748b; font-size: 0.8rem; margin-top: 0.15rem; }
+@media (max-width: 720px) { .hr-incentive-row { grid-template-columns: 1fr 1fr; } .hr-incentive-row .hr-inc-type { grid-column: 1 / -1; } }
+
+/* Chart of Accounts */
+.coa-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.coa-table .coa-num { text-align: right; }
+.coa-table .coa-note { display: block; color: #64748b; font-size: 0.78rem; }
+.coa-table tr.coa-off td { opacity: 0.55; }
+.coa-tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #e2e8f0; color: #334155; }
+.coa-tag.coa-added { background: #dcfce7; color: #166534; }

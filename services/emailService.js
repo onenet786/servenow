@@ -16,6 +16,26 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     });
 }
 
+// Checked once when the server starts, so the log says plainly whether email can be sent.
+// Gmail needs an App Password (Google Account > Security > App passwords); it stops working
+// when the Google account's own password is changed.
+const emailStatus = { configured: Boolean(transporter), ok: null, error: null };
+if (transporter && process.env.NODE_ENV !== 'test') {
+    transporter.verify().then(() => {
+        emailStatus.ok = true;
+        console.log(`[email] Email login OK for ${process.env.EMAIL_USER}`);
+    }).catch((error) => {
+        emailStatus.ok = false;
+        emailStatus.error = `${error.code || ''} ${error.responseCode || ''} ${error.message || error}`.trim();
+        const hint = error.code === 'EAUTH'
+            ? ' Gmail refused the login: make a new App Password for this account and put it in EMAIL_PASS in .env, then restart.'
+            : '';
+        console.error(`[email] EMAIL LOGIN FAILED for ${process.env.EMAIL_USER}: ${emailStatus.error}.${hint}`);
+    });
+} else if (!transporter) {
+    console.warn('[email] EMAIL_USER / EMAIL_PASS are not set in .env: verification and reset codes cannot be emailed.');
+}
+
 /**
  * Send verification code to email
  * @param {string} email 
@@ -46,21 +66,17 @@ async function sendVerificationEmail(email, code) {
             console.log(`Verification email sent to ${email}`);
             return true;
         } catch (error) {
-            console.error('Error sending email:', error);
-            // Fallback to console log in dev
-            console.log('----------------------------------------');
-            console.log(`To: ${email}`);
-            console.log(`Code: ${code}`);
-            console.log('----------------------------------------');
+            const hint = error.code === 'EAUTH' ? ' (Gmail refused the login: new App Password needed in EMAIL_PASS)' : '';
+            console.error(`[email] Verification email to ${email} failed: ${error.code || ''} ${error.responseCode || ''} ${error.message || error}${hint}`);
+            // The code itself is shown only on a developer's machine, never in the live log.
+            if (process.env.NODE_ENV !== 'production') console.log(`[email] Code for ${email}: ${code}`);
             return false;
         }
     } else {
-        console.warn('Email credentials not found. Logging code to console.');
-        console.log('----------------------------------------');
-        console.log(`[MOCK EMAIL] To: ${email}`);
-        console.log(`[MOCK EMAIL] Code: ${code}`);
-        console.log('----------------------------------------');
-        return true; // Pretend it worked
+        console.warn(`[email] Email credentials not found: verification code for ${email} not sent.`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[MOCK EMAIL] Code for ${email}: ${code}`);
+        // Only a developer's machine pretends; on the live site nobody would ever get the code.
+        return process.env.NODE_ENV !== 'production';
     }
 }
 
@@ -191,21 +207,19 @@ async function sendPasswordResetOTP(email, otp) {
             console.log(`Password reset OTP sent to ${email}`);
             return true;
         } catch (error) {
-            console.error('Error sending password reset OTP:', error);
+            console.error(`[email] Reset code email to ${email} failed: ${error.code || ''} ${error.responseCode || ''} ${error.message || error}`);
             return false;
         }
     } else {
-        console.warn('Email credentials not found. Logging OTP to console.');
-        console.log('----------------------------------------');
-        console.log(`[MOCK EMAIL] To: ${email}`);
-        console.log(`[MOCK EMAIL] Reset OTP: ${otp}`);
-        console.log('----------------------------------------');
-        return true;
+        console.warn(`[email] Email credentials not found: reset code for ${email} not sent.`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[MOCK EMAIL] Reset OTP for ${email}: ${otp}`);
+        return process.env.NODE_ENV !== 'production';
     }
 }
 
 module.exports = {
     sendVerificationEmail,
+    emailStatus,
     sendDeletionRequestEmail,
     sendOrderThanksEmail,
     sendPasswordResetOTP

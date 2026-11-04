@@ -79,15 +79,15 @@ class RiderBackgroundTrackingService {
           channelID: 'servenow_rider_tracking',
           actionText: 'Open',
         );
-        await BackgroundLocation.setAndroidConfiguration(5000);
+        await BackgroundLocation.setAndroidConfiguration(10000);
       }
 
       final isRunning = await BackgroundLocation.isServiceRunning();
       if (!isRunning) {
         await BackgroundLocation.startLocationService(
-          distanceFilter: 3,
-          interval: 5000,
-          fastestInterval: 2500,
+          distanceFilter: 15,
+          interval: 10000,
+          fastestInterval: 5000,
           forceAndroidLocationManager: false,
           startOnBoot: false,
         );
@@ -230,12 +230,16 @@ class RiderBackgroundTrackingService {
               latitude,
               longitude,
             ) >=
-            3;
-    final staleEnough =
-        _lastSentAt == null ||
-        DateTime.now().difference(_lastSentAt!) >= const Duration(seconds: 5);
+            20;
+    final sinceLast = _lastSentAt == null
+        ? const Duration(days: 1)
+        : DateTime.now().difference(_lastSentAt!);
+    // Moving: every 20 m, at most every 10 s. Standing still: every 30 s, so
+    // the office and customer still see the rider as live (stale after 2 min).
+    final dueMoving = movedEnough && sinceLast >= const Duration(seconds: 10);
+    final dueStill = sinceLast >= const Duration(seconds: 30);
 
-    if (!force && !movedEnough && !staleEnough) {
+    if (!force && !dueMoving && !dueStill) {
       return;
     }
 

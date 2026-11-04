@@ -17,7 +17,8 @@
 //     price less the store discount.
 //   - Commission income = item value - store payable; delivery fees are income.
 
-const ACCOUNTS = [
+// The accounts the system posts to by itself. Their code and type never change; the name can.
+const SYSTEM_ACCOUNTS = [
   // code, name, type
   ['1000', 'Office cash', 'asset'],
   ['1010', 'Bank and gateway', 'asset'],
@@ -42,8 +43,16 @@ const ACCOUNTS = [
   ['5800', 'Wallet and cash adjustments', 'expense'],
   ['5900', 'Other expenses', 'expense'],
 ];
+const SYSTEM_CODES = new Set(SYSTEM_ACCOUNTS.map(([code]) => code));
+// The chart of accounts in use: the system accounts plus any added on the Chart of Accounts screen.
+// Loaded from gl_accounts by loadAccounts(); these objects are updated in place so every module sees changes.
+const ACCOUNTS = SYSTEM_ACCOUNTS.map((a) => a.slice());
 const ACCOUNT_NAMES = Object.fromEntries(ACCOUNTS.map(([code, name]) => [code, name]));
 const ACCOUNT_TYPES = Object.fromEntries(ACCOUNTS.map(([code, , type]) => [code, type]));
+const INACTIVE_ACCOUNTS = new Set();
+const ACCOUNT_TYPE_LIST = ['asset', 'liability', 'equity', 'income', 'expense'];
+// The first digit of a code says what kind of account it is.
+const TYPE_DIGIT = { asset: '1', liability: '2', equity: '3', income: '4', expense: '5' };
 
 const {
   storePayableLineSql,
@@ -92,12 +101,15 @@ function journalAccount(name) {
 
 // Accounts a person may choose on a voucher. The control accounts (store payables, rider cash, wallets,
 // clearing) are left out: their balances are proven against their own records, so only those documents post there.
-const typeIs = (...types) => ACCOUNTS.filter(([, , type]) => types.includes(type)).map(([code]) => code);
-const VOUCHER_ACCOUNTS = {
-  payment: new Set([...typeIs('expense'), '1300', '1000', '1010']),
-  receipt: new Set([...typeIs('income', 'expense'), '1300', '1000', '1010']),
-  expense: new Set(typeIs('expense')),
-};
+const typeIs = (...types) => ACCOUNTS.filter(([code, , type]) => types.includes(type) && !INACTIVE_ACCOUNTS.has(code)).map(([code]) => code);
+const VOUCHER_ACCOUNTS = { payment: new Set(), receipt: new Set(), expense: new Set() };
+function rebuildVoucherAccounts() {
+  const fill = (set, codes) => { set.clear(); codes.forEach((c) => set.add(c)); };
+  fill(VOUCHER_ACCOUNTS.payment, [...typeIs('expense'), '1300', '1000', '1010']);
+  fill(VOUCHER_ACCOUNTS.receipt, [...typeIs('income', 'expense'), '1300', '1000', '1010']);
+  fill(VOUCHER_ACCOUNTS.expense, typeIs('expense'));
+}
+rebuildVoucherAccounts();
 
 // The account a voucher posts to when nobody chose one. `locked` means nobody can: the party has its own balance.
 function voucherAccount(kind, doc) {
@@ -141,10 +153,11 @@ function chooseVoucherAccount(kind, doc, requested) {
 function isJournalAccount(name) {
   const t = String(name || '').trim().toLowerCase();
   const code = t.match(/^(\d{4})\b/);
-  return Boolean(code && ACCOUNT_NAMES[code[1]]) || ACCOUNTS.some(([, n]) => n.toLowerCase() === t);
+  if (code) return Boolean(ACCOUNT_NAMES[code[1]]) && !INACTIVE_ACCOUNTS.has(code[1]);
+  return ACCOUNTS.some(([c, n]) => n.toLowerCase() === t && !INACTIVE_ACCOUNTS.has(c));
 }
 
-const voucherAccountList = () => ACCOUNTS.map(([code, name, type]) => ({
+const voucherAccountList = () => ACCOUNTS.filter(([code]) => !INACTIVE_ACCOUNTS.has(code)).map(([code, name, type]) => ({
   code, name, type,
   payment: VOUCHER_ACCOUNTS.payment.has(code),
   receipt: VOUCHER_ACCOUNTS.receipt.has(code),
@@ -195,12 +208,127 @@ async function ensureLedgerSchema(db) {
       KEY idx_gl_lines_account (account_code, entity_type, entity_id),
       CONSTRAINT fk_gl_lines_journal FOREIGN KEY (journal_id) REFERENCES gl_journals(id) ON DELETE RESTRICT
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-  const placeholders = ACCOUNTS.map(() => '(?, ?, ?)').join(', ');
+  for (const ddl of [
+    'ALTER TABLE gl_accounts ADD COLUMN IF NOT EXISTS is_system TINYINT(1) NOT NULL DEFAULT 0',
+    'ALTER TABLE gl_accounts ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1',
+    'ALTER TABLE gl_accounts ADD COLUMN IF NOT EXISTS description VARCHAR(255) NULL',
+    'ALTER TABLE gl_accounts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP',
+    'ALTER TABLE gl_accounts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP',
+  ]) await db.query(ddl);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS gl_account_changes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(10) NOT NULL,
+      action VARCHAR(20) NOT NULL,
+      detail VARCHAR(255) NULL,
+      changed_by INT NULL,
+      changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_gl_account_changes_code (code)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  // System accounts are added when missing and keep their type; a name changed on the
+  // Chart of Accounts screen is kept.
+  const placeholders = SYSTEM_ACCOUNTS.map(() => '(?, ?, ?, 1)').join(', ');
   await db.query(
-    `INSERT INTO gl_accounts (code, name, account_type) VALUES ${placeholders}
-     ON DUPLICATE KEY UPDATE name = VALUES(name), account_type = VALUES(account_type)`,
-    ACCOUNTS.flat()
+    `INSERT INTO gl_accounts (code, name, account_type, is_system) VALUES ${placeholders}
+     ON DUPLICATE KEY UPDATE account_type = VALUES(account_type), is_system = 1, is_active = 1`,
+    SYSTEM_ACCOUNTS.flat()
   );
+  await loadAccounts(db);
+}
+
+// Reads the chart of accounts into the shared lists every module uses.
+async function loadAccounts(db) {
+  const [rows] = await db.query('SELECT code, name, account_type, is_system, is_active FROM gl_accounts ORDER BY code');
+  if (!rows.length) return;
+  ACCOUNTS.length = 0;
+  for (const key of Object.keys(ACCOUNT_NAMES)) delete ACCOUNT_NAMES[key];
+  for (const key of Object.keys(ACCOUNT_TYPES)) delete ACCOUNT_TYPES[key];
+  INACTIVE_ACCOUNTS.clear();
+  for (const r of rows) {
+    ACCOUNTS.push([r.code, r.name, r.account_type]);
+    ACCOUNT_NAMES[r.code] = r.name;
+    ACCOUNT_TYPES[r.code] = r.account_type;
+    if (!Number(r.is_active) && !SYSTEM_CODES.has(r.code)) INACTIVE_ACCOUNTS.add(r.code);
+  }
+  rebuildVoucherAccounts();
+}
+
+/** The chart of accounts with what can be changed on each, and how many ledger lines use it. */
+async function listAccounts(db) {
+  const [rows] = await db.query(
+    `SELECT a.code, a.name, a.account_type AS type, a.is_system, a.is_active, a.description,
+            (SELECT COUNT(*) FROM gl_lines l WHERE l.account_code = a.code) AS lines_used
+       FROM gl_accounts a ORDER BY a.code`
+  );
+  return rows.map((r) => ({
+    code: r.code, name: r.name, type: r.type, description: r.description || null,
+    is_system: Boolean(Number(r.is_system)), is_active: Boolean(Number(r.is_active)), lines_used: Number(r.lines_used),
+    on_vouchers: VOUCHER_ACCOUNTS.payment.has(r.code) || VOUCHER_ACCOUNTS.receipt.has(r.code) || VOUCHER_ACCOUNTS.expense.has(r.code),
+  }));
+}
+
+const cleanName = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
+
+async function logAccountChange(db, code, action, detail, userId) {
+  await db.query('INSERT INTO gl_account_changes (code, action, detail, changed_by) VALUES (?, ?, ?, ?)',
+    [code, action, String(detail || '').slice(0, 255) || null, userId || null]);
+}
+
+/** Adds an account. Returns { account } or { error }. */
+async function createAccount(db, { code, name, type, description } = {}, userId = null) {
+  await ensureLedgerSchemaOnce(db);
+  const c = String(code ?? '').trim();
+  const n = cleanName(name);
+  const t = String(type ?? '').trim();
+  if (!ACCOUNT_TYPE_LIST.includes(t)) return { error: 'Choose the account type.' };
+  if (!/^\d{4}$/.test(c)) return { error: 'The code is 4 digits, for example 5650.' };
+  if (c[0] !== TYPE_DIGIT[t]) return { error: `A ${t} account code starts with ${TYPE_DIGIT[t]} (for example ${TYPE_DIGIT[t]}650).` };
+  if (n.length < 2) return { error: 'Enter the account name.' };
+  if (ACCOUNT_NAMES[c]) return { error: `Code ${c} is already ${ACCOUNT_NAMES[c]}.` };
+  if (ACCOUNTS.some(([, existing]) => existing.toLowerCase() === n.toLowerCase())) return { error: `An account named "${n}" already exists.` };
+  await db.query('INSERT INTO gl_accounts (code, name, account_type, is_system, is_active, description) VALUES (?, ?, ?, 0, 1, ?)',
+    [c, n, t, String(description || '').trim().slice(0, 255) || null]);
+  await logAccountChange(db, c, 'created', `${n} (${t})`, userId);
+  await loadAccounts(db);
+  return { account: { code: c, name: n, type: t } };
+}
+
+/** Changes an account's name, note, type or on/off. System accounts keep their code, type and stay on. */
+async function updateAccount(db, code, changes = {}, userId = null) {
+  await ensureLedgerSchemaOnce(db);
+  const c = String(code ?? '').trim();
+  const [rows] = await db.query('SELECT code, name, account_type, is_system, is_active, description FROM gl_accounts WHERE code = ?', [c]);
+  if (!rows.length) return { error: 'Account not found.', status: 404 };
+  const current = rows[0];
+  const system = Boolean(Number(current.is_system));
+  const next = { name: current.name, type: current.account_type, active: Number(current.is_active) ? 1 : 0, description: current.description };
+  const said = [];
+  if (changes.name !== undefined) {
+    const n = cleanName(changes.name);
+    if (n.length < 2) return { error: 'Enter the account name.' };
+    if (ACCOUNTS.some(([other, existing]) => other !== c && existing.toLowerCase() === n.toLowerCase())) return { error: `An account named "${n}" already exists.` };
+    if (n !== current.name) { said.push(`name "${current.name}" to "${n}"`); next.name = n; }
+  }
+  if (changes.description !== undefined) next.description = String(changes.description || '').trim().slice(0, 255) || null;
+  if (changes.type !== undefined && changes.type !== current.account_type) {
+    if (system) return { error: 'The type of a system account cannot change: the automatic postings depend on it.' };
+    if (!ACCOUNT_TYPE_LIST.includes(changes.type)) return { error: 'Choose the account type.' };
+    if (c[0] !== TYPE_DIGIT[changes.type]) return { error: `A ${changes.type} account code starts with ${TYPE_DIGIT[changes.type]}. Add a new account instead.` };
+    const [[used]] = await db.query('SELECT COUNT(*) AS n FROM gl_lines WHERE account_code = ?', [c]);
+    if (Number(used.n)) return { error: 'This account already has entries, so its type cannot change.' };
+    said.push(`type ${current.account_type} to ${changes.type}`);
+    next.type = changes.type;
+  }
+  if (changes.is_active !== undefined) {
+    const active = changes.is_active ? 1 : 0;
+    if (system && !active) return { error: 'System accounts are always on.' };
+    if (active !== next.active) { said.push(active ? 'switched on' : 'switched off'); next.active = active; }
+  }
+  await db.query('UPDATE gl_accounts SET name = ?, account_type = ?, is_active = ?, description = ? WHERE code = ?',
+    [next.name, next.type, next.active, next.description, c]);
+  if (said.length) await logAccountChange(db, c, 'changed', said.join(', '), userId);
+  await loadAccounts(db);
+  return { account: { code: c, name: next.name, type: next.type, is_active: Boolean(next.active) } };
 }
 
 // ---------------------------------------------------------------------------
@@ -936,6 +1064,12 @@ module.exports = {
   ACCOUNTS,
   ACCOUNT_NAMES,
   ACCOUNT_TYPES,
+  SYSTEM_ACCOUNTS,
+  loadAccounts,
+  listAccounts,
+  createAccount,
+  updateAccount,
+  ensureLedgerSchemaOnce,
   ensureLedgerSchema,
   buildAllJournals,
   syncLedger,

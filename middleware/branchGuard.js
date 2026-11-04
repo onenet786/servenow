@@ -84,7 +84,8 @@ function classify(method, path) {
     // Money and reports: every read goes through the branch filter in utils/branchFinance.js, and
     // routes/financial.js checks each document that is changed. Banks are shared by the company,
     // and the ledger sync always covers every branch, so those stay with head office.
-    if (p === '/api/financial/banks' || p === '/api/financial/gl/sync') return read ? { allow: true } : { deny: true };
+    // The chart of accounts is one for the whole company.
+    if (p === '/api/financial/banks' || p === '/api/financial/gl/sync' || /^\/api\/financial\/gl\/accounts(\/|$)/.test(p)) return read ? { allow: true } : { deny: true };
     if (/^\/api\/financial(\/|$)/.test(p)) return { allow: true };
     // Attendance marks are the person's own; the HR screens are cut to the branch by the routes.
     if (/^\/api\/hr(\/|$)/.test(p)) return { allow: true };

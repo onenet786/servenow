@@ -19,7 +19,7 @@
   --text-main: #0f172a;
   --text-muted: #64748b;
   --text-light: #f8fafc;
-  --watermark-image: url('../images/servenow_brand_logo.png');
+  --watermark-image: url('../images/servenow_brand_logo.png?v=2');
   --watermark-size-surface: 240px;
   --watermark-opacity-surface: 0.06;
 
@@ -64,7 +64,7 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: url('../images/servenow_brand_logo.png') center/420px no-repeat;
+  background: url('../images/servenow_brand_logo.png?v=2') center/420px no-repeat;
   opacity: 0.06;
   pointer-events: none;
   z-index: 0;
@@ -78,7 +78,7 @@ body::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: url('../images/servenow_brand_logo.png') center/420px no-repeat;
+  background: url('../images/servenow_brand_logo.png?v=2') center/420px no-repeat;
   opacity: 0.06;
   pointer-events: none;
   z-index: 0;

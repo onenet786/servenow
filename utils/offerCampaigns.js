@@ -175,7 +175,10 @@ function applyCampaignToCartLine(basePrice, quantity, campaigns) {
     return best;
 }
 
+// Called on every product list, so the tables are checked once per server start.
+let offerTablesReady = false;
 async function ensureStoreOfferCampaignTables(db) {
+    if (offerTablesReady) return;
     await db.execute(`
         CREATE TABLE IF NOT EXISTS store_offer_campaigns (
             id INT PRIMARY KEY AUTO_INCREMENT,
@@ -211,6 +214,7 @@ async function ensureStoreOfferCampaignTables(db) {
             CONSTRAINT fk_socp_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+    offerTablesReady = true;
 }
 
 function isCampaignActiveNow(campaign, now = new Date()) {

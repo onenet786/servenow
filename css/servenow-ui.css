@@ -5236,3 +5236,51 @@ body.sn-admin .dx-mono { font-family: ui-monospace, Consolas, monospace; font-si
   body.sn-admin .dx-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   body.sn-admin .dx-split, body.sn-admin .dx-split.dx-even { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* --------------------------------------------------------------------------
+   Popups never run past the screen: the content scrolls inside, the title
+   stays on top and the Save / Cancel row stays at the bottom, whatever the
+   popup's own layout (form straight inside, or a .modal-body).
+   -------------------------------------------------------------------------- */
+body.sn-ui .modal-content {
+  max-height: calc(100vh - 1rem);
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+body.sn-ui .modal-content > .modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+body.sn-ui .modal-content .form-actions,
+body.sn-ui .modal-content .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  background: #ffffff;
+  box-shadow: 0 -8px 14px -10px rgba(15, 23, 42, 0.25);
+}
+
+/* Edit Employee: wide enough for two columns; incentives and buttons use the full width. */
+body.sn-admin #hrEmployeeModal .modal-content {
+  width: min(920px, calc(100vw - 2rem)) !important;
+  max-width: none !important;
+}
+body.sn-admin #hrEmployeeForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+body.sn-admin #hrEmployeeForm > #hrIncentiveGroup,
+body.sn-admin #hrEmployeeForm > .form-actions {
+  grid-column: 1 / -1;
+}
+@media (max-width: 720px) {
+  body.sn-admin #hrEmployeeForm { grid-template-columns: 1fr; }
+}
+/* Popup header rows with buttons wrap on a narrow screen instead of pushing past the edge. */
+body.sn-admin #creditStoreHistoryModal .modal-content > div:first-of-type,
+body.sn-admin #creditStoreHistoryModal .modal-content > div:first-of-type > div:last-child {
+  flex-wrap: wrap !important;
+}

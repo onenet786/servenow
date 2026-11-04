@@ -68,3 +68,34 @@ test('products: staff need the right, and with it can edit any store; a store ow
   assert.equal(await put('store_owner', false, 99), 403, 'not their store');
   assert.notEqual(await put('store_owner', false, 7), 403, 'their own store');
 });
+
+test('deleting a group with people in it asks first, then takes them out and removes their rights', async () => {
+  const { fakeDb, activeAccount, request } = require('./helpers');
+  const { clearAccountStatusCache } = require('../middleware/auth');
+  const permissions = require('../routes/permissions');
+  const make = () => fakeDb((q) => {
+    const a = activeAccount(q, 'admin');
+    if (a) return a;
+    if (/SELECT name FROM permission_groups WHERE id = \?/.test(q)) return [[{ name: 'TEST' }]];
+    if (/FROM user_permission_groups ug LEFT JOIN users u/.test(q)) return [[{ user_id: 77, name: 'testing lah', email: 't@x' }]];
+    if (/SELECT permission_key FROM user_permissions WHERE user_id = \?/.test(q)) return [[{ permission_key: 'menu_orders' }]];
+    return undefined;
+  });
+  const admin = { id: 1, user_type: 'admin', email: 'admin@servenow.com' };
+
+  clearAccountStatusCache();
+  let { db, log } = make();
+  let res = await request(permissions, '/api/permissions', db, { method: 'DELETE', path: '/api/permissions/groups/5', user: admin });
+  assert.equal(res.status, 409);
+  assert.deepEqual(res.body.members, ['testing lah']);
+  assert.ok(!log.some((q) => /^DELETE FROM permission_groups/.test(q)), 'nothing deleted before confirming');
+
+  clearAccountStatusCache();
+  ({ db, log } = make());
+  res = await request(permissions, '/api/permissions', db, { method: 'DELETE', path: '/api/permissions/groups/5?remove_members=1', user: admin });
+  assert.equal(res.status, 200);
+  const order = log.filter((q) => /^DELETE FROM (user_permission_groups|user_permissions|permission_groups)/.test(q));
+  assert.deepEqual(order.map((q) => q.split(' ')[2]), ['user_permission_groups', 'user_permissions', 'permission_groups']);
+  assert.ok(log.includes('COMMIT'));
+  assert.ok(log.some((q) => /INSERT INTO rights_audit_log/.test(q)), 'the change is logged');
+});

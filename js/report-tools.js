@@ -268,7 +268,7 @@
         return { content, colSpan: c.span, styles: numeric(c.text) ? { halign: 'right' } : {} };
     });
 
-    const LOGO = 'images/servenow_brand_logo.png';
+    const LOGO = 'images/servenow_brand_logo.png?v=2';
     let logoData = null;
 
     // The logo file is large, so the PDF gets a small copy.

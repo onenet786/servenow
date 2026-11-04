@@ -494,20 +494,49 @@ router.delete('/groups/:id', authenticateToken, requireAdmin, async (req, res) =
         const { id } = req.params;
         await ensurePermissionsTable(req.db);
         await ensurePermissionGroupTables(req.db);
-        const [members] = await req.db.execute(
-            "SELECT COUNT(*) AS n FROM user_permission_groups WHERE group_id = ?",
-            [id]
-        );
-        if (Number(members[0]?.n || 0) > 0) {
-            return res.status(409).json({ success: false, message: 'Move everyone out of this group before deleting it' });
-        }
-
         const [groupRows] = await req.db.execute('SELECT name FROM permission_groups WHERE id = ?', [id]);
-        const [result] = await req.db.execute("DELETE FROM permission_groups WHERE id = ?", [id]);
-        if (!result.affectedRows) {
+        if (!groupRows.length) {
             return res.status(404).json({ success: false, message: 'Group not found' });
         }
-        await recordRightsChange(req, { action: 'delete_group', targetType: 'group', targetId: Number(id), targetName: groupRows[0]?.name || null });
+        const [members] = await req.db.execute(
+            `SELECT ug.user_id, TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS name, u.email
+             FROM user_permission_groups ug LEFT JOIN users u ON u.id = ug.user_id
+             WHERE ug.group_id = ?`,
+            [id]
+        );
+        // Members lose the group's rights, exactly as when moved to "No group" on the Staff tab.
+        // The screen shows who first and sends remove_members=1 once confirmed.
+        const removeMembers = String(req.query.remove_members || req.body?.remove_members || '') === '1';
+        if (members.length && !removeMembers) {
+            return res.status(409).json({
+                success: false,
+                needs_confirmation: true,
+                members: members.map((m) => m.name || m.email || `User #${m.user_id}`),
+                message: 'This group still has people in it',
+            });
+        }
+
+        const connection = await req.db.getConnection();
+        try {
+            await connection.beginTransaction();
+            for (const m of members) {
+                const [had] = await connection.execute('SELECT permission_key FROM user_permissions WHERE user_id = ?', [m.user_id]);
+                m.lost = had.map((r) => r.permission_key);
+                await connection.execute('DELETE FROM user_permission_groups WHERE user_id = ? AND group_id = ?', [m.user_id, id]);
+                await connection.execute('DELETE FROM user_permissions WHERE user_id = ?', [m.user_id]);
+            }
+            await connection.execute('DELETE FROM permission_groups WHERE id = ?', [id]);
+            await connection.commit();
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
+        for (const m of members) {
+            await recordRightsChange(req, { action: 'remove_group', targetType: 'user', targetId: Number(m.user_id), targetName: m.name || m.email || null, removed: m.lost || [] });
+        }
+        await recordRightsChange(req, { action: 'delete_group', targetType: 'group', targetId: Number(id), targetName: groupRows[0].name });
 
         res.json({ success: true, message: 'Group deleted successfully' });
     } catch (error) {

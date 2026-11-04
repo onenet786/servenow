@@ -154,9 +154,11 @@ async function myAttendance(db, args, user) {
   );
   const line = lines[0] || {};
   const final = line.voucher_id && line.voucher_status !== 'cancelled' && line.snapshot ? JSON.parse(line.snapshot) : null;
-  const riders = employee.incentive_type === 'per_delivery' && employee.rider_id ? [employee.rider_id] : [];
+  const riders = employee.rider_id ? [employee.rider_id] : [];
   const deliveries = (await hrRouter.hr.deliveriesByRider(db, month, riders)).get(Number(employee.rider_id)) || 0;
-  const figures = final || hrRouter.monthFigures(employee, records, month, { deliveries, bonus: line.bonus || 0, deduction: line.deduction || 0, today });
+  const wantsTop = hrRouter.hr.incentiveList(employee).some((i) => i.type === 'top_deliveries');
+  const topPerformer = wantsTop ? await hrRouter.hr.isTopPerformer(db, month, employee) : false;
+  const figures = final || hrRouter.monthFigures(employee, records, month, { deliveries, topPerformer, bonus: line.bonus || 0, deduction: line.deduction || 0, today });
 
   // Which days, so "which days was I absent?" has an answer.
   const joined = employee.joined_on ? ymdIn(new Date(employee.joined_on)) : null;
