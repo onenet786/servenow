@@ -78,22 +78,32 @@
         }
     }
 
-    function render() {
-        const { report, data } = state.report;
+    // A report is one table, or several sections (the Daybook) each with its own table.
+    const sectionsOf = (data) => (Array.isArray(data.sections) && data.sections.length ? data.sections : [{ ...data, title: '', notes: [] }]);
+    const hasTotals = (section) => Object.keys(section.totals || {}).length > 0 && section.rows.length > 0;
+
+    function tableHtml(data) {
         const head = data.columns.map((c) => `<th class="${c.type === 'money' || c.type === 'number' ? 'num' : ''}">${esc(c.label)}</th>`).join('');
         const body = data.rows.map((row) => `<tr>${data.columns.map((c) =>
-            `<td class="${c.type === 'money' || c.type === 'number' ? 'num' : ''}">${esc(cellText(c, row))}</td>`).join('')}</tr>`).join('');
-        const hasTotals = Object.keys(data.totals || {}).length > 0 && data.rows.length > 0;
-        const foot = hasTotals ? `<tfoot><tr>${data.columns.map((c, i) => {
+            `<td class="${c.type === 'money' || c.type === 'number' ? 'num' : c.type === 'date' ? 'date' : ''}">${esc(cellText(c, row))}</td>`).join('')}</tr>`).join('');
+        const foot = hasTotals(data) ? `<tfoot><tr>${data.columns.map((c, i) => {
             if (data.totals[c.key] !== undefined) return `<td class="num">${esc(c.type === 'money' ? fmt(data.totals[c.key]) : data.totals[c.key])}</td>`;
             return `<td>${i === 0 ? 'Total' : ''}</td>`;
         }).join('')}</tr></tfoot>` : '';
-        const notes = (data.notes || []).map((n) => `<p class="rc-note">${esc(n)}</p>`).join('');
+        return data.rows.length ? `<div class="table-responsive"><table class="data-table rc-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>
+                <p class="rc-note">${data.rows.length} row(s)</p>` : '<p class="rc-note">Nothing to show for these filters.</p>';
+    }
+
+    function render() {
+        const { report, data } = state.report;
+        const notes = (list) => (list || []).map((n) => `<p class="rc-note">${esc(n)}</p>`).join('');
         el('rcResult').innerHTML = `
             <h3 class="rc-title">${esc(report.title)}</h3>
-            ${notes}
-            ${data.rows.length ? `<div class="table-responsive"><table class="data-table rc-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>
-                <p class="rc-note">${data.rows.length} row(s)</p>` : '<p class="rc-note">Nothing to show for these filters.</p>'}`;
+            ${notes(data.notes)}
+            ${sectionsOf(data).map((section) => `
+                ${section.title ? `<h4 class="rc-section-title">${esc(section.title)}</h4>` : ''}
+                ${notes(section.notes)}
+                ${tableHtml(section)}`).join('')}`;
     }
 
     async function load() {
@@ -119,9 +129,21 @@
         if (!state.report) return;
         const { report, data } = state.report;
         const csv = (value) => `"${String(value === null || value === undefined ? '' : value).replace(/"/g, '""')}"`;
-        const lines = [data.columns.map((c) => csv(c.label)).join(',')];
-        data.rows.forEach((row) => lines.push(data.columns.map((c) =>
-            csv(c.type === 'money' ? Number(row[c.key] || 0).toFixed(2) : cellText(c, row))).join(',')));
+        const lines = [];
+        const sections = sectionsOf(data);
+        sections.forEach((section, index) => {
+            if (sections.length > 1) {
+                if (index) lines.push('');
+                lines.push(csv(section.title));
+            }
+            lines.push(section.columns.map((c) => csv(c.label)).join(','));
+            section.rows.forEach((row) => lines.push(section.columns.map((c) =>
+                csv(c.type === 'money' ? Number(row[c.key] || 0).toFixed(2) : cellText(c, row))).join(',')));
+            if (sections.length > 1 && hasTotals(section)) {
+                lines.push(section.columns.map((c, i) => csv(section.totals[c.key] !== undefined
+                    ? (c.type === 'money' ? Number(section.totals[c.key]).toFixed(2) : section.totals[c.key]) : (i === 0 ? 'Total' : ''))).join(','));
+            }
+        });
         const blob = new Blob([`﻿${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -133,27 +155,43 @@
     function exportPdf() {
         if (!state.report) return;
         const { report, data } = state.report;
-        const doc = new window.jspdf.jsPDF({ orientation: data.columns.length > 6 ? 'landscape' : 'portrait' });
+        const sections = sectionsOf(data);
+        const doc = new window.jspdf.jsPDF({ orientation: sections.some((x) => x.columns.length > 6) ? 'landscape' : 'portrait' });
         doc.setFontSize(13);
         doc.text(`ServeNow: ${report.title}`, 14, 14);
         doc.setFontSize(8);
         const from = el('rcFrom').value;
         const to = el('rcTo').value;
         doc.text(`${from || to ? `Period ${dateText(from)} to ${dateText(to)}. ` : ''}Printed ${new Date().toLocaleString('en-GB')}`, 14, 19);
-        const hasTotals = Object.keys(data.totals || {}).length > 0 && data.rows.length > 0;
-        doc.autoTable({
-            startY: 23,
-            head: [data.columns.map((c) => c.label)],
-            body: data.rows.map((row) => data.columns.map((c) => cellText(c, row))),
-            foot: hasTotals ? [data.columns.map((c, i) => {
-                if (data.totals[c.key] !== undefined) return c.type === 'money' ? fmt(data.totals[c.key]) : String(data.totals[c.key]);
-                return i === 0 ? 'Total' : '';
-            })] : undefined,
-            showFoot: 'lastPage',
-            styles: { fontSize: 7, cellPadding: 1.4 },
-            headStyles: { fillColor: [22, 128, 72] },
-            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
-            columnStyles: Object.fromEntries(data.columns.map((c, i) => [i, { halign: c.type === 'money' || c.type === 'number' ? 'right' : 'left' }]))
+        let y = 23;
+        if (sections.length > 1 && data.notes && data.notes[0]) {
+            const lines = doc.splitTextToSize(data.notes[0], doc.internal.pageSize.getWidth() - 28);
+            doc.text(lines, 14, y);
+            y += lines.length * 3.6 + 2;
+        }
+        sections.forEach((section) => {
+            if (section.title) {
+                if (y > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); y = 16; }
+                doc.setFontSize(10);
+                doc.text(section.title, 14, y + 2);
+                doc.setFontSize(8);
+                y += 5;
+            }
+            doc.autoTable({
+                startY: y,
+                head: [section.columns.map((c) => c.label)],
+                body: section.rows.length ? section.rows.map((row) => section.columns.map((c) => cellText(c, row))) : [[{ content: 'Nothing to show for these filters.', colSpan: section.columns.length }]],
+                foot: hasTotals(section) ? [section.columns.map((c, i) => {
+                    if (section.totals[c.key] !== undefined) return c.type === 'money' ? fmt(section.totals[c.key]) : String(section.totals[c.key]);
+                    return i === 0 ? 'Total' : '';
+                })] : undefined,
+                showFoot: 'lastPage',
+                styles: { fontSize: 7, cellPadding: 1.4 },
+                headStyles: { fillColor: [22, 128, 72] },
+                footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
+                columnStyles: Object.fromEntries(section.columns.map((c, i) => [i, { halign: c.type === 'money' || c.type === 'number' ? 'right' : 'left' }]))
+            });
+            y = doc.lastAutoTable.finalY + 9;
         });
         doc.save(`${report.key}-${new Date().toISOString().slice(0, 10)}.pdf`);
     }

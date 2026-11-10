@@ -355,6 +355,177 @@ async function expensesByCategory(db, f) {
 }
 
 // ---------------------------------------------------------------------------
+// Daybook: what was bought from stores, what was paid out, and the difference.
+//
+//   sale value  = customer price x quantity of delivered order lines
+//   discount    = what the store gives ServeNow on that line (sale value - purchase)
+//   purchase    = store payable from utils/storeAccount: cash stores (paid by the rider
+//                 at pickup) are owed cost price, credit stores price less their discount
+//   paid        = payments to stores (pickup, settlements, vouchers, journals, less
+//                 receipts from stores) + rider fuel charges
+//   difference  = purchase - paid
+//
+// Purchases are dated on delivery, as in the ledger. With no dates the daybook is today.
+
+const localYmd = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const RESET_VOUCHER = /^JV-RESET-/i;
+const PAID_LABELS = { settlement: 'Settlement', on_account: 'Paid on account', pickup: 'Rider paid at pickup', voucher: 'Payment voucher', receipt: 'Receipt from store (less)', journal: 'Journal voucher' };
+
+async function daybook(db, filters, { today = localYmd() } = {}) {
+  const f = { ...filters };
+  if (!f.from && !f.to) { f.from = today; f.to = today; }
+  const { accounts } = await storeAccount.loadStoreAccounts(db, { storeId: f.storeId || null });
+
+  const days = new Map();
+  const day = (d) => {
+    if (!days.has(d)) days.set(d, { date: d, orders: new Set(), sale: 0, discount: 0, cash_purchase: 0, credit_purchase: 0, paid_pickup: 0, paid_other: 0, fuel: 0 });
+    return days.get(d);
+  };
+  const orders = new Map();
+  const stores = [];
+  const payments = [];
+  let resetC = 0;
+
+  for (const account of accounts.values()) {
+    const kind = account.pickup_paid ? 'Cash' : 'Credit';
+    const store = { store: account.name, kind, term: account.payment_term || 'Not set', orders: new Set(), sale: 0, discount: 0, purchase: 0, paid: 0 };
+    for (const it of account.items) {
+      if (!inRange(it.date, f.from, f.to)) continue;
+      const discount = it.value_c - it.payable_c;
+      const d = day(it.date);
+      d.orders.add(it.order_id);
+      d.sale += it.value_c;
+      d.discount += discount;
+      if (account.pickup_paid) d.cash_purchase += it.payable_c; else d.credit_purchase += it.payable_c;
+      store.orders.add(it.order_id);
+      store.sale += it.value_c;
+      store.discount += discount;
+      store.purchase += it.payable_c;
+      const key = `${it.order_id}|${account.store_id}`;
+      if (!orders.has(key)) {
+        orders.set(key, { date: it.date, ts: it.ts, order_number: it.order_number || `#${it.order_id}`, store: account.name, kind, items: 0, sale: 0, discount: 0, purchase: 0, status: new Set() });
+      }
+      const o = orders.get(key);
+      o.items += 1;
+      o.sale += it.value_c;
+      o.discount += discount;
+      o.purchase += it.payable_c;
+      o.status.add(it.settled_by === 'pickup' ? 'Paid at pickup' : it.settled_by === 'settlement' ? `Settled ${it.settlement_number || ''}`.trim() : 'Not paid yet');
+    }
+    for (const p of account.payments) {
+      if (!inRange(p.date, f.from, f.to) || !p.amount_c) continue;
+      // The 30 Oct 2026 balance reset set store balances to an agreed list; no money moved that day.
+      if (p.type === 'journal' && RESET_VOUCHER.test(String(p.ref || ''))) { resetC += p.amount_c; continue; }
+      const d = day(p.date);
+      if (p.type === 'pickup') d.paid_pickup += p.amount_c; else d.paid_other += p.amount_c;
+      store.paid += p.amount_c;
+      payments.push({ date: p.date, ts: p.ts, paid_to: account.name, type: p.reversal ? 'Pickup payment reversed' : (PAID_LABELS[p.type] || p.type), reference: p.ref || '', amount: p.amount_c });
+    }
+    if (store.orders.size || store.paid) stores.push(store);
+  }
+
+  // Fuel is paid to riders, not stores, so it is left out when one store is chosen.
+  if (!f.storeId) {
+    const params = [];
+    const where = dateClause('fh.entry_date', f, params);
+    const [fuel] = await db.query(
+      `SELECT fh.id, DATE_FORMAT(fh.entry_date, '%Y-%m-%d') AS date, fh.fuel_cost, fh.distance,
+              TRIM(CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, ''))) AS rider
+       FROM riders_fuel_history fh JOIN riders r ON r.id = fh.rider_id
+       WHERE fh.entry_date IS NOT NULL ${where}
+       ORDER BY fh.entry_date, fh.id`,
+      params
+    );
+    for (const e of fuel) {
+      const cents = Math.round(Number(e.fuel_cost || 0) * 100);
+      if (!cents) continue;
+      day(e.date).fuel += cents;
+      payments.push({ date: e.date, ts: `${e.date} 23:59:58`, paid_to: e.rider, type: 'Fuel charges', reference: `Fuel entry ${e.id}${Number(e.distance) ? `, ${Number(e.distance)} km` : ''}`, amount: cents });
+    }
+  }
+
+  const summary = [...days.values()].sort((a, b) => a.date.localeCompare(b.date)).map((d) => {
+    const purchase = d.cash_purchase + d.credit_purchase;
+    const paid = d.paid_pickup + d.paid_other + d.fuel;
+    return {
+      date: d.date, orders: d.orders.size, sale: fromCents(d.sale), discount: fromCents(d.discount),
+      cash_purchase: fromCents(d.cash_purchase), credit_purchase: fromCents(d.credit_purchase), purchase: fromCents(purchase),
+      paid_pickup: fromCents(d.paid_pickup), paid_other: fromCents(d.paid_other), fuel: fromCents(d.fuel), paid: fromCents(paid),
+      difference: fromCents(purchase - paid),
+    };
+  });
+  const orderRows = [...orders.values()]
+    .sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || a.store.localeCompare(b.store))
+    .map((o) => ({ date: o.date, order_number: o.order_number, store: o.store, kind: o.kind, items: o.items, sale: fromCents(o.sale), discount: fromCents(o.discount), purchase: fromCents(o.purchase), status: [...o.status].join(', ') }));
+  const storeRows = stores
+    .map((s) => ({ store: s.store, kind: s.kind, term: s.term, orders: s.orders.size, sale: fromCents(s.sale), discount: fromCents(s.discount), purchase: fromCents(s.purchase), paid: fromCents(s.paid), difference: fromCents(s.purchase - s.paid) }))
+    .sort((a, b) => b.purchase - a.purchase || a.store.localeCompare(b.store));
+  const paymentRows = payments
+    .sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || a.paid_to.localeCompare(b.paid_to))
+    .map(({ ts, ...p }) => ({ ...p, amount: fromCents(p.amount) }));
+
+  const t = totalsOf(summary, ['orders', 'sale', 'discount', 'cash_purchase', 'credit_purchase', 'purchase', 'paid_pickup', 'paid_other', 'fuel', 'paid', 'difference']);
+  t.orders = orderRows.length ? new Set(orderRows.map((o) => o.order_number)).size : 0;
+  const rs = (v) => `Rs ${Number(v).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const period = f.from === f.to ? f.from : `${f.from || 'start'} to ${f.to || 'today'}`;
+
+  const summarySection = {
+    title: 'Summary by day',
+    columns: [
+      date('date', 'Date'), count('orders', 'Orders'), money('sale', 'Sale Price'), money('discount', 'Less Discount'),
+      money('cash_purchase', 'Cash Purchase'), money('credit_purchase', 'Credit Purchase'), money('purchase', 'Total Purchase'),
+      money('paid_pickup', 'Paid at Pickup'), money('paid_other', 'Paid to Stores Later'), money('fuel', 'Fuel Charges'),
+      money('paid', 'Total Paid'), money('difference', 'Purchase - Paid'),
+    ],
+    rows: summary,
+    totals: t,
+    notes: [],
+  };
+  return {
+    // The first section doubles as the plain table for older screens.
+    columns: summarySection.columns,
+    rows: summarySection.rows,
+    totals: summarySection.totals,
+    notes: [
+      `Daybook for ${period}${f.storeId ? ' (one store, fuel left out)' : ''}: total purchase ${rs(t.purchase)} (cash ${rs(t.cash_purchase)}, credit ${rs(t.credit_purchase)}) minus total paid ${rs(t.paid)} (stores ${rs(t.paid_pickup + t.paid_other)}, fuel ${rs(t.fuel)}) = ${rs(t.difference)}.`,
+      'Sale price less discount is the purchase: what ServeNow owes the store. Cash stores are paid by the rider at pickup; credit stores are paid later by settlement or voucher.',
+      'Purchases are dated on delivery. Payments made today can be for purchases of earlier days, so a day\'s difference is not the same as what is still owed: see Payables Ageing for that.',
+      ...(resetC ? [`The 30 Oct 2026 balance reset journal (${rs(fromCents(resetC))} on store accounts) is left out of Total Paid: it set balances to the agreed list, no money was paid.`] : []),
+    ],
+    sections: [
+      summarySection,
+      {
+        title: 'Purchase order-wise',
+        columns: [
+          date('date', 'Date'), text('order_number', 'Order'), text('store', 'Store'), text('kind', 'Cash / Credit'), count('items', 'Lines'),
+          money('sale', 'Sale Price'), money('discount', 'Less Discount'), money('purchase', 'Purchase'), text('status', 'Paid'),
+        ],
+        rows: orderRows,
+        totals: totalsOf(orderRows, ['items', 'sale', 'discount', 'purchase']),
+        notes: ['An order with items from two stores shows one line per store.'],
+      },
+      {
+        title: 'Store-wise, whole transaction',
+        columns: [
+          text('store', 'Store'), text('kind', 'Cash / Credit'), text('term', 'Payment Term'), count('orders', 'Orders'),
+          money('sale', 'Sale Price'), money('discount', 'Less Discount'), money('purchase', 'Purchase'), money('paid', 'Paid'), money('difference', 'Purchase - Paid'),
+        ],
+        rows: storeRows,
+        totals: totalsOf(storeRows, ['orders', 'sale', 'discount', 'purchase', 'paid', 'difference']),
+        notes: [],
+      },
+      {
+        title: 'Payments, including fuel',
+        columns: [date('date', 'Date'), text('paid_to', 'Paid To'), text('type', 'Type'), text('reference', 'Reference'), money('amount', 'Amount')],
+        rows: paymentRows,
+        totals: totalsOf(paymentRows, ['amount']),
+        notes: ['A receipt from a store, or a reversed pickup payment, counts as a negative payment.'],
+      },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Control
 
 async function exceptionsReport(db, f) {
@@ -505,6 +676,7 @@ const REPORTS = [
   { key: 'store-payment-register', group: 'Stores', title: 'Store Payment Register', filters: ['store'], run: (db, f) => storePaymentRegister(db, { ...f, excludePickup: true }) },
   { key: 'pickup-payments', group: 'Stores', title: 'Pickup Payments', filters: ['rider', 'store'], run: pickupPayments },
   { key: 'cash-store-check', group: 'Stores', title: 'Cash Store Check', filters: ['store'], run: cashStoreCheck },
+  { key: 'daybook', group: 'Accounts', title: 'Daybook (Purchase, Paid, Fuel)', filters: ['store'], run: daybook },
   { key: 'daily-cash-book', group: 'Accounts', title: 'Daily Cash Book', filters: [], run: dailyCashBook },
   { key: 'suspense-review', group: 'Accounts', title: 'Suspense Review', filters: [], run: suspenseReview },
   { key: 'monthly-profit-loss', group: 'Accounts', title: 'Monthly Profit & Loss', filters: [], run: monthlyProfitLoss },
@@ -517,4 +689,4 @@ const REPORTS = [
   { key: 'sales-by-payment', group: 'Sales', title: 'Sales by Payment Type', filters: ['store'], run: salesReport('payment', 'Payment Type') },
 ];
 
-module.exports = { REPORTS };
+module.exports = { REPORTS, daybook };
