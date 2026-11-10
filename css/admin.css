@@ -5851,3 +5851,9 @@ textarea:focus {
 .coa-table tr.coa-off td { opacity: 0.55; }
 .coa-tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: #e2e8f0; color: #334155; }
 .coa-tag.coa-added { background: #dcfce7; color: #166534; }
+
+/* Kiosk link pop-up (HR, Attendance) */
+#hrKioskLinkModal .hr-kiosk-tips { margin: 0 0 0.75rem; padding-left: 1.2rem; line-height: 1.5; }
+#hrKioskLinkModal .hr-kiosk-tips li { margin-bottom: 0.3rem; }
+#hrKioskLinkText { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
+#hrKioskLinkModal .hr-sub { font-size: 0.9rem; margin-top: 0; }

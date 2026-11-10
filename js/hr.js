@@ -497,7 +497,7 @@
           <td><b>${esc(d.name)}</b></td>
           <td>${esc(d.branch_name || '-')}</td>
           <td>${d.last_used_at ? esc(new Date(d.last_used_at).toLocaleString('en-PK')) : pill('warn', 'Not yet')}</td>
-          <td><div class="hr-row-actions"><button type="button" class="btn-small btn-danger" data-hr-kiosk-remove="${d.id}">Remove</button></div></td>
+          <td><div class="hr-row-actions"><button type="button" class="btn-small" data-hr-kiosk-link="${d.id}" title="A direct link to open this screen on any PC"><i class="fas fa-link"></i> New Link</button><button type="button" class="btn-small btn-danger" data-hr-kiosk-remove="${d.id}">Remove</button></div></td>
         </tr>`).join('') || empty(4, ICONS.kiosk, 'No kiosk yet. Press Set Up Kiosk on the office PC. It opens in its own tab.');
     } catch (error) {
       body.innerHTML = empty(4, 'fa-exclamation-circle', 'Could not load kiosk screens.');
@@ -509,6 +509,38 @@
 
   function refreshKioskButton() {
     $('hrSetUpKiosk').innerHTML = `<i class="fas fa-desktop"></i> ${localStorage.getItem(KIOSK_KEY) ? 'Open Kiosk' : 'Set Up Kiosk'}`;
+    $('hrKioskLinkBtn').hidden = !localStorage.getItem(KIOSK_KEY);
+  }
+
+  // The direct link: /kiosk with the key after the #, so it is never sent to the server or its logs.
+  const kioskLink = (key) => `${window.location.origin}/kiosk#key=${key}`;
+
+  function showKioskLink(key) {
+    const link = kioskLink(key);
+    $('hrKioskLinkText').value = link;
+    $('hrKioskLinkOpen').href = link;
+    openModal('hrKioskLinkModal');
+  }
+
+  async function copyKioskLink() {
+    const box = $('hrKioskLinkText');
+    try {
+      await navigator.clipboard.writeText(box.value);
+    } catch (_) {
+      box.select();
+      document.execCommand('copy');
+    }
+    showSuccess('Copied', 'Kiosk link copied. Paste it on the attendance PC.');
+  }
+
+  async function newKioskLink(id) {
+    if (!window.confirm('Make a new link for this kiosk screen? The PC using the old link stops working until it opens the new one.')) return;
+    try {
+      const data = await api(`/kiosk/devices/${id}/link`, { method: 'POST', body: '{}' });
+      showKioskLink(data.key);
+    } catch (error) {
+      failed(error);
+    }
   }
 
   // One tab for the kiosk. Pressing again goes back to it, without restarting its camera.
@@ -542,6 +574,7 @@
       closeModal('hrKioskModal');
       refreshKioskButton();
       loadHrKiosks();
+      showKioskLink(data.key);
       if (tab) tab.location.href = 'kiosk.html';
       else showWarning('New tab blocked', 'The kiosk is ready. Allow pop-ups for this site, then press Open Kiosk.');
     } catch (error) {
@@ -722,6 +755,10 @@
     if (face) enrollFace(employees.find((e) => e.id === Number(face.dataset.hrFace)));
     const faceRemove = target.closest?.('[data-hr-face-remove]');
     if (faceRemove) removeFace(employees.find((e) => e.id === Number(faceRemove.dataset.hrFaceRemove)));
+    const kioskLinkBtn = target.closest?.('[data-hr-kiosk-link]');
+    if (kioskLinkBtn) newKioskLink(kioskLinkBtn.dataset.hrKioskLink);
+    if (target.closest?.('#hrKioskLinkBtn')) showKioskLink(localStorage.getItem(KIOSK_KEY));
+    if (target.closest?.('#hrKioskLinkCopy')) copyKioskLink();
     const kioskRemove = target.closest?.('[data-hr-kiosk-remove]');
     if (kioskRemove) removeKiosk(kioskRemove.dataset.hrKioskRemove);
     const edit = target.closest?.('[data-hr-edit]');

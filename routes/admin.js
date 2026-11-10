@@ -167,6 +167,12 @@ async function ensureManualOrderItemCostColumn(db) {
 }
 
 // Helper to check specific permissions for non-admin staff
+// True when the login holds any of the rights (admins always).
+async function hasAnyPermission(req, keys) {
+    for (const key of keys) if (await hasPermission(req, key)) return true;
+    return false;
+}
+
 async function hasPermission(req, permissionKey) {
     if (req.user.user_type === 'admin') return true;
     // Permissions are only ever granted to staff logins
@@ -1329,8 +1335,8 @@ router.get(
   requireStaffAccess,
   async (req, res) => {
     try {
-      if (!(await hasPermission(req, 'report_sales'))) {
-          return res.status(403).json({ success: false, message: 'Permission denied: report_sales required' });
+      if (!(await hasAnyPermission(req, ["sale_report_store"]))) {
+          return res.status(403).json({ success: false, message: 'You do not have the right to open this sale report' });
       }
 
       const parsedStoreId = Number.parseInt(String(req.query.store_id || ""), 10);
@@ -1722,7 +1728,7 @@ router.get(
     try {
       await ensureManualOrderItemCostColumn(req.db);
 
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_store_products"]))) {
         return res
           .status(403)
           .json({
@@ -1870,7 +1876,7 @@ router.get(
     try {
       await ensureManualOrderItemCostColumn(req.db);
 
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_combined_products"]))) {
         return res
           .status(403)
           .json({
@@ -2020,10 +2026,10 @@ router.get(
   requireStaffAccess,
   async (req, res) => {
     try {
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_customers"]))) {
         return res.status(403).json({
           success: false,
-          message: "Permission denied: report_sales required",
+          message: "You do not have the right to open this sale report",
         });
       }
 
@@ -2066,10 +2072,10 @@ router.get(
   requireStaffAccess,
   async (req, res) => {
     try {
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_customers"]))) {
         return res.status(403).json({
           success: false,
-          message: "Permission denied: report_sales required",
+          message: "You do not have the right to open this sale report",
         });
       }
 
@@ -2434,7 +2440,7 @@ router.get(
     try {
       await ensureManualOrderItemCostColumn(req.db);
 
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_with_delivery"]))) {
         return res
           .status(403)
           .json({
@@ -2552,10 +2558,10 @@ router.get(
     try {
       await ensureManualOrderItemCostColumn(req.db);
 
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_order_wise"]))) {
         return res.status(403).json({
           success: false,
-          message: "Permission denied: report_sales required",
+          message: "You do not have the right to open this sale report",
         });
       }
 
@@ -2821,10 +2827,10 @@ router.get(
     try {
       await ensureManualOrderItemCostColumn(req.db);
 
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_cash_credit", "sale_report_cash_credit_type"]))) {
         return res.status(403).json({
           success: false,
-          message: "Permission denied: report_sales required",
+          message: "You do not have the right to open this sale report",
         });
       }
 
@@ -2973,7 +2979,7 @@ router.get(
     try {
       await ensureManualOrderItemCostColumn(req.db);
 
-      if (!(await hasPermission(req, "report_sales"))) {
+      if (!(await hasAnyPermission(req, ["sale_report_manual"]))) {
         return res
           .status(403)
           .json({

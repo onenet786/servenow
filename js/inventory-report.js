@@ -111,10 +111,23 @@ function closeInventoryModal(modalId) {
     if (modal) modal.classList.remove("show");
 }
 
+// Each sale sub-report has its own right; staff see only the ones they hold.
+const SALE_REPORT_RIGHTS = {
+    "order-wise-sales": "sale_report_order_wise",
+    "sales": "sale_report_store",
+    "manual-sales": "sale_report_manual",
+    "store-product-sales": "sale_report_store_products",
+    "combined-product-sales": "sale_report_combined_products",
+    "sales-with-delivery": "sale_report_with_delivery",
+    "sales-by-payment": "sale_report_cash_credit",
+    "sales-by-payment-simple": "sale_report_cash_credit_type",
+    "customer-details": "sale_report_customers",
+};
+
 function getInventoryReportOptionsForScope(scope) {
-    return scope === "sales"
-        ? inventoryReportOptions.sales
-        : inventoryReportOptions.inventory;
+    if (scope !== "sales") return inventoryReportOptions.inventory;
+    const may = typeof window.staffMay === "function" ? window.staffMay : () => true;
+    return inventoryReportOptions.sales.filter((option) => !SALE_REPORT_RIGHTS[option.value] || may(SALE_REPORT_RIGHTS[option.value]));
 }
 
 function syncSubreportNavStates(activeValue) {
@@ -182,7 +195,7 @@ function applyInventoryReportScope() {
         .join("");
 
     const hasCurrent = options.some((option) => option.value === currentValue);
-    const activeValue = hasCurrent ? currentValue : "order-wise-sales";
+    const activeValue = hasCurrent ? currentValue : (options[0] ? options[0].value : "order-wise-sales");
     reportSelect.value = activeValue;
 
     renderSubreportPills(activeValue);

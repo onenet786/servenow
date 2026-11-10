@@ -716,6 +716,26 @@ const publicHtmlFiles = new Set([
   "order-confirmation.html", "wallet.html", "admin.html", "rider.html", "data-deletion.html",
   "assistant.html", "attendance.html", "kiosk.html"
 ]);
+// The attendance kiosk on its own short address: /kiosk#key=... opens straight onto the screen.
+app.get("/kiosk", (req, res) => {
+  // "/kiosk/" would break the page's relative links, so it moves to "/kiosk" (the #key stays with the browser).
+  if (req.path.endsWith("/")) return res.redirect(301, "/kiosk");
+  return res.sendFile(path.join(__dirname, "kiosk.html"));
+});
+// Lets the kiosk be installed as its own full-screen app (Chrome or Edge: Install).
+app.get("/kiosk.webmanifest", (req, res) => {
+  res.type("application/manifest+json").send(JSON.stringify({
+    name: "ServeNow Attendance",
+    short_name: "Attendance",
+    start_url: "/kiosk",
+    scope: "/kiosk",
+    display: "fullscreen",
+    background_color: "#f3f6f4",
+    theme_color: "#15803d",
+    icons: [{ src: "/images/kiosk-icon.png", sizes: "192x192", type: "image/png", purpose: "any" }],
+  }));
+});
+
 app.get("/:page([A-Za-z0-9-]+\\.html)", (req, res, next) => {
   if (!publicHtmlFiles.has(req.params.page)) return next();
   return res.sendFile(path.join(__dirname, req.params.page));
@@ -843,6 +863,13 @@ async function startServer() {
         err && err.message ? err.message : err
       );
     }
+  }
+
+  // Rights split into one right per sub-menu: whoever held the old one keeps their screens.
+  try {
+    await require("./utils/rightsMigration").applyRightSplits(pool);
+  } catch (err) {
+    console.error("Error applying user right splits:", err && err.message ? err.message : err);
   }
 
   console.log("Database connected. Starting HTTP server...");

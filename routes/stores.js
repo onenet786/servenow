@@ -1,6 +1,31 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { authenticateToken, requireAdmin, requireStoreOwner, softAuth } = require('../middleware/auth');
+const { authenticateToken, requireAdmin, requireStoreOwner, softAuth, staffHasRight } = require('../middleware/auth');
+
+// Store Status sub-menus: the admin, or a staff login holding that sub-menu's right.
+// Such staff act as the admin inside the route (they pick the store); store owners,
+// where allowed, stay limited to their own store.
+const actsAsAdmin = (req) => req.user.user_type === 'admin' || req.staffActsAsAdmin === true;
+function staffRightGuard(right, { storeOwners }) {
+  return async (req, res, next) => {
+    const type = req.user.user_type;
+    if (type === 'admin' || (storeOwners && type === 'store_owner')) return next();
+    if (type === 'standard_user') {
+      try {
+        if (await staffHasRight(req.db, req.user.id, right)) {
+          req.staffActsAsAdmin = true;
+          return next();
+        }
+      } catch (err) {
+        console.error('[stores] right check failed:', err.message);
+        return res.status(500).json({ success: false, message: 'Permission check failed' });
+      }
+    }
+    return res.status(403).json({ success: false, message: 'You do not have the right to do this' });
+  };
+}
+const adminOrStaff = (right) => staffRightGuard(right, { storeOwners: false });
+const adminOwnerOrStaff = (right) => staffRightGuard(right, { storeOwners: true });
 const { filterPrivateData, trustedAdminFlag } = require('../middleware/publicData');
 const {
     DEFAULT_BRANCH_ID, STAFF_TYPES, toBranchId, isHeadOffice, staffScope, resolveStaffBranch, resolveWriteBranch, resolveCustomerBranch,
@@ -1048,7 +1073,7 @@ router.get('/bank-options', authenticateToken, requireStoreOwner, async (req, re
 });
 
 // Get store by ID
-router.get('/status-message', authenticateToken, requireStoreOwner, async (req, res) => {
+router.get('/status-message', authenticateToken, adminOwnerOrStaff('menu_store_status'), async (req, res) => {
     try {
         await ensureStoreStatusMessagesTable(req.db);
 
@@ -1057,7 +1082,7 @@ router.get('/status-message', authenticateToken, requireStoreOwner, async (req, 
             : parseInt(String(req.query.store_id), 10);
 
         let storeId = null;
-        if (req.user.user_type === 'admin') {
+        if (actsAsAdmin(req)) {
             if (!Number.isInteger(requestedStoreId) || requestedStoreId <= 0) {
                 return res.status(400).json({
                     success: false,
@@ -1127,7 +1152,7 @@ router.get('/status-message', authenticateToken, requireStoreOwner, async (req, 
     }
 });
 
-router.put('/status-message', authenticateToken, requireStoreOwner, async (req, res) => {
+router.put('/status-message', authenticateToken, adminOwnerOrStaff('menu_store_status'), async (req, res) => {
     try {
         await ensureStoreStatusMessagesTable(req.db);
 
@@ -1146,7 +1171,7 @@ router.put('/status-message', authenticateToken, requireStoreOwner, async (req, 
         }
 
         let storeId = null;
-        if (req.user.user_type === 'admin') {
+        if (actsAsAdmin(req)) {
             if (!Number.isInteger(requestedStoreId) || requestedStoreId <= 0) {
                 return res.status(400).json({
                     success: false,
@@ -1261,7 +1286,7 @@ router.get('/global-delivery-status', softAuth, async (req, res) => {
     }
 });
 
-router.get('/notification-customers', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/notification-customers', authenticateToken, adminOrStaff('menu_push_broadcast'), async (req, res) => {
     try {
         const listScope = resolveStaffBranch(req.user, req.query.branch_id);
         if (listScope.error) return res.status(403).json({ success: false, message: listScope.error });
@@ -1304,7 +1329,7 @@ router.get('/notification-customers', authenticateToken, requireAdmin, async (re
     }
 });
 
-router.post('/customer-push-notification', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/customer-push-notification', authenticateToken, adminOrStaff('menu_push_broadcast'), async (req, res) => {
     try {
         const notificationTarget = (req.body.notification_target || 'all').toString().toLowerCase() === 'custom' ? 'custom' : 'all';
         const customCustomerIds = normalizeCustomerIds(req.body.customer_ids);
@@ -1402,7 +1427,7 @@ router.get('/app-update-status', authenticateToken, async (req, res) => {
     }
 });
 
-router.post('/app-update-notification', authenticateToken, requireAdmin, async (req, res) => {
+router.post('/app-update-notification', authenticateToken, adminOrStaff('menu_push_broadcast'), async (req, res) => {
     try {
         const audience = (req.body.audience || 'all').toString().trim().toLowerCase();
         const version = (req.body.version || '').toString().trim();
@@ -1534,7 +1559,7 @@ router.post('/app-update-notification', authenticateToken, requireAdmin, async (
     }
 });
 
-router.get('/push-status', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/push-status', authenticateToken, adminOrStaff('menu_push_broadcast'), async (req, res) => {
     try {
         await ensurePushDeviceTokensTable(req.db);
         const [rows] = await req.db.execute(
@@ -1561,7 +1586,7 @@ router.get('/push-status', authenticateToken, requireAdmin, async (req, res) => 
     }
 });
 
-router.put('/global-delivery-status', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/global-delivery-status', authenticateToken, adminOrStaff('menu_delivery_notice'), async (req, res) => {
     try {
         // Which branch this is for: blank = every branch. A branch account can only set its own.
         const settingScope = resolveStaffBranch(req.user, req.body.branch_id);
@@ -1716,7 +1741,7 @@ router.get('/live-promotions', softAuth, async (req, res) => {
     }
 });
 
-router.get('/offer-campaigns', authenticateToken, requireStoreOwner, async (req, res) => {
+router.get('/offer-campaigns', authenticateToken, adminOwnerOrStaff('menu_offer_campaigns'), async (req, res) => {
     try {
         await ensureStoreOfferCampaignTables(req.db);
         const requestedStoreId = req.query.store_id === undefined
@@ -1724,7 +1749,7 @@ router.get('/offer-campaigns', authenticateToken, requireStoreOwner, async (req,
             : parseInt(String(req.query.store_id), 10);
 
         let storeId = null;
-        if (req.user.user_type === 'admin') {
+        if (actsAsAdmin(req)) {
             if (!Number.isInteger(requestedStoreId) || requestedStoreId <= 0) {
                 return res.status(400).json({ success: false, message: 'store_id is required for admin users' });
             }
@@ -1818,13 +1843,13 @@ router.get('/offer-campaigns', authenticateToken, requireStoreOwner, async (req,
     }
 });
 
-router.post('/offer-campaigns', authenticateToken, requireStoreOwner, async (req, res) => {
+router.post('/offer-campaigns', authenticateToken, adminOwnerOrStaff('menu_offer_campaigns'), async (req, res) => {
     try {
         await ensureStoreOfferCampaignTables(req.db);
 
         const requestedStoreId = parseInt(String(req.body.store_id || ''), 10);
         let storeId = null;
-        if (req.user.user_type === 'admin') {
+        if (actsAsAdmin(req)) {
             if (!Number.isInteger(requestedStoreId) || requestedStoreId <= 0) {
                 return res.status(400).json({ success: false, message: 'store_id is required for admin users' });
             }
@@ -1946,7 +1971,7 @@ router.post('/offer-campaigns', authenticateToken, requireStoreOwner, async (req
     }
 });
 
-router.put('/offer-campaigns/:id', authenticateToken, requireStoreOwner, async (req, res) => {
+router.put('/offer-campaigns/:id', authenticateToken, adminOwnerOrStaff('menu_offer_campaigns'), async (req, res) => {
     try {
         await ensureStoreOfferCampaignTables(req.db);
         const campaignId = parseInt(String(req.params.id), 10);
@@ -1958,7 +1983,7 @@ router.put('/offer-campaigns/:id', authenticateToken, requireStoreOwner, async (
         if (!rows.length) return res.status(404).json({ success: false, message: 'Campaign not found' });
         const current = rows[0];
 
-        if (req.user.user_type !== 'admin') {
+        if (!actsAsAdmin(req)) {
             const [owned] = await req.db.execute(
                 'SELECT id FROM stores WHERE id = ? AND owner_id = ? LIMIT 1',
                 [current.store_id, req.user.id]
@@ -2055,7 +2080,7 @@ router.put('/offer-campaigns/:id', authenticateToken, requireStoreOwner, async (
     }
 });
 
-router.delete('/offer-campaigns/:id', authenticateToken, requireStoreOwner, async (req, res) => {
+router.delete('/offer-campaigns/:id', authenticateToken, adminOwnerOrStaff('menu_offer_campaigns'), async (req, res) => {
     try {
         await ensureStoreOfferCampaignTables(req.db);
         const campaignId = parseInt(String(req.params.id), 10);
@@ -2066,7 +2091,7 @@ router.delete('/offer-campaigns/:id', authenticateToken, requireStoreOwner, asyn
         const [rows] = await req.db.execute('SELECT id, store_id FROM store_offer_campaigns WHERE id = ? LIMIT 1', [campaignId]);
         if (!rows.length) return res.status(404).json({ success: false, message: 'Campaign not found' });
         const row = rows[0];
-        if (req.user.user_type !== 'admin') {
+        if (!actsAsAdmin(req)) {
             const [owned] = await req.db.execute(
                 'SELECT id FROM stores WHERE id = ? AND owner_id = ? LIMIT 1',
                 [row.store_id, req.user.id]
@@ -2086,7 +2111,7 @@ router.delete('/offer-campaigns/:id', authenticateToken, requireStoreOwner, asyn
     }
 });
 
-router.put('/live-promotions', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/live-promotions', authenticateToken, adminOrStaff('menu_promotions'), async (req, res) => {
     try {
         // Which branch this is for: blank = every branch. A branch account can only set its own.
         const settingScope = resolveStaffBranch(req.user, req.body.branch_id);
@@ -2205,7 +2230,7 @@ router.get('/customer-flash-message', authenticateToken, async (req, res) => {
     }
 });
 
-router.put('/customer-flash-message', authenticateToken, requireAdmin, async (req, res) => {
+router.put('/customer-flash-message', authenticateToken, adminOrStaff('menu_flash_message'), async (req, res) => {
     try {
         // Which branch this is for: blank = every branch. A branch account can only set its own.
         const settingScope = resolveStaffBranch(req.user, req.body.branch_id);

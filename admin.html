@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Admin Dashboard - ServeNow</title>
     <link rel="stylesheet" href="css/style.css?v=6" />
-    <link rel="stylesheet" href="css/admin.css?v=43" />
+    <link rel="stylesheet" href="css/admin.css?v=44" />
     <link rel="stylesheet" href="css/aginv-theme.css?v=10" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -101,37 +101,37 @@
                   >
                 </li>
                 <li>
-                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status"
+                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-right="menu_store_status"
                     ><i class="fas fa-bullhorn"></i> Store Status</a
                   >
                 </li>
                 <li>
-                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-delivery"
+                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-delivery" data-right="menu_delivery_notice"
                     ><i class="fas fa-truck"></i> Delivery Notice</a
                   >
                 </li>
                 <li>
-                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-broadcast"
+                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-broadcast" data-right="menu_push_broadcast"
                     ><i class="fas fa-paper-plane"></i> Push Broadcast</a
                   >
                 </li>
                 <li>
-                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-live-promotions"
+                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-live-promotions" data-right="menu_promotions"
                     ><i class="fas fa-images"></i> Promotions / Events</a
                   >
                 </li>
                 <li>
-                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-offer-campaigns"
+                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-offer-campaigns" data-right="menu_offer_campaigns"
                     ><i class="fas fa-tags"></i> Offer Campaigns</a
                   >
                 </li>
                 <li>
-                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-flash-message"
+                  <a href="admin.html#store-status" class="tab-link" data-tab="store-status" data-status-section="store-status-flash-message" data-right="menu_flash_message"
                     ><i class="fas fa-bolt"></i> Flash Message</a
                   >
                 </li>
                 <li>
-                  <a href="customer_tile_demo.html" target="_blank" rel="noopener"
+                  <a href="customer_tile_demo.html" target="_blank" rel="noopener" data-right="menu_customer_tile_demo"
                     ><i class="fas fa-th-large"></i> Customer Tile Demo</a
                   >
                 </li>
@@ -219,15 +219,15 @@
                     <i class="fas fa-chevron-right submenu-arrow"></i>
                   </a>
                   <ul class="dropdown-sub-menu" id="saleSubreportsMenu">
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link active" data-subreport="order-wise-sales" onclick="window.switchSaleSubReport && window.switchSaleSubReport('order-wise-sales', event)"><i class="fas fa-calendar-check"></i> Order-Wise Sales</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales', event)"><i class="fas fa-store"></i> Store Sale-wise</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="manual-sales" onclick="window.switchSaleSubReport && window.switchSaleSubReport('manual-sales', event)"><i class="fas fa-edit"></i> Manual Order Sales</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="store-product-sales" onclick="window.switchSaleSubReport && window.switchSaleSubReport('store-product-sales', event)"><i class="fas fa-box-open"></i> Store Product Sales</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="combined-product-sales" onclick="window.switchSaleSubReport && window.switchSaleSubReport('combined-product-sales', event)"><i class="fas fa-boxes"></i> Combined Product Sales</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales-with-delivery" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales-with-delivery', event)"><i class="fas fa-truck"></i> Sales with Delivery</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales-by-payment" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales-by-payment', event)"><i class="fas fa-money-bill-wave"></i> Cash/Credit Sales</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales-by-payment-simple" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales-by-payment-simple', event)"><i class="fas fa-wallet"></i> Cash/Credit (By Type)</a></li>
-                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="customer-details" onclick="window.switchSaleSubReport && window.switchSaleSubReport('customer-details', event)"><i class="fas fa-users"></i> Customer Details</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link active" data-subreport="order-wise-sales" data-right="sale_report_order_wise" onclick="window.switchSaleSubReport && window.switchSaleSubReport('order-wise-sales', event)"><i class="fas fa-calendar-check"></i> Order-Wise Sales</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales" data-right="sale_report_store" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales', event)"><i class="fas fa-store"></i> Store Sale-wise</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="manual-sales" data-right="sale_report_manual" onclick="window.switchSaleSubReport && window.switchSaleSubReport('manual-sales', event)"><i class="fas fa-edit"></i> Manual Order Sales</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="store-product-sales" data-right="sale_report_store_products" onclick="window.switchSaleSubReport && window.switchSaleSubReport('store-product-sales', event)"><i class="fas fa-box-open"></i> Store Product Sales</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="combined-product-sales" data-right="sale_report_combined_products" onclick="window.switchSaleSubReport && window.switchSaleSubReport('combined-product-sales', event)"><i class="fas fa-boxes"></i> Combined Product Sales</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales-with-delivery" data-right="sale_report_with_delivery" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales-with-delivery', event)"><i class="fas fa-truck"></i> Sales with Delivery</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales-by-payment" data-right="sale_report_cash_credit" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales-by-payment', event)"><i class="fas fa-money-bill-wave"></i> Cash/Credit Sales</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="sales-by-payment-simple" data-right="sale_report_cash_credit_type" onclick="window.switchSaleSubReport && window.switchSaleSubReport('sales-by-payment-simple', event)"><i class="fas fa-wallet"></i> Cash/Credit (By Type)</a></li>
+                    <li><a href="admin.html#sale-reports" class="sale-subreport-link" data-subreport="customer-details" data-right="sale_report_customers" onclick="window.switchSaleSubReport && window.switchSaleSubReport('customer-details', event)"><i class="fas fa-users"></i> Customer Details</a></li>
                   </ul>
                 </li>
                 <li>
@@ -1465,7 +1465,7 @@
 
         <div id="store-status" class="tab-content">
           <h2>Store Status</h2>
-          <section id="store-status-delivery" class="global-delivery-admin-card">
+          <section id="store-status-delivery" class="global-delivery-admin-card" data-right="menu_delivery_notice">
             <div class="global-delivery-admin-head">
               <div>
                 <h3>Live Delivery Widget (Website-Wide)</h3>
@@ -1536,7 +1536,7 @@
               </button>
             </div>
           </section>
-          <section id="store-status-broadcast" class="global-delivery-admin-card">
+          <section id="store-status-broadcast" class="global-delivery-admin-card" data-right="menu_push_broadcast">
             <div class="global-delivery-admin-head">
               <div>
                 <h3>Customer Push Broadcast</h3>
@@ -1581,7 +1581,7 @@
               </button>
             </div>
           </section>
-          <section id="app-update-broadcast" class="global-delivery-admin-card">
+          <section id="app-update-broadcast" class="global-delivery-admin-card" data-right="menu_push_broadcast">
             <div class="global-delivery-admin-head">
               <div>
                 <h3>App Update Push</h3>
@@ -1656,7 +1656,7 @@
               </button>
             </div>
           </section>
-          <section id="store-status-live-promotions" class="global-delivery-admin-card promo-live-admin-card">
+          <section id="store-status-live-promotions" class="global-delivery-admin-card promo-live-admin-card" data-right="menu_promotions">
             <div class="global-delivery-admin-head">
               <div>
                 <h3>Promotions / Events Live Widgets</h3>
@@ -1733,7 +1733,7 @@
               </button>
             </div>
           </section>
-          <section id="store-status-offer-campaigns" class="global-delivery-admin-card">
+          <section id="store-status-offer-campaigns" class="global-delivery-admin-card" data-right="menu_offer_campaigns">
             <div class="global-delivery-admin-head">
               <div>
                 <h3>Store Offer Campaigns (Custom)</h3>
@@ -1832,7 +1832,7 @@
               </table>
             </div>
           </section>
-          <section id="store-status-flash-message" class="global-delivery-admin-card">
+          <section id="store-status-flash-message" class="global-delivery-admin-card" data-right="menu_flash_message">
             <div class="global-delivery-admin-head">
               <div>
                 <h3>Customer Flash Message (Launch Popup)</h3>
@@ -2190,6 +2190,7 @@
                   <button type="button" data-hr-day="1" aria-label="Next day"><i class="fas fa-chevron-right"></i></button>
                   <button type="button" class="hr-today" data-hr-day="0">Today</button>
                 </div>
+                <button type="button" class="btn btn-secondary" id="hrKioskLinkBtn" hidden><i class="fas fa-link"></i> Kiosk Link</button>
                 <button type="button" class="btn btn-primary" id="hrSetUpKiosk"><i class="fas fa-desktop"></i> Set Up Kiosk</button>
               </div>
             </div>
@@ -5661,12 +5662,12 @@
     <script src="js/reports-centre.js?v=3" defer></script>
     <script src="js/face.js?v=1" defer></script>
     <script src="js/dashboard.js?v=3" defer></script>
-    <script src="js/hr.js?v=11" defer></script>
+    <script src="js/hr.js?v=12" defer></script>
     <script src="js/gl-accounts.js?v=2" defer></script>
     <script src="js/user-rights.js?v=2" defer></script>
-    <script src="js/admin.js?v=64" defer></script>
+    <script src="js/admin.js?v=66" defer></script>
     <script src="js/branch-admin.js?v=8" defer></script>
-    <script src="js/inventory-report.js?v=13" defer></script>
+    <script src="js/inventory-report.js?v=14" defer></script>
     <script src="js/report-tools.js?v=6" defer></script>
     <script>
       const hamburgerMenu = document.getElementById("hamburgerMenu");
@@ -6735,6 +6736,27 @@
             <button type="submit" class="btn btn-primary">Open Kiosk</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="hrKioskLinkModal" class="modal persistent-modal">
+      <div class="modal-content" style="max-width: 560px;">
+        <div class="modal-header"><h2>Kiosk Link</h2></div>
+        <p class="hr-sub">Open this link on the attendance PC or tablet. It goes straight to the attendance screen, with no sign-in and nothing else of the website.</p>
+        <div class="form-group">
+          <label for="hrKioskLinkText">Direct link</label>
+          <input type="text" id="hrKioskLinkText" class="form-control" readonly />
+        </div>
+        <ul class="hr-sub hr-kiosk-tips">
+          <li>Bookmark it, or drag it to the desktop as a shortcut.</li>
+          <li>In Chrome or Edge, open it and choose <b>Install</b> (or <b>Apps, Install this site as an app</b>) to run it full screen, like an app.</li>
+          <li>Keep it private: anyone with this link can mark attendance on this screen. If it leaks, press <b>New Link</b> on the screen under Kiosk screens; the old link stops at once.</li>
+        </ul>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('hrKioskLinkModal')">Close</button>
+          <a class="btn btn-secondary" id="hrKioskLinkOpen" href="/kiosk" target="servenow-kiosk" rel="noopener"><i class="fas fa-external-link-alt"></i> Open</a>
+          <button type="button" class="btn btn-primary" id="hrKioskLinkCopy"><i class="fas fa-copy"></i> Copy Link</button>
+        </div>
       </div>
     </div>
 

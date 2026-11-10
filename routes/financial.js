@@ -607,8 +607,8 @@ router.use(async (req, res, next) => {
     else if (path.startsWith('/bank-receipt-vouchers')) requiredPerm = 'menu_financial_brv';
     else if (path.startsWith('/journal-vouchers')) requiredPerm = 'menu_financial_jnv';
     else if (path.startsWith('/dashboard') || path.startsWith('/cash-ledger') || path.startsWith('/transactions')) requiredPerm = 'menu_financial_dashboard';
-    else if (path.startsWith('/gl/accounts')) requiredPerm = req.method === 'GET' ? ['menu_gl_accounts', 'menu_financial_dashboard'] : 'action_manage_gl_accounts';
-    else if (path.startsWith('/gl/') && req.method === 'GET') requiredPerm = 'menu_financial_dashboard';
+    else if (path.startsWith('/gl/accounts')) requiredPerm = req.method === 'GET' ? ['menu_gl_accounts', 'menu_general_ledger', 'menu_financial_dashboard'] : 'action_manage_gl_accounts';
+    else if (path.startsWith('/gl/') && req.method === 'GET') requiredPerm = 'menu_general_ledger';
     else if (path.startsWith('/reports')) { // includes /reports-centre
         // SECURITY: default-deny. Non-admins need at least one report/finance
         // permission; individual handlers (e.g. /reports/generate) narrow further.

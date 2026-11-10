@@ -19,7 +19,15 @@
   const REST_MS = 45 * 1000;
 
   const $ = (id) => document.getElementById(id);
-  const key = localStorage.getItem(KEY);
+
+  // A direct kiosk link (/kiosk#key=...) carries the key after the #, which browsers never send to the
+  // server. It is kept on this PC, then taken out of the address bar so it is not left on screen.
+  const linked = /(?:^#|&)key=([a-f0-9]{64})(?:&|$)/i.exec(window.location.hash);
+  if (linked) {
+    try { localStorage.setItem(KEY, linked[1]); } catch (_) { /* private window: the link still works this time */ }
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  const key = linked ? linked[1] : localStorage.getItem(KEY);
 
   let people = [];
   let reasons = [];
@@ -131,7 +139,7 @@
       notice('');
       if (!current) draw();
     } catch (error) {
-      if (error.removed) notice('This screen was removed. Ask HR to set it up again from HR, Attendance.');
+      if (error.removed) notice('This screen was removed or its link was replaced. Open the new kiosk link from HR, Attendance.');
       else notice('No connection. Trying again...');
     }
   }
@@ -344,7 +352,7 @@
   tick();
   setInterval(tick, 1000);
   if (!key) {
-    notice('This PC is not set up yet. HR opens HR, Attendance and presses Set Up Kiosk on This PC.');
+    notice('This PC is not set up yet. Open the kiosk link from HR, Attendance, Kiosk Link, or press Set Up Kiosk there.');
     return;
   }
   load();

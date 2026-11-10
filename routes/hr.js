@@ -558,7 +558,7 @@ router.post('/attendance/mark', async (req, res) => {
 
 // ---------------------------------------------------------------- kiosk screens (HR)
 
-router.get('/kiosk/devices', requireRight('menu_hr'), async (req, res) => {
+router.get('/kiosk/devices', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const branchId = branchOf(req, res);
     if (branchId === undefined) return undefined;
@@ -575,7 +575,7 @@ router.get('/kiosk/devices', requireRight('menu_hr'), async (req, res) => {
 });
 
 // The key is shown once, to this browser. Only its hash is kept.
-router.post('/kiosk/devices', requireRight('menu_hr'), async (req, res) => {
+router.post('/kiosk/devices', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const branch = await resolveWriteBranch(req.db, req.user, req.body.branch_id);
     if (branch.error) return res.status(400).json({ success: false, message: branch.error });
@@ -589,7 +589,7 @@ router.post('/kiosk/devices', requireRight('menu_hr'), async (req, res) => {
   }
 });
 
-router.delete('/kiosk/devices/:id(\\d+)', requireRight('menu_hr'), async (req, res) => {
+router.delete('/kiosk/devices/:id(\\d+)', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const { branchId } = resolveStaffBranch(req.user);
     const [done] = await req.db.execute(
@@ -601,6 +601,23 @@ router.delete('/kiosk/devices/:id(\\d+)', requireRight('menu_hr'), async (req, r
   } catch (err) {
     console.error('[hr] remove kiosk failed:', err.message);
     return res.status(500).json({ success: false, message: 'Could not remove the kiosk' });
+  }
+});
+
+// A new direct link for a kiosk screen (to open it on another PC). The old key stops working at once.
+router.post('/kiosk/devices/:id(\\d+)/link', requireRight('menu_hr_attendance'), async (req, res) => {
+  try {
+    const { branchId } = resolveStaffBranch(req.user);
+    const key = crypto.randomBytes(32).toString('hex');
+    const [done] = await req.db.execute(
+      `UPDATE kiosk_devices SET key_hash = ? WHERE id = ?${branchId === null ? '' : ' AND branch_id = ?'}`,
+      branchId === null ? [hashKey(key), Number(req.params.id)] : [hashKey(key), Number(req.params.id), branchId]
+    );
+    if (!done.affectedRows) return res.status(404).json({ success: false, message: 'Not found' });
+    return res.json({ success: true, key, message: 'New kiosk link ready. The old link no longer works.' });
+  } catch (err) {
+    console.error('[hr] new kiosk link failed:', err.message);
+    return res.status(500).json({ success: false, message: 'Could not make a new link' });
   }
 });
 
@@ -630,7 +647,7 @@ async function shiftInScope(req, id) {
   return branchId !== null && Number(row.branch_id) !== branchId ? null : row;
 }
 
-router.get('/shifts', requireRight('menu_hr', 'menu_hr_payroll'), async (req, res) => {
+router.get('/shifts', requireRight('menu_hr', 'menu_hr_attendance', 'menu_hr_payroll'), async (req, res) => {
   try {
     const branchId = branchOf(req, res);
     if (branchId === undefined) return undefined;
@@ -648,7 +665,7 @@ router.get('/shifts', requireRight('menu_hr', 'menu_hr_payroll'), async (req, re
   }
 });
 
-router.post('/shifts', requireRight('menu_hr'), async (req, res) => {
+router.post('/shifts', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const shift = readShift(req.body);
     if (shift.error) return res.status(400).json({ success: false, message: shift.error });
@@ -665,7 +682,7 @@ router.post('/shifts', requireRight('menu_hr'), async (req, res) => {
   }
 });
 
-router.put('/shifts/:id(\\d+)', requireRight('menu_hr'), async (req, res) => {
+router.put('/shifts/:id(\\d+)', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const current = await shiftInScope(req, req.params.id);
     if (!current) return res.status(404).json({ success: false, message: 'Shift not found' });
@@ -680,7 +697,7 @@ router.put('/shifts/:id(\\d+)', requireRight('menu_hr'), async (req, res) => {
   }
 });
 
-router.delete('/shifts/:id(\\d+)', requireRight('menu_hr'), async (req, res) => {
+router.delete('/shifts/:id(\\d+)', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const current = await shiftInScope(req, req.params.id);
     if (!current) return res.status(404).json({ success: false, message: 'Shift not found' });
@@ -895,7 +912,7 @@ router.delete('/employees/:id(\\d+)/face', requireRight('menu_hr'), async (req, 
 
 // ---------------------------------------------------------------- attendance (HR)
 
-router.get('/attendance', requireRight('menu_hr'), async (req, res) => {
+router.get('/attendance', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const branchId = branchOf(req, res);
     if (branchId === undefined) return undefined;
@@ -942,7 +959,7 @@ router.get('/attendance', requireRight('menu_hr'), async (req, res) => {
 });
 
 // HR's correction for a day: present, leave (paid) or absent, always with a reason.
-router.put('/attendance', requireRight('menu_hr'), async (req, res) => {
+router.put('/attendance', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const employee = await employeeInScope(req, req.body.employee_id);
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found' });
@@ -977,7 +994,7 @@ router.put('/attendance', requireRight('menu_hr'), async (req, res) => {
   }
 });
 
-router.get('/attendance/:id(\\d+)/photo/:which(in|out)', requireRight('menu_hr'), async (req, res) => {
+router.get('/attendance/:id(\\d+)/photo/:which(in|out)', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const [rows] = await req.db.execute('SELECT employee_id, check_in_photo, check_out_photo FROM attendance WHERE id = ?', [Number(req.params.id)]);
     if (!rows[0] || !(await employeeInScope(req, rows[0].employee_id))) return res.status(404).json({ success: false, message: 'Not found' });
@@ -994,7 +1011,7 @@ router.get('/attendance/:id(\\d+)/photo/:which(in|out)', requireRight('menu_hr')
   }
 });
 
-router.get('/attendance/trip/:id(\\d+)/photo/:which(out|back)', requireRight('menu_hr'), async (req, res) => {
+router.get('/attendance/trip/:id(\\d+)/photo/:which(out|back)', requireRight('menu_hr_attendance'), async (req, res) => {
   try {
     const [rows] = await req.db.execute(
       `SELECT a.employee_id, t.out_photo, t.back_photo FROM attendance_trips t JOIN attendance a ON a.id = t.attendance_id WHERE t.id = ?`,
@@ -1198,7 +1215,7 @@ async function monthRows(db, month, branchId) {
   });
 }
 
-router.get('/attendance/monthly', requireRight('menu_hr', 'menu_hr_payroll'), async (req, res) => {
+router.get('/attendance/monthly', requireRight('menu_hr_attendance', 'menu_hr_payroll'), async (req, res) => {
   try {
     const branchId = branchOf(req, res);
     if (branchId === undefined) return undefined;

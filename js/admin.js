@@ -7,6 +7,12 @@ window.__serveNowDisableSystemNotify = true;
 
 // API_BASE, currentUser, and authToken are provided by app.js (loaded in admin.html)
 let currentUserPermissions = new Set();
+// Whether this login may use something: admins always; staff need one of the rights.
+window.staffMay = (keys) => {
+    const user = typeof currentUser !== 'undefined' ? currentUser : null;
+    if (!user || user.user_type !== 'standard_user') return true;
+    return [].concat(keys).some((k) => currentUserPermissions.has(k));
+};
 
 // Centralized State Management
 const AppState = {
@@ -2733,7 +2739,7 @@ function switchTab(tabName) {
             renderGlobalDeliveryPreview();
             loadLivePromotions();
             renderLivePromotionPreview();
-            initializeStoreOfferCampaigns();
+            if (window.staffMay('menu_offer_campaigns')) initializeStoreOfferCampaigns();
             loadCustomerFlashMessage();
             renderCustomerFlashPreview();
             if (pendingStoreStatusSectionId) {
@@ -12739,12 +12745,14 @@ async function applyRoleRestrictions() {
             currentUserPermissions = new Set(data.permissions);
             const perms = currentUserPermissions;
             
+            const SALE_REPORT_RIGHT_KEYS = ['sale_report_order_wise', 'sale_report_store', 'sale_report_manual', 'sale_report_store_products', 'sale_report_combined_products', 'sale_report_with_delivery', 'sale_report_cash_credit', 'sale_report_cash_credit_type', 'sale_report_customers'];
+            const FINANCIAL_REPORT_RIGHT_KEYS = ['menu_report_financial', 'report_daily_summary', 'report_weekly_summary', 'report_monthly_summary', 'report_order_summary', 'report_store_settlement', 'report_store_financials', 'report_rider_cash', 'report_rider_fuel', 'report_delivery_charges', 'report_expense', 'report_general_voucher', 'report_transactions_summary', 'report_comprehensive_cash', 'report_custom'];
             const tabRules = [
                 { perms: ['menu_dashboard'], tabs: ['dashboard'] },
                 { perms: ['menu_orders'], tabs: ['orders'] },
                 { perms: ['menu_products'], tabs: ['products'] },
                 { perms: ['menu_stores'], tabs: ['stores'] },
-                { perms: ['menu_store_status', 'menu_stores'], tabs: ['store-status'] },
+                { perms: ['menu_store_status', 'menu_delivery_notice', 'menu_push_broadcast', 'menu_promotions', 'menu_offer_campaigns', 'menu_flash_message'], tabs: ['store-status'] },
                 { perms: ['menu_users'], tabs: ['accounts'] },
                 { perms: ['menu_riders'], tabs: ['riders'] },
                                 { perms: ['menu_payments'], tabs: ['payments'] },
@@ -12752,13 +12760,13 @@ async function applyRoleRestrictions() {
 
                 { perms: ['menu_report_orders', 'menu_reports'], tabs: ['order-reports'] },
                 { perms: ['menu_report_inventory', 'menu_reports'], tabs: ['inventory-report'] },
-                { perms: ['menu_report_sales', 'menu_reports'], tabs: ['sale-reports'] },
+                { perms: SALE_REPORT_RIGHT_KEYS, tabs: ['sale-reports'] },
                 { perms: ['menu_report_riders', 'menu_reports'], tabs: ['rider-reports'] },
                 { perms: ['menu_report_stores', 'menu_reports'], tabs: ['store-reports'] },
                 { perms: ['menu_report_store_payment_terms', 'menu_reports'], tabs: ['store-payment-term-reports'] },
-                { perms: ['menu_report_financial', 'menu_reports'], tabs: ['financial-reports'] },
+                { perms: FINANCIAL_REPORT_RIGHT_KEYS, tabs: ['financial-reports'] },
                 { perms: ['menu_financial_dashboard', 'menu_reports'], tabs: ['financial-dashboard'] },
-                { perms: ['menu_financial_dashboard'], tabs: ['general-ledger'] },
+                { perms: ['menu_general_ledger'], tabs: ['general-ledger'] },
                 { perms: ['menu_gl_accounts', 'menu_financial_dashboard'], tabs: ['gl-accounts'] },
                 { perms: ['report_store_payments'], tabs: ['store-payments'] },
                 { perms: ['report_centre_riders', 'report_centre_stores', 'report_centre_accounts', 'report_centre_control', 'report_centre_sales'], tabs: ['reports-centre'] },
@@ -12768,7 +12776,7 @@ async function applyRoleRestrictions() {
                 { perms: ['menu_sizes', 'menu_settings'], tabs: ['sizes'] },
 
                 { perms: ['menu_hr', 'menu_hr_payroll'], tabs: ['hr-employees'] },
-                { perms: ['menu_hr'], tabs: ['hr-attendance'] },
+                { perms: ['menu_hr_attendance'], tabs: ['hr-attendance'] },
                 { perms: ['menu_hr_payroll'], tabs: ['hr-payroll'] },
                 { perms: ['menu_financial_cpv', 'menu_financial'], tabs: ['payment-vouchers'] },
                 { perms: ['menu_financial_settlements', 'menu_financial'], tabs: ['store-settlements'] },
@@ -12817,30 +12825,19 @@ async function applyRoleRestrictions() {
                 }
             });
             
-            // Special handling for Financial Reports tab:
-            // If the user has ANY individual report permission (starting with report_), show the main 'financial-reports' tab
-            let hasAnyReportPerm = false;
-            for (let p of perms) {
-                if (p.startsWith('report_')) {
-                    hasAnyReportPerm = true;
-                    break;
-                }
-            }
+            // Sub-menus and page sections that carry their own right (data-right="key ...").
+            document.querySelectorAll('[data-right]').forEach((node) => {
+                if (hasAnyPerm(node.dataset.right.split(/\s+/))) return;
+                node.style.display = 'none';
+                const item = node.tagName === 'A' ? node.closest('li') : null;
+                if (item) item.style.display = 'none';
+            });
 
-            if (hasAnyReportPerm) {
-                // Show financial-reports tab
-                const links = document.querySelectorAll(`.tab-link[data-tab="financial-reports"]`);
-                links.forEach(link => {
-                    link.style.display = 'block';
-                    if (link.closest('li')) link.closest('li').style.display = 'block';
-                });
-                // Ensure parent dropdown is visible if applicable
-                const link = document.querySelector(`.tab-link[data-tab="financial-reports"]`);
-                if (link) {
-                    const dropdown = link.closest('.dropdown');
-                    if (dropdown) dropdown.style.display = 'block';
-                }
-            }
+            // A menu heading with nothing left under it is hidden too.
+            document.querySelectorAll('#navMenu > li.dropdown').forEach((menu) => {
+                const shown = [...menu.querySelectorAll('.dropdown-menu > li')].some((li) => li.style.display !== 'none');
+                if (!shown) menu.style.display = 'none';
+            });
 
             // Handle Actions
             if (!perms.has('action_edit_order')) {
