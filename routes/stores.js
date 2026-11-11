@@ -175,6 +175,22 @@ async function ensureSystemSettingsTable(db) {
     `);
 }
 
+// The app compares versions part by part ("1.2.17+57"), so anything else, such as
+// "53 (1.2.13)", reads as version 531 and makes every phone think it is out of date.
+// Accepts 1.2.17, 1.2.17+57, v1.2.17, "57 (1.2.17)" and "1.2.17 (57)"; returns
+// "1.2.17" or "1.2.17+57", '' for empty, and null when it cannot be understood.
+function normaliseAppVersion(raw) {
+    const text = String(raw == null ? '' : raw).trim();
+    if (!text) return '';
+    let m = text.match(/^v?(\d+\.\d+\.\d+)(?:\s*\+\s*(\d+))?$/i);
+    if (m) return m[2] ? `${m[1]}+${m[2]}` : m[1];
+    m = text.match(/^(\d+)\s*\(\s*v?(\d+\.\d+\.\d+)\s*\)$/i);
+    if (m) return `${m[2]}+${m[1]}`;
+    m = text.match(/^v?(\d+\.\d+\.\d+)\s*\(\s*(\d+)\s*\)$/i);
+    if (m) return `${m[1]}+${m[2]}`;
+    return null;
+}
+
 async function saveAppUpdateSettings(db, {
     version,
     title,
@@ -228,11 +244,12 @@ async function getAppUpdateSettings(db) {
         : 12;
 
     return {
-        latest_version: String(settings.get('app_update_latest_version') || '').trim(),
+        // a value saved before the format check could be unreadable: then no update is announced
+        latest_version: normaliseAppVersion(settings.get('app_update_latest_version')) || '',
         title: String(settings.get('app_update_title') || 'App Update Available').trim(),
         message: String(settings.get('app_update_message') || 'A new version of ServeNow is available on Play Store.').trim(),
         play_store_url: String(settings.get('app_update_play_store_url') || 'https://play.google.com/store/apps/details?id=com.onenetsol.servenow').trim(),
-        minimum_supported_version: String(settings.get('app_update_minimum_supported_version') || '').trim(),
+        minimum_supported_version: normaliseAppVersion(settings.get('app_update_minimum_supported_version')) || '',
         force_update: String(settings.get('app_update_force_update') || '0').trim() === '1',
         reminder_hour: reminderHour
     };
@@ -1430,13 +1447,20 @@ router.get('/app-update-status', authenticateToken, async (req, res) => {
 router.post('/app-update-notification', authenticateToken, adminOrStaff('menu_push_broadcast'), async (req, res) => {
     try {
         const audience = (req.body.audience || 'all').toString().trim().toLowerCase();
-        const version = (req.body.version || '').toString().trim();
+        const version = normaliseAppVersion(req.body.version);
         const title = (req.body.title || '').toString().trim() || 'App Update Available';
         const message = (req.body.message || '').toString().trim();
         const playStoreUrl = (req.body.play_store_url || '').toString().trim() ||
             'https://play.google.com/store/apps/details?id=com.onenetsol.servenow';
-        const minimumSupportedVersion = (req.body.minimum_supported_version || '').toString().trim();
+        const minimumSupportedVersion = normaliseAppVersion(req.body.minimum_supported_version);
         const forceUpdate = !!req.body.force_update;
+
+        if (version === null || minimumSupportedVersion === null) {
+            return res.status(400).json({
+                success: false,
+                message: 'Version must look like 1.2.17 or 1.2.17+57 (version name, then + and the build number)'
+            });
+        }
 
         if (title.length > 120) {
             return res.status(400).json({
@@ -3317,6 +3341,7 @@ router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.normaliseAppVersion = normaliseAppVersion;
 
 // Upload cover image for store: accepts single file and generates resized variants
 router.post('/upload-image', authenticateToken, requireStoreOwner, upload.single('image'), async (req, res) => {
