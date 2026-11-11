@@ -444,6 +444,36 @@ async function daybook(db, filters, { today = localYmd() } = {}) {
     }
   }
 
+  // What customers paid, delivery charges included, dated like the purchases (the rider's
+  // first collection for the order, else its last update). One store: only its orders.
+  const cents = (v) => Math.round(Number(v || 0) * 100);
+  const storeOrders = new Set([...orders.keys()].map((k) => Number(k.split('|')[0])));
+  const [delivered] = await db.query(
+    `SELECT o.id, o.total_amount, o.delivery_fee, LOWER(COALESCE(o.payment_method, 'cash')) AS method,
+            DATE_FORMAT(COALESCE(o.updated_at, o.created_at), '%Y-%m-%d') AS updated
+     FROM orders o WHERE o.status = 'delivered'`
+  );
+  const [collected] = await db.query(
+    `SELECT wt.reference_id AS order_id, DATE_FORMAT(MIN(wt.created_at), '%Y-%m-%d') AS first_collect
+     FROM wallet_transactions wt JOIN wallets w ON w.id = wt.wallet_id
+     WHERE w.rider_id IS NOT NULL AND wt.type = 'credit' AND wt.reference_type = 'order'
+     GROUP BY wt.reference_id`
+  );
+  const collectedOn = new Map(collected.map((c) => [String(c.order_id), c.first_collect]));
+  const cashDays = new Map();
+  for (const o of delivered) {
+    if (f.storeId && !storeOrders.has(Number(o.id))) continue;
+    const date = collectedOn.get(String(o.id)) || o.updated;
+    if (!date || !inRange(date, f.from, f.to)) continue;
+    if (!cashDays.has(date)) cashDays.set(date, { orders: 0, total: 0, fee: 0, not_cash: 0 });
+    const c = cashDays.get(date);
+    c.orders += 1;
+    c.total += cents(o.total_amount);
+    c.fee += cents(o.delivery_fee);
+    if (o.method !== 'cash') c.not_cash += cents(o.total_amount);
+    day(date); // a day with only delivery-fee orders still gets a row
+  }
+
   const summary = [...days.values()].sort((a, b) => a.date.localeCompare(b.date)).map((d) => {
     const purchase = d.cash_purchase + d.credit_purchase;
     const paid = d.paid_pickup + d.paid_other + d.fuel;
@@ -452,6 +482,16 @@ async function daybook(db, filters, { today = localYmd() } = {}) {
       cash_purchase: fromCents(d.cash_purchase), credit_purchase: fromCents(d.credit_purchase), purchase: fromCents(purchase),
       paid_pickup: fromCents(d.paid_pickup), paid_other: fromCents(d.paid_other), fuel: fromCents(d.fuel), paid: fromCents(paid),
       difference: fromCents(purchase - paid),
+    };
+  });
+  const cashRows = [...days.values()].sort((a, b) => a.date.localeCompare(b.date)).map((d) => {
+    const c = cashDays.get(d.date) || { orders: 0, total: 0, fee: 0, not_cash: 0 };
+    const cash = c.total - c.not_cash;
+    const paid = d.paid_pickup + d.paid_other + d.fuel;
+    return {
+      date: d.date, orders: c.orders, sale: fromCents(c.total - c.fee), delivery: fromCents(c.fee), customer_total: fromCents(c.total),
+      not_cash: fromCents(c.not_cash), cash: fromCents(cash), paid: fromCents(paid), to_receive: fromCents(cash - paid),
+      owed_credit: fromCents(d.credit_purchase), earning: fromCents(d.discount + c.fee - d.fuel),
     };
   });
   const orderRows = [...orders.values()]
@@ -494,6 +534,23 @@ async function daybook(db, filters, { today = localYmd() } = {}) {
     ],
     sections: [
       summarySection,
+      {
+        title: 'Summary by day, with delivery charges (cash to receive)',
+        columns: [
+          date('date', 'Date'), count('orders', 'Orders'), money('sale', 'Sale Price'), money('delivery', 'Delivery Charges'),
+          money('customer_total', 'Customer Total'), money('not_cash', 'Less Wallet / Card'), money('cash', 'Cash Collected'),
+          money('paid', 'Less Total Paid'), money('to_receive', 'Cash to Receive'),
+          money('owed_credit', 'Still Owed to Credit Stores'), money('earning', 'Earning (Discount + Delivery - Fuel)'),
+        ],
+        rows: cashRows,
+        totals: totalsOf(cashRows, ['orders', 'sale', 'delivery', 'customer_total', 'not_cash', 'cash', 'paid', 'to_receive', 'owed_credit', 'earning']),
+        notes: [
+          'Customer Total is what customers paid for delivered orders: sale price plus delivery charges. Wallet and card orders are not cash, so they are taken off.',
+          'Cash to Receive = Cash Collected - Total Paid (stores at pickup, stores later, fuel). It is the cash that should be handed in for the day.',
+          'Still Owed to Credit Stores is part of that cash: it is not paid yet and will go to those stores when they are settled.',
+          ...(f.storeId ? ['One store chosen: orders with items from that store, at their full customer total.'] : []),
+        ],
+      },
       {
         title: 'Purchase order-wise',
         columns: [

@@ -5663,7 +5663,7 @@
     <script src="js/reports-centre.js?v=3" defer></script>
     <script src="js/face.js?v=1" defer></script>
     <script src="js/dashboard.js?v=3" defer></script>
-    <script src="js/hr.js?v=12" defer></script>
+    <script src="js/hr.js?v=13" defer></script>
     <script src="js/gl-accounts.js?v=2" defer></script>
     <script src="js/user-rights.js?v=2" defer></script>
     <script src="js/admin.js?v=66" defer></script>
@@ -6692,7 +6692,8 @@
           <div class="form-group"><label>Phone</label><input type="text" id="hrEmployeePhone" class="form-control" maxlength="30" /></div>
           <div class="form-group hr-pay-only"><label>Monthly salary (Rs)</label><input type="number" id="hrEmployeeSalary" class="form-control" min="0" step="1" /></div>
           <div class="form-group"><label>Weekly off day</label><select id="hrEmployeeOff" class="form-control"></select></div>
-          <div class="form-group"><label>Shift</label><select id="hrEmployeeShift" class="form-control"></select></div>
+          <div class="form-group"><label>Shift</label><select id="hrEmployeeShift" class="form-control"></select>
+            <small class="hr-hint">Shifts are added under HR &rarr; Attendance &rarr; Shifts. <a href="#" id="hrGoShifts" data-right="menu_hr_attendance">Add a shift</a></small></div>
           <div class="form-group hr-pay-only" id="hrIncentiveGroup"><label>Incentives this person can earn</label>
             <small class="hr-hint">Add as many as apply. Each is checked on its own every month, and all that are earned are paid together.</small>
             <div id="hrIncentiveList" class="hr-incentive-list"></div>

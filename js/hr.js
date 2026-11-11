@@ -746,6 +746,12 @@
     if (target.closest?.('#hrAddEmployee')) openEmployee(null);
     if (target.closest?.('#hrSetUpKiosk')) setUpKiosk();
     if (target.closest?.('#hrAddShift')) openShift(null);
+    if (target.closest?.('#hrGoShifts')) { // from the Employee form to Attendance > Shifts
+      event.preventDefault();
+      closeModal('hrEmployeeModal');
+      document.querySelector('[data-tab="hr-attendance"]')?.click();
+      setTimeout(() => { showView('Shift'); openShift(null); }, 300);
+    }
     const shiftEdit = target.closest?.('[data-hr-shift-edit]');
     if (shiftEdit) openShift(shifts.find((s) => s.id === Number(shiftEdit.dataset.hrShiftEdit)));
     const shiftRemove = target.closest?.('[data-hr-shift-remove]');
